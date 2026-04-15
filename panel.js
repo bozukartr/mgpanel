@@ -42,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const issueForm = document.getElementById('guestIssueForm');
     const recordsTableBody = document.querySelector('#recordsTable tbody');
     const recordCountElement = document.getElementById('recordCount');
-    const photoInput = document.getElementById('photoInput');
     const globalSearch = document.getElementById('globalSearch');
     const dateSearch = document.getElementById('dateSearch');
     const resetFilters = document.getElementById('resetFilters');
@@ -54,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalGuestRoom = document.getElementById('modalGuestRoom');
     const modalDept = document.getElementById('modalDept');
     const modalDesc = document.getElementById('modalDesc');
-    const modalImage = document.getElementById('modalImage');
     const modalViewMode = document.getElementById('modalViewMode');
     const modalEditForm = document.getElementById('modalEditForm');
     const cancelEditBtn = document.getElementById('cancelEditBtn');
@@ -82,31 +80,30 @@ document.addEventListener('DOMContentLoaded', () => {
     issueForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        let photoData = null;
-        if (photoInput.files && photoInput.files[0]) {
-            photoData = await toBase64(photoInput.files[0]);
-        }
+        try {
+            const formData = {
+                date: document.getElementById('date').value,
+                room: document.getElementById('room').value,
+                guestName: document.getElementById('guestName').value,
+                department: document.getElementById('department').value,
+                complaint: document.getElementById('complaint').value,
+                solution: document.getElementById('solution').value,
+                staffInitial: document.getElementById('staffInitial').value,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
 
-        const formData = {
-            date: document.getElementById('date').value,
-            room: document.getElementById('room').value,
-            guestName: document.getElementById('guestName').value,
-            department: document.getElementById('department').value,
-            complaint: document.getElementById('complaint').value,
-            solution: document.getElementById('solution').value,
-            staffInitial: document.getElementById('staffInitial').value,
-            photo: photoData || null,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-
-        db.collection('guestLogs').add(formData).then(() => {
+            await db.collection('guestLogs').add(formData);
+            
             lastSavedRecord = formData;
             issueForm.reset();
             staffInitialInput.value = loggedUsername;
             document.getElementById('date').valueAsDate = new Date();
-            document.querySelector('.file-label .text').textContent = 'Choose a photo';
             successModal.style.display = 'flex';
-        }).catch(err => alert('Error: ' + err.message));
+
+        } catch (err) {
+            alert('Error during saving: ' + err.message);
+            console.error(err);
+        }
     });
 
     // Global Action Handlers
@@ -117,6 +114,42 @@ document.addEventListener('DOMContentLoaded', () => {
         globalSearch.value = '';
         dateSearch.value = '';
         updateView();
+    });
+
+    // Export Excel
+    document.getElementById('exportExcel').addEventListener('click', () => {
+        if (records.length === 0) return alert('No records to export.');
+        const worksheet = XLSX.utils.json_to_sheet(records.map(r => ({
+            Date: r.date,
+            Room: r.room,
+            Guest: r.guestName,
+            Department: r.department,
+            Complaint: r.complaint,
+            Solution: r.solution,
+            Staff: r.staffInitial
+        })));
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Records");
+        XLSX.writeFile(workbook, `Guest_Logs_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    });
+
+    // Export PDF
+    document.getElementById('exportPDF').addEventListener('click', () => {
+        if (records.length === 0) return alert('No records to export.');
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("Guest Issues Log Report", 14, 15);
+        const tableData = records.map(r => [
+            r.date, r.room, r.guestName, r.department, r.complaint, r.staffInitial
+        ]);
+        doc.autoTable({
+            head: [['Date', 'Room', 'Guest', 'Dept', 'Complaint', 'Staff']],
+            body: tableData,
+            startY: 20,
+            theme: 'grid',
+            headStyles: { fillColor: [0, 0, 0] }
+        });
+        doc.save(`Guest_Logs_${new Date().toISOString().slice(0, 10)}.pdf`);
     });
 
     function updateView(textFilter = '', dateFilter = '') {
@@ -144,6 +177,49 @@ document.addEventListener('DOMContentLoaded', () => {
             recordsTableBody.appendChild(row);
         });
         recordCountElement.textContent = filteredRecords.length;
+
+        // Update Insights
+        updateInsights();
+    }
+
+    function updateInsights() {
+        const today = new Date().toISOString().split('T')[0];
+        const todayLogs = records.filter(r => r.date === today);
+        document.getElementById('todayCount').textContent = todayLogs.length;
+
+        const deptCounts = {};
+        records.forEach(r => {
+            deptCounts[r.department] = (deptCounts[r.department] || 0) + 1;
+        });
+        const topDept = Object.keys(deptCounts).reduce((a, b) => deptCounts[a] > deptCounts[b] ? a : b, '-');
+        document.getElementById('topDept').textContent = topDept === '-' ? '-' : topDept.split(' ')[0];
+
+        // Activity Feed (Last 5)
+        const activityFeed = document.getElementById('activityFeed');
+        activityFeed.innerHTML = '';
+        records.slice(0, 5).forEach(r => {
+            const item = document.createElement('div');
+            item.className = 'feed-item';
+            item.innerHTML = `
+                <div class="feed-icon" style="background: ${getDeptColor(r.department)}"></div>
+                <div class="feed-content">
+                    <p><strong>${r.guestName}</strong> (${r.room}) was logged for ${r.department}.</p>
+                    <span>${r.date}</span>
+                </div>
+            `;
+            activityFeed.appendChild(item);
+        });
+    }
+
+    function getDeptColor(dept) {
+        const colors = {
+            'Housekeeping': '#1976d2',
+            'Front Desk': '#7b1fa2',
+            'Engineering': '#ef6c00',
+            'Food & Beverage': '#2e7d32',
+            'Security': '#c62828'
+        };
+        return colors[dept] || '#333';
     }
 
     // Modal CRUD
@@ -152,18 +228,12 @@ document.addEventListener('DOMContentLoaded', () => {
         modalGuestRoom.textContent = `${record.guestName} - Room ${record.room}`;
         modalDept.textContent = record.department;
         modalDesc.innerHTML = `<strong>Complaint:</strong> ${record.complaint}<br><strong>Solution:</strong> ${record.solution}`;
-        
-        if (record.photo) {
-            modalImage.src = record.photo;
-            modalImage.style.display = 'block';
-        } else {
-            modalImage.style.display = 'none';
-        }
 
         modalViewMode.style.display = 'block';
         modalEditForm.style.display = 'none';
         modal.style.display = 'flex';
 
+        document.getElementById('emailModalBtn').onclick = () => draftEmail(record);
         document.getElementById('editModalBtn').onclick = () => startModalEdit(record);
         document.getElementById('deleteModalBtn').onclick = () => {
             if (confirm('Delete this record?')) {
@@ -201,14 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Helpers
-    const toBase64 = file => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-
     function draftEmail(record) {
         const subject = encodeURIComponent(`Guest Issue Report: Room ${record.room} - ${record.guestName}`);
         const body = encodeURIComponent(`Date: ${record.date}\nRoom: ${record.room}\nGuest: ${record.guestName}\nDept: ${record.department}\n\nComplaint: ${record.complaint}\nSolution: ${record.solution}\nStaff: ${record.staffInitial}`);
@@ -224,10 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeModalFunc() { modal.style.display = 'none'; }
     closeModal.onclick = closeModalFunc;
     window.onclick = (e) => { if (e.target == modal) closeModalFunc(); };
-
-    photoInput.addEventListener('change', () => {
-        document.querySelector('.file-label .text').textContent = photoInput.files[0] ? 'Photo selected' : 'Choose a photo';
-    });
 
     document.getElementById('date').valueAsDate = new Date();
 });

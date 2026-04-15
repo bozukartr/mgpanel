@@ -88,16 +88,6 @@
                                 <label>Staff Initial</label>
                                 <input type="text" id="staffInitial" placeholder="e.g. JD" required>
                             </div>
-                            <div class="form-group">
-                                <label>Photo Attachment</label>
-                                <div class="custom-file-upload">
-                                    <input type="file" id="photoInput" accept="image/*">
-                                    <label for="photoInput" class="file-label">
-                                        <span class="icon">📷</span>
-                                        <span class="text">Choose a photo</span>
-                                    </label>
-                                </div>
-                            </div>
                             <button type="submit" class="submit-btn" id="submitBtn">Save Record</button>
                         </form>
                     </aside>
@@ -140,6 +130,30 @@
                             </table>
                         </div>
                     </div>
+
+                    <!-- RIGHT SIDEBAR: Smart Insights -->
+                    <aside class="right-sidebar">
+                        <div class="insight-section">
+                            <h3>Analytics Summary</h3>
+                            <div class="stat-cards">
+                                <div class="stat-mini-card">
+                                    <label>Today's Logs</label>
+                                    <h2 id="todayCount">0</h2>
+                                </div>
+                                <div class="stat-mini-card">
+                                    <label>Top Dept.</label>
+                                    <h2 id="topDept">-</h2>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="insight-section">
+                            <h3>Recent Activity</h3>
+                            <div id="activityFeed" class="activity-feed">
+                                <!-- Activity items will be injected here -->
+                            </div>
+                        </div>
+                    </aside>
                 </div>
             </section>
         </main>
@@ -168,11 +182,9 @@
                             <label>Description</label>
                             <p id="modalDesc">-</p>
                         </div>
-                        <div class="image-preview" id="modalImageContainer">
-                            <img src="" alt="Attachment" id="modalImage" style="display:none; width: 100%; border-radius: 12px; margin-top: 15px;">
-                        </div>
                     </div>
                     <div class="modal-actions">
+                        <button class="action-btn share-btn" id="emailModalBtn">Draft as Email</button>
                         <button class="action-btn edit-btn" id="editModalBtn">Edit Record</button>
                         <button class="action-btn delete-btn" id="deleteModalBtn">Delete</button>
                     </div>

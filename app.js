@@ -28,7 +28,15 @@ document.addEventListener('DOMContentLoaded', () => {
         auth.signInWithEmailAndPassword(email, password)
             .then(() => {
                 localStorage.setItem('hotelUsername', username);
-                window.location.href = 'panel.html';
+                
+                // Trigger Transition
+                logoWrapper.classList.add('expand');
+                loginCard.classList.add('fade-out');
+
+                // Redirect after animation
+                setTimeout(() => {
+                    window.location.href = 'panel.html';
+                }, 800);
             })
             .catch((error) => {
                 alert('Invalid credentials or Firebase error: ' + error.message);
