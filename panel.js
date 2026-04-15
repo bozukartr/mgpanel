@@ -3,9 +3,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const staffInitialInput = document.getElementById('staffInitial');
     const displayUsername = document.getElementById('displayUsername');
     const loggedUsername = localStorage.getItem('hotelUsername') || 'Admin';
+    const toast = document.getElementById('toast');
     
     if(staffInitialInput) staffInitialInput.value = loggedUsername;
     if(displayUsername) displayUsername.textContent = loggedUsername;
+
+    // Toast Function
+    function showToast(message, isError = false) {
+        toast.textContent = message;
+        toast.className = 'toast-notification show' + (isError ? ' error' : '');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
 
     // Logout Functionality
     const logoutBtn = document.getElementById('logoutBtn');
@@ -62,9 +70,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const successEmailBtn = document.getElementById('successEmailBtn');
     const successSkipBtn = document.getElementById('successSkipBtn');
 
+    // Confirm Modal
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+
     let records = [];
     let editingId = null;
     let lastSavedRecord = null;
+    let recordToDelete = null;
 
     // 2. Firebase Data Fetching
     const fetchRecords = () => {
@@ -101,8 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             successModal.style.display = 'flex';
 
         } catch (err) {
-            alert('Error during saving: ' + err.message);
-            console.error(err);
+            showToast('Save failed: ' + err.message, true);
         }
     });
 
@@ -118,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Export Excel
     document.getElementById('exportExcel').addEventListener('click', () => {
-        if (records.length === 0) return alert('No records to export.');
+        if (records.length === 0) return showToast('No records to export.', true);
         const worksheet = XLSX.utils.json_to_sheet(records.map(r => ({
             Date: r.date,
             Room: r.room,
@@ -131,11 +144,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Records");
         XLSX.writeFile(workbook, `Guest_Logs_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        showToast('Excel exported successfully.');
     });
 
     // Export PDF
     document.getElementById('exportPDF').addEventListener('click', () => {
-        if (records.length === 0) return alert('No records to export.');
+        if (records.length === 0) return showToast('No records to export.', true);
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         doc.text("Guest Issues Log Report", 14, 15);
@@ -150,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             headStyles: { fillColor: [0, 0, 0] }
         });
         doc.save(`Guest_Logs_${new Date().toISOString().slice(0, 10)}.pdf`);
+        showToast('PDF exported successfully.');
     });
 
     function updateView(textFilter = '', dateFilter = '') {
@@ -235,12 +250,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('emailModalBtn').onclick = () => draftEmail(record);
         document.getElementById('editModalBtn').onclick = () => startModalEdit(record);
+        
         document.getElementById('deleteModalBtn').onclick = () => {
-            if (confirm('Delete this record?')) {
-                db.collection('guestLogs').doc(record.id).delete().then(() => closeModalFunc());
-            }
+            recordToDelete = record.id;
+            confirmModal.style.display = 'flex';
         };
     }
+
+    confirmDeleteBtn.onclick = () => {
+        if (recordToDelete) {
+            db.collection('guestLogs').doc(recordToDelete).delete().then(() => {
+                confirmModal.style.display = 'none';
+                closeModalFunc();
+                showToast('Record deleted.');
+                recordToDelete = null;
+            });
+        }
+    };
+
+    cancelDeleteBtn.onclick = () => {
+        confirmModal.style.display = 'none';
+        recordToDelete = null;
+    };
 
     function startModalEdit(record) {
         document.getElementById('editDate').value = record.date;
@@ -268,6 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         db.collection('guestLogs').doc(editingId).update(updatedData).then(() => {
             closeModalFunc();
+            showToast('Changes saved.');
         });
     });
 
@@ -285,7 +317,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function closeModalFunc() { modal.style.display = 'none'; }
     closeModal.onclick = closeModalFunc;
-    window.onclick = (e) => { if (e.target == modal) closeModalFunc(); };
+    window.onclick = (e) => { 
+        if (e.target == modal) closeModalFunc(); 
+        if (e.target == confirmModal) { confirmModal.style.display = 'none'; recordToDelete = null; }
+    };
 
     document.getElementById('date').valueAsDate = new Date();
 });

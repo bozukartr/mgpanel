@@ -258,6 +258,20 @@
             </div>
         </div>
     </div>
+    <!-- Confirm Delete Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-body text-center">
+                <div class="warning-icon">!</div>
+                <h3>Confirm Deletion</h3>
+                <p>This record will be permanently removed from the system. This action is irreversible.</p>
+                <div class="modal-actions vertical">
+                    <button class="action-btn delete-confirm-btn" id="confirmDeleteBtn">Delete Forever</button>
+                    <button class="action-btn" id="cancelDeleteBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -272,5 +286,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <script src="panel.js"></script>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast-notification"></div>
 </body>
 </html>

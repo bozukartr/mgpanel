@@ -580,6 +580,81 @@ tr:hover td {
     animation: modalScale 0.5s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
+/* Premium Confirm Modal */
+.small-modal {
+    max-width: 340px !important;
+    padding: 2.5rem 2rem !important;
+    border-radius: 40px !important; /* Extra round premium feel */
+}
+
+.modal-body h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+    color: #111;
+}
+
+.modal-body p {
+    color: #666;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.modal-actions.vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.delete-confirm-btn {
+    background: #ff3b3b !important;
+    color: #fff !important;
+    padding: 16px !important;
+    border-radius: 16px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    border: none !important;
+    box-shadow: 0 10px 20px rgba(255, 59, 59, 0.2) !important;
+}
+.warning-icon {
+    width: 60px;
+    height: 60px;
+    border: 2px solid #ff3b3b;
+    color: #ff3b3b;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    margin: 0 auto 1.5rem auto;
+    background: rgba(255, 59, 59, 0.05);
+}
+
+.delete-confirm-btn:hover {
+    background: #e63535 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px rgba(255, 59, 59, 0.3) !important;
+}
+
+/* Cancel Button for Confirmation */
+#cancelDeleteBtn {
+    background: transparent !important;
+    color: #888 !important;
+    padding: 14px !important;
+    border: 1px solid #eee !important;
+    border-radius: 16px !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+}
+
+#cancelDeleteBtn:hover {
+    background: #f9f9f9 !important;
+    color: #111 !important;
+    border-color: #ddd !important;
+}
+
 @keyframes modalScale {
     from { transform: scale(0.95); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
@@ -722,6 +797,36 @@ tr:hover td {
 .image-preview img {
     border-radius: 16px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+}
+
+/* Toast Notifications */
+.toast-notification {
+    position: fixed;
+    top: 30px;
+    right: 30px;
+    background: #111;
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(30px);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none;
+}
+
+.toast-notification.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+}
+
+.toast-notification.error {
+    background: #ff3b3b;
 }
 
 /* Mobile Responsiveness */

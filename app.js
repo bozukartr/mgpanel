@@ -39,7 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 800);
             })
             .catch((error) => {
-                alert('Invalid credentials or Firebase error: ' + error.message);
+                const errorDiv = document.getElementById('errorMessage');
+                errorDiv.textContent = 'Kullanıcı adı veya şifre hatalı';
+                errorDiv.classList.add('show');
+                
+                // Cleanly handle invalid login without polluting console with technical detail
+                setTimeout(() => errorDiv.classList.remove('show'), 500);
+                setTimeout(() => errorDiv.classList.add('show'), 10);
             });
     });
 });
