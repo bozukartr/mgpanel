@@ -77,14 +77,42 @@ body {
 .user-profile {
     display: flex;
     align-items: center;
-    gap: 20px;
-    font-size: 14px;
+    gap: 15px;
 }
 
-.logout-link {
-    color: #ff3b3b;
-    text-decoration: none;
+#displayUsername {
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+    background: #f0f2f5;
+    padding: 6px 12px;
+    border-radius: 20px;
+}
+
+.logout-btn {
+    background: none;
+    border: 1px solid #eee;
+    padding: 8px 16px;
+    border-radius: 50px;
+    font-size: 11px;
     font-weight: 600;
+    text-transform: uppercase;
+    color: #888;
+    cursor: pointer;
+    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.logout-btn:hover {
+    background: #fff1f1;
+    border-color: #ffdada;
+    color: #ff3b3b;
+}
+
+.logout-btn .icon {
+    font-size: 14px;
 }
 
 /* Main Area */

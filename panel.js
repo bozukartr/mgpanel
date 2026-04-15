@@ -1,8 +1,22 @@
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Auth & Initial Setting
     const staffInitialInput = document.getElementById('staffInitial');
+    const displayUsername = document.getElementById('displayUsername');
     const loggedUsername = localStorage.getItem('hotelUsername') || 'Admin';
+    
     if(staffInitialInput) staffInitialInput.value = loggedUsername;
+    if(displayUsername) displayUsername.textContent = loggedUsername;
+
+    // Logout Functionality
+    const logoutBtn = document.getElementById('logoutBtn');
+    if(logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            auth.signOut().then(() => {
+                localStorage.removeItem('hotelUsername');
+                window.location.href = 'index.html';
+            });
+        });
+    }
 
     auth.onAuthStateChanged(user => {
         if (!user) {
