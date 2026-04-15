@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Experience</title>
+    <meta name="description" content="Ultra minimalistic login experience.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Splash / Logo Area -->
+        <div class="logo-wrapper" id="logoWrapper">
+            <img src="logo.png" alt="Logo" class="logo" id="logo">
+        </div>
+
+        <!-- Login Form Area -->
+        <div class="login-card" id="loginCard">
+            
+            <form id="loginForm">
+                <div class="input-group">
+                    <input type="text" id="username" required placeholder=" ">
+                    <label for="username">Kullanıcı Adı</label>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" id="password" required placeholder=" ">
+                    <label for="password">Şifre</label>
+                </div>
+                
+                <div class="options">
+                    <a href="#" class="forgot-password">Şifremi unuttum</a>
+                </div>
+                
+                <button type="submit" class="login-btn">Devam Et</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    
+    <script src="app.js"></script>
+</body>
+</html>

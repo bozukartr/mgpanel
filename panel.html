@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Management Panel | Premium</title>
+    <link rel="stylesheet" href="panel.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="panel-container">
+        <!-- Header / Navigation -->
+        <header class="panel-header">
+            <div class="logo-small">
+                <img src="logo.png" alt="Logo">
+            </div>
+            <nav class="panel-nav">
+                <button class="nav-btn active" data-tab="concierge">Concierge</button>
+                <button class="nav-btn" data-tab="guest-log">Guest Issues Log</button>
+            </nav>
+            <div class="user-profile">
+                <span>Admin</span>
+                <a href="index.html" class="logout-link">Çıkış</a>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="panel-main">
+            <!-- CONCIERGE TAB -->
+            <section id="concierge" class="tab-content active">
+                <div class="welcome-banner">
+                    <h1>Concierge Dashboard</h1>
+                    <p>Welcome to the premium concierge management system.</p>
+                </div>
+                <!-- Concierge content will go here in next updates -->
+            </section>
+
+            <!-- GUEST ISSUES LOG TAB -->
+            <section id="guest-log" class="tab-content">
+                <div class="dashboard-layout">
+                    <!-- LEFT SIDEBAR: Input Form (Web) -->
+                    <aside class="sidebar-form">
+                        <h3>New Issue Log</h3>
+                        <form id="guestIssueForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Date</label>
+                                    <input type="date" id="date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Room No</label>
+                                    <input type="text" id="room" placeholder="No" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Guest Name</label>
+                                    <input type="text" id="guestName" placeholder="Full name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Department</label>
+                                    <select id="department">
+                                        <option value="Housekeeping">Housekeeping</option>
+                                        <option value="Front Desk">Front Desk</option>
+                                        <option value="Concierge">Concierge</option>
+                                        <option value="Engineering">Engineering</option>
+                                        <option value="Food & Beverage">Food & Beverage</option>
+                                        <option value="Reservations">Reservations</option>
+                                        <option value="Sales & Marketing">Sales & Marketing</option>
+                                        <option value="Spa">Spa</option>
+                                        <option value="Watersports">Watersports</option>
+                                        <option value="Security">Security</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Complaint</label>
+                                <textarea id="complaint" rows="3" placeholder="Describe the issue"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Solution</label>
+                                <textarea id="solution" rows="3" placeholder="Action taken"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Staff Initial</label>
+                                <input type="text" id="staffInitial" placeholder="e.g. JD" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Photo Attachment</label>
+                                <div class="custom-file-upload">
+                                    <input type="file" id="photoInput" accept="image/*">
+                                    <label for="photoInput" class="file-label">
+                                        <span class="icon">📷</span>
+                                        <span class="text">Choose a photo</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <button type="submit" class="submit-btn" id="submitBtn">Save Record</button>
+                        </form>
+                    </aside>
+
+                    <!-- RIGHT SIDE: Data View -->
+                    <div class="data-view">
+                        <div class="data-header">
+                            <div class="header-left">
+                                <h2>Recent Records</h2>
+                                <div class="data-stats">Total: <span id="recordCount">0</span></div>
+                                <div class="export-actions">
+                                    <button id="exportExcel" class="export-btn excel">Excel</button>
+                                    <button id="exportPDF" class="export-btn pdf">PDF</button>
+                                </div>
+                            </div>
+                            <div class="search-area">
+                                <div class="date-filter">
+                                    <input type="date" id="dateSearch">
+                                </div>
+                                <div class="search-box">
+                                    <input type="text" id="globalSearch" placeholder="Search name, room, dept...">
+                                </div>
+                                <button id="resetFilters" class="reset-btn">Reset</button>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table id="recordsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Room</th>
+                                        <th>Guest</th>
+                                        <th>Department</th>
+                                        <th>Staff</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dynamic rows will appear here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Details/Edit Modal -->
+    <div id="recordModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Issue Details</h3>
+                <button class="close-modal" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- VIEW MODE -->
+                <div id="modalViewMode">
+                    <div class="modal-info">
+                        <div class="field-view">
+                            <label>Guest & Room</label>
+                            <p id="modalGuestRoom">-</p>
+                        </div>
+                        <div class="field-view">
+                            <label>Department</label>
+                            <p id="modalDept">-</p>
+                        </div>
+                        <div class="field-view">
+                            <label>Description</label>
+                            <p id="modalDesc">-</p>
+                        </div>
+                        <div class="image-preview" id="modalImageContainer">
+                            <img src="" alt="Attachment" id="modalImage" style="display:none; width: 100%; border-radius: 12px; margin-top: 15px;">
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="action-btn edit-btn" id="editModalBtn">Edit Record</button>
+                        <button class="action-btn delete-btn" id="deleteModalBtn">Delete</button>
+                    </div>
+                </div>
+
+                <!-- EDIT MODE (Initially Hidden) -->
+                <form id="modalEditForm" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Date</label>
+                            <input type="date" id="editDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Room No</label>
+                            <input type="text" id="editRoom" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Guest Name</label>
+                            <input type="text" id="editGuestName" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Department</label>
+                            <select id="editDepartment">
+                                <option value="Housekeeping">Housekeeping</option>
+                                <option value="Front Desk">Front Desk</option>
+                                <option value="Concierge">Concierge</option>
+                                <option value="Engineering">Engineering</option>
+                                <option value="Food & Beverage">Food & Beverage</option>
+                                <option value="Reservations">Reservations</option>
+                                <option value="Sales & Marketing">Sales & Marketing</option>
+                                <option value="Spa">Spa</option>
+                                <option value="Watersports">Watersports</option>
+                                <option value="Security">Security</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Complaint</label>
+                        <textarea id="editComplaint" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Solution</label>
+                        <textarea id="editSolution" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Staff Initial</label>
+                        <input type="text" id="editStaffInitial" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" class="action-btn save-btn">Save Changes</button>
+                        <button type="button" class="action-btn cancel-btn" id="cancelEditBtn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success & Action Modal -->
+    <div id="successModal" class="modal">
+        <div class="modal-content success-content">
+            <div class="modal-body text-center">
+                <div class="success-icon">✓</div>
+                <h3>Record Saved!</h3>
+                <p>Would you like to draft an email for this record now?</p>
+                <div class="modal-actions vertical">
+                    <button class="action-btn email-action-btn" id="successEmailBtn">Draft as Email</button>
+                    <button class="action-btn skip-action-btn" id="successSkipBtn">No, skip this</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <!-- Scripts for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script src="panel.js"></script>
+</body>
+</html>
