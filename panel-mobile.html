@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Hotel Panel</title>
+    <link rel="stylesheet" href="mobile.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- ═══ SCREEN: ISSUES FEED ═══════════════════════════════ -->
+    <div class="screen active" id="screen-issues">
+
+        <!-- Top Bar -->
+        <header class="app-header">
+            <div class="app-header-left">
+                <img src="logo.png" alt="Logo" class="app-logo">
+            </div>
+            <div class="app-header-right">
+                <span class="app-username" id="mob-displayUsername"></span>
+                <button class="app-icon-btn" id="mob-logoutBtn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Strip -->
+        <div class="stats-strip">
+            <div class="stat-pill">
+                <span class="stat-pill-val" id="m-statTotal">0</span>
+                <span class="stat-pill-label">Total</span>
+            </div>
+            <div class="stat-pill following">
+                <span class="stat-pill-val" id="m-statFollowing">0</span>
+                <span class="stat-pill-label">Following</span>
+            </div>
+            <div class="stat-pill solved">
+                <span class="stat-pill-val" id="m-statSolved">0</span>
+                <span class="stat-pill-label">Solved</span>
+            </div>
+            <div class="stat-pill overdue">
+                <span class="stat-pill-val" id="m-statOverdue">0</span>
+                <span class="stat-pill-label">Overdue</span>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-bar">
+            <div class="search-input-wrap">
+                <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="mob-search" placeholder="Search issues…" autocomplete="off">
+            </div>
+            <input type="date" id="mob-dateFilter" class="date-input">
+        </div>
+
+        <!-- Issues Feed -->
+        <div class="feed" id="mob-feed">
+            <!-- Cards injected by JS -->
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" id="mob-emptyState" style="display:none">
+            <p>📋</p>
+            <span>No issues found</span>
+        </div>
+    </div>
+
+    <!-- ═══ SCREEN: CONCIERGE ══════════════════════════════════ -->
+    <div class="screen" id="screen-concierge">
+        <header class="app-header">
+            <div class="app-header-left">
+                <img src="logo.png" alt="Logo" class="app-logo">
+            </div>
+            <div class="app-header-right">
+                <span class="app-username" id="mob-displayUsername2"></span>
+            </div>
+        </header>
+        <div class="concierge-empty">
+            <span class="concierge-icon">🛎</span>
+            <h2>Concierge</h2>
+            <p>Coming soon</p>
+        </div>
+    </div>
+
+    <!-- ═══ BOTTOM NAV ══════════════════════════════════════════ -->
+    <nav class="bottom-nav">
+        <button class="bnav-btn" data-screen="screen-concierge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            <span>Concierge</span>
+        </button>
+        <button class="bnav-btn active" data-screen="screen-issues">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Issues</span>
+        </button>
+        <button class="bnav-btn" id="mob-adminNav" style="display:none" onclick="window.location.href='admin-mobile.html'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+            <span>Admin</span>
+        </button>
+    </nav>
+
+    <!-- ═══ FAB ═════════════════════════════════════════════════ -->
+    <button class="fab" id="mob-fab">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+
+    <!-- ═══ SHEET: NEW ISSUE ═════════════════════════════════════ -->
+    <div class="sheet-backdrop" id="newIssueBackdrop"></div>
+    <div class="sheet" id="newIssueSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <h3>New Issue</h3>
+            <button class="sheet-close-btn" id="newIssueClose">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="sheet-body">
+            <div class="field-row">
+                <div class="field-group">
+                    <label>Date</label>
+                    <input type="date" id="ni-date">
+                </div>
+                <div class="field-group">
+                    <label>Room</label>
+                    <input type="text" id="ni-room" placeholder="e.g. 205">
+                </div>
+            </div>
+            <div class="field-group">
+                <label>Guest Name</label>
+                <input type="text" id="ni-guest" placeholder="Full name">
+            </div>
+            <div class="field-group">
+                <label>Department</label>
+                <select id="ni-dept">
+                    <option value="Housekeeping">Housekeeping</option>
+                    <option value="Front Desk">Front Desk</option>
+                    <option value="Concierge">Concierge</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Food &amp; Beverage">Food &amp; Beverage</option>
+                    <option value="Reservations">Reservations</option>
+                    <option value="Sales &amp; Marketing">Sales &amp; Marketing</option>
+                    <option value="Spa">Spa</option>
+                    <option value="Watersports">Watersports</option>
+                    <option value="Security">Security</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Complaint</label>
+                <textarea id="ni-complaint" placeholder="Describe the issue…" rows="2"></textarea>
+            </div>
+            <div class="field-group">
+                <label>Solution</label>
+                <textarea id="ni-solution" placeholder="Action taken…" rows="2"></textarea>
+            </div>
+            <button class="primary-btn" id="ni-submit">Save Issue</button>
+        </div>
+    </div>
+
+    <!-- ═══ SHEET: ISSUE DETAIL ══════════════════════════════════ -->
+    <div class="sheet-backdrop" id="detailBackdrop"></div>
+    <div class="sheet" id="detailSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <div>
+                <p class="detail-room" id="d-room"></p>
+                <h3 class="detail-name" id="d-name"></h3>
+            </div>
+            <div class="sheet-top-actions">
+                <button class="sheet-action-btn" id="d-emailBtn" title="Draft Email">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                </button>
+                <button class="sheet-action-btn" id="d-editBtn" title="Edit Record">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="sheet-close-btn" id="detailClose">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="sheet-body">
+            <!-- Status Toggle -->
+            <div class="status-toggle-row">
+                <button class="status-toggle-btn" id="d-setFollowing" data-status="Following">
+                    <span class="stb-dot"></span>
+                    Following
+                </button>
+                <button class="status-toggle-btn" id="d-setSolved" data-status="Solved">
+                    <span class="stb-dot"></span>
+                    Solved
+                </button>
+            </div>
+            <!-- Info Grid -->
+            <div class="detail-grid">
+                <div class="detail-field">
+                    <label>Department</label>
+                    <p id="d-dept"></p>
+                </div>
+                <div class="detail-field">
+                    <label>Date</label>
+                    <p id="d-date"></p>
+                </div>
+                <div class="detail-field">
+                    <label>Staff</label>
+                    <p id="d-staff"></p>
+                </div>
+            </div>
+            <!-- Complaint / Solution -->
+            <div class="detail-section">
+                <label>Complaint</label>
+                <p id="d-complaint"></p>
+            </div>
+            <div class="detail-section">
+                <label>Solution</label>
+                <p id="d-solution"></p>
+            </div>
+            <!-- Timeline -->
+            <div class="timeline-section">
+                <label>Updates</label>
+                <div class="timeline-list" id="d-timeline"></div>
+                <div class="timeline-input-wrap">
+                    <textarea id="d-noteInput" placeholder="Add a note…" rows="1"></textarea>
+                    <button class="note-post-btn" id="d-postNote">Post</button>
+                </div>
+            </div>
+            <!-- Delete -->
+            <button class="danger-btn" id="d-deleteBtn">Delete Record</button>
+        </div>
+    </div>
+
+    <!-- ═══ SHEET: EDIT RECORD ══════════════════════════════════ -->
+    <div class="sheet-backdrop" id="editBackdrop"></div>
+    <div class="sheet" id="editSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <h3>Edit Record</h3>
+            <button class="sheet-close-btn" id="editClose">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="sheet-body">
+            <div class="field-row">
+                <div class="field-group">
+                    <label>Date</label>
+                    <input type="date" id="ed-date">
+                </div>
+                <div class="field-group">
+                    <label>Room</label>
+                    <input type="text" id="ed-room">
+                </div>
+            </div>
+            <div class="field-group">
+                <label>Guest Name</label>
+                <input type="text" id="ed-guest">
+            </div>
+            <div class="field-group">
+                <label>Department</label>
+                <select id="ed-dept">
+                    <option value="Housekeeping">Housekeeping</option>
+                    <option value="Front Desk">Front Desk</option>
+                    <option value="Concierge">Concierge</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Food &amp; Beverage">Food &amp; Beverage</option>
+                    <option value="Reservations">Reservations</option>
+                    <option value="Sales &amp; Marketing">Sales &amp; Marketing</option>
+                    <option value="Spa">Spa</option>
+                    <option value="Watersports">Watersports</option>
+                    <option value="Security">Security</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Complaint</label>
+                <textarea id="ed-complaint" rows="2"></textarea>
+            </div>
+            <div class="field-group">
+                <label>Solution</label>
+                <textarea id="ed-solution" rows="2"></textarea>
+            </div>
+            <button class="primary-btn" id="ed-submit">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- ═══ DELETE CONFIRM ════════════════════════════════════════ -->
+    <div class="sheet-backdrop" id="confirmBackdrop"></div>
+    <div class="sheet confirm-sheet" id="confirmSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-body confirm-body">
+            <p class="confirm-title">Delete this record?</p>
+            <p class="confirm-desc">This action cannot be undone.</p>
+            <button class="danger-btn" id="confirmDeleteYes">Yes, Delete</button>
+            <button class="secondary-btn" id="confirmDeleteNo">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ═══ TOAST ════════════════════════════════════════════════ -->
+    <div class="app-toast" id="mob-toast"></div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="mobile.js"></script>
+</body>
+</html>

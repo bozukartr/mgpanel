@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Console | Core System</title>
+    <!-- Mobile redirect -->
+    <script>
+        if (window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+            window.location.replace('admin-mobile.html');
+        }
+    </script>
+    <link rel="stylesheet" href="panel.css"> <!-- Reusing global tokens -->
+    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="mobilscreen.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="admin-body">
+    <div class="admin-wrapper">
+        <header class="admin-header">
+            <div class="header-left">
+                <span class="badge-admin">Root</span>
+                <h1>Admin Console</h1>
+            </div>
+            <div class="header-right">
+                <button onclick="window.location.href='panel.html'" class="exit-btn">Return to Dashboard</button>
+            </div>
+        </header>
+
+        <div class="admin-grid">
+            <!-- Left: User Management -->
+            <section class="admin-card">
+                <div class="card-header">
+                    <h2>User Management</h2>
+                    <button class="add-user-btn" id="openUserModal">+ Add User</button>
+                </div>
+                <div class="table-container">
+                    <table id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Department</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Users will be listed here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Right: System Activity or Settings -->
+            <section class="admin-card">
+                <div class="card-header">
+                    <h2>System Activity</h2>
+                </div>
+                <div id="activityLogs" class="activity-logs">
+                    <!-- Global logs from Firestore -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- User Management Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>User Settings</h3>
+                <button class="close-modal" id="closeUserModal">&times;</button>
+            </div>
+            <form id="userForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="adminNewUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="adminNewPassword" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select id="adminUserRole">
+                            <option value="Staff">Staff</option>
+                            <option value="Manager">Manager</option>
+                            <option value="Admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Default Department</label>
+                        <select id="adminUserDept">
+                            <option value="Housekeeping">Housekeeping</option>
+                            <option value="Front Desk">Front Desk</option>
+                            <option value="Engineering">Engineering</option>
+                            <option value="Food & Beverage">Food & Beverage</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-actions vertical">
+                    <button type="submit" class="action-btn save-btn">Save Permissions</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast-notification"></div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

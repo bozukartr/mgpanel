@@ -1,0 +1,164 @@
+.admin-body {
+    background-color: #f0f2f5;
+    font-family: 'Outfit', sans-serif;
+    color: #111;
+    margin: 0;
+}
+
+.admin-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.admin-header h1 {
+    font-size: 28px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.badge-admin {
+    background: #000;
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 600;
+}
+
+.exit-btn {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.exit-btn:hover {
+    background: #f5f5f5;
+    border-color: #ccc;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 30px;
+}
+
+.admin-card {
+    background: #fff;
+    border-radius: 32px;
+    padding: 30px;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.03);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.card-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.add-user-btn {
+    background: #111;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+/* User Table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    text-align: left;
+    padding: 12px;
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+td {
+    padding: 16px 12px;
+    border-top: 1px solid #f5f5f5;
+    font-size: 14px;
+}
+
+.role-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f0f2f5;
+}
+
+.delete-user-btn {
+    color: #ff3b3b;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* Activity Logs */
+.activity-logs {
+    overflow-y: auto;
+    max-height: 500px;
+}
+
+.log-item {
+    padding: 15px 0;
+    border-bottom: 1px dashed #eee;
+}
+
+.log-item:last-child {
+    border-bottom: none;
+}
+
+.log-item p {
+    margin: 0;
+    font-size: 13px;
+    color: #444;
+}
+
+.log-item span {
+    font-size: 11px;
+    color: #aaa;
+    display: block;
+    margin-top: 4px;
+}
+
+@media (max-width: 1024px) {
+    .admin-grid {
+        grid-template-columns: 1fr;
+    }
+}

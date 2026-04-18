@@ -4,7 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Management Panel | Premium</title>
+    <!-- Mobile redirect — send touch devices to the native app page -->
+    <script>
+        if (window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+            window.location.replace('panel-mobile.html');
+        }
+    </script>
     <link rel="stylesheet" href="panel.css">
+    <link rel="stylesheet" href="mobilscreen.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -17,6 +24,7 @@
             <nav class="panel-nav">
                 <button class="nav-btn active" data-tab="concierge">Concierge</button>
                 <button class="nav-btn" data-tab="guest-log">Guest Issues Log</button>
+                <button class="nav-btn admin-only" id="adminNavLink" style="display: none;" onclick="window.location.href='admin.html'">Admin</button>
             </nav>
             <div class="user-profile">
                 <span id="displayUsername">Admin</span>
@@ -94,6 +102,26 @@
 
                     <!-- RIGHT SIDE: Data View -->
                     <div class="data-view">
+                        <!-- Stats Dashboard -->
+                        <div class="dashboard-stats">
+                            <div class="stat-card">
+                                <span class="stat-label">Total Logs</span>
+                                <span class="stat-value" id="statTotal">0</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label">Following</span>
+                                <span class="stat-value text-orange" id="statFollowing">0</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label">Solved</span>
+                                <span class="stat-value text-green" id="statSolved">0</span>
+                            </div>
+                            <div class="stat-card danger">
+                                <span class="stat-label">Alert (Pending > 4h)</span>
+                                <span class="stat-value text-red" id="statOverdue">0</span>
+                            </div>
+                        </div>
+
                         <div class="data-header">
                             <div class="header-left">
                                 <h2>Recent Records</h2>
@@ -122,6 +150,7 @@
                                         <th>Guest</th>
                                         <th>Department</th>
                                         <th>Staff</th>
+                                        <th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -162,14 +191,22 @@
     <!-- Details/Edit Modal -->
     <div id="recordModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header">
-                <h3>Issue Details</h3>
-                <button class="close-modal" id="closeModal">&times;</button>
+            <div class="modal-header compact">
+                <div class="header-main">
+                    <span id="modalStatusBadge" class="status-badge">Following</span>
+                    <h3>Issue Details</h3>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn" id="emailModalBtn" title="Draft Email">✉</button>
+                    <button class="icon-btn" id="editModalBtn" title="Edit">✎</button>
+                    <button class="icon-btn delete" id="deleteModalBtn" title="Delete">🗑</button>
+                    <button class="close-modal" id="closeModal">&times;</button>
+                </div>
             </div>
             <div class="modal-body">
                 <!-- VIEW MODE -->
                 <div id="modalViewMode">
-                    <div class="modal-info">
+                    <div class="compact-grid">
                         <div class="field-view">
                             <label>Guest & Room</label>
                             <p id="modalGuestRoom">-</p>
@@ -178,15 +215,28 @@
                             <label>Department</label>
                             <p id="modalDept">-</p>
                         </div>
-                        <div class="field-view">
-                            <label>Description</label>
-                            <p id="modalDesc">-</p>
+                    </div>
+                    
+                    <div class="field-view full-width">
+                        <label>Description</label>
+                        <p id="modalDesc">-</p>
+                    </div>
+
+                    <div class="compact-status-row">
+                        <span>Change Status:</span>
+                        <div class="status-controls">
+                            <button class="status-btn" id="setFollowingBtn">Follow</button>
+                            <button class="status-btn" id="setSolvedBtn">Solve</button>
                         </div>
                     </div>
-                    <div class="modal-actions">
-                        <button class="action-btn share-btn" id="emailModalBtn">Draft as Email</button>
-                        <button class="action-btn edit-btn" id="editModalBtn">Edit Record</button>
-                        <button class="action-btn delete-btn" id="deleteModalBtn">Delete</button>
+
+                    <div class="timeline-section compact">
+                        <h4>Timeline Updates</h4>
+                        <div id="timelineFeed" class="timeline-feed"></div>
+                        <div class="timeline-input compact">
+                            <textarea id="noteInput" rows="1" placeholder="Type a note..."></textarea>
+                            <button id="postNoteBtn" class="post-btn">Post</button>
+                        </div>
                     </div>
                 </div>
 
@@ -231,9 +281,18 @@
                         <label>Solution</label>
                         <textarea id="editSolution" rows="2"></textarea>
                     </div>
-                    <div class="form-group">
-                        <label>Staff Initial</label>
-                        <input type="text" id="editStaffInitial" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Staff Initial</label>
+                            <input type="text" id="editStaffInitial" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="editStatus">
+                                <option value="Following">Following</option>
+                                <option value="Solved">Solved</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="modal-actions">
                         <button type="submit" class="action-btn save-btn">Save Changes</button>
@@ -289,5 +348,78 @@
 
     <!-- Toast Notification -->
     <div id="toast" class="toast-notification"></div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav">
+        <button class="mob-nav-btn active" data-tab="concierge" id="mobConciergeBtn">
+            <span class="mob-icon">🛎</span>
+            <span>Concierge</span>
+        </button>
+        <button class="mob-nav-btn" data-tab="guest-log" id="mobIssuesBtn">
+            <span class="mob-icon">📋</span>
+            <span>Issues</span>
+        </button>
+        <button class="mob-nav-btn admin-only" id="mobAdminBtn" style="display:none;" onclick="window.location.href='admin.html'">
+            <span class="mob-icon">⚙️</span>
+            <span>Admin</span>
+        </button>
+    </nav>
+
+    <!-- Mobile FAB — New Issue -->
+    <button class="mob-fab" id="mobFab" aria-label="New Issue">
+        <span>＋</span>
+    </button>
+
+    <!-- Mobile Bottom Sheet: New Issue Form -->
+    <div class="mob-sheet-backdrop" id="mobSheetBackdrop"></div>
+    <div class="mob-sheet" id="mobSheet">
+        <div class="mob-sheet-handle"></div>
+        <div class="mob-sheet-header">
+            <h3>New Issue</h3>
+            <button class="mob-sheet-close" id="mobSheetClose">✕</button>
+        </div>
+        <div class="mob-sheet-body">
+            <!-- Reuses the same form but targets same IDs — JS submits guestIssueForm -->
+            <div class="mob-form-row">
+                <div class="mob-form-group">
+                    <label>Date</label>
+                    <input type="date" id="mob-date">
+                </div>
+                <div class="mob-form-group">
+                    <label>Room No</label>
+                    <input type="text" id="mob-room" placeholder="101">
+                </div>
+            </div>
+            <div class="mob-form-group full">
+                <label>Guest Name</label>
+                <input type="text" id="mob-guestName" placeholder="Full name">
+            </div>
+            <div class="mob-form-group full">
+                <label>Department</label>
+                <select id="mob-department">
+                    <option value="Housekeeping">Housekeeping</option>
+                    <option value="Front Desk">Front Desk</option>
+                    <option value="Concierge">Concierge</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Food &amp; Beverage">Food &amp; Beverage</option>
+                    <option value="Reservations">Reservations</option>
+                    <option value="Sales &amp; Marketing">Sales &amp; Marketing</option>
+                    <option value="Spa">Spa</option>
+                    <option value="Watersports">Watersports</option>
+                    <option value="Security">Security</option>
+                </select>
+            </div>
+            <div class="mob-form-group full">
+                <label>Complaint</label>
+                <textarea id="mob-complaint" rows="2" placeholder="Describe the issue…"></textarea>
+            </div>
+            <div class="mob-form-group full">
+                <label>Solution</label>
+                <textarea id="mob-solution" rows="2" placeholder="Action taken…"></textarea>
+            </div>
+            <button class="mob-submit-btn" id="mobSubmitBtn">Save Issue</button>
+        </div>
+    </div>
+
 </body>
 </html>

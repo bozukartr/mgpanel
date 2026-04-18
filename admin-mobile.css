@@ -1,0 +1,288 @@
+/* admin-mobile.css — Admin Console Mobile Styles
+   Extends mobile.css tokens, adds admin-specific components */
+
+/* ── PAGE LAYOUT ─────────────────────────────────────────── */
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg);
+}
+
+/* ── ADMIN HEADER ────────────────────────────────────────── */
+.adm-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,0.95);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    padding-bottom: 14px;
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: calc(16px + env(safe-area-inset-right, 0px));
+    gap: 12px;
+}
+
+.adm-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.adm-back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    flex-shrink: 0;
+    touch-action: manipulation;
+}
+
+.adm-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--overdue);
+    background: #ffebee;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-bottom: 2px;
+}
+
+.adm-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adm-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    touch-action: manipulation;
+    transition: opacity 0.15s;
+}
+
+.adm-add-btn:active { opacity: 0.8; }
+
+/* ── SEGMENT TABS ────────────────────────────────────────── */
+.adm-segment {
+    flex-shrink: 0;
+    display: flex;
+    gap: 6px;
+    background: rgba(255,255,255,0.9);
+    padding: 10px 16px 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.seg-btn {
+    flex: 1;
+    height: 36px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Outfit', sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.18s;
+    touch-action: manipulation;
+}
+
+.seg-btn.active {
+    background: var(--accent);
+    color: #fff;
+}
+
+/* ── TABS ────────────────────────────────────────────────── */
+.adm-tab {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px max(16px, env(safe-area-inset-left, 0px));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.adm-tab::-webkit-scrollbar { display: none; }
+
+.adm-tab.active {
+    display: flex;
+}
+
+/* ── USER CARD ───────────────────────────────────────────── */
+.user-card {
+    background: var(--surface);
+    border-radius: 18px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.12s;
+}
+
+.user-card:active { transform: scale(0.98); }
+
+.user-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.user-card-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.user-card-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.role-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--bg);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.role-badge.admin  { background: #fff0d9; color: var(--following); }
+.role-badge.manager { background: #dff3e3; color: var(--solved); }
+
+.user-card-delete {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: #ffebee;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--overdue);
+    flex-shrink: 0;
+    touch-action: manipulation;
+}
+
+.user-card-delete:active { opacity: 0.7; }
+
+/* ── EMPTY STATE ─────────────────────────────────────────── */
+.adm-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-muted);
+    padding-bottom: 40px;
+}
+
+.adm-empty span { font-size: 40px; }
+.adm-empty p    { font-size: 14px; font-weight: 500; }
+
+/* ── ACTIVITY LIST ───────────────────────────────────────── */
+.activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.activity-item {
+    background: var(--surface);
+    border-radius: 18px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+}
+
+.activity-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.activity-staff {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.activity-dept {
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--bg);
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: 8px;
+}
+
+.activity-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.activity-date {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* ── USER LIST CONTAINER ─────────────────────────────────── */
+.user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}

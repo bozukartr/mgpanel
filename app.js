@@ -1,51 +1,58 @@
 document.addEventListener('DOMContentLoaded', () => {
     const logoWrapper = document.getElementById('logoWrapper');
     const loginCard = document.getElementById('loginCard');
+    const loginForm = document.getElementById('loginForm');
+    const errorMessage = document.getElementById('errorMessage');
 
     // Başlangıç animasyonu
-    // Logo göründükten (1.2s) sonra yukarı kaymaya başlasın
     setTimeout(() => {
         logoWrapper.classList.add('active');
-        
-        // Logo yukarı kaymaya başladığında login kartı aşağıdan gelsin
         setTimeout(() => {
             loginCard.classList.add('show');
-        }, 400); // 400ms gecikme logo hareketine derinlik katar
-        
+        }, 400);
     }, 1200); 
 
     // Form gönderimi
-    const loginForm = document.getElementById('loginForm');
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
-        const username = document.getElementById('username').value;
+        const userInput = document.getElementById('username').value.trim();
+        const email = userInput.includes('@') ? userInput : userInput + "@hotel.com";
         const password = document.getElementById('password').value;
 
-        // Firebase Auth uses Email, we append @hotel.com as a convention
-        const email = username.includes('@') ? username : `${username}@hotel.com`;
+        try {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            const uid = userCredential.user.uid;
 
-        auth.signInWithEmailAndPassword(email, password)
-            .then(() => {
-                localStorage.setItem('hotelUsername', username);
-                
-                // Trigger Transition
-                logoWrapper.classList.add('expand');
-                loginCard.classList.add('fade-out');
+            // Fetch extra info from Firestore (Roles/Dept)
+            const userDoc = await db.collection('systemUsers').doc(uid).get();
+            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                localStorage.setItem('hotelUsername', userData.username);
+                localStorage.setItem('hotelDept', userData.department);
+                localStorage.setItem('hotelRole', userData.role);
+            } else {
+                // Compatibility for users not yet in systemUsers
+                localStorage.setItem('hotelUsername', userInput);
+            }
 
-                // Redirect after animation
-                setTimeout(() => {
-                    window.location.href = 'panel.html';
-                }, 800);
-            })
-            .catch((error) => {
-                const errorDiv = document.getElementById('errorMessage');
-                errorDiv.textContent = 'Kullanıcı adı veya şifre hatalı';
-                errorDiv.classList.add('show');
-                
-                // Cleanly handle invalid login without polluting console with technical detail
-                setTimeout(() => errorDiv.classList.remove('show'), 500);
-                setTimeout(() => errorDiv.classList.add('show'), 10);
-            });
+            // Success Transition
+            logoWrapper.classList.add('expand');
+            loginCard.classList.add('fade-out');
+
+            setTimeout(() => {
+                window.location.href = 'panel.html';
+            }, 800);
+
+        } catch (error) {
+            console.error("Login Error:", error.message);
+            loginCard.classList.add('shake');
+            errorMessage.textContent = "Kullanıcı adı veya şifre yanlış";
+            errorMessage.classList.add('show');
+            
+            setTimeout(() => {
+                loginCard.classList.remove('shake');
+            }, 500);
+        }
     });
 });
