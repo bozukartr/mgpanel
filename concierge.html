@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Concierge Console</title>
+    <link rel="stylesheet" href="mobile.css">
+    <link rel="stylesheet" href="concierge.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- html2pdf.js for Itinerary Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+<div id="c-scroller">
+
+    <!-- ── HEADER ──────────────────────────────────────────── -->
+    <header class="app-header">
+        <div class="app-header-left">
+            <img src="logo.png" alt="Logo" class="app-logo">
+        </div>
+        <div class="app-header-right">
+            <button class="app-icon-btn report" id="c-openReport" title="Reports">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </button>
+            <button class="app-icon-btn finance" id="c-openFinance" style="display:none" title="Finance">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </button>
+            <button class="app-icon-btn logout" id="c-logoutBtn" title="Logout">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- ── STATS STRIP ──────────────────────────────────────── -->
+    <div class="stats-strip centered">
+        <div class="stat-pill primary" id="c-pillToday">
+            <span class="stat-pill-val" id="c-statToday">0</span>
+            <span class="stat-pill-label">Today</span>
+        </div>
+        <div class="stat-pill following" id="c-pillPending">
+            <span class="stat-pill-val" id="c-statPending">0</span>
+            <span class="stat-pill-label">Pending</span>
+        </div>
+        <div class="stat-pill solved" id="c-pillConfirmed">
+            <span class="stat-pill-val" id="c-statConfirmed">0</span>
+            <span class="stat-pill-label">Confirmed</span>
+        </div>
+    </div>
+
+    <!-- ── SEARCH / FILTER ───────────────────────────────────── -->
+    <div class="search-bar">
+        <div class="search-input-wrap">
+            <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="c-search" placeholder="Search reservations…" autocomplete="off">
+        </div>
+        <input type="date" id="c-dateFilter" class="date-input">
+    </div>
+
+    <!-- ── RESERVATION FEED ──────────────────────────────────── -->
+    <div class="feed" id="c-feed">
+        <!-- Cards injected by JS -->
+    </div>
+
+    <div class="empty-state" id="c-emptyState" style="display:none">
+        <p>🛎️</p>
+        <span>No reservations found</span>
+    </div>
+</div>
+
+    <!-- ── BOTTOM NAV ────────────────────────────────────────── -->
+    <nav class="bottom-nav">
+        <button class="bnav-btn active">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            <span>Concierge</span>
+        </button>
+        <button class="bnav-btn" onclick="window.location.href='panel-mobile.html'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Issues</span>
+        </button>
+        <button class="bnav-btn" id="c-adminNav" style="display:none" onclick="window.location.href='admin-mobile.html'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+            <span>Admin</span>
+        </button>
+    </nav>
+
+    <!-- ── FAB ────────────────────────────────────────────────── -->
+    <button class="fab" id="c-fab">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+
+    <!-- ── BOTTOM SHEET: NEW RESERVATION ────────────────────── -->
+    <div class="sheet-backdrop" id="resBackdrop"></div>
+    <div class="sheet" id="resSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <h3>New Reservation</h3>
+            <button class="sheet-close-btn" id="resClose">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="sheet-body">
+            <div class="field-group">
+                <label>Service Type</label>
+                <select id="rs-type">
+                    <option value="Restaurant">🍽️ Restaurant</option>
+                    <option value="Transfer">🚗 Transfer</option>
+                    <option value="Flower">🌸 Flower Order</option>
+                    <option value="Cake">🎂 Cake Order</option>
+                    <option value="Boat">🛥️ Boat Reservation</option>
+                    <option value="Tour">🗺️ Tour / Excursion</option>
+                    <option value="Other">✨ Other</option>
+                </select>
+            </div>
+            <div class="field-row">
+                <div class="field-group">
+                    <label>Guest Name</label>
+                    <input type="text" id="rs-guest" placeholder="Name surname" list="guest-list">
+                    <datalist id="guest-list"></datalist>
+                </div>
+                <div class="field-group">
+                    <label>Room</label>
+                    <input type="text" id="rs-room" placeholder="No" inputmode="numeric">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field-group">
+                    <label>Date</label>
+                    <input type="date" id="rs-date">
+                </div>
+                <div class="field-group">
+                    <label>Time</label>
+                    <input type="time" id="rs-time">
+                </div>
+            </div>
+
+            <!-- Dynamic Fields Container -->
+            <div id="rs-dynamic-fields" class="dynamic-group">
+                <!-- Specific fields injected by JS -->
+            </div>
+
+            <div class="field-row" id="rs-finance-group">
+                <div class="field-group">
+                    <label>Price</label>
+                    <input type="number" id="rs-price" placeholder="0.00" inputmode="decimal">
+                </div>
+                <div class="field-group">
+                    <label>Deposit Paid</label>
+                    <input type="number" id="rs-deposit" placeholder="0.00" inputmode="decimal">
+                </div>
+            </div>
+
+            <div class="field-group" id="rs-voucher-group">
+                <label>Voucher / Confirmation No</label>
+                <input type="text" id="rs-voucher" placeholder="Required for confirmation">
+            </div>
+            
+            <div class="field-group">
+                <label>Internal Notes</label>
+                <textarea id="rs-notes" placeholder="Vendor info, specific requests..."></textarea>
+            </div>
+
+            <button class="primary-btn" id="rs-submit">Log Reservation</button>
+        </div>
+    </div>
+
+    <!-- ── BOTTOM SHEET: DETAIL ────────────────────────────── -->
+    <div class="sheet-backdrop" id="detailBackdrop"></div>
+    <div class="sheet" id="detailSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <div>
+                <p class="detail-room" id="d-room"></p>
+                <h3 class="detail-name" id="d-guest"></h3>
+            </div>
+            <div class="sheet-top-actions">
+                <button class="sheet-action-btn" id="d-editBtn" title="Edit">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="sheet-action-btn" id="d-itineraryBtn" title="Get Itinerary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </button>
+                <button class="sheet-action-btn delete" id="d-deleteBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+                <button class="sheet-close-btn" id="detailClose">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="sheet-body">
+            <!-- Status Toggle -->
+            <div class="status-toggle-row">
+                <button class="status-toggle-btn" id="d-setPending" data-status="Pending">
+                    <span class="stb-dot"></span> Pending
+                </button>
+                <button class="status-toggle-btn" id="d-setConfirmed" data-status="Confirmed">
+                    <span class="stb-dot"></span> Confirmed
+                </button>
+                <button class="status-toggle-btn" id="d-setCancelled" data-status="Cancelled">
+                    <span class="stb-dot"></span> Cancelled
+                </button>
+            </div>
+
+            <div class="res-detail-main">
+                <div class="res-type-badge" id="d-type"></div>
+                <div class="res-time-info">
+                    <span id="d-date"></span> • <span id="d-time"></span>
+                </div>
+            </div>
+
+            <div class="detail-grid">
+                <div class="detail-field">
+                    <label>Balance</label>
+                    <p id="d-balance" class="balance-text"></p>
+                </div>
+                <div class="detail-field">
+                    <label>Price</label>
+                    <p id="d-price"></p>
+                </div>
+                <div class="detail-field">
+                    <label>Deposit</label>
+                    <p id="d-deposit"></p>
+                </div>
+            </div>
+
+            <div id="d-dynamic-info" class="detail-section">
+                <!-- Dynamic info here -->
+            </div>
+
+            <div class="detail-section">
+                <label>Voucher / Confirmation No</label>
+                <p id="d-voucher" style="font-weight:700"></p>
+            </div>
+
+            <div class="detail-section">
+                <label>Staff Initial</label>
+                <p id="d-staff"></p>
+            </div>
+
+            <div class="detail-section">
+                <label>Notes</label>
+                <p id="d-notes"></p>
+            </div>
+
+            <!-- ── INLINE DELETE CONFIRM ────────────────── -->
+            <div id="d-delete-confirm" class="delete-confirmation" style="display:none">
+                <div class="dc-content">
+                    <p>Permanently delete this record?</p>
+                    <div class="dc-actions">
+                        <button class="dc-btn confirm" id="d-confirmDelete">Yes, Delete</button>
+                        <button class="dc-btn cancel" id="d-cancelDelete">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── BOTTOM SHEET: EDIT RESERVATION ───────────────────── -->
+    <div class="sheet-backdrop" id="editBackdrop"></div>
+    <div class="sheet" id="editSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <h3>Edit Reservation</h3>
+            <button class="sheet-close-btn" id="editClose">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="sheet-body">
+            <div class="field-row">
+                <div class="field-group">
+                    <label>Guest Name</label>
+                    <input type="text" id="ed-guest">
+                </div>
+                <div class="field-group">
+                    <label>Room</label>
+                    <input type="text" id="ed-room">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field-group">
+                    <label>Date</label>
+                    <input type="date" id="ed-date">
+                </div>
+                <div class="field-group">
+                    <label>Time</label>
+                    <input type="time" id="ed-time">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field-group">
+                    <label>Price</label>
+                    <input type="number" id="ed-price">
+                </div>
+                <div class="field-group">
+                    <label>Deposit</label>
+                    <input type="number" id="ed-deposit">
+                </div>
+            </div>
+            <div class="field-group">
+                <label>Voucher / Confirmation No</label>
+                <input type="text" id="ed-voucher">
+            </div>
+            <div class="field-group">
+                <label>Notes</label>
+                <textarea id="ed-notes"></textarea>
+            </div>
+            <button class="primary-btn" id="ed-submit">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- ── BOTTOM SHEET: REPORTING ────────────────────────── -->
+    <div class="sheet-backdrop" id="reportBackdrop"></div>
+    <div class="sheet" id="reportSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <h3>Guest Reports</h3>
+            <button class="sheet-close-btn" id="reportClose">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="sheet-body">
+            <p class="sheet-desc">Select a guest and generate a complete itinerary of all their reservations.</p>
+            <div class="field-group">
+                <label>Select Guest</label>
+                <div class="search-input-wrap">
+                    <input type="text" id="rep-guest-search" placeholder="Type name..." list="rep-guest-list">
+                    <datalist id="rep-guest-list"></datalist>
+                </div>
+            </div>
+            
+            <div id="rep-guest-info" class="report-box" style="display:none">
+                <div class="rb-header">
+                    <span id="rep-sel-guest"></span>
+                    <span id="rep-sel-room" class="room-badge"></span>
+                </div>
+                <div id="rep-sel-count" class="rb-sub"></div>
+                <button class="primary-btn mt-12" id="rep-gen-btn">Generate Itinerary PDF</button>
+            </div>
+
+            <div class="info-note">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+                PDF includes only confirmed and pending reservations.
+            </div>
+        </div>
+    </div>
+
+    <!-- ── BOTTOM SHEET: FINANCE ──────────────────────────── -->
+    <div class="sheet-backdrop" id="financeBackdrop"></div>
+    <div class="sheet" id="financeSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <h3>Financial Summary</h3>
+            <button class="sheet-close-btn" id="financeClose">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="sheet-body">
+            <div class="finance-grid">
+                <div class="finance-card total">
+                    <label>Gross Revenue</label>
+                    <h2 id="f-totalRev">€0</h2>
+                </div>
+                <div class="finance-card deposit">
+                    <label>Total Deposits</label>
+                    <h2 id="f-totalDep">€0</h2>
+                </div>
+                <div class="finance-card balance">
+                    <label>Remaining Balance</label>
+                    <h2 id="f-totalBal">€0</h2>
+                </div>
+            </div>
+
+            <h4 class="mt-24">Revenue by Category</h4>
+            <div id="f-category-list" class="finance-list">
+                <!-- Categories injected by JS -->
+            </div>
+
+            <div class="info-note mt-24">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
+                Includes all active reservations (excluding cancelled).
+            </div>
+        </div>
+    </div>
+    <div id="itinerary-pdf" style="display:none; padding: 40px; font-family: sans-serif;">
+        <!-- Content generated by JS -->
+    </div>
+
+    <!-- ── TOAST ────────────────────────────────────────────── -->
+    <div class="app-toast" id="c-toast"></div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="concierge.js"></script>
+    <!-- ── SELECTION MODAL (For Reports) ───────────────────── -->
+    <div class="sheet-backdrop" id="selBackdrop"></div>
+    <div class="sheet" id="selSheet">
+        <div class="sheet-pill"></div>
+        <div class="sheet-top">
+            <h3>Select Services</h3>
+            <button class="sheet-close-btn" id="selClose">✕</button>
+        </div>
+        <div class="sheet-body">
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Choose items to include in the itinerary.</p>
+            <div id="sel-options-list">
+                <!-- Dynamically filled -->
+            </div>
+            <button class="primary-btn w-100" id="sel-confirm-btn">Confirm & Generate PDF</button>
+        </div>
+    </div>
+</body>
+</html>

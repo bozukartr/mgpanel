@@ -68,26 +68,10 @@
         </div>
     </div>
 
-    <!-- ═══ SCREEN: CONCIERGE ══════════════════════════════════ -->
-    <div class="screen" id="screen-concierge">
-        <header class="app-header">
-            <div class="app-header-left">
-                <img src="logo.png" alt="Logo" class="app-logo">
-            </div>
-            <div class="app-header-right">
-                <span class="app-username" id="mob-displayUsername2"></span>
-            </div>
-        </header>
-        <div class="concierge-empty">
-            <span class="concierge-icon">🛎</span>
-            <h2>Concierge</h2>
-            <p>Coming soon</p>
-        </div>
-    </div>
 
     <!-- ═══ BOTTOM NAV ══════════════════════════════════════════ -->
     <nav class="bottom-nav">
-        <button class="bnav-btn" data-screen="screen-concierge">
+        <button class="bnav-btn" onclick="window.location.href='concierge.html'">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
             <span>Concierge</span>
         </button>
@@ -124,7 +108,7 @@
                 </div>
                 <div class="field-group">
                     <label>Room</label>
-                    <input type="text" id="ni-room" placeholder="e.g. 205">
+                    <input type="text" id="ni-room" placeholder="e.g. 205" inputmode="numeric">
                 </div>
             </div>
             <div class="field-group">
