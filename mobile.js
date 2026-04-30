@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isOverdue = (r) => {
         if (!r.createdAt || r.status === 'Solved') return false;
         const t = r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
-        return (Date.now() - t) / 3600000 > 4;
+        return (Date.now() - t) / 60000 > 15;
     };
 
     // ── DATA ───────────────────────────────────────────────────
@@ -119,12 +119,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    let guestMap = {};
+    function updateGuestMap() {
+        guestMap = {};
+        records.forEach(r => { if(r.guestName && r.room) guestMap[r.guestName] = r.room; });
+        const html = Object.keys(guestMap).sort().map(n => `<option value="${n}">${guestMap[n]}</option>`).join('');
+        document.querySelectorAll('#guest-list').forEach(list => list.innerHTML = html);
+    }
+
     db.collection('guestLogs').orderBy('createdAt', 'desc').onSnapshot(snap => {
         records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        updateGuestMap();
         renderFeed();
         if (getSelected()) {
             const refreshed = records.find(r => r.id === getSelected().id);
             if (refreshed) { setSelected(refreshed); window.renderTimeline(refreshed); }
+        }
+    });
+
+    document.getElementById('ni-guest')?.addEventListener('input', (e) => {
+        if(guestMap[e.target.value]) {
+            const roomEl = document.getElementById('ni-room');
+            if(roomEl) roomEl.value = guestMap[e.target.value];
         }
     });
 

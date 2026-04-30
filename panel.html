@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,9 +12,9 @@
         }
     </script>
     <link rel="stylesheet" href="panel.css">
-    <link rel="stylesheet" href="mobilscreen.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div class="panel-container">
         <!-- Header / Navigation -->
@@ -22,9 +23,10 @@
                 <img src="logo.png" alt="Logo">
             </div>
             <nav class="panel-nav">
-                <button class="nav-btn active" data-tab="concierge">Concierge</button>
-                <button class="nav-btn" data-tab="guest-log">Guest Issues Log</button>
-                <button class="nav-btn admin-only" id="adminNavLink" style="display: none;" onclick="window.location.href='admin.html'">Admin</button>
+                <button class="nav-btn" onclick="window.location.href='concierge.html'">Concierge</button>
+                <button class="nav-btn active" data-tab="guest-log">Guest Issues Log</button>
+                <button class="nav-btn admin-only" id="adminNavLink" style="display: none;"
+                    onclick="window.location.href='admin.html'">Admin</button>
             </nav>
             <div class="user-profile">
                 <span id="displayUsername">Admin</span>
@@ -37,7 +39,7 @@
         <!-- Main Content Area -->
         <main class="panel-main">
             <!-- CONCIERGE TAB -->
-            <section id="concierge" class="tab-content active">
+            <section id="concierge" class="tab-content">
                 <div class="welcome-banner">
                     <h1>Concierge Dashboard</h1>
                     <p>Welcome to the premium concierge management system.</p>
@@ -46,7 +48,7 @@
             </section>
 
             <!-- GUEST ISSUES LOG TAB -->
-            <section id="guest-log" class="tab-content">
+            <section id="guest-log" class="tab-content active">
                 <div class="dashboard-layout">
                     <!-- LEFT SIDEBAR: Input Form (Web) -->
                     <aside class="sidebar-form">
@@ -62,11 +64,13 @@
                                     <input type="text" id="room" placeholder="No" required>
                                 </div>
                             </div>
-                            
+
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>Guest Name</label>
-                                    <input type="text" id="guestName" placeholder="Full name" required>
+                                    <input type="text" id="guestName" placeholder="Full name" list="guest-list"
+                                        required>
+                                    <datalist id="guest-list"></datalist>
                                 </div>
                                 <div class="form-group">
                                     <label>Department</label>
@@ -104,29 +108,34 @@
                     <div class="data-view">
                         <!-- Stats Dashboard -->
                         <div class="dashboard-stats">
-                            <div class="stat-card">
+                            <div class="stat-card" id="filterTotal" style="cursor: pointer;"
+                                title="Show all logs for selected date">
                                 <span class="stat-label">Total Logs</span>
                                 <span class="stat-value" id="statTotal">0</span>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card" id="filterFollowing" style="cursor: pointer;"
+                                title="Show following logs">
                                 <span class="stat-label">Following</span>
                                 <span class="stat-value text-orange" id="statFollowing">0</span>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card" id="filterSolved" style="cursor: pointer;" title="Show solved logs">
                                 <span class="stat-label">Solved</span>
                                 <span class="stat-value text-green" id="statSolved">0</span>
                             </div>
-                            <div class="stat-card danger">
-                                <span class="stat-label">Alert (Pending > 4h)</span>
+                            <div class="stat-card danger" id="filterOverdue" style="cursor: pointer;"
+                                title="Show overdue logs">
+                                <span class="stat-label">Alert (Pending > 15m)</span>
                                 <span class="stat-value text-red" id="statOverdue">0</span>
                             </div>
                         </div>
 
                         <div class="data-header">
                             <div class="header-left">
-                                <h2>Recent Records</h2>
+                                <h2 id="tableTitle">Today's Logs</h2>
                                 <div class="data-stats">Total: <span id="recordCount">0</span></div>
                                 <div class="export-actions">
+                                    <button id="guestProfilesBtn" class="export-btn"
+                                        style="background: #2b3a4a; color: #fff; border-color: #2b3a4a;">profıles</button>
                                     <button id="exportExcel" class="export-btn excel">Excel</button>
                                     <button id="exportPDF" class="export-btn pdf">PDF</button>
                                 </div>
@@ -160,29 +169,6 @@
                         </div>
                     </div>
 
-                    <!-- RIGHT SIDEBAR: Smart Insights -->
-                    <aside class="right-sidebar">
-                        <div class="insight-section">
-                            <h3>Analytics Summary</h3>
-                            <div class="stat-cards">
-                                <div class="stat-mini-card">
-                                    <label>Today's Logs</label>
-                                    <h2 id="todayCount">0</h2>
-                                </div>
-                                <div class="stat-mini-card">
-                                    <label>Top Dept.</label>
-                                    <h2 id="topDept">-</h2>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="insight-section">
-                            <h3>Recent Activity</h3>
-                            <div id="activityFeed" class="activity-feed">
-                                <!-- Activity items will be injected here -->
-                            </div>
-                        </div>
-                    </aside>
                 </div>
             </section>
         </main>
@@ -216,7 +202,7 @@
                             <p id="modalDept">-</p>
                         </div>
                     </div>
-                    
+
                     <div class="field-view full-width">
                         <label>Description</label>
                         <p id="modalDesc">-</p>
@@ -343,83 +329,30 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
+
     <script src="panel.js"></script>
 
     <!-- Toast Notification -->
     <div id="toast" class="toast-notification"></div>
 
-    <!-- Mobile Bottom Navigation -->
-    <nav class="mobile-bottom-nav" id="mobileBottomNav">
-        <button class="mob-nav-btn active" data-tab="concierge" id="mobConciergeBtn">
-            <span class="mob-icon">🛎</span>
-            <span>Concierge</span>
-        </button>
-        <button class="mob-nav-btn" data-tab="guest-log" id="mobIssuesBtn">
-            <span class="mob-icon">📋</span>
-            <span>Issues</span>
-        </button>
-        <button class="mob-nav-btn admin-only" id="mobAdminBtn" style="display:none;" onclick="window.location.href='admin.html'">
-            <span class="mob-icon">⚙️</span>
-            <span>Admin</span>
-        </button>
-    </nav>
 
-    <!-- Mobile FAB — New Issue -->
-    <button class="mob-fab" id="mobFab" aria-label="New Issue">
-        <span>＋</span>
-    </button>
-
-    <!-- Mobile Bottom Sheet: New Issue Form -->
-    <div class="mob-sheet-backdrop" id="mobSheetBackdrop"></div>
-    <div class="mob-sheet" id="mobSheet">
-        <div class="mob-sheet-handle"></div>
-        <div class="mob-sheet-header">
-            <h3>New Issue</h3>
-            <button class="mob-sheet-close" id="mobSheetClose">✕</button>
-        </div>
-        <div class="mob-sheet-body">
-            <!-- Reuses the same form but targets same IDs — JS submits guestIssueForm -->
-            <div class="mob-form-row">
-                <div class="mob-form-group">
-                    <label>Date</label>
-                    <input type="date" id="mob-date">
-                </div>
-                <div class="mob-form-group">
-                    <label>Room No</label>
-                    <input type="text" id="mob-room" placeholder="101">
+    <!-- Guest Profiles Modal -->
+    <div id="guestProfileModal" class="modal">
+        <div class="modal-content profile-modal" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2>Guest Profiles</h2>
+                <span class="close-modal" id="closeProfileModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="profileSearchInput" placeholder="Search guests..."
+                    style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                <div class="guest-profile-list" id="guestProfileList" style="max-height: 400px; overflow-y: auto;">
+                    <!-- List injected here -->
                 </div>
             </div>
-            <div class="mob-form-group full">
-                <label>Guest Name</label>
-                <input type="text" id="mob-guestName" placeholder="Full name">
-            </div>
-            <div class="mob-form-group full">
-                <label>Department</label>
-                <select id="mob-department">
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Front Desk">Front Desk</option>
-                    <option value="Concierge">Concierge</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Food &amp; Beverage">Food &amp; Beverage</option>
-                    <option value="Reservations">Reservations</option>
-                    <option value="Sales &amp; Marketing">Sales &amp; Marketing</option>
-                    <option value="Spa">Spa</option>
-                    <option value="Watersports">Watersports</option>
-                    <option value="Security">Security</option>
-                </select>
-            </div>
-            <div class="mob-form-group full">
-                <label>Complaint</label>
-                <textarea id="mob-complaint" rows="2" placeholder="Describe the issue…"></textarea>
-            </div>
-            <div class="mob-form-group full">
-                <label>Solution</label>
-                <textarea id="mob-solution" rows="2" placeholder="Action taken…"></textarea>
-            </div>
-            <button class="mob-submit-btn" id="mobSubmitBtn">Save Issue</button>
         </div>
     </div>
 
 </body>
+
 </html>

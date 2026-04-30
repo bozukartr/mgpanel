@@ -150,10 +150,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedRecord = null;
     let recordToDelete = null;
 
+    let guestMap = {};
+    function updateGuestMap() {
+        guestMap = {};
+        records.forEach(r => { if(r.guestName && r.room) guestMap[r.guestName] = r.room; });
+        const html = Object.keys(guestMap).sort().map(n => `<option value="${n}">${guestMap[n]}</option>`).join('');
+        document.querySelectorAll('#guest-list').forEach(list => list.innerHTML = html);
+    }
+
     // 2. Data Persistence
     const fetchRecords = () => {
         db.collection('guestLogs').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
             records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            updateGuestMap();
             updateView();
             // Sync selectedRecord to avoid undefined errors in editNote
             if (selectedRecord) {
@@ -166,6 +175,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
     fetchRecords();
+
+    // Guest auto-fill logic
+    document.getElementById('guestName')?.addEventListener('input', (e) => {
+        if(guestMap[e.target.value]) document.getElementById('room').value = guestMap[e.target.value];
+    });
+    document.getElementById('mob-guestName')?.addEventListener('input', (e) => {
+        if(guestMap[e.target.value]) document.getElementById('mob-room').value = guestMap[e.target.value];
+    });
 
     issueForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -234,9 +251,82 @@ document.addEventListener('DOMContentLoaded', () => {
     const triggerSearch = () => updateView(globalSearch.value, dateSearch.value);
     globalSearch.addEventListener('input', triggerSearch);
     dateSearch.addEventListener('change', triggerSearch);
+    
+    let activeStatusFilter = null;
+    document.getElementById('filterTotal').addEventListener('click', () => { activeStatusFilter = null; triggerSearch(); });
+    document.getElementById('filterFollowing').addEventListener('click', () => { activeStatusFilter = 'Following'; triggerSearch(); });
+    document.getElementById('filterSolved').addEventListener('click', () => { activeStatusFilter = 'Solved'; triggerSearch(); });
+    document.getElementById('filterOverdue').addEventListener('click', () => { activeStatusFilter = 'Overdue'; triggerSearch(); });
+
     resetFilters.addEventListener('click', () => {
-        globalSearch.value = ''; dateSearch.value = ''; updateView();
+        globalSearch.value = ''; 
+        dateSearch.value = new Date().toISOString().split('T')[0]; 
+        activeStatusFilter = null;
+        updateView(globalSearch.value, dateSearch.value);
     });
+
+    // Guest Profiles Modal Logic
+    const guestProfileModal = document.getElementById('guestProfileModal');
+    const closeProfileModal = document.getElementById('closeProfileModal');
+    const profileSearchInput = document.getElementById('profileSearchInput');
+    const guestProfileList = document.getElementById('guestProfileList');
+
+    document.getElementById('guestProfilesBtn')?.addEventListener('click', () => {
+        profileSearchInput.value = '';
+        renderGuestProfiles();
+        guestProfileModal.style.display = 'flex';
+    });
+
+    closeProfileModal?.addEventListener('click', () => {
+        guestProfileModal.style.display = 'none';
+    });
+
+    function renderGuestProfiles() {
+        const query = profileSearchInput.value.toLowerCase();
+        
+        // Group by guestName from ALL records
+        const profiles = {};
+        records.forEach(r => {
+            if(!r.guestName) return;
+            const name = r.guestName.trim();
+            if(!profiles[name]) profiles[name] = { room: r.room, count: 0 };
+            profiles[name].count++;
+        });
+
+        const sortedNames = Object.keys(profiles)
+            .filter(n => n.toLowerCase().includes(query))
+            .sort((a,b) => a.localeCompare(b));
+
+        if(sortedNames.length === 0) {
+            guestProfileList.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">No profiles found.</p>';
+            return;
+        }
+
+        guestProfileList.innerHTML = sortedNames.map(name => `
+            <div class="guest-profile-item" onclick="selectGuestProfile('${name.replace(/'/g, "\\'")}')" style="display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='transparent'">
+                <div>
+                    <strong style="color: #2b3a4a;">${name}</strong>
+                    <div style="font-size:12px; color:#666;">Room: ${profiles[name].room}</div>
+                </div>
+                <div style="text-align:right;">
+                    <span class="status-badge" style="background:#e3f2fd; color:#2980b9;">${profiles[name].count} Logs</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    profileSearchInput?.addEventListener('input', renderGuestProfiles);
+
+    window.selectGuestProfile = function(name) {
+        guestProfileModal.style.display = 'none';
+        globalSearch.value = name;
+        dateSearch.value = ''; // clear date to show all history
+        activeStatusFilter = null;
+        triggerSearch();
+    };
+
+    // Default view to today's date
+    if (!dateSearch.value) dateSearch.value = new Date().toISOString().split('T')[0];
 
     // 3. View Logic
     function formatDateShort(dateStr) {
@@ -246,12 +336,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return date.toLocaleDateString('en-GB', options).replace(/ /g, ' ');
     }
 
-    // Helper: Check if record is older than 4 hours
+    // Helper: Check if record is older than 15 minutes
     function isOverdue(record) {
         if (!record.createdAt || record.status === 'Solved') return false;
         const createdTime = record.createdAt.toDate ? record.createdAt.toDate() : new Date(record.createdAt);
-        const diffHours = (new Date() - createdTime) / (1000 * 60 * 60);
-        return diffHours > 4;
+        const diffMinutes = (new Date() - createdTime) / (1000 * 60);
+        return diffMinutes > 15;
     }
 
     function updateView(textFilter = '', dateFilter = '') {
@@ -274,12 +364,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 stats.following++;
                 if (isOverdue(record)) stats.overdue++;
             }
+        });
 
+        const finalFiltered = filtered.filter(r => {
+            if (!activeStatusFilter) return true;
+            if (activeStatusFilter === 'Overdue') return r.status !== 'Solved' && isOverdue(r);
+            return r.status === activeStatusFilter;
+        });
+
+        finalFiltered.forEach(record => {
+            const status = record.status || 'Following';
             const statusClass = status.toLowerCase();
             const noteCount = record.updates ? record.updates.length : 0;
             const noteIndicator = noteCount > 0 ? `<span class="note-indicator" title="${noteCount} updates">💬 ${noteCount}</span>` : '';
             const lateBadgeStatus = status !== 'Solved' && isOverdue(record);
-            const lateBadge = lateBadgeStatus ? '<span class="late-warning" title="Pending more than 4 hours">⚠️ Late</span>' : '';
+            const lateBadge = lateBadgeStatus ? '<span class="late-warning" title="Pending more than 15 minutes">⚠️ Late</span>' : '';
 
             const row = document.createElement('tr');
             if (lateBadgeStatus) row.classList.add('urgent-row');
@@ -302,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(document.getElementById('statSolved')) document.getElementById('statSolved').textContent = stats.solved;
         if(document.getElementById('statOverdue')) document.getElementById('statOverdue').textContent = stats.overdue;
         
-        recordCountElement.textContent = stats.total;
+        recordCountElement.textContent = finalFiltered.length;
     }
 
     function openModal(record) {
