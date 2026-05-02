@@ -104,7 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // IMPORT: JSON (Full System Restore)
-    importDataBtn?.addEventListener('click', () => importFileInput.click());
+    if (loggedUsername.toLowerCase() !== 'admin') {
+        if (importDataBtn) importDataBtn.style.display = 'none';
+    }
+
+    importDataBtn?.addEventListener('click', () => {
+        if (loggedUsername.toLowerCase() !== 'admin') {
+            return showToast('Only Admin can import backups.', true);
+        }
+        importFileInput.click();
+    });
 
     importFileInput?.addEventListener('change', async (e) => {
         const file = e.target.files[0];
@@ -380,11 +389,12 @@ document.addEventListener('DOMContentLoaded', () => {
         guestCont.style.display = 'none';
 
         // Show based on type
-        if (type === 'summary' || type === 'byDate') {
+        if (type === 'summary' || type === 'byDate' || type === 'department') {
             specificDateCont.style.display = 'block';
-        } else if (type === 'dateRange' || type === 'historicalStatus' || type === 'deptHistorical' || type === 'department' || type === 'status') {
+            if (type === 'department') deptCont.style.display = 'block';
+        } else if (type === 'dateRange' || type === 'historicalStatus' || type === 'deptHistorical' || type === 'status') {
             rangeGroup.style.display = 'flex';
-            if (type === 'department' || type === 'deptHistorical') deptCont.style.display = 'block';
+            if (type === 'deptHistorical') deptCont.style.display = 'block';
         } else if (type === 'guest') {
             guestCont.style.display = 'block';
         }
@@ -560,7 +570,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         else if (type === 'department') {
-            let data = (from || to) ? filterByRange(records, from, to) : records;
+            const date = specific || getLocalDate();
+            let data = records.filter(r => r.date === date);
             if (dept !== 'All') data = data.filter(r => r.department === dept);
             
             const grouped = {};

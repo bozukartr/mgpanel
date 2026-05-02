@@ -410,6 +410,84 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { showToast('Error', true); }
     });
 
+    // ── REPORTS LOGIC ──────────────────────────────────────────
+    const rptSheet = document.getElementById('rptSheet');
+    const rptBackdrop = document.getElementById('rptBackdrop');
+    const rptBtn = document.getElementById('mob-reportsBtn');
+    const rptClose = document.getElementById('rptClose');
+    const rptTypeSelect = document.getElementById('mob-reportType');
+
+    rptBtn?.addEventListener('click', () => {
+        document.getElementById('mob-rpt-from').valueAsDate = new Date();
+        document.getElementById('mob-rpt-to').valueAsDate = new Date();
+        openSheet(rptSheet, rptBackdrop);
+    });
+    rptClose?.addEventListener('click', () => closeSheet(rptSheet, rptBackdrop));
+    rptBackdrop?.addEventListener('click', () => closeSheet(rptSheet, rptBackdrop));
+
+    rptTypeSelect?.addEventListener('change', (e) => {
+        const val = e.target.value;
+        document.getElementById('mob-rpt-deptGroup').style.display = (val === 'department') ? 'block' : 'none';
+        document.getElementById('mob-rpt-toGroup').style.display = (val === 'dateRange') ? 'block' : 'none';
+    });
+
+    const getReportData = () => {
+        const type = rptTypeSelect.value;
+        const from = document.getElementById('mob-rpt-from').value;
+        const to = document.getElementById('mob-rpt-to').value;
+        const dept = document.getElementById('mob-rpt-dept').value;
+
+        return records.filter(r => {
+            if (type === 'summary' || type === 'status') return r.date === from;
+            if (type === 'department') return r.date === from && r.department === dept;
+            if (type === 'dateRange') return r.date >= from && r.date <= to;
+            return true;
+        });
+    };
+
+    document.getElementById('mob-rpt-excel')?.addEventListener('click', () => {
+        const data = getReportData();
+        if (data.length === 0) return showToast('No records found', true);
+
+        const rows = data.map(r => ({
+            Date: r.date,
+            Room: r.room,
+            Guest: r.guestName,
+            Dept: r.department,
+            Complaint: r.complaint,
+            Solution: r.solution,
+            Status: r.status || 'Following'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Report");
+        XLSX.writeFile(wb, `Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+        showToast('Excel Generated');
+    });
+
+    document.getElementById('mob-rpt-pdf')?.addEventListener('click', () => {
+        const data = getReportData();
+        if (data.length === 0) return showToast('No records found', true);
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('l', 'pt');
+
+        const rows = data.map(r => [
+            r.date, r.room, r.guestName, r.department, r.complaint, r.solution, r.status || 'Following'
+        ]);
+
+        doc.autoTable({
+            head: [['Date', 'Room', 'Guest', 'Dept', 'Complaint', 'Solution', 'Status']],
+            body: rows,
+            theme: 'grid',
+            headStyles: { fillColor: [17, 17, 17] }
+        });
+
+        doc.save(`Report_${new Date().toISOString().split('T')[0]}.pdf`);
+        showToast('PDF Generated');
+    });
+
     // ── Init ───────────────────────────────────────────────────
     const todayInput = document.getElementById('ni-date');
     if (todayInput) todayInput.valueAsDate = new Date();
