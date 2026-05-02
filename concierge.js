@@ -1,13 +1,13 @@
 /* concierge.js — Concierge Logic */
 
 document.addEventListener('DOMContentLoaded', () => {
-    
+
     // ── AUTH ───────────────────────────────────────────────────
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
     if (!loggedUsername) { window.location.href = 'index.html'; return; }
-    auth.onAuthStateChanged(async (u) => { 
+    auth.onAuthStateChanged(async (u) => {
         if (!u) {
-            window.location.href = 'index.html'; 
+            window.location.href = 'index.html';
         } else {
             // Doğrudan Firestore'dan güncel yetkiyi çek
             try {
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const data = doc.data();
                     const role = (data.role || '').toLowerCase();
                     const uname = (data.username || '').toLowerCase();
-                    
+
                     // Admin sekmesi SADECE "admin" kullanıcı adına
                     if (uname === 'admin') {
                         if (document.getElementById('c-adminNav')) document.getElementById('c-adminNav').style.display = 'flex';
@@ -34,11 +34,36 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.app-username').forEach(el => el.textContent = loggedUsername);
 
     document.getElementById('c-logoutBtn')?.addEventListener('click', () => {
-        auth.signOut().then(() => { 
-            localStorage.removeItem('hotelUsername'); 
-            window.location.href = 'index.html'; 
+        auth.signOut().then(() => {
+            localStorage.removeItem('hotelUsername');
+            window.location.href = 'index.html';
         });
     });
+
+    // ── AUTO LOGOUT LOGIC (5 MINS) ─────────────────────────────
+    let logoutTimer;
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            auth.signOut().then(() => {
+                localStorage.removeItem('hotelUsername');
+                window.location.href = 'index.html';
+            });
+        }, 5 * 60 * 1000); // 5 minutes
+    }
+
+    // Reset on typing, changing inputs, scrolling, or touching
+    ['keydown', 'input', 'change', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer, true);
+    });
+
+    // Reset only on functional clicks (buttons, cards, inputs, etc.)
+    document.addEventListener('click', (e) => {
+        const isInteractive = e.target.closest('button, input, select, textarea, a, .res-card, .stat-pill, .nav-btn, .app-icon-btn, .sheet-backdrop, .sheet-pill');
+        if (isInteractive) resetLogoutTimer();
+    }, true);
+
+    resetLogoutTimer(); // Start timer on load
 
     // ── CONFIG ────────────────────────────────────────────────
     const SERVICE_ICONS = {
@@ -65,18 +90,18 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => t.classList.remove('show'), 2800);
     };
 
-    const openSheet  = (s, b) => { s.classList.add('open'); b.classList.add('open'); };
+    const openSheet = (s, b) => { s.classList.add('open'); b.classList.add('open'); };
     const closeSheet = (s, b) => { s.classList.remove('open'); b.classList.remove('open'); };
 
-    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) : '';
+    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '';
 
     // ── DATA SYNC ─────────────────────────────────────────────
     db.collection('reservations').orderBy('date', 'asc').onSnapshot(snap => {
         reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
+
         // Update Guest Map for Autocomplete
         guestMap = {};
-        reservations.forEach(r => { if(r.guestName && r.room) guestMap[r.guestName] = r.room; });
+        reservations.forEach(r => { if (r.guestName && r.room) guestMap[r.guestName] = r.room; });
         updateAutocompletes();
 
         renderReservations();
@@ -91,12 +116,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateAutocompletes() {
         const list = document.getElementById('guest-list');
-        const repList = document.getElementById('rep-guest-list');
+        const itiList = document.getElementById('iti-guest-list');
         const names = Object.keys(guestMap).sort();
-        
+
         const html = names.map(n => `<option value="${n}">${guestMap[n]}</option>`).join('');
-        if(list) list.innerHTML = html;
-        if(repList) repList.innerHTML = html;
+        if (list) list.innerHTML = html;
+        if (itiList) itiList.innerHTML = html;
     }
 
     document.getElementById('c-search').oninput = renderReservations;
@@ -115,17 +140,17 @@ document.addEventListener('DOMContentLoaded', () => {
         statusFilter = null;
         renderReservations();
     };
-    
+
     // Default to Today
     const todayStr = new Date().toISOString().split('T')[0];
     document.getElementById('c-dateFilter').value = todayStr;
 
     function renderReservations() {
-        const search  = document.getElementById('c-search').value.toLowerCase();
+        const search = document.getElementById('c-search').value.toLowerCase();
         const dateVal = document.getElementById('c-dateFilter').value;
-        const feed    = document.getElementById('c-feed');
-        const empty   = document.getElementById('c-emptyState');
-        const today   = new Date().toISOString().split('T')[0];
+        const feed = document.getElementById('c-feed');
+        const empty = document.getElementById('c-emptyState');
+        const today = new Date().toISOString().split('T')[0];
 
         // Update Stats & Active states
         document.getElementById('c-pillPending')?.classList.toggle('active', statusFilter === 'Pending');
@@ -137,9 +162,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r.status === 'Pending') pending++;
             if (r.status === 'Confirmed') confirmed++;
         });
-        if(document.getElementById('c-statToday')) document.getElementById('c-statToday').textContent = todayCount;
-        if(document.getElementById('c-statPending')) document.getElementById('c-statPending').textContent = pending;
-        if(document.getElementById('c-statConfirmed')) document.getElementById('c-statConfirmed').textContent = confirmed;
+        if (document.getElementById('c-statToday')) document.getElementById('c-statToday').textContent = todayCount;
+        if (document.getElementById('c-statPending')) document.getElementById('c-statPending').textContent = pending;
+        if (document.getElementById('c-statConfirmed')) document.getElementById('c-statConfirmed').textContent = confirmed;
 
         feed.innerHTML = '';
 
@@ -149,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const matchesText = !search || [
                     r.guestName, r.room, r.type, r.resName, r.vessel, r.provider, r.from, r.to, r.notes
                 ].some(val => val && val.toString().toLowerCase().includes(search));
-                
+
                 const matchesStatus = !statusFilter || r.status === statusFilter;
                 return matchesText && matchesStatus;
             });
@@ -158,8 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
             empty.style.display = 'none';
 
             // Global Sort: Date then Time
-            results.sort((a,b) => {
-                if(a.date !== b.date) return a.date.localeCompare(b.date);
+            results.sort((a, b) => {
+                if (a.date !== b.date) return a.date.localeCompare(b.date);
                 return (a.time || '00:00').localeCompare(b.time || '00:00');
             });
 
@@ -179,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Dynamic Slots: Start with core 08-23
         let slots = [];
-        for(let h=8; h<=23; h++) slots.push(h.toString().padStart(2, '0') + ':00');
+        for (let h = 8; h <= 23; h++) slots.push(h.toString().padStart(2, '0') + ':00');
 
         // Add extra hours that have reservations (e.g. 05:00, 01:00)
         filtered.forEach(r => {
@@ -200,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!r.time) noTimeItems.push(r);
             else {
                 const hour = r.time.split(':')[0] + ':00';
-                if(grouped[hour]) grouped[hour].push(r);
+                if (grouped[hour]) grouped[hour].push(r);
             }
         });
 
@@ -224,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const slotEl = document.createElement('div');
             slotEl.className = 'agenda-slot' + (items.length > 0 ? ' has-items' : '');
             let itemsHtml = '';
-            items.sort((a,b) => (a.time || '').localeCompare(b.time || ''));
+            items.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
             items.forEach(r => {
                 const card = createResCard(r);
                 itemsHtml += card.outerHTML;
@@ -244,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.dataset.type = r.type;
         card.dataset.status = r.status;
         card.setAttribute('onclick', `openDetailById('${r.id}')`);
-        
+
         card.innerHTML = `
             <div class="res-card-icon">${SERVICE_ICONS[r.type] || '✨'}</div>
             <div class="res-card-info">
@@ -265,13 +290,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper for onclick in generated HTML
     window.openDetailById = (id) => {
         const r = reservations.find(res => res.id === id);
-        if(r) openDetail(r);
+        if (r) openDetail(r);
     };
 
     // Guest name auto-room-fill
     document.getElementById('rs-guest').addEventListener('input', (e) => {
         const val = e.target.value;
-        if(guestMap[val]) {
+        if (guestMap[val]) {
             document.getElementById('rs-room').value = guestMap[val];
         }
     });
@@ -285,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const voucherGroup = document.getElementById('rs-voucher-group');
         const financeGroup = document.getElementById('rs-finance-group');
         const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour'];
-        
+
         const isPaidType = paidTypes.includes(type);
         if (voucherGroup) voucherGroup.style.display = isPaidType ? 'block' : 'none';
         if (financeGroup) financeGroup.style.display = isPaidType ? 'flex' : 'none';
@@ -303,11 +328,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="field-group"><label>From</label><input type="text" id="rs-from"></div>
                     <div class="field-group"><label>To</label><input type="text" id="rs-to"></div>
                 </div>
-                <div class="field-group"><label>Vehicle Type / Flight No</label><input type="text" id="rs-vehicle"></div>`;
+                <div class="field-row">
+                    <div class="field-group"><label>Vehicle / Flight No</label><input type="text" id="rs-vehicle"></div>
+                    <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
+                </div>`;
         } else if (type === 'Boat' || type === 'Tour') {
             html = `
                 <div class="field-group"><label>Vessel / Tour Name</label><input type="text" id="rs-vessel"></div>
-                <div class="field-group"><label>Provider / Guide</label><input type="text" id="rs-provider"></div>`;
+                <div class="field-row">
+                    <div class="field-group"><label>Provider / Guide</label><input type="text" id="rs-provider"></div>
+                    <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
+                </div>`;
         }
         dynamicFields.innerHTML = html;
     };
@@ -331,10 +362,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const room = document.getElementById('rs-room').value.trim();
         const date = document.getElementById('rs-date').value;
         const time = document.getElementById('rs-time').value;
-        const price   = parseFloat(document.getElementById('rs-price').value)   || 0;
+        const price = parseFloat(document.getElementById('rs-price').value) || 0;
         const deposit = parseFloat(document.getElementById('rs-deposit').value) || 0;
         const voucher = document.getElementById('rs-voucher').value.trim();
-        const notes   = document.getElementById('rs-notes').value.trim();
+        const notes = document.getElementById('rs-notes').value.trim();
 
         if (!guestName || !room || !date) { showToast('Please fill required fields', true); return; }
 
@@ -357,8 +388,8 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection('reservations').add(data);
             showToast('Reservation logged');
             closeSheet(resSheet, resBackdrop);
-            ['rs-guest','rs-room','rs-price','rs-deposit','rs-voucher','rs-notes'].forEach(id => {
-                const el = document.getElementById(id); if(el) el.value = '';
+            ['rs-guest', 'rs-room', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
             });
         } catch (e) { showToast('Error', true); }
     };
@@ -381,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('d-time').textContent = r.time || '—';
         document.getElementById('d-price').textContent = '€' + r.totalPrice;
         document.getElementById('d-deposit').textContent = '€' + r.deposit;
-        
+
         const isPaid = r.status === 'Confirmed' || (r.totalPrice - r.deposit <= 0);
         const balance = r.totalPrice - r.deposit;
         const bEl = document.getElementById('d-balance');
@@ -398,13 +429,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let dynHtml = '';
         if (r.type === 'Restaurant') dynHtml = `<p><strong>${r.resName || '—'}</strong> (${r.pax || '?'} Pax)</p>`;
-        else if (r.type === 'Transfer') dynHtml = `<p><strong>${r.from || '?'} ➔ ${r.to || '?'}</strong><br><small>${r.vehicle || ''}</small></p>`;
-        else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${r.vessel || ''}</strong><br><small>Provider: ${r.provider || ''}</small></p>`;
+        else if (r.type === 'Transfer') dynHtml = `<p><strong>${r.from || '?'} ➔ ${r.to || '?'}</strong><br><small>${r.vehicle || ''} (${r.pax || '?'} Pax)</small></p>`;
+        else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${r.vessel || ''}</strong><br><small>Provider: ${r.provider || ''} (${r.pax || '?'} Pax)</small></p>`;
         document.getElementById('d-dynamic-info').innerHTML = dynHtml;
     };
 
     document.getElementById('detailClose').onclick = () => closeSheet(detailSheet, detailBackdrop);
     detailBackdrop.onclick = () => closeSheet(detailSheet, detailBackdrop);
+
+    document.getElementById('d-confirmLetterBtn').onclick = () => {
+        if (!window.selectedReservation) return;
+        generateConfirmationPDF(window.selectedReservation);
+    };
 
     ['Pending', 'Confirmed', 'Cancelled'].forEach(st => {
         document.getElementById('d-set' + st).onclick = async () => {
@@ -437,14 +473,51 @@ document.addEventListener('DOMContentLoaded', () => {
         dConfirmBox.style.display = 'none';
     };
 
-    document.getElementById('d-confirmDelete').onclick = async () => {
+    const authSheet = document.getElementById('authSheet');
+    const authBackdrop = document.getElementById('authBackdrop');
+    const authPassInput = document.getElementById('auth-password');
+
+    document.getElementById('authClose').onclick = () => closeSheet(authSheet, authBackdrop);
+    authBackdrop.onclick = () => closeSheet(authSheet, authBackdrop);
+
+    document.getElementById('d-confirmDelete').onclick = () => {
         if (!window.selectedReservation) return;
+
+        // Security Check: Only creator can delete
+        if (window.selectedReservation.staffInitial !== loggedUsername) {
+            showToast('Only the creator can delete this log!', true);
+            return;
+        }
+
+        dConfirmBox.style.display = 'none';
+        authPassInput.value = '';
+        openSheet(authSheet, authBackdrop);
+    };
+
+    document.getElementById('auth-confirm-btn').onclick = async () => {
+        const password = authPassInput.value;
+        if (!password) return showToast('Please enter your password', true);
+
+        const btn = document.getElementById('auth-confirm-btn');
+        btn.disabled = true;
+        btn.textContent = 'Verifying...';
+
         try {
+            const user = firebase.auth().currentUser;
+            const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+            await user.reauthenticateWithCredential(credential);
+
+            // Success: Proceed with deletion
             await db.collection('reservations').doc(window.selectedReservation.id).delete();
             showToast('Deleted');
-            dConfirmBox.style.display = 'none';
+            closeSheet(authSheet, authBackdrop);
             closeSheet(detailSheet, detailBackdrop);
-        } catch (e) { showToast('Error', true); }
+        } catch (e) {
+            showToast('Authentication failed. Incorrect password.', true);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Verify & Delete';
+        }
     };
 
     // ── EDIT SHEET LOGIC ─────────────────────────────────────
@@ -454,31 +527,32 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('d-editBtn').onclick = () => {
         if (!window.selectedReservation) return;
         const r = window.selectedReservation;
-        document.getElementById('ed-guest').value   = r.guestName;
-        document.getElementById('ed-room').value    = r.room;
-        document.getElementById('ed-date').value    = r.date;
-        document.getElementById('ed-time').value    = r.time || '';
-        document.getElementById('ed-price').value   = r.totalPrice;
+        document.getElementById('ed-guest').value = r.guestName;
+        document.getElementById('ed-room').value = r.room;
+        document.getElementById('ed-date').value = r.date;
+        document.getElementById('ed-time').value = r.time || '';
+        document.getElementById('ed-price').value = r.totalPrice;
         document.getElementById('ed-deposit').value = r.deposit;
+        document.getElementById('ed-pax').value = r.pax || '';
         document.getElementById('ed-voucher').value = r.voucherNo || '';
-        document.getElementById('ed-notes').value   = r.notes || '';
+        document.getElementById('ed-notes').value = r.notes || '';
         openSheet(editSheet, editBackdrop);
     };
-
     document.getElementById('editClose').onclick = () => closeSheet(editSheet, editBackdrop);
     editBackdrop.onclick = () => closeSheet(editSheet, editBackdrop);
 
     document.getElementById('ed-submit').onclick = async () => {
         if (!window.selectedReservation) return;
         const updated = {
-            guestName:  document.getElementById('ed-guest').value.trim(),
-            room:       document.getElementById('ed-room').value.trim(),
-            date:       document.getElementById('ed-date').value,
-            time:       document.getElementById('ed-time').value,
+            guestName: document.getElementById('ed-guest').value.trim(),
+            room: document.getElementById('ed-room').value.trim(),
+            date: document.getElementById('ed-date').value,
+            time: document.getElementById('ed-time').value,
             totalPrice: parseFloat(document.getElementById('ed-price').value) || 0,
-            deposit:    parseFloat(document.getElementById('ed-deposit').value) || 0,
-            voucherNo:  document.getElementById('ed-voucher').value.trim(),
-            notes:      document.getElementById('ed-notes').value.trim()
+            deposit: parseFloat(document.getElementById('ed-deposit').value) || 0,
+            pax: document.getElementById('ed-pax').value.trim(),
+            voucherNo: document.getElementById('ed-voucher').value.trim(),
+            notes: document.getElementById('ed-notes').value.trim()
         };
         try {
             await db.collection('reservations').doc(window.selectedReservation.id).update(updated);
@@ -487,52 +561,37 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { showToast('Error updating', true); }
     };
 
-    // ── REPORTING SHEET ───────────────────────────────────────
-    const repSheet = document.getElementById('reportSheet');
-    const repBackdrop = document.getElementById('reportBackdrop');
-    const repGuestSearch = document.getElementById('rep-guest-search');
+    // ── ITINERARY GENERATOR ──────────────────────────────────
+    const itiSheet = document.getElementById('itiSheet');
+    const itiBackdrop = document.getElementById('itiBackdrop');
+    const itiGuestSearch = document.getElementById('iti-guest-search');
 
-    document.getElementById('c-openReport').onclick = () => openSheet(repSheet, repBackdrop);
-    document.getElementById('reportClose').onclick = () => closeSheet(repSheet, repBackdrop);
-    repBackdrop.onclick = () => closeSheet(repSheet, repBackdrop);
+    document.getElementById('c-openItinerary')?.addEventListener('click', () => {
+        openSheet(itiSheet, itiBackdrop);
+    });
+    document.getElementById('itiClose')?.addEventListener('click', () => closeSheet(itiSheet, itiBackdrop));
+    itiBackdrop.onclick = () => closeSheet(itiSheet, itiBackdrop);
 
-    repGuestSearch.oninput = () => {
-        const val = repGuestSearch.value.trim();
-        const box = document.getElementById('rep-guest-info');
-        if(guestMap[val]) {
+    itiGuestSearch.oninput = () => {
+        const val = itiGuestSearch.value.trim();
+        const box = document.getElementById('iti-guest-info');
+        if (guestMap[val]) {
             const guestItems = reservations.filter(r => r.guestName === val && r.status !== 'Cancelled');
-            document.getElementById('rep-sel-guest').textContent = val;
-            document.getElementById('rep-sel-room').textContent = 'Room ' + guestMap[val];
-            document.getElementById('rep-sel-count').textContent = `${guestItems.length} active reservation(s)`;
+            document.getElementById('iti-sel-guest').textContent = val;
+            document.getElementById('iti-sel-room').textContent = 'Room ' + guestMap[val];
+            document.getElementById('iti-sel-count').textContent = `${guestItems.length} active reservation(s)`;
             box.style.display = 'block';
         } else {
             box.style.display = 'none';
         }
     };
 
-
-    document.getElementById('d-itineraryBtn').onclick = () => {
-        if (!window.selectedReservation) return;
-        // Directly generate for the SINGLE selected reservation
-        generatePDF(window.selectedReservation.guestName, window.selectedReservation.room, [window.selectedReservation]);
-    };
-
-    // ── GUEST REPORT SELECTION LOGIC ──────────────────
-    const selSheet = document.getElementById('selSheet');
-    const selBackdrop = document.getElementById('selBackdrop');
-    const selOptions = document.getElementById('sel-options-list');
-    
-    document.getElementById('selClose').onclick = () => closeSheet(selSheet, selBackdrop);
-    selBackdrop.onclick = () => closeSheet(selSheet, selBackdrop);
-
-    document.getElementById('rep-gen-btn').onclick = () => {
-        const guestName = repGuestSearch.value.trim();
-        if(!guestName) return;
-
+    document.getElementById('iti-gen-btn').onclick = () => {
+        const guestName = itiGuestSearch.value.trim();
+        if (!guestName) return;
         const guestItems = reservations.filter(r => r.guestName === guestName && r.status !== 'Cancelled');
-        if(guestItems.length === 0) { showToast('No active reservations found', true); return; }
+        if (guestItems.length === 0) { showToast('No active reservations found', true); return; }
 
-        // Populate the Selection Sheet with stylized CARD-like labels
         selOptions.innerHTML = guestItems.map(item => `
             <label class="sel-item-row">
                 <div class="sel-item-icon-wrap">${SERVICE_ICONS[item.type] || '✨'}</div>
@@ -541,21 +600,272 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="sel-item-date">${fmtDate(item.date)} ${item.time || ''}</span>
                     ${item.resName ? `<span class="sel-item-sub">${item.resName}</span>` : ''}
                 </div>
-                <input type="checkbox" name="iti-item" value="${item.id}" checked>
+                <div class="sel-item-check">
+                    <input type="checkbox" name="iti-item" value="${item.id}" checked>
+                    <div class="custom-check"></div>
+                </div>
             </label>
         `).join('');
 
         openSheet(selSheet, selBackdrop);
-        
+
         document.getElementById('sel-confirm-btn').onclick = () => {
             const checked = Array.from(document.querySelectorAll('input[name="iti-item"]:checked')).map(cb => cb.value);
-            if(checked.length === 0) { showToast('Please select at least one item', true); return; }
-            
+            if (checked.length === 0) { showToast('Please select at least one item', true); return; }
+
             const selectedItems = guestItems.filter(r => checked.includes(r.id));
             generatePDF(guestName, guestMap[guestName], selectedItems);
             closeSheet(selSheet, selBackdrop);
         };
     };
+
+    // ── REPORTS CENTER ───────────────────────────────────────
+    const reportsModal = document.getElementById('reportSheet');
+    const rptTypeSelect = document.getElementById('reportTypeSelect');
+
+    document.getElementById('c-openReport')?.addEventListener('click', () => {
+        openSheet(reportsModal, document.getElementById('reportBackdrop'));
+        populateGuestDatalist();
+        updateRptUI();
+    });
+    document.getElementById('reportClose')?.addEventListener('click', () => {
+        closeSheet(reportsModal, document.getElementById('reportBackdrop'));
+    });
+    document.getElementById('reportBackdrop').onclick = () => closeSheet(reportsModal, document.getElementById('reportBackdrop'));
+
+    // Dynamic UI Toggles
+    rptTypeSelect?.addEventListener('change', updateRptUI);
+
+    function updateRptUI() {
+        const type = rptTypeSelect.value;
+        const specificDateCont = document.getElementById('rpt-specificDateContainer');
+        const rangeGroup = document.getElementById('rpt-rangeGroup');
+        const catCont = document.getElementById('rpt-catContainer');
+        const guestCont = document.getElementById('rpt-guestContainer');
+
+        // Reset all
+        specificDateCont.style.display = 'none';
+        rangeGroup.style.display = 'none';
+        catCont.style.display = 'none';
+        guestCont.style.display = 'none';
+
+        // Show based on type
+        if (type === 'summary') {
+            specificDateCont.style.display = 'block';
+        } else if (type === 'dateRange' || type === 'revenue' || type === 'activity') {
+            rangeGroup.style.display = 'flex';
+            if (type === 'activity') catCont.style.display = 'block';
+        } else if (type === 'guest') {
+            guestCont.style.display = 'block';
+        }
+    }
+
+    function populateGuestDatalist() {
+        const datalist = document.getElementById('guestNamesList');
+        if (!datalist) return;
+        const uniqueNames = [...new Set(reservations.map(r => r.guestName).filter(Boolean))].sort();
+        datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+    }
+
+    window.generateReportFromUI = function (format) {
+        const type = rptTypeSelect.value;
+        generateReport(type, format);
+    };
+
+    function getRptDates() {
+        return {
+            from: document.getElementById('rpt-dateFrom')?.value || '',
+            to: document.getElementById('rpt-dateTo')?.value || '',
+            specific: document.getElementById('rpt-specificDate')?.value || new Date().toISOString().split('T')[0],
+            cat: document.getElementById('rpt-categorySelect')?.value || 'All',
+            guest: document.getElementById('rpt-guestSearch')?.value || ''
+        };
+    }
+
+    function rowBase(r) {
+        let details = '';
+        if (r.type === 'Restaurant') details = r.resName || '';
+        else if (r.type === 'Transfer') details = `${r.from || ''} -> ${r.to || ''} (${r.vehicle || ''})`;
+        else if (r.type === 'Boat' || r.type === 'Tour') details = `${r.vessel || ''} (${r.provider || ''})`;
+        else details = r.notes || '';
+
+        return {
+            Date: r.date,
+            Time: r.time || '',
+            Room: r.room,
+            'Guest Name': r.guestName,
+            Type: r.type,
+            Details: details,
+            Pax: r.pax || '',
+            Price: r.price || 0,
+            Deposit: r.deposit || 0,
+            Status: r.status || 'Pending'
+        };
+    }
+
+    function autoSizeSheet(ws, rows) {
+        if (!rows || rows.length === 0) return;
+        const keys = Object.keys(rows[0]);
+        const widths = keys.map(k => {
+            let maxLen = k.length;
+            rows.forEach(r => {
+                const val = r[k] ? String(r[k]) : '';
+                if (val.length > maxLen) maxLen = val.length;
+            });
+            return { wch: maxLen + 2 };
+        });
+        ws['!cols'] = widths;
+        if (ws['!ref']) {
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+        }
+    }
+
+    function exportExcel(rows, filename, sheetName = 'Report') {
+        if (!rows || rows.length === 0) return showToast('No data for this report.', true);
+        const ws = XLSX.utils.json_to_sheet(rows);
+        autoSizeSheet(ws, rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        showToast('Excel report downloaded.');
+    }
+
+    function fixTurkishChars(str) {
+        if (typeof str !== 'string') return str;
+        return str
+            .replace(/ı/g, 'i').replace(/İ/g, 'I')
+            .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+            .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+            .replace(/ş/g, 's').replace(/Ş/g, 'S')
+            .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+            .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+    }
+
+    function exportPDF(title, headers, rows, filename, subtitle = '') {
+        if (!rows || rows.length === 0) return showToast('No data for this report.', true);
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: rows[0].length > 6 ? 'landscape' : 'portrait' });
+
+        // Fix Turkish chars for title, subtitle and headers
+        const fixedTitle = fixTurkishChars(title);
+        const fixedSubtitle = fixTurkishChars(subtitle);
+        const fixedHeaders = headers.map(h => fixTurkishChars(h));
+        const fixedRows = rows.map(row => row.map(cell => fixTurkishChars(cell)));
+
+        doc.setFillColor(21, 101, 192);
+        doc.rect(0, 0, doc.internal.pageSize.getWidth(), 28, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+        doc.text(fixedTitle, 14, 12);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        doc.text(fixedSubtitle || `Generated: ${new Date().toISOString().split('T')[0]}`, 14, 20);
+        doc.setTextColor(0, 0, 0);
+        doc.autoTable({
+            head: [fixedHeaders],
+            body: fixedRows,
+            startY: 32,
+            theme: 'grid',
+            headStyles: { fillColor: [43, 58, 74], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+            bodyStyles: { fontSize: 8.5 },
+            alternateRowStyles: { fillColor: [245, 248, 255] },
+            margin: { left: 14, right: 14 }
+        });
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8); doc.setTextColor(150);
+            doc.text(`Page ${i} of ${pageCount} — Concierge Management System`, 14, doc.internal.pageSize.getHeight() - 8);
+        }
+        doc.save(`${filename}_${new Date().toISOString().split('T')[0]}.pdf`);
+        showToast('PDF report downloaded.');
+    }
+
+    window.generateReport = function (type, format) {
+        const { from, to, specific, cat, guest } = getRptDates();
+        let data = reservations;
+
+        if (type === 'summary') {
+            data = reservations.filter(r => r.date === specific && r.status !== 'Cancelled');
+            const summaryRows = [
+                { Metric: 'Total Reservations', Value: data.length },
+                { Metric: 'Total Revenue', Value: data.reduce((a, b) => a + (Number(b.price) || 0), 0) + ' €' },
+                { Metric: 'Total Deposits', Value: data.reduce((a, b) => a + (Number(b.deposit) || 0), 0) + ' €' }
+            ];
+            if (format === 'excel') {
+                const wb = XLSX.utils.book_new();
+                const wsSum = XLSX.utils.json_to_sheet(summaryRows);
+                const wsDet = XLSX.utils.json_to_sheet(data.map(rowBase));
+                autoSizeSheet(wsSum, summaryRows);
+                autoSizeSheet(wsDet, data.map(rowBase));
+                XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+                XLSX.utils.book_append_sheet(wb, wsDet, 'Details');
+                XLSX.writeFile(wb, `Daily_Summary_${specific}.xlsx`);
+            } else {
+                const rows = data.map(r => {
+                    const rb = rowBase(r);
+                    return [rb.Date, rb.Time, rb.Room, rb['Guest Name'], rb.Type, rb.Details, rb.Pax, rb.Price, rb.Deposit, rb.Status];
+                });
+                exportPDF(`Daily Summary: ${specific}`, ['Date', 'Time', 'Room', 'Guest', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
+                    rows, `Daily_Summary_${specific}`);
+            }
+        } else if (type === 'activity') {
+            data = reservations.filter(r => r.status !== 'Cancelled');
+            if (from || to) data = data.filter(r => (!from || r.date >= from) && (!to || r.date <= to));
+            if (cat !== 'All') data = data.filter(r => r.type === cat);
+
+            if (format === 'excel') exportExcel(data.map(rowBase), `By_Activity_${cat}`);
+            else {
+                const rows = data.map(r => {
+                    const rb = rowBase(r);
+                    return [rb.Date, rb.Time, rb.Room, rb['Guest Name'], rb.Type, rb.Details, rb.Pax, rb.Price, rb.Deposit, rb.Status];
+                });
+                exportPDF(`By Activity: ${cat}`, ['Date', 'Time', 'Room', 'Guest', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
+                    rows, `By_Activity_${cat}`);
+            }
+        } else if (type === 'guest') {
+            if (!guest) return showToast('Please select a guest.', true);
+            data = reservations.filter(r => r.guestName && r.guestName.toLowerCase().includes(guest.toLowerCase()) && r.status !== 'Cancelled');
+            if (format === 'excel') exportExcel(data.map(rowBase), `Guest_Report_${guest}`);
+            else {
+                const rows = data.map(r => {
+                    const rb = rowBase(r);
+                    return [rb.Date, rb.Time, rb.Room, rb.Type, rb.Details, rb.Pax, rb.Price, rb.Deposit, rb.Status];
+                });
+                exportPDF(`Guest Report: ${guest}`, ['Date', 'Time', 'Room', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
+                    rows, `Guest_Report_${guest}`);
+            }
+        } else if (type === 'revenue') {
+            data = reservations.filter(r => r.status !== 'Cancelled');
+            if (from || to) data = data.filter(r => (!from || r.date >= from) && (!to || r.date <= to));
+            // Group by date
+            const revenueMap = {};
+            data.forEach(r => {
+                if (!revenueMap[r.date]) revenueMap[r.date] = { Date: r.date, Reservations: 0, Price: 0, Deposit: 0 };
+                revenueMap[r.date].Reservations++;
+                revenueMap[r.date].Price += (Number(r.price) || 0);
+                revenueMap[r.date].Deposit += (Number(r.deposit) || 0);
+            });
+            const revenueRows = Object.values(revenueMap).sort((a, b) => a.Date.localeCompare(b.Date));
+            if (format === 'excel') exportExcel(revenueRows, 'Revenue_Matrix');
+            else exportPDF('Revenue Matrix', ['Date', 'Count', 'Total Price', 'Total Deposit'],
+                revenueRows.map(r => [r.Date, r.Reservations, r.Price + ' €', r.Deposit + ' €']),
+                'Revenue_Matrix');
+        } else if (type === 'currentView') {
+            // Need to track filtered view, but for now use current global list
+            exportExcel(reservations.map(rowBase), 'Current_View');
+        } else if (type === 'fullArchive') {
+            exportExcel(reservations.map(rowBase), 'Full_Archive');
+        }
+    };
+
+    // Selection modal basics
+    const selSheet = document.getElementById('selSheet');
+    const selBackdrop = document.getElementById('selBackdrop');
+    const selOptions = document.getElementById('sel-options-list');
+
+    document.getElementById('selClose').onclick = () => closeSheet(selSheet, selBackdrop);
+    selBackdrop.onclick = () => closeSheet(selSheet, selBackdrop);
 
     // ── FINANCE SHEET ────────────────────────────────────────
     const financeSheet = document.getElementById('financeSheet');
@@ -582,7 +892,7 @@ document.addEventListener('DOMContentLoaded', () => {
             totalDep += d;
             totalBal += b;
 
-            if(!catMap[r.type]) catMap[r.type] = 0;
+            if (!catMap[r.type]) catMap[r.type] = 0;
             catMap[r.type] += p;
         });
 
@@ -605,13 +915,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── PDF GENERATOR ────────────────────────────────────────
     const generatePDF = (guest, room, itemsOverride = null) => {
         let guestItems = itemsOverride || reservations.filter(r => r.guestName === guest && r.status !== 'Cancelled');
-        if(guestItems.length === 0) { showToast('No active reservations found', true); return; }
-        
-        guestItems.sort((a,b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
+        if (guestItems.length === 0) { showToast('No active reservations found', true); return; }
+
+        guestItems.sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
 
         const pdfEl = document.getElementById('itinerary-pdf');
         pdfEl.style.display = 'block';
-        
+
         let html = `
             <style>
                 .pdf-container { padding: 30px; font-family: 'Helvetica', 'Arial', sans-serif; color: #2c3e50; line-height: 1.4; }
@@ -655,7 +965,7 @@ document.addEventListener('DOMContentLoaded', () => {
         guestItems.forEach(item => {
             const dateStr = fmtDate(item.date);
             const timeStr = item.time || '—';
-            
+
             let details = '';
             if (item.type === 'Restaurant') details = `<strong>${item.resName}</strong><br>Pax: ${item.pax}`;
             else if (item.type === 'Transfer') details = `<strong>Path:</strong> ${item.from} ➔ ${item.to}<br><strong>Vehicle:</strong> ${item.vehicle || 'Standard'}`;
@@ -698,6 +1008,73 @@ document.addEventListener('DOMContentLoaded', () => {
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
+        html2pdf().set(opt).from(pdfEl).save().then(() => {
+            pdfEl.style.display = 'none';
+        });
+    };
+
+    const generateConfirmationPDF = (r) => {
+        const pdfEl = document.getElementById('itinerary-pdf');
+        pdfEl.style.display = 'block';
+
+        let details = '';
+        if (r.type === 'Restaurant') details = `Restaurant: <strong>${r.resName}</strong><br>Guests: ${r.pax} Pax`;
+        else if (r.type === 'Transfer') details = `Path: <strong>${r.from} ➔ ${r.to}</strong><br>Vehicle/Flight: ${r.vehicle || 'Standard'}<br>Pax: ${r.pax || '—'}`;
+        else if (r.type === 'Boat' || r.type === 'Tour') details = `Service: <strong>${r.vessel || r.type}</strong><br>Provider: ${r.provider || 'Hotel Direct'}<br>Pax: ${r.pax || '—'}`;
+        else details = `Arrangement: <strong>${r.resName || r.type}</strong>`;
+
+        let html = `
+            <style>
+                .pdf-container { padding: 40px; font-family: 'Helvetica', 'Arial', sans-serif; color: #2c3e50; line-height: 1.6; }
+                .pdf-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #34495e; padding-bottom: 20px; margin-bottom: 30px; }
+                .pdf-title h1 { margin: 0; font-size: 28px; text-transform: uppercase; letter-spacing: 2px; color: #2c3e50; }
+                .pdf-content { margin-top: 20px; }
+                .conf-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 25px; border-radius: 8px; margin: 25px 0; }
+                .conf-row { display: flex; border-bottom: 1px solid #eee; padding: 10px 0; }
+                .conf-label { width: 150px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; font-size: 11px; }
+                .conf-value { flex: 1; color: #2c3e50; font-size: 14px; }
+                .pdf-footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #eee; font-size: 11px; color: #95a5a6; text-align: center; }
+            </style>
+            <div class="pdf-container">
+                <div class="pdf-header">
+                    <img src="logo.png" style="height: 50px; width: auto;">
+                    <div class="pdf-title">
+                        <h1>Confirmation</h1>
+                        <p style="margin:5px 0 0 0; font-size:12px; color:#7f8c8d; text-align:right;">Ref: #${r.id.substring(0, 8).toUpperCase()}</p>
+                    </div>
+                </div>
+
+                <div class="pdf-content">
+                    <p>Dear <strong>${r.guestName}</strong>,</p>
+                    <p>We are pleased to confirm your upcoming arrangement as follows:</p>
+                    
+                    <div class="conf-box">
+                        <div class="conf-row"><div class="conf-label">Service Type</div><div class="conf-value" style="font-weight:bold; color:#2980b9;">${r.type.toUpperCase()}</div></div>
+                        <div class="conf-row"><div class="conf-label">Date</div><div class="conf-value">${fmtDate(r.date)}</div></div>
+                        <div class="conf-row"><div class="conf-label">Time</div><div class="conf-value">${r.time || '—'}</div></div>
+                        <div class="conf-row"><div class="conf-label">Details</div><div class="conf-value">${details}</div></div>
+                        <div class="conf-row"><div class="conf-label">Status</div><div class="conf-value"><strong>${r.status}</strong></div></div>
+                        ${r.voucherNo ? `<div class="conf-row"><div class="conf-label">Confirmation No</div><div class="conf-value">${r.voucherNo}</div></div>` : ''}
+                    </div>
+
+                    <p>Should you require any further assistance or wish to make changes, please contact the Concierge desk.</p>
+                    <p style="margin-top:30px;">Warm regards,<br><strong>Concierge Team</strong></p>
+                </div>
+
+                <div class="pdf-footer">
+                    MGallery The Bodrum Hotel Yalıkavak
+                </div>
+            </div>
+        `;
+
+        pdfEl.innerHTML = html;
+        const opt = {
+            margin: 0,
+            filename: `Confirmation_${r.guestName.replace(/\s+/g, '_')}_${r.type}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 3, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
         html2pdf().set(opt).from(pdfEl).save().then(() => {
             pdfEl.style.display = 'none';
         });

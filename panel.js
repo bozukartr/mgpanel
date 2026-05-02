@@ -32,8 +32,125 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ── AUTO LOGOUT LOGIC (5 MINS) ─────────────────────────────
+    let logoutTimer;
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            auth.signOut().then(() => {
+                localStorage.removeItem('hotelUsername');
+                window.location.href = 'index.html';
+            });
+        }, 5 * 60 * 1000); // 5 minutes
+    }
+
+    // Reset on typing, changing inputs, scrolling, or touching
+    ['keydown', 'input', 'change', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer, true);
+    });
+
+    // Reset only on functional clicks (buttons, table rows, cards, inputs, etc.)
+    document.addEventListener('click', (e) => {
+        const isInteractive = e.target.closest('button, input, select, textarea, a, tr, .stat-pill, .nav-btn, .mob-nav-btn, .mob-fab, .sheet-backdrop, .sheet-pill');
+        if (isInteractive) resetLogoutTimer();
+    }, true);
+
+    resetLogoutTimer(); // Start timer on load
+
     auth.onAuthStateChanged(user => {
         if (!user) window.location.href = 'index.html';
+    });
+
+    // ── BACKUP LOGIC (JSON IMPORT/EXPORT) ──────────────────────
+    const backupToggleBtn = document.getElementById('backupToggleBtn');
+    const backupMenu = document.getElementById('backupMenu');
+    const exportDataBtn = document.getElementById('exportDataBtn');
+    const importDataBtn = document.getElementById('importDataBtn');
+    const importFileInput = document.getElementById('importFileInput');
+
+    if (backupToggleBtn) {
+        backupToggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            backupMenu?.classList.toggle('show');
+        };
+    }
+
+    document.addEventListener('click', () => {
+        backupMenu?.classList.remove('show');
+    });
+
+    // EXPORT: JSON (Full System Backup)
+    exportDataBtn?.addEventListener('click', async () => {
+        try {
+            const logsSnap = await db.collection('guestLogs').get();
+            const resSnap  = await db.collection('reservations').get();
+            
+            const fullBackup = {
+                guestLogs: logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                reservations: resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                backupDate: new Date().toISOString(),
+                version: "2.0"
+            };
+
+            const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Full_System_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Full system backup exported.');
+        } catch (e) { showToast('Export failed', true); }
+    });
+
+    // IMPORT: JSON (Full System Restore)
+    importDataBtn?.addEventListener('click', () => importFileInput.click());
+
+    importFileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                const batch = db.batch();
+                let logCount = 0;
+                let resCount = 0;
+
+                // Case 1: New Unified Backup Format
+                if (data.guestLogs || data.reservations) {
+                    if (data.guestLogs) {
+                        data.guestLogs.forEach(item => {
+                            const { id, ...rest } = item;
+                            batch.set(db.collection('guestLogs').doc(id), rest, { merge: true });
+                            logCount++;
+                        });
+                    }
+                    if (data.reservations) {
+                        data.reservations.forEach(item => {
+                            const { id, ...rest } = item;
+                            batch.set(db.collection('reservations').doc(id), rest, { merge: true });
+                            resCount++;
+                        });
+                    }
+                } 
+                // Case 2: Legacy GuestLogs-only Array Format
+                else if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        const { id, ...rest } = item;
+                        batch.set(db.collection('guestLogs').doc(id), rest, { merge: true });
+                        logCount++;
+                    });
+                } else {
+                    throw new Error('Unsupported backup format');
+                }
+
+                await batch.commit();
+                showToast(`Import Success: ${logCount} logs, ${resCount} reservations.`);
+                e.target.value = '';
+            } catch (err) { showToast('Import failed: ' + err.message, true); }
+        };
+        reader.readAsText(file);
     });
 
     // Tab switching — works for both desktop nav and mobile bottom nav
@@ -127,6 +244,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const dateSearch = document.getElementById('dateSearch');
     const resetFilters = document.getElementById('resetFilters');
 
+    // Helper for local timezone date (YYYY-MM-DD)
+    function getLocalDate() {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // Default view to today's date
+    if (!dateSearch.value) dateSearch.value = getLocalDate();
+
     // Modal
     const modal = document.getElementById('recordModal');
     const closeModal = document.getElementById('closeModal');
@@ -163,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         db.collection('guestLogs').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
             records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             updateGuestMap();
-            updateView();
+            updateView(globalSearch.value, dateSearch.value);
             // Sync selectedRecord to avoid undefined errors in editNote
             if (selectedRecord) {
                 const refreshed = records.find(r => r.id === selectedRecord.id);
@@ -209,44 +338,416 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Export Excel
-    document.getElementById('exportExcel').onclick = () => {
-        if (records.length === 0) return showToast('No records to export.', true);
-        const worksheet = XLSX.utils.json_to_sheet(records.map(r => ({
-            Date: r.date,
-            Status: r.status || 'Following',
-            Room: r.room,
-            Guest: r.guestName,
-            Department: r.department,
-            Complaint: r.complaint,
-            Solution: r.solution,
-            Staff: r.staffInitial
-        })));
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Records");
-        XLSX.writeFile(workbook, `Guest_Logs_${new Date().toISOString().slice(0, 10)}.xlsx`);
-        showToast('Excel exported successfully.');
+    // ═══════════════════════════════════════════════════════════
+    // REPORTS MODAL
+    // ═══════════════════════════════════════════════════════════
+    const reportsModal = document.getElementById('reportsModal');
+    const rptTypeSelect = document.getElementById('reportTypeSelect');
+    
+    document.getElementById('openReportsBtn')?.addEventListener('click', () => {
+        reportsModal.style.display = 'flex';
+        populateGuestDatalist();
+        updateRptUI(); // Reset UI state on open
+    });
+
+    function populateGuestDatalist() {
+        const datalist = document.getElementById('guestNamesList');
+        if (!datalist) return;
+        
+        // Get unique guest names from all records
+        const uniqueNames = [...new Set(records.map(r => r.guestName).filter(Boolean))].sort();
+        datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+    }
+
+    document.getElementById('closeReportsModal')?.addEventListener('click', () => {
+        reportsModal.style.display = 'none';
+    });
+
+    // Dynamic UI Toggles
+    rptTypeSelect?.addEventListener('change', updateRptUI);
+
+    function updateRptUI() {
+        const type = rptTypeSelect.value;
+        const specificDateCont = document.getElementById('rpt-specificDateContainer');
+        const rangeGroup = document.getElementById('rpt-rangeGroup');
+        const deptCont = document.getElementById('rpt-deptContainer');
+        const guestCont = document.getElementById('rpt-guestContainer');
+
+        // Reset all
+        specificDateCont.style.display = 'none';
+        rangeGroup.style.display = 'none';
+        deptCont.style.display = 'none';
+        guestCont.style.display = 'none';
+
+        // Show based on type
+        if (type === 'summary' || type === 'byDate') {
+            specificDateCont.style.display = 'block';
+        } else if (type === 'dateRange' || type === 'historicalStatus' || type === 'deptHistorical' || type === 'department' || type === 'status') {
+            rangeGroup.style.display = 'flex';
+            if (type === 'department' || type === 'deptHistorical') deptCont.style.display = 'block';
+        } else if (type === 'guest') {
+            guestCont.style.display = 'block';
+        }
+    }
+
+    // Proxy function called from HTML buttons
+    window.generateReportFromUI = function(format) {
+        const type = rptTypeSelect.value;
+        generateReport(type, format);
     };
 
-    // Export PDF
-    document.getElementById('exportPDF').onclick = () => {
-        if (records.length === 0) return showToast('No records to export.', true);
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.text("Guest Issues Log Report", 14, 15);
-        const tableData = records.map(r => [
-            r.date, r.room, r.guestName, r.department, r.staffInitial, r.status || 'Following'
-        ]);
-        doc.autoTable({
-            head: [['Date', 'Room', 'Guest', 'Dept', 'Staff', 'Status']],
-            body: tableData,
-            startY: 20,
-            theme: 'grid',
-            headStyles: { fillColor: [0, 0, 0] }
+    // Track last rendered rows for "Current View" export
+    let lastRenderedRows = [];
+
+    // ── Helpers ────────────────────────────────────────────────
+    function getRptDates() {
+        return {
+            from: document.getElementById('rpt-dateFrom')?.value || '',
+            to:   document.getElementById('rpt-dateTo')?.value   || '',
+            specific: document.getElementById('rpt-specificDate')?.value || getLocalDate(),
+            dept: document.getElementById('rpt-departmentSelect')?.value || 'All',
+            guest: document.getElementById('rpt-guestSearch')?.value || ''
+        };
+    }
+
+    function filterByRange(data, from, to) {
+        return data.filter(r => {
+            if (from && r.date < from) return false;
+            if (to   && r.date > to)   return false;
+            return true;
         });
-        doc.save(`Guest_Logs_${new Date().toISOString().slice(0, 10)}.pdf`);
-        showToast('PDF exported successfully.');
+    }
+
+    function rowBase(r) {
+        return {
+            Date: r.date,
+            Room: r.room,
+            'Guest Name': r.guestName,
+            Department: r.department,
+            Complaint: r.complaint,
+            Solution: r.solution || '',
+            Staff: r.staffInitial,
+            Status: r.status || 'Following'
+        };
+    }
+
+    // ── Excel Helpers ──────────────────────────────────────────
+    function autoSizeSheet(ws, rows) {
+        if (!rows || rows.length === 0) return;
+        const keys = Object.keys(rows[0]);
+        const widths = keys.map(k => {
+            let maxLen = k.length;
+            rows.forEach(r => {
+                const val = r[k] ? String(r[k]) : '';
+                if (val.length > maxLen) maxLen = val.length;
+            });
+            return { wch: maxLen + 2 };
+        });
+        ws['!cols'] = widths;
+
+        // Add Auto-Filters for the entire range
+        if (ws['!ref']) {
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+        }
+    }
+
+    function exportExcel(rows, filename, sheetName = 'Report') {
+        if (!rows || rows.length === 0) return showToast('No data for this report.', true);
+        const ws = XLSX.utils.json_to_sheet(rows);
+        autoSizeSheet(ws, rows);
+        
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, `${filename}_${getLocalDate()}.xlsx`);
+        showToast('Excel report downloaded.');
+    }
+
+    function fixTurkishChars(str) {
+        if (typeof str !== 'string') return str;
+        return str
+            .replace(/ı/g, 'i').replace(/İ/g, 'I')
+            .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+            .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+            .replace(/ş/g, 's').replace(/Ş/g, 'S')
+            .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+            .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+    }
+
+    // ── PDF export ─────────────────────────────────────────────
+    function exportPDF(title, headers, rows, filename, subtitle = '') {
+        if (!rows || rows.length === 0) return showToast('No data for this report.', true);
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: rows[0].length > 6 ? 'landscape' : 'portrait' });
+
+        // Fix Turkish chars
+        const fixedTitle = fixTurkishChars(title);
+        const fixedSubtitle = fixTurkishChars(subtitle);
+        const fixedHeaders = headers.map(h => fixTurkishChars(h));
+        const fixedRows = rows.map(row => row.map(cell => fixTurkishChars(cell)));
+
+        // Header band
+        doc.setFillColor(21, 101, 192);
+        doc.rect(0, 0, doc.internal.pageSize.getWidth(), 28, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+        doc.text(fixedTitle, 14, 12);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        doc.text(fixedSubtitle || `Generated: ${getLocalDate()}`, 14, 20);
+        doc.setTextColor(0, 0, 0);
+        doc.autoTable({
+            head: [fixedHeaders],
+            body: fixedRows,
+            startY: 32,
+            theme: 'grid',
+            headStyles: { fillColor: [43, 58, 74], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+            bodyStyles: { fontSize: 8.5 },
+            alternateRowStyles: { fillColor: [245, 248, 255] },
+            margin: { left: 14, right: 14 }
+        });
+        // Footer
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8); doc.setTextColor(150);
+            doc.text(`Page ${i} of ${pageCount} — Guest Issues Management System`, 14, doc.internal.pageSize.getHeight() - 8);
+        }
+        doc.save(`${filename}_${getLocalDate()}.pdf`);
+        showToast('PDF report downloaded.');
+    }
+
+    // ── Report Engine ──────────────────────────────────────────
+    window.generateReport = function(type, format) {
+        const { from, to, specific, dept, guest } = getRptDates();
+
+        if (type === 'summary') {
+            const date = specific || getLocalDate();
+            let data = records.filter(r => r.date === date);
+            
+            // Optional: apply dept filter even here if user selected one? 
+            // Usually summary is general, but let's stick to the specific date.
+            
+            const total = data.length, solved = data.filter(r => r.status === 'Solved').length;
+            const following = total - solved, overdue = data.filter(r => isOverdueFn(r)).length;
+            const deptCounts = {};
+            data.forEach(r => deptCounts[r.department] = (deptCounts[r.department] || 0) + 1);
+            const summaryRows = [
+                { Metric: 'Total Issues', Value: total },
+                { Metric: 'Solved', Value: solved },
+                { Metric: 'Following', Value: following },
+                { Metric: 'Overdue (>15 min)', Value: overdue },
+                ...Object.entries(deptCounts).map(([d, cnt]) => ({ Metric: `Dept: ${d}`, Value: cnt }))
+            ];
+            const detailRows = data.map(r => rowBase(r));
+            if (format === 'excel') {
+                const wb = XLSX.utils.book_new();
+                const wsSum = XLSX.utils.json_to_sheet(summaryRows);
+                const wsDet = XLSX.utils.json_to_sheet(detailRows);
+                autoSizeSheet(wsSum, summaryRows);
+                autoSizeSheet(wsDet, detailRows);
+                XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+                XLSX.utils.book_append_sheet(wb, wsDet, 'Detail');
+                XLSX.writeFile(wb, `General_Summary_${date}.xlsx`);
+                showToast('Excel report downloaded.');
+            } else {
+                exportPDF(`General Summary — ${date}`,
+                    ['Date', 'Room', 'Guest Name', 'Department', 'Complaint', 'Solution', 'Staff', 'Status'],
+                    detailRows.map(r => Object.values(r)),
+                    `General_Summary_${date}`,
+                    `Total: ${total} | Solved: ${solved} | Following: ${following} | Overdue: ${overdue}`
+                );
+            }
+        }
+
+        else if (type === 'department') {
+            let data = (from || to) ? filterByRange(records, from, to) : records;
+            if (dept !== 'All') data = data.filter(r => r.department === dept);
+            
+            const grouped = {};
+            data.forEach(r => {
+                const d = r.department || 'Unknown';
+                if (!grouped[d]) grouped[d] = [];
+                grouped[d].push(r);
+            });
+            if (format === 'excel') {
+                const wb = XLSX.utils.book_new();
+                const summary = Object.entries(grouped).map(([d, arr]) => ({
+                    Solved: arr.filter(r => r.status === 'Solved').length,
+                    Following: arr.filter(r => r.status !== 'Solved').length
+                }));
+                const wsSum = XLSX.utils.json_to_sheet(summary);
+                autoSizeSheet(wsSum, summary);
+                XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+                Object.entries(grouped).forEach(([d, arr]) => {
+                    const sheetName = d.substring(0, 31);
+                    const rowsData = arr.map(rowBase);
+                    const wsDept = XLSX.utils.json_to_sheet(rowsData);
+                    autoSizeSheet(wsDept, rowsData);
+                    XLSX.utils.book_append_sheet(wb, wsDept, sheetName);
+                });
+                XLSX.writeFile(wb, `By_Department_${dept}_${getLocalDate()}.xlsx`);
+                showToast('Excel report downloaded.');
+            } else {
+                const rows = Object.entries(grouped).flatMap(([d, arr]) =>
+                    arr.map(r => [d, r.date, r.room, r.guestName, r.complaint?.substring(0, 40), r.status || 'Following'])
+                );
+                exportPDF(`Issues by Department (${dept})`, ['Department', 'Date', 'Room', 'Guest', 'Complaint', 'Status'], rows, `By_Department_${dept}`);
+            }
+        }
+
+        else if (type === 'byDate') {
+            const date = specific || getLocalDate();
+            const data = records.filter(r => r.date === date);
+            if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${date}`, date);
+            else exportPDF(`Issues — ${date}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'],
+                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,40), r.staffInitial, r.status || 'Following']),
+                `Issues_${date}`);
+        }
+
+        else if (type === 'dateRange') {
+            if (!from || !to) return showToast('Please set From and To dates.', true);
+            const data = filterByRange(records, from, to);
+            if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${from}_to_${to}`, 'Date Range');
+            else exportPDF(`Issues: ${from} → ${to}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'],
+                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,40), r.staffInitial, r.status || 'Following']),
+                `DateRange_${from}_${to}`, `From: ${from}  To: ${to}`);
+        }
+
+        else if (type === 'guest') {
+            let data = records;
+            if (guest) data = records.filter(r => r.guestName && r.guestName.toLowerCase().includes(guest.toLowerCase()));
+            
+            const grouped = {};
+            data.forEach(r => {
+                const key = r.guestName || 'Unknown';
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(r);
+            });
+            if (format === 'excel') {
+                const wb = XLSX.utils.book_new();
+                const summary = Object.entries(grouped).map(([name, arr]) => ({
+                    'Guest Name': name, Room: arr[0]?.room || '', 'Total Issues': arr.length,
+                    Solved: arr.filter(r => r.status === 'Solved').length
+                }));
+                const wsSum = XLSX.utils.json_to_sheet(summary);
+                const wsAll = XLSX.utils.json_to_sheet(data.map(rowBase));
+                autoSizeSheet(wsSum, summary);
+                autoSizeSheet(wsAll, data.map(rowBase));
+                XLSX.utils.book_append_sheet(wb, wsSum, 'Guest Summary');
+                XLSX.utils.book_append_sheet(wb, wsAll, 'All Records');
+                XLSX.writeFile(wb, `By_Guest_${guest || 'All'}_${getLocalDate()}.xlsx`);
+                showToast('Excel report downloaded.');
+            } else {
+                const rows = Object.entries(grouped).flatMap(([name, arr]) =>
+                    arr.map(r => [name, r.room, r.date, r.department, r.complaint?.substring(0,35), r.status || 'Following'])
+                );
+                exportPDF(`Issues by Guest: ${guest || 'All'}`, ['Guest Name', 'Room', 'Date', 'Department', 'Complaint', 'Status'], rows, `By_Guest_${guest || 'All'}`);
+            }
+        }
+
+        else if (type === 'status') {
+            const data = (from || to) ? filterByRange(records, from, to) : records;
+            const solved = data.filter(r => r.status === 'Solved');
+            const following = data.filter(r => r.status !== 'Solved');
+            if (format === 'excel') {
+                const wb = XLSX.utils.book_new();
+                const wsFollow = XLSX.utils.json_to_sheet(following.map(rowBase));
+                const wsSolved = XLSX.utils.json_to_sheet(solved.map(rowBase));
+                autoSizeSheet(wsFollow, following.map(rowBase));
+                autoSizeSheet(wsSolved, solved.map(rowBase));
+                XLSX.utils.book_append_sheet(wb, wsFollow, 'Following');
+                XLSX.utils.book_append_sheet(wb, wsSolved, 'Solved');
+                XLSX.writeFile(wb, `By_Status_${getLocalDate()}.xlsx`);
+                showToast('Excel report downloaded.');
+            } else {
+                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,35), r.status || 'Following']);
+                exportPDF('Issues by Status', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Status'], rows, 'By_Status',
+                    `Total: ${data.length} | Solved: ${solved.length} | Following: ${following.length}`);
+            }
+        }
+
+        else if (type === 'historicalStatus') {
+            if (!from || !to) return showToast('Please set From and To dates.', true);
+            const data = filterByRange(records, from, to);
+            // Group by date + status
+            const dailyMap = {};
+            data.forEach(r => {
+                if (!dailyMap[r.date]) dailyMap[r.date] = { date: r.date, total: 0, solved: 0, following: 0, overdue: 0 };
+                dailyMap[r.date].total++;
+                if (r.status === 'Solved') dailyMap[r.date].solved++;
+                else { dailyMap[r.date].following++; if (isOverdueFn(r)) dailyMap[r.date].overdue++; }
+            });
+            const dailyRows = Object.values(dailyMap).sort((a,b) => a.date.localeCompare(b.date));
+            if (format === 'excel') {
+                const wb = XLSX.utils.book_new();
+                const summaryData = dailyRows.map(d => ({
+                    Date: d.date, Total: d.total, Solved: d.solved, Following: d.following, Overdue: d.overdue
+                }));
+                const wsSum = XLSX.utils.json_to_sheet(summaryData);
+                const wsDet = XLSX.utils.json_to_sheet(data.map(rowBase));
+                autoSizeSheet(wsSum, summaryData);
+                autoSizeSheet(wsDet, data.map(rowBase));
+                XLSX.utils.book_append_sheet(wb, wsSum, 'Daily Summary');
+                XLSX.utils.book_append_sheet(wb, wsDet, 'Detail');
+                XLSX.writeFile(wb, `Historical_Status_${from}_${to}.xlsx`);
+                showToast('Excel report downloaded.');
+            } else {
+                const rows = dailyRows.map(d => [d.date, d.total, d.solved, d.following, d.overdue]);
+                exportPDF(`Historical + Status: ${from} → ${to}`, ['Date', 'Total', 'Solved', 'Following', 'Overdue'], rows,
+                    `Historical_Status_${from}_${to}`);
+            }
+        }
+
+        else if (type === 'deptHistorical') {
+            let data = (from || to) ? filterByRange(records, from, to) : records;
+            if (dept !== 'All') data = data.filter(r => r.department === dept);
+            
+            const matrix = {};
+            data.forEach(r => {
+                const d = r.department || 'Unknown';
+                if (!matrix[d]) matrix[d] = {};
+                if (!matrix[d][r.date]) matrix[d][r.date] = 0;
+                matrix[d][r.date]++;
+            });
+            const allDates = [...new Set(data.map(r => r.date))].sort();
+            if (format === 'excel') {
+                const sheetRows = Object.entries(matrix).map(([d, dates]) => {
+                    const row = { Department: d };
+                    allDates.forEach(dt => row[dt] = dates[dt] || 0);
+                    row['Total'] = Object.values(dates).reduce((a, b) => a + b, 0);
+                    return row;
+                });
+                exportExcel(sheetRows, `Dept_Historical_${dept}_${getLocalDate()}`, 'Dept vs Date');
+            } else {
+                const rows = Object.entries(matrix).map(([d, dates]) => [d, ...allDates.map(dt => dates[dt] || 0), Object.values(dates).reduce((a,b)=>a+b,0)]);
+                exportPDF(`Department × Historical (${dept})`, ['Department', ...allDates, 'Total'], rows, `Dept_Historical_${dept}`);
+            }
+        }
+
+        else if (type === 'currentView') {
+            if (lastRenderedRows.length === 0) return showToast('No visible records to export.', true);
+            if (format === 'excel') exportExcel(lastRenderedRows.map(rowBase), 'Current_View', 'Filtered');
+            else {
+                const rows = lastRenderedRows.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,40), r.staffInitial, r.status || 'Following']);
+                exportPDF('Current Filtered View', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'Current_View');
+            }
+        }
+
+        else if (type === 'fullArchive') {
+            if (format === 'excel') exportExcel(records.map(rowBase), 'Full_Archive', 'Archive');
+            else {
+                const rows = records.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,35), r.staffInitial, r.status || 'Following']);
+                exportPDF('Full Archive — All Records', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'Full_Archive',
+                    `Total Records: ${records.length}`);
+            }
+        }
     };
+
+    function isOverdueFn(record) {
+        if (!record.createdAt || record.status === 'Solved') return false;
+        const t = record.createdAt.toDate ? record.createdAt.toDate() : new Date(record.createdAt);
+        return (Date.now() - t) / 60000 > 15;
+    }
 
     const triggerSearch = () => updateView(globalSearch.value, dateSearch.value);
     globalSearch.addEventListener('input', triggerSearch);
@@ -260,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     resetFilters.addEventListener('click', () => {
         globalSearch.value = ''; 
-        dateSearch.value = new Date().toISOString().split('T')[0]; 
+        dateSearch.value = getLocalDate(); 
         activeStatusFilter = null;
         updateView(globalSearch.value, dateSearch.value);
     });
@@ -325,8 +826,6 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerSearch();
     };
 
-    // Default view to today's date
-    if (!dateSearch.value) dateSearch.value = new Date().toISOString().split('T')[0];
 
     // 3. View Logic
     function formatDateShort(dateStr) {
@@ -348,6 +847,16 @@ document.addEventListener('DOMContentLoaded', () => {
         recordsTableBody.innerHTML = '';
         const lowerText = textFilter.toLowerCase();
         let stats = { total: 0, following: 0, solved: 0, overdue: 0 };
+        
+        const tableTitle = document.getElementById('tableTitle');
+        if (tableTitle) {
+            if (dateFilter) {
+                const today = getLocalDate();
+                tableTitle.textContent = (dateFilter === today) ? "Today's Logs" : "Logs for " + formatDateShort(dateFilter);
+            } else {
+                tableTitle.textContent = "All Logs";
+            }
+        }
 
         const filtered = records.filter(r => {
             const matchesText = !textFilter || [r.guestName, r.room, r.department, r.staffInitial, r.status]
@@ -371,6 +880,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeStatusFilter === 'Overdue') return r.status !== 'Solved' && isOverdue(r);
             return r.status === activeStatusFilter;
         });
+
+        lastRenderedRows = finalFiltered;
 
         finalFiltered.forEach(record => {
             const status = record.status || 'Following';
@@ -425,6 +936,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('emailModalBtn').onclick = () => draftEmail(record);
         document.getElementById('editModalBtn').onclick = () => startModalEdit(record);
         document.getElementById('deleteModalBtn').onclick = () => {
+            if (record.staffInitial !== loggedUsername) {
+                showToast('Only the creator can delete this log!', true);
+                return;
+            }
             recordToDelete = record.id;
             confirmModal.style.display = 'flex';
         };
@@ -571,14 +1086,42 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Changes saved.');
     });
 
+    const authModal = document.getElementById('authModal');
+    const authPassInput = document.getElementById('auth-password');
+    const authVerifyBtn = document.getElementById('auth-verify-btn');
+
+    document.getElementById('authClose').onclick = () => authModal.style.display = 'none';
+
     confirmDeleteBtn.onclick = () => {
-        if (recordToDelete) {
-            db.collection('guestLogs').doc(recordToDelete).delete().then(() => {
-                confirmModal.style.display = 'none';
-                closeModalFunc();
-                showToast('Record deleted.');
-                recordToDelete = null;
-            });
+        if (!recordToDelete) return;
+        confirmModal.style.display = 'none';
+        authPassInput.value = '';
+        authModal.style.display = 'flex';
+    };
+
+    authVerifyBtn.onclick = async () => {
+        const password = authPassInput.value;
+        if (!password) return showToast('Please enter your password', true);
+
+        authVerifyBtn.disabled = true;
+        authVerifyBtn.textContent = 'Verifying...';
+
+        try {
+            const user = firebase.auth().currentUser;
+            const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+            await user.reauthenticateWithCredential(credential);
+
+            // Success: Proceed with deletion
+            await db.collection('guestLogs').doc(recordToDelete).delete();
+            authModal.style.display = 'none';
+            closeModalFunc();
+            showToast('Record deleted.');
+            recordToDelete = null;
+        } catch (e) {
+            showToast('Authentication failed. Incorrect password.', true);
+        } finally {
+            authVerifyBtn.disabled = false;
+            authVerifyBtn.textContent = 'Verify & Delete';
         }
     };
 
@@ -590,34 +1133,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = `mailto:?subject=${subject}&body=${body}`;
     }
 
-    function updateInsights() {
-        const today = new Date().toISOString().split('T')[0];
-        const todayLogs = records.filter(r => r.date === today);
-        document.getElementById('todayCount').textContent = todayLogs.length;
-        const deptCounts = {};
-        records.forEach(r => deptCounts[r.department] = (deptCounts[r.department] || 0) + 1);
-        const topDept = Object.keys(deptCounts).reduce((a, b) => deptCounts[a] > deptCounts[b] ? a : b, '-');
-        document.getElementById('topDept').textContent = topDept === '-' ? '-' : topDept.split(' ')[0];
-        const activityFeed = document.getElementById('activityFeed');
-        activityFeed.innerHTML = '';
-        records.slice(0, 5).forEach(r => {
-            const item = document.createElement('div');
-            item.className = 'feed-item';
-            item.innerHTML = `
-                <div class="feed-icon" style="background: ${getDeptColor(r.department)}"></div>
-                <div class="feed-content">
-                    <p><strong>${r.guestName}</strong> (${r.room}) set to ${r.status || 'Following'}.</p>
-                    <span>${r.date}</span>
-                </div>
-            `;
-            activityFeed.appendChild(item);
-        });
-    }
-
-    function getDeptColor(dept) {
-        const colors = { 'Housekeeping': '#1976d2', 'Front Desk': '#7b1fa2', 'Engineering': '#ef6c00', 'Food & Beverage': '#2e7d32', 'Security': '#c62828' };
-        return colors[dept] || '#333';
-    }
 
     document.getElementById('successEmailBtn').onclick = () => {
         if(selectedRecord) draftEmail(selectedRecord);
@@ -630,6 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onclick = (e) => { 
         if (e.target == modal) closeModalFunc(); 
         if (e.target == confirmModal) { confirmModal.style.display = 'none'; recordToDelete = null; }
+        if (e.target == authModal) authModal.style.display = 'none';
     };
     document.getElementById('date').valueAsDate = new Date();
 });

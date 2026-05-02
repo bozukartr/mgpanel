@@ -30,6 +30,21 @@
             </nav>
             <div class="user-profile">
                 <span id="displayUsername">Admin</span>
+                <!-- Backup Dropdown -->
+                <div class="backup-dropdown">
+                    <button id="backupToggleBtn" class="backup-btn">
+                        <span class="icon">📁</span> Backup
+                    </button>
+                    <div class="backup-menu" id="backupMenu">
+                        <div class="menu-item" id="exportDataBtn">
+                            <span class="m-icon">📥</span> Export (JSON)
+                        </div>
+                        <div class="menu-item" id="importDataBtn">
+                            <span class="m-icon">📤</span> Import (JSON)
+                            <input type="file" id="importFileInput" accept=".json" style="display:none">
+                        </div>
+                    </div>
+                </div>
                 <button id="logoutBtn" class="logout-btn">
                     <span class="icon">⏻</span> Logout
                 </button>
@@ -135,9 +150,8 @@
                                 <div class="data-stats">Total: <span id="recordCount">0</span></div>
                                 <div class="export-actions">
                                     <button id="guestProfilesBtn" class="export-btn"
-                                        style="background: #2b3a4a; color: #fff; border-color: #2b3a4a;">profıles</button>
-                                    <button id="exportExcel" class="export-btn excel">Excel</button>
-                                    <button id="exportPDF" class="export-btn pdf">PDF</button>
+                                        style="background: #2b3a4a; color: #fff; border-color: #2b3a4a;">Profiles</button>
+                                    <button id="openReportsBtn" class="export-btn" style="background: #1565c0; color: #fff; border-color: #1565c0;">📊 Reports</button>
                                 </div>
                             </div>
                             <div class="search-area">
@@ -352,7 +366,130 @@
             </div>
         </div>
     </div>
+    <!-- ══════════════════════════════════════════════════════════
+         REPORTS MODAL
+    ══════════════════════════════════════════════════════════ -->
+    <div id="reportsModal" class="modal">
+        <div class="modal-content" style="max-width: 500px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #1565c0, #0d47a1); color: white; border-radius: 12px 12px 0 0; padding: 20px 24px;">
+                <div>
+                    <h2 style="color: white; margin: 0; font-size: 20px;">📊 Reports Center</h2>
+                    <p style="color: rgba(255,255,255,0.75); margin: 4px 0 0; font-size: 13px;">Generate professional reports in Excel or PDF format</p>
+                </div>
+                <span class="close-modal" id="closeReportsModal" style="color: white; font-size: 28px;">&times;</span>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                
+                <!-- Report Type Selection -->
+                <div style="margin-bottom: 20px;">
+                    <label style="font-size: 13px; color: #666; display: block; margin-bottom: 8px; font-weight: 600;">SELECT REPORT TYPE</label>
+                    <select id="reportTypeSelect" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif; font-size: 14px; background-color: #fff;">
+                        <option value="summary">General Summary (Daily)</option>
+                        <option value="department">By Department</option>
+                        <option value="byDate">By Specific Date</option>
+                        <option value="dateRange">Date Range Report</option>
+                        <option value="guest">By Guest Profile</option>
+                        <option value="status">By Status Breakdown</option>
+                        <option value="historicalStatus">Historical + Status Trend</option>
+                        <option value="deptHistorical">Department × Historical Matrix</option>
+                        <option value="currentView">Current Filtered View</option>
+                        <option value="fullArchive">Full Archive (All Records)</option>
+                    </select>
+                </div>
 
+                <!-- Dynamic Input Section -->
+                <div id="rpt-dynamicInputs" style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 24px; border: 1px solid #e0e0e0;">
+                    
+                    <!-- Date Group (Shared) -->
+                    <div id="rpt-dateGroup" style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <div id="rpt-specificDateContainer" style="flex: 1; min-width: 140px;">
+                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">DATE</label>
+                            <input type="date" id="rpt-specificDate" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                        </div>
+                        <div id="rpt-rangeGroup" style="display: none; gap: 15px; flex: 2; min-width: 300px;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">FROM DATE</label>
+                                <input type="date" id="rpt-dateFrom" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">TO DATE</label>
+                                <input type="date" id="rpt-dateTo" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Department Selector (Dynamic) -->
+                    <div id="rpt-deptContainer" style="display: none; margin-top: 15px;">
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">SELECT DEPARTMENT</label>
+                        <select id="rpt-departmentSelect" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                            <option value="All">All Departments</option>
+                            <option value="Housekeeping">Housekeeping</option>
+                            <option value="Front Desk">Front Desk</option>
+                            <option value="Engineering">Engineering</option>
+                            <option value="Food & Beverage">Food & Beverage</option>
+                            <option value="Security">Security</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <!-- Guest Search (Dynamic) -->
+                    <div id="rpt-guestContainer" style="display: none; margin-top: 15px;">
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">GUEST NAME</label>
+                        <input type="text" id="rpt-guestSearch" list="guestNamesList" placeholder="Start typing guest name..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                        <datalist id="guestNamesList"></datalist>
+                    </div>
+                </div>
+
+                <!-- Export Buttons -->
+                <div style="display: flex; gap: 15px;">
+                    <button class="action-btn" onclick="generateReportFromUI('excel')" style="flex: 1; background: #2e7d32; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px;">
+                        <span style="font-size: 18px;">📄</span> Export to Excel
+                    </button>
+                    <button class="action-btn" onclick="generateReportFromUI('pdf')" style="flex: 1; background: #c62828; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px;">
+                        <span style="font-size: 18px;">📕</span> Export to PDF
+                    </button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Check Modal -->
+    <div id="authModal" class="modal">
+        <div class="modal-content" style="max-width: 400px; border-radius: 16px; overflow: hidden; border: none; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
+            <div class="modal-header" style="background: linear-gradient(135deg, #455a64, #263238); color: white; padding: 25px; border: none;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="background: rgba(255,255,255,0.2); width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <div>
+                        <h3 style="color: white; margin: 0; font-size: 18px; letter-spacing: 0.5px;">Security Check</h3>
+                        <p style="color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 12px;">Sudo Mode Active</p>
+                    </div>
+                </div>
+                <button class="close-modal" id="authClose" style="color: white; opacity: 0.8;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 30px;">
+                <p style="font-size: 14px; color: #444; margin-bottom: 20px; line-height: 1.5;">
+                    This is a sensitive action. Please confirm your identity by entering your account password.
+                </p>
+                <div class="form-group" style="margin-bottom: 25px;">
+                    <label style="font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; margin-bottom: 8px; display: block;">Verification Password</label>
+                    <div style="position: relative;">
+                        <input type="password" id="auth-password" class="form-input" 
+                               style="width: 100%; padding: 14px 14px 14px 40px; border-radius: 10px; border: 2px solid #eee; font-family: 'Outfit', sans-serif; transition: all 0.3s;" 
+                               placeholder="Enter your password">
+                        <svg style="position: absolute; left: 14px; top: 14px; color: #ccc;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                </div>
+                <button class="primary-btn" id="auth-verify-btn" 
+                        style="width: 100%; padding: 15px; border-radius: 12px; background: #c62828; color: white; font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; border: none; cursor: pointer; transition: transform 0.2s, background 0.3s;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    Confirm & Delete Record
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
