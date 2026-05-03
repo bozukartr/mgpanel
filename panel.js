@@ -61,6 +61,109 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!user) window.location.href = 'index.html';
     });
 
+    // ── GUEST DIRECTORY & STATUS LOGIC ────────────────────────
+    let guestDirectory = [];
+    async function loadGuestDirectory() {
+        try {
+            const snap = await db.collection('guestDirectory').get();
+            guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderGuestProfileList();
+        } catch (e) { console.error("Error loading directory", e); }
+    }
+
+    async function syncGuestStatus(name, room, status = 'in_house') {
+        if (!name) return;
+        const normalized = name.trim();
+        const existing = guestDirectory.find(g => g.name.toLowerCase() === normalized.toLowerCase());
+        
+        if (!existing) {
+            const newGuest = {
+                name: normalized,
+                room: room || '',
+                status: status,
+                lastUpdated: new Date().toISOString()
+            };
+            const docRef = await db.collection('guestDirectory').add(newGuest);
+            guestDirectory.push({ id: docRef.id, ...newGuest });
+        } else {
+            // Repeat Guest Logic: If they were checked out, bring them back in house
+            // Also update room number as it might have changed this visit
+            if (existing.status === 'checked_out' || existing.room !== room) {
+                const updates = {
+                    status: 'in_house',
+                    room: room || existing.room,
+                    lastUpdated: new Date().toISOString()
+                };
+                await db.collection('guestDirectory').doc(existing.id).update(updates);
+                
+                // Update local state
+                existing.status = 'in_house';
+                existing.room = room || existing.room;
+                existing.lastUpdated = updates.lastUpdated;
+                
+                renderGuestProfileList();
+                updateView(globalSearch.value, dateSearch.value);
+            }
+        }
+    }
+
+    function getGuestStatus(name) {
+        const guest = guestDirectory.find(g => g.name.toLowerCase() === (name || '').toLowerCase());
+        return guest ? guest.status : 'in_house';
+    }
+
+    loadGuestDirectory();
+
+    // ── LEGACY SYNC: Backfill directory from existing logs ──
+    async function backfillGuestDirectory() {
+        if (!records.length) return;
+        
+        try {
+            // Load all current reservations to include concierge-only guests
+            const resSnap = await db.collection('reservations').get();
+            const resData = resSnap.docs.map(doc => doc.data());
+
+            // Combine guest names from both logs and reservations
+            const allSourceGuests = [
+                ...records.map(r => ({ name: r.guestName, room: r.room })),
+                ...resData.map(r => ({ name: r.guestName, room: r.room }))
+            ];
+
+            // Find unique guest names from sources that aren't in directory
+            const existingNames = new Set(guestDirectory.map(g => g.name.toLowerCase()));
+            const guestsToAddMap = {}; 
+            
+            allSourceGuests.forEach(g => {
+                if (g.name && !existingNames.has(g.name.toLowerCase())) {
+                    guestsToAddMap[g.name.toLowerCase()] = { name: g.name, room: g.room };
+                }
+            });
+
+            const guestsToAdd = Object.values(guestsToAddMap);
+            if (guestsToAdd.length === 0) return;
+
+            console.log(`Backfilling ${guestsToAdd.length} guests into directory...`);
+            const batch = db.batch();
+            
+            guestsToAdd.forEach(g => {
+                const newRef = db.collection('guestDirectory').doc();
+                const data = {
+                    name: g.name,
+                    room: g.room || '',
+                    status: 'checked_out', // Assume historical ones are checked out
+                    lastUpdated: new Date().toISOString()
+                };
+                batch.set(newRef, data);
+                guestDirectory.push({ id: newRef.id, ...data });
+            });
+
+            await batch.commit();
+            renderGuestProfileList();
+            updateGuestMap();
+            showToast(`${guestsToAdd.length} legacy guests added to registry.`);
+        } catch (e) { console.error("Backfill failed", e); }
+    }
+
     // ── BACKUP LOGIC (JSON IMPORT/EXPORT) ──────────────────────
     const backupToggleBtn = document.getElementById('backupToggleBtn');
     const backupMenu = document.getElementById('backupMenu');
@@ -224,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
+            await syncGuestStatus(guestName, room);
             await db.collection('guestLogs').add({
                 date, room, guestName, department,
                 complaint: complaint || '',
@@ -288,11 +392,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedRecord = null;
     let recordToDelete = null;
 
-    let guestMap = {};
     function updateGuestMap() {
-        guestMap = {};
-        records.forEach(r => { if(r.guestName && r.room) guestMap[r.guestName] = r.room; });
-        const html = Object.keys(guestMap).sort().map(n => `<option value="${n}">${guestMap[n]}</option>`).join('');
+        const html = guestDirectory.sort((a,b) => a.name.localeCompare(b.name)).map(g => `<option value="${g.name}">${g.room || ''}</option>`).join('');
         document.querySelectorAll('#guest-list').forEach(list => list.innerHTML = html);
     }
 
@@ -302,6 +403,10 @@ document.addEventListener('DOMContentLoaded', () => {
             records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             updateGuestMap();
             updateView(globalSearch.value, dateSearch.value);
+            
+            // Trigger backfill check
+            if (guestDirectory.length >= 0) backfillGuestDirectory();
+
             // Sync selectedRecord to avoid undefined errors in editNote
             if (selectedRecord) {
                 const refreshed = records.find(r => r.id === selectedRecord.id);
@@ -316,10 +421,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Guest auto-fill logic
     document.getElementById('guestName')?.addEventListener('input', (e) => {
-        if(guestMap[e.target.value]) document.getElementById('room').value = guestMap[e.target.value];
+        const g = guestDirectory.find(x => x.name === e.target.value);
+        if(g && g.room) document.getElementById('room').value = g.room;
     });
     document.getElementById('mob-guestName')?.addEventListener('input', (e) => {
-        if(guestMap[e.target.value]) document.getElementById('mob-room').value = guestMap[e.target.value];
+        const g = guestDirectory.find(x => x.name === e.target.value);
+        if(g && g.room) document.getElementById('mob-room').value = g.room;
     });
 
     issueForm.addEventListener('submit', async (e) => {
@@ -337,6 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updates: [],
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
+            await syncGuestStatus(formData.guestName, formData.room);
             await db.collection('guestLogs').add(formData);
             issueForm.reset();
             staffInitialInput.value = loggedUsername;
@@ -442,35 +550,102 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Excel Helpers ──────────────────────────────────────────
-    function autoSizeSheet(ws, rows) {
-        if (!rows || rows.length === 0) return;
-        const keys = Object.keys(rows[0]);
-        const widths = keys.map(k => {
-            let maxLen = k.length;
-            rows.forEach(r => {
-                const val = r[k] ? String(r[k]) : '';
-                if (val.length > maxLen) maxLen = val.length;
-            });
-            return { wch: maxLen + 2 };
-        });
-        ws['!cols'] = widths;
 
-        // Add Auto-Filters for the entire range
-        if (ws['!ref']) {
-            const range = XLSX.utils.decode_range(ws['!ref']);
-            ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
-        }
-    }
-
-    function exportExcel(rows, filename, sheetName = 'Report') {
+    function exportExcel(rows, filename, sheetName = 'Report', summaryData = null) {
         if (!rows || rows.length === 0) return showToast('No data for this report.', true);
-        const ws = XLSX.utils.json_to_sheet(rows);
-        autoSizeSheet(ws, rows);
         
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
-        XLSX.writeFile(wb, `${filename}_${getLocalDate()}.xlsx`);
-        showToast('Excel report downloaded.');
+        const keys = Object.keys(rows[0]);
+        
+        // Build Summary Table if provided
+        let summaryHtml = '';
+        if (summaryData) {
+            summaryHtml = `
+                <table style="margin-bottom: 25px;">
+                    <thead>
+                        <tr><th colspan="2" style="background: #2563eb; color: white;">OPERATIONAL SUMMARY</th></tr>
+                    </thead>
+                    <tbody>
+                        ${Object.entries(summaryData).map(([k, v]) => `
+                            <tr>
+                                <td style="font-weight: bold; background: #f8fafc; width: 180px;">${k}</td>
+                                <td style="text-align: center; width: 100px; font-weight: bold;">${v}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <div style="height: 20px;"></div>
+            `;
+        }
+        
+        // Build Excel-compatible XML/HTML String for full styling support
+        let excelHtml = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="UTF-8">
+                <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${sheetName}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+                <style>
+                    table { border-collapse: collapse; margin-bottom: 10px; }
+                    td, th { 
+                        border: 0.5pt solid #000000; 
+                        padding: 8px; 
+                        vertical-align: middle; 
+                        word-wrap: break-word; 
+                        white-space: normal;
+                        font-family: "Segoe UI", Arial, sans-serif;
+                        font-size: 10pt;
+                    }
+                    th { 
+                        background-color: #1a1a1a; 
+                        color: #ffffff;
+                        font-weight: bold; 
+                        text-align: center;
+                    }
+                    .text-center { text-align: center; }
+                    /* Column widths for A4 fit */
+                    .col-date { width: 80px; }
+                    .col-room { width: 60px; }
+                    .col-guest { width: 150px; }
+                    .col-desc { width: 300px; }
+                </style>
+            </head>
+            <body>
+                ${summaryHtml}
+                <table>
+                    <thead>
+                        <tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr>
+                    </thead>
+                    <tbody>
+                        ${rows.map(r => `
+                            <tr>
+                                ${keys.map(k => {
+                                    const val = r[k] || '';
+                                    let className = '';
+                                    if (k.toLowerCase().includes('date')) className = 'col-date text-center';
+                                    if (k.toLowerCase().includes('room')) className = 'col-room text-center';
+                                    if (k.toLowerCase().includes('guest')) className = 'col-guest';
+                                    if (k.toLowerCase().includes('complaint') || k.toLowerCase().includes('solution') || k.toLowerCase().includes('notes')) className = 'col-desc';
+                                    
+                                    return `<td class="${className}">${val}</td>`;
+                                }).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob([excelHtml], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filename}_${getLocalDate()}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('Styled Excel report downloaded.');
     }
 
     function fixTurkishChars(str) {
@@ -566,6 +741,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     `General_Summary_${date}`,
                     `Total: ${total} | Solved: ${solved} | Following: ${following} | Overdue: ${overdue}`
                 );
+            }
+        }
+
+        else if (type === 'inHouseIssues') {
+            const inHouseNames = new Set(guestDirectory.filter(g => g.status === 'in_house').map(g => g.name.toLowerCase()));
+            const data = records.filter(r => inHouseNames.has(r.guestName?.toLowerCase()));
+            
+            const deptSummary = {};
+            data.forEach(r => deptSummary[r.department] = (deptSummary[r.department] || 0) + 1);
+            
+            const summaryData = {
+                'Total In-House Issues': data.length,
+                ...Object.entries(deptSummary).reduce((acc, [d, c]) => { acc[`Dept: ${d}`] = c; return acc; }, {})
+            };
+
+            if (format === 'excel') {
+                exportExcel(data.map(rowBase), 'In_House_Issues', 'InHouse', summaryData);
+            } else {
+                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,35), r.staffInitial, r.status || 'Following']);
+                exportPDF('In-House Guest Issues', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'In_House_Issues', 
+                    `Total Active In-House Issues: ${data.length} | ` + Object.entries(deptSummary).map(([d,c]) => `${d}:${c}`).join(' | '));
             }
         }
 
@@ -782,10 +978,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeProfileModal = document.getElementById('closeProfileModal');
     const profileSearchInput = document.getElementById('profileSearchInput');
     const guestProfileList = document.getElementById('guestProfileList');
+    const statusPills = document.querySelectorAll('.status-pill');
+
+    let currentProfileFilter = 'all';
 
     document.getElementById('guestProfilesBtn')?.addEventListener('click', () => {
         profileSearchInput.value = '';
-        renderGuestProfiles();
+        currentProfileFilter = 'all';
+        statusPills.forEach(p => p.classList.toggle('active', p.dataset.filter === 'all'));
+        renderGuestProfileList();
         guestProfileModal.style.display = 'flex';
     });
 
@@ -793,41 +994,74 @@ document.addEventListener('DOMContentLoaded', () => {
         guestProfileModal.style.display = 'none';
     });
 
-    function renderGuestProfiles() {
-        const query = profileSearchInput.value.toLowerCase();
+    statusPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+            statusPills.forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            currentProfileFilter = pill.dataset.filter;
+            renderGuestProfileList();
+        });
+    });
+
+    profileSearchInput?.addEventListener('input', renderGuestProfileList);
+
+    function renderGuestProfileList() {
+        if (!guestProfileList) return;
+        const search = profileSearchInput.value.toLowerCase();
         
-        // Group by guestName from ALL records
-        const profiles = {};
-        records.forEach(r => {
-            if(!r.guestName) return;
-            const name = r.guestName.trim();
-            if(!profiles[name]) profiles[name] = { room: r.room, count: 0 };
-            profiles[name].count++;
+        let filtered = guestDirectory.filter(g => {
+            const matchesSearch = g.name.toLowerCase().includes(search) || (g.room && g.room.includes(search));
+            const matchesStatus = currentProfileFilter === 'all' || g.status === currentProfileFilter;
+            return matchesSearch && matchesStatus;
         });
 
-        const sortedNames = Object.keys(profiles)
-            .filter(n => n.toLowerCase().includes(query))
-            .sort((a,b) => a.localeCompare(b));
-
-        if(sortedNames.length === 0) {
-            guestProfileList.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">No profiles found.</p>';
+        guestProfileList.innerHTML = '';
+        if (filtered.length === 0) {
+            guestProfileList.innerHTML = '<p style="padding:20px; text-align:center; color:#888;">No guests found.</p>';
             return;
         }
 
-        guestProfileList.innerHTML = sortedNames.map(name => `
-            <div class="guest-profile-item" onclick="selectGuestProfile('${name.replace(/'/g, "\\'")}')" style="display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='transparent'">
-                <div>
-                    <strong style="color: #2b3a4a;">${name}</strong>
-                    <div style="font-size:12px; color:#666;">Room: ${profiles[name].room}</div>
+        filtered.forEach(guest => {
+            const item = document.createElement('div');
+            item.className = 'guest-profile-item';
+            item.style = `
+                display: flex; justify-content: space-between; align-items: center; 
+                padding: 12px 15px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s;
+            `;
+            
+            const isInHouse = guest.status === 'in_house';
+            
+            item.innerHTML = `
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; color: #333;">${guest.name}</div>
+                    <div style="font-size: 12px; color: #888;">Room: ${guest.room || 'N/A'} • <span style="color:${isInHouse ? '#27ae60' : '#7f8c8d'}; font-weight:700;">${guest.status.replace('_',' ').toUpperCase()}</span></div>
                 </div>
-                <div style="text-align:right;">
-                    <span class="status-badge" style="background:#e3f2fd; color:#2980b9;">${profiles[name].count} Logs</span>
-                </div>
-            </div>
-        `).join('');
+                <button onclick="toggleGuestStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')"
+                        style="padding: 6px 12px; border-radius: 4px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; 
+                               background: ${isInHouse ? '#fef2f2' : '#f0fdf4'}; color: ${isInHouse ? '#991b1b' : '#166534'};">
+                    ${isInHouse ? 'CHECK OUT' : 'SET IN-HOUSE'}
+                </button>
+            `;
+            guestProfileList.appendChild(item);
+        });
     }
 
-    profileSearchInput?.addEventListener('input', renderGuestProfiles);
+    window.toggleGuestStatus = async (guestId, newStatus) => {
+        try {
+            await db.collection('guestDirectory').doc(guestId).update({
+                status: newStatus,
+                lastUpdated: new Date().toISOString()
+            });
+            // Update local state
+            const idx = guestDirectory.findIndex(g => g.id === guestId);
+            if (idx !== -1) guestDirectory[idx].status = newStatus;
+            renderGuestProfileList();
+            updateView(globalSearch.value, dateSearch.value); // Refresh table badges
+            showToast(`Guest marked as ${newStatus.replace('_',' ')}`);
+        } catch (e) { showToast('Update failed', true); }
+    };
+
+    profileSearchInput?.addEventListener('input', renderGuestProfileList);
 
     window.selectGuestProfile = function(name) {
         guestProfileModal.style.display = 'none';
@@ -902,13 +1136,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const lateBadgeStatus = status !== 'Solved' && isOverdue(record);
             const lateBadge = lateBadgeStatus ? '<span class="late-warning" title="Pending more than 15 minutes">⚠️ Late</span>' : '';
 
+            const gStatus = getGuestStatus(record.guestName);
+            const gStatusLabel = gStatus === 'in_house' ? 'IN HOUSE' : 'CHECKED OUT';
+            const gStatusClass = gStatus === 'in_house' ? 'in-house-badge' : 'checked-out-badge';
+
             const row = document.createElement('tr');
             if (lateBadgeStatus) row.classList.add('urgent-row');
 
             row.innerHTML = `
                 <td class="date-cell">${formatDateShort(record.date)}</td>
                 <td class="room-cell"><span>${record.room}</span></td>
-                <td class="guest-cell"><strong>${record.guestName}</strong> ${noteIndicator} ${lateBadge}</td>
+                <td class="guest-cell">
+                    <div style="display:flex; flex-direction:column;">
+                        <strong>${record.guestName} ${noteIndicator}</strong>
+                        <span class="${gStatusClass}" style="font-size:9px; font-weight:800; width:fit-content; margin-top:2px;">${gStatusLabel}</span>
+                    </div>
+                    ${lateBadge}
+                </td>
                 <td><span class="dept-badge">${record.department}</span></td>
                 <td class="staff-cell">${record.staffInitial}</td>
                 <td><span class="status-badge ${statusClass}">${status}</span></td>

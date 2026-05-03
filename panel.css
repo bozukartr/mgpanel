@@ -1452,3 +1452,29 @@ tr:hover td {
 .rpt-btn:hover { opacity: 0.85; transform: translateY(-1px); }
 .rpt-excel { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .rpt-pdf   { background: #fce4ec; color: #c62828; border: 1px solid #ef9a9a; }
+
+.in-house-badge {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #dcfce7;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.checked-out-badge {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.status-pill.active {
+    background: #111 !important;
+    color: white !important;
+    border-color: #111 !important;
+}
+
+

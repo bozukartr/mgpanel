@@ -55,6 +55,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── DATA ───────────────────────────────────────────────────
     let records = [];
+    let guestDirectory = [];
+    
+    // Load Guest Directory
+    db.collection('guestDirectory').onSnapshot(snap => {
+        guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderFeed(); // Re-render to show status badges
+    });
+
+    const getGuestStatus = (name) => {
+        const guest = guestDirectory.find(g => g.name.toLowerCase() === (name || '').toLowerCase());
+        return guest ? guest.status : 'in_house';
+    };
     // Exposed on window so global onclick handlers (renderTimeline, mobDeleteNote etc.) can access it
     window.selectedRecord = null;
     // Convenience proxy — reads/writes window.selectedRecord
@@ -98,17 +110,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const card = document.createElement('div');
             card.className = 'issue-card' + (overdueFlag ? ' overdue-card' : '');
+            const gStatus = getGuestStatus(r.guestName);
+            const gStatusLabel = gStatus === 'in_house' ? 'IN HOUSE' : 'CHECKED OUT';
+            const gStatusClass = gStatus === 'in_house' ? 'in-house-badge' : 'checked-out-badge';
+
             card.innerHTML = `
-                <div class="card-date">${fmtDate(r.date)}</div>
-                <div class="card-status">
-                    ${overdueFlag ? '<span class="late-badge">⚠ Late</span>' : ''}
-                    <span class="status-badge ${status.toLowerCase()}">${status}</span>
+                <div class="card-header">
+                    <div class="header-left">
+                        <span class="room-no">#${r.room}</span>
+                        <span class="status-pill ${status.toLowerCase()}">${status}</span>
+                        ${overdueFlag ? '<span class="status-pill overdue">LATE</span>' : ''}
+                    </div>
+                    <span class="card-date">${fmtDate(r.date)}</span>
                 </div>
-                <div class="card-name">
-                    ${r.guestName}
-                    ${noteCount > 0 ? `<span class="note-badge">💬 ${noteCount}</span>` : ''}
+                <div class="card-guest">
+                    <span class="guest-name">${r.guestName}</span>
+                    <span class="${gStatusClass}" style="font-size:9px; font-weight:800; padding:2px 5px; border-radius:4px; margin-left:8px;">${gStatusLabel}</span>
+                    ${noteCount > 0 ? `<span class="note-count">💬 ${noteCount}</span>` : ''}
                 </div>
-                <div class="card-room"><span class="room-badge">Room ${r.room}</span></div>
                 <div class="card-meta">
                     <span class="dept-badge">${r.department}</span>
                     <span class="staff-badge">${r.staffInitial}</span>
@@ -441,6 +460,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === 'summary' || type === 'status') return r.date === from;
             if (type === 'department') return r.date === from && r.department === dept;
             if (type === 'dateRange') return r.date >= from && r.date <= to;
+            if (type === 'inHouseIssues') {
+                const inHouseNames = new Set(guestDirectory.filter(g => g.status === 'in_house').map(g => g.name.toLowerCase()));
+                return inHouseNames.has(r.guestName?.toLowerCase());
+            }
             return true;
         });
     };
@@ -459,10 +482,68 @@ document.addEventListener('DOMContentLoaded', () => {
             Status: r.status || 'Following'
         }));
 
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Report");
-        XLSX.writeFile(wb, `Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+        const keys = Object.keys(rows[0]);
+        
+        // Calculate Summary for In-House report
+        let summaryHtml = '';
+        if (data.length > 0 && rptTypeSelect.value === 'inHouseIssues') {
+            const deptSum = {};
+            data.forEach(r => deptSum[r.department] = (deptSum[r.department] || 0) + 1);
+            summaryHtml = `
+                <table style="margin-bottom: 20px;">
+                    <thead><tr><th colspan="2" style="background:#2563eb; color:#fff;">OPERATIONAL SUMMARY</th></tr></thead>
+                    <tbody>
+                        <tr><td style="font-weight:bold; background:#f1f5f9;">Total In-House Issues</td><td style="text-align:center;">${data.length}</td></tr>
+                        ${Object.entries(deptSum).map(([d, c]) => `<tr><td style="font-weight:bold;">Dept: ${d}</td><td style="text-align:center;">${c}</td></tr>`).join('')}
+                    </tbody>
+                </table>
+                <br>
+            `;
+        }
+
+        let excelHtml = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="UTF-8">
+                <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+                <style>
+                    table { border-collapse: collapse; margin-bottom: 10px; }
+                    td, th { border: 0.5pt solid #000; padding: 8px; vertical-align: middle; word-wrap: break-word; white-space: normal; font-family: sans-serif; font-size: 10pt; }
+                    th { background-color: #1a1a1a; color: #fff; font-weight: bold; text-align: center; }
+                    .text-center { text-align: center; }
+                    .col-desc { width: 300px; }
+                </style>
+            </head>
+            <body>
+                ${summaryHtml}
+                <table>
+                    <thead><tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr></thead>
+                    <tbody>
+                        ${rows.map(r => `
+                            <tr>
+                                ${keys.map(k => {
+                                    const val = r[k] || '';
+                                    let className = (k === 'Complaint' || k === 'Solution') ? 'col-desc' : (k === 'Room' || k === 'Date' ? 'text-center' : '');
+                                    return `<td class="${className}">${val}</td>`;
+                                }).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </body>
+            </html>
+        `;
+
+        const blob = new Blob([excelHtml], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Report_${new Date().toISOString().split('T')[0]}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
         showToast('Excel Generated');
     });
 
@@ -477,12 +558,22 @@ document.addEventListener('DOMContentLoaded', () => {
             r.date, r.room, r.guestName, r.department, r.complaint, r.solution, r.status || 'Following'
         ]);
 
+        const deptSum = {};
+        data.forEach(r => deptSum[r.department] = (deptSum[r.department] || 0) + 1);
+        const sumStr = Object.entries(deptSum).map(([d,c]) => `${d}:${c}`).join(' | ');
+
         doc.autoTable({
             head: [['Date', 'Room', 'Guest', 'Dept', 'Complaint', 'Solution', 'Status']],
             body: rows,
             theme: 'grid',
-            headStyles: { fillColor: [17, 17, 17] }
+            headStyles: { fillColor: [17, 17, 17] },
+            margin: { top: 60 }
         });
+
+        if (rptTypeSelect.value === 'inHouseIssues') {
+            doc.setFontSize(10);
+            doc.text(`In-House Summary: Total ${data.length} | ${sumStr}`, 40, 40);
+        }
 
         doc.save(`Report_${new Date().toISOString().split('T')[0]}.pdf`);
         showToast('PDF Generated');

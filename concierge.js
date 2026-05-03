@@ -96,6 +96,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '';
 
     // ── DATA SYNC ─────────────────────────────────────────────
+    let guestDirectory = [];
+
+    // Load Guest Directory for Global Autocomplete
+    db.collection('guestDirectory').onSnapshot(snap => {
+        guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateAutocompletes();
+    });
+
     db.collection('reservations').orderBy('date', 'asc').onSnapshot(snap => {
         reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -117,11 +125,52 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateAutocompletes() {
         const list = document.getElementById('guest-list');
         const itiList = document.getElementById('iti-guest-list');
-        const names = Object.keys(guestMap).sort();
+        
+        // Merge names from reservations and guestDirectory
+        const namesSet = new Set([...Object.keys(guestMap), ...guestDirectory.map(g => g.name)]);
+        const names = Array.from(namesSet).sort();
 
-        const html = names.map(n => `<option value="${n}">${guestMap[n]}</option>`).join('');
+        const html = names.map(n => {
+            const room = guestDirectory.find(g => g.name === n)?.room || guestMap[n] || '';
+            return `<option value="${n}">${room}</option>`;
+        }).join('');
+        
         if (list) list.innerHTML = html;
         if (itiList) itiList.innerHTML = html;
+    }
+
+    // Auto-fill Room when guest name is selected
+    document.getElementById('rs-guest')?.addEventListener('input', (e) => {
+        const name = e.target.value.trim();
+        const found = guestDirectory.find(g => g.name.toLowerCase() === name.toLowerCase());
+        if (found && found.room) {
+            document.getElementById('rs-room').value = found.room;
+        }
+    });
+
+    async function syncGuestStatus(name, room) {
+        if (!name) return;
+        const normalized = name.trim();
+        const existing = guestDirectory.find(g => g.name.toLowerCase() === normalized.toLowerCase());
+        
+        if (!existing) {
+            const newGuest = {
+                name: normalized,
+                room: room || '',
+                status: 'in_house',
+                lastUpdated: new Date().toISOString()
+            };
+            await db.collection('guestDirectory').add(newGuest);
+        } else {
+            // Update room if provided and different, or if they were checked out
+            if (existing.status === 'checked_out' || (room && existing.room !== room)) {
+                await db.collection('guestDirectory').doc(existing.id).update({
+                    status: 'in_house',
+                    room: room || existing.room,
+                    lastUpdated: new Date().toISOString()
+                });
+            }
+        }
     }
 
     document.getElementById('c-search').oninput = renderReservations;
@@ -386,6 +435,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             await db.collection('reservations').add(data);
+            await syncGuestStatus(guestName, room); // Sync with directory
             showToast('Reservation logged');
             closeSheet(resSheet, resBackdrop);
             ['rs-guest', 'rs-room', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes'].forEach(id => {

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM | Guest Relations Center</title>
+    <link rel="stylesheet" href="crm.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="crm-container">
+        <!-- Header -->
+        <header class="crm-header">
+            <div class="logo">
+                <img src="logo.png" alt="Logo">
+                <span>CRM CENTER</span>
+            </div>
+            <nav class="crm-nav">
+                <a href="concierge.html">Concierge</a>
+                <a href="panel.html">Guest Logs</a>
+                <a href="crm.html" class="active">CRM Center</a>
+                <a href="admin.html" class="admin-only" id="adminLink" style="display:none;">Admin</a>
+            </nav>
+            <div class="user-info">
+                <span id="userNameDisplay">Admin</span>
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <main class="crm-main">
+            <!-- Left Panel: Guest List -->
+            <aside class="guest-sidebar">
+                <div class="sidebar-header">
+                    <div class="search-wrap">
+                        <input type="text" id="guestSearch" placeholder="Search guests, rooms...">
+                    </div>
+                    <div class="filter-group">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="in_house">In House</button>
+                        <button class="filter-btn" data-filter="checked_out">Checked Out</button>
+                    </div>
+                </div>
+                <div class="guest-list" id="guestList">
+                    <!-- Guest cards injected here -->
+                </div>
+            </aside>
+
+            <!-- Right Panel: Guest 360 View -->
+            <section class="guest-detail" id="guestDetail">
+                <div class="empty-state">
+                    <div class="empty-icon">👤</div>
+                    <h2>Guest 360° View</h2>
+                    <p>Select a guest from the list to view their complete history, analytics and manage their current status.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="crm.js"></script>
+
+    <div id="toast" class="toast"></div>
+</body>
+</html>

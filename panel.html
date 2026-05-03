@@ -25,6 +25,7 @@
             <nav class="panel-nav">
                 <button class="nav-btn" onclick="window.location.href='concierge.html'">Concierge</button>
                 <button class="nav-btn active" data-tab="guest-log">Guest Issues Log</button>
+                <button class="nav-btn" onclick="window.location.href='crm.html'">CRM Center</button>
                 <button class="nav-btn admin-only" id="adminNavLink" style="display: none;"
                     onclick="window.location.href='admin.html'">Admin</button>
             </nav>
@@ -152,7 +153,8 @@
                                 <div class="data-stats">Total: <span id="recordCount">0</span></div>
                                 <div class="export-actions">
                                     <button id="guestProfilesBtn" class="export-btn"
-                                        style="background: #2b3a4a; color: #fff; border-color: #2b3a4a;">Profiles</button>
+                                        style="background: #2b3a4a; color: #fff; border-color: #2b3a4a;"
+                                        onclick="window.location.href='crm.html'">CRM Center</button>
                                     <button id="openReportsBtn" class="export-btn" style="background: #1565c0; color: #fff; border-color: #1565c0;">📊 Reports</button>
                                 </div>
                             </div>
@@ -356,16 +358,26 @@
 
     <!-- Guest Profiles Modal -->
     <div id="guestProfileModal" class="modal">
-        <div class="modal-content profile-modal" style="max-width: 450px;">
-            <div class="modal-header">
-                <h2>Guest Profiles</h2>
-                <span class="close-modal" id="closeProfileModal">&times;</span>
+        <div class="modal-content profile-modal" style="max-width: 550px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #2c3e50, #34495e); color: white;">
+                <div>
+                    <h2 style="color: white; margin: 0; font-size: 18px;">👥 Guest Registry & Status</h2>
+                    <p style="color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 12px;">Manage In-House / Checked-Out statuses</p>
+                </div>
+                <span class="close-modal" id="closeProfileModal" style="color: white;">&times;</span>
             </div>
-            <div class="modal-body">
-                <input type="text" id="profileSearchInput" placeholder="Search guests..."
-                    style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                <div class="guest-profile-list" id="guestProfileList" style="max-height: 400px; overflow-y: auto;">
-                    <!-- List injected here -->
+            <div class="modal-body" style="padding: 20px;">
+                <div class="profile-search-wrap" style="margin-bottom: 20px;">
+                    <input type="text" id="profileSearchInput" placeholder="Search guests or room numbers..." 
+                           style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 12px; font-family: 'Outfit', sans-serif;">
+                    <div class="filter-pills" style="display: flex; gap: 8px;">
+                        <button class="status-pill active" data-filter="all" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600;">ALL</button>
+                        <button class="status-pill" data-filter="in_house" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #27ae60;">IN HOUSE</button>
+                        <button class="status-pill" data-filter="checked_out" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #7f8c8d;">CHECKED OUT</button>
+                    </div>
+                </div>
+                <div class="guest-profile-list" id="guestProfileList" style="max-height: 400px; overflow-y: auto; border: 1px solid #f0f0f0; border-radius: 8px;">
+                    <!-- List items injected here -->
                 </div>
             </div>
         </div>
@@ -389,6 +401,7 @@
                     <label style="font-size: 13px; color: #666; display: block; margin-bottom: 8px; font-weight: 600;">SELECT REPORT TYPE</label>
                     <select id="reportTypeSelect" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif; font-size: 14px; background-color: #fff;">
                         <option value="summary">General Summary (Daily)</option>
+                        <option value="inHouseIssues">In-House Issues (Current Guests)</option>
                         <option value="department">By Department</option>
                         <option value="byDate">By Specific Date</option>
                         <option value="dateRange">Date Range Report</option>
