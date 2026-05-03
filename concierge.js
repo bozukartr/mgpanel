@@ -208,8 +208,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let todayCount = 0, pending = 0, confirmed = 0;
         reservations.forEach(r => {
             if (r.date === today) todayCount++;
+            
+            // Pending is GLOBAL (show all outstanding tasks)
             if (r.status === 'Pending') pending++;
-            if (r.status === 'Confirmed') confirmed++;
+            
+            // Confirmed is DAILY (show today's operations)
+            if (r.date === dateVal && r.status === 'Confirmed') confirmed++;
         });
         if (document.getElementById('c-statToday')) document.getElementById('c-statToday').textContent = todayCount;
         if (document.getElementById('c-statPending')) document.getElementById('c-statPending').textContent = pending;
@@ -225,7 +229,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ].some(val => val && val.toString().toLowerCase().includes(search));
 
                 const matchesStatus = !statusFilter || r.status === statusFilter;
-                return matchesText && matchesStatus;
+                
+                // If it's Pending, show across all dates. If it's Confirmed, respect date.
+                let matchesDate = true;
+                if (statusFilter === 'Confirmed') {
+                    matchesDate = !dateVal || r.date === dateVal;
+                } else if (search && !statusFilter) {
+                    // If just searching without a status pill, respect date
+                    matchesDate = !dateVal || r.date === dateVal;
+                }
+                
+                return matchesText && matchesStatus && matchesDate;
             });
 
             if (results.length === 0) { empty.style.display = 'flex'; return; }
