@@ -67,6 +67,22 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const snap = await db.collection('guestDirectory').get();
             guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Auto Check-Out past guests
+            const today = new Date().toISOString().split('T')[0];
+            const batch = db.batch();
+            let needsCommit = false;
+
+            guestDirectory.forEach(g => {
+                if (g.status === 'in_house' && g.checkOut && g.checkOut < today) {
+                    batch.update(db.collection('guestDirectory').doc(g.id), { status: 'checked_out' });
+                    g.status = 'checked_out';
+                    needsCommit = true;
+                }
+            });
+
+            if (needsCommit) await batch.commit();
+
             renderGuestProfileList();
         } catch (e) { console.error("Error loading directory", e); }
     }

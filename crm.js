@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let guestLogs = [];
     let reservations = [];
     let currentGuestId = null;
-    let filterStatus = 'all';
+    let filterStatus = 'arrival';
     let timelineFilter = 'all';
 
     // ── CORE FUNCTIONS ─────────────────────────────────────────
@@ -32,6 +32,24 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const dirSnap = await db.collection('guestDirectory').get();
             guestDirectory = dirSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Auto Check-Out past guests
+            const today = new Date().toISOString().split('T')[0];
+            const batch = db.batch();
+            let needsCommit = false;
+
+            guestDirectory.forEach(g => {
+                if (g.status === 'in_house' && g.checkOut && g.checkOut < today) {
+                    batch.update(db.collection('guestDirectory').doc(g.id), { status: 'checked_out' });
+                    g.status = 'checked_out'; // Update local state immediately
+                    needsCommit = true;
+                }
+            });
+
+            if (needsCommit) {
+                await batch.commit();
+                console.log("Auto-checkout executed for past guests.");
+            }
 
             const logsSnap = await db.collection('guestLogs').get();
             guestLogs = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -63,7 +81,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let filtered = guestDirectory.filter(g => {
             const matchesSearch = g.name.toLowerCase().includes(search) || (g.room && g.room.includes(search));
-            const matchesStatus = filterStatus === 'all' || g.status === filterStatus;
+            
+            let matchesStatus = false;
+            if (filterStatus === 'arrival') {
+                matchesStatus = g.status === 'pre_arrival';
+            } else {
+                matchesStatus = g.status === filterStatus;
+            }
+
             return matchesSearch && matchesStatus;
         });
 
@@ -74,8 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="guest-card ${currentGuestId === g.id ? 'active' : ''}" onclick="viewGuestDetail('${g.id}')">
                 <div class="guest-card-header">
                     <span class="guest-card-name">${g.name}</span>
-                    <span class="guest-card-status ${g.status === 'in_house' ? 'status-in-house' : 'status-checked-out'}">
-                        ${g.status === 'in_house' ? 'In House' : 'Checked Out'}
+                    <span class="guest-card-status ${g.status === 'in_house' ? 'status-in-house' : (g.status === 'pre_arrival' ? 'status-arrival' : 'status-checked-out')}">
+                        ${g.status === 'in_house' ? 'In House' : (g.status === 'pre_arrival' ? 'Pre-Arrival' : 'Checked Out')}
                     </span>
                 </div>
                 <div class="guest-card-room">Room: ${g.room || 'N/A'}</div>
@@ -124,13 +149,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="profile-room-badge">
                         Room ${guest.room || 'N/A'} • Registry updated ${new Date(guest.lastUpdated).toLocaleDateString()}
+                        ${guest.checkIn ? `<br><span style="color:#2563eb; font-weight:600;">Check-In: ${guest.checkIn}</span>` : ''}
+                        ${guest.checkOut ? ` <span style="color:#e11d48; font-weight:600; margin-left:10px;">Check-Out: ${guest.checkOut}</span>` : ''}
                     </div>
                 </div>
-                <div class="profile-actions">
+                <div class="profile-actions" style="display: flex; gap: 8px;">
+                    <button class="btn-status-toggle" style="background-color: #f59e0b; color: white;" 
+                            onclick="openRoomChangeModal('${guest.id}', '${guest.name}', '${guest.room === 'Pre-Arrival' ? '' : (guest.room || '')}', '${guest.checkIn || ''}', '${guest.checkOut || ''}', '${guest.status}')">
+                        Edit Stay
+                    </button>
+                    ${guest.status === 'pre_arrival' ? `
+                    <button class="btn-status-toggle btn-in-house" onclick="toggleStatus('${guest.id}', 'in_house')">
+                        Check In Now
+                    </button>
+                    ` : `
                     <button class="btn-status-toggle ${guest.status === 'in_house' ? 'btn-checked-out' : 'btn-in-house'}" 
                             onclick="toggleStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')">
                         ${guest.status === 'in_house' ? 'Check Out Now' : 'Check In (In House)'}
                     </button>
+                    `}
+                    ${loggedUsername.toLowerCase() === 'admin' ? `
+                    <button class="btn-status-toggle" style="background-color: #ef4444; color: white;" 
+                            onclick="deleteGuest('${guest.id}', '${guest.name.replace(/'/g, "\\'")}')">
+                        Delete Guest
+                    </button>
+                    ` : ''}
                 </div>
             </div>
 
@@ -220,6 +263,31 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { showToast('Update failed', true); }
     };
 
+    window.deleteGuest = async (guestId, guestName) => {
+        if (loggedUsername.toLowerCase() !== 'admin') {
+            return showToast('Only Admin can delete guests!', true);
+        }
+        
+        if (!confirm(`Are you sure you want to permanently delete the profile for ${guestName}?\n\nWarning: This removes the guest from the directory, but keeps their historical logs intact.`)) {
+            return;
+        }
+
+        try {
+            await db.collection('guestDirectory').doc(guestId).delete();
+            showToast(`Guest ${guestName} deleted successfully.`);
+            currentGuestId = null;
+            document.getElementById('guestDetail').innerHTML = `
+                <div class="empty-state" style="display:flex;">
+                    <p>Select a guest to view details</p>
+                </div>
+            `;
+            loadAllData();
+        } catch (e) {
+            console.error("Delete failed", e);
+            showToast('Delete failed. Check permissions.', true);
+        }
+    };
+
     // ── EVENT LISTENERS ────────────────────────────────────────
     document.getElementById('guestSearch')?.addEventListener('input', renderGuestList);
     
@@ -242,4 +310,94 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     loadAllData();
+    // Room Change Logic
+    let rcGuestId = null;
+    let rcGuestName = null;
+
+    window.openRoomChangeModal = (id, name, currentRoom, checkIn, checkOut, status) => {
+        rcGuestId = id;
+        rcGuestName = name;
+        document.getElementById('rcGuestName').textContent = name;
+        document.getElementById('rcNewRoom').value = currentRoom;
+        document.getElementById('rcCheckIn').value = checkIn || '';
+        document.getElementById('rcCheckOut').value = checkOut || '';
+        
+        const isPreArrivalBox = document.getElementById('rcIsPreArrival');
+        if (isPreArrivalBox) {
+            isPreArrivalBox.checked = (status === 'pre_arrival');
+            document.getElementById('rcNewRoom').disabled = isPreArrivalBox.checked;
+        }
+
+        document.getElementById('roomChangeModal').style.display = 'flex';
+        document.getElementById('roomChangeModal').style.alignItems = 'center';
+        document.getElementById('roomChangeModal').style.justifyContent = 'center';
+    };
+
+    window.closeRoomChangeModal = () => {
+        document.getElementById('roomChangeModal').style.display = 'none';
+        rcGuestId = null;
+        rcGuestName = null;
+    };
+
+    window.submitRoomChange = async () => {
+        const isPreArrivalBox = document.getElementById('rcIsPreArrival');
+        const isPreArrival = isPreArrivalBox ? isPreArrivalBox.checked : false;
+        const newRoomRaw = document.getElementById('rcNewRoom').value.trim();
+        const checkInDate = document.getElementById('rcCheckIn').value;
+        const checkOutDate = document.getElementById('rcCheckOut').value;
+        
+        if (!isPreArrival && !newRoomRaw) return showToast('Please enter a room number.', true);
+        if (!rcGuestId || !rcGuestName) return;
+
+        const newRoomForDir = isPreArrival ? '' : newRoomRaw;
+        const newRoomForLogs = isPreArrival ? 'Pre-Arrival' : newRoomRaw;
+
+        const btn = document.querySelector('#roomChangeModal button:last-child');
+        const originalText = btn.textContent;
+        btn.textContent = 'Saving...';
+        btn.disabled = true;
+
+        try {
+            const batch = db.batch();
+            
+            // 1. Update Guest Directory
+            const updates = { 
+                room: newRoomForDir, 
+                checkIn: checkInDate,
+                checkOut: checkOutDate,
+                lastUpdated: new Date().toISOString() 
+            };
+            if (isPreArrival) updates.status = 'pre_arrival';
+
+            batch.update(db.collection('guestDirectory').doc(rcGuestId), updates);
+
+            // 2. Update Guest Logs (Issues)
+            const gLogsToUpdate = guestLogs.filter(l => l.guestName.toLowerCase() === rcGuestName.toLowerCase());
+            gLogsToUpdate.forEach(log => {
+                if (log.room !== newRoomForLogs) {
+                    batch.update(db.collection('guestLogs').doc(log.id), { room: newRoomForLogs });
+                }
+            });
+
+            // 3. Update Reservations (Concierge)
+            const gResToUpdate = reservations.filter(r => r.guestName.toLowerCase() === rcGuestName.toLowerCase());
+            gResToUpdate.forEach(res => {
+                if (res.room !== newRoomForLogs) {
+                    batch.update(db.collection('reservations').doc(res.id), { room: newRoomForLogs });
+                }
+            });
+
+            await batch.commit();
+
+            showToast('Stay details updated successfully.');
+            closeRoomChangeModal();
+        } catch (e) {
+            console.error(e);
+            showToast('Error updating stay details.', true);
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    };
+
 });

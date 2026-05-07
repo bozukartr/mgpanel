@@ -2,100 +2,93 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Concierge Console</title>
     <link rel="stylesheet" href="mobile.css">
+    <link rel="stylesheet" href="crm.css">
     <link rel="stylesheet" href="concierge.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- html2pdf.js for Itinerary Generation -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
-<div id="c-scroller">
+    <div class="crm-container">
+        <!-- Header -->
+        <header class="crm-header">
+            <div class="logo">
+                <img src="logo.png" alt="Logo">
+                <span>CONCIERGE</span>
+            </div>
+            <nav class="crm-nav">
+                <a href="concierge.html" class="active">Concierge</a>
+                <a href="panel.html">Guest Logs</a>
+                <a href="crm.html">CRM Center</a>
+                <a href="admin.html" class="admin-only" id="c-adminNav" style="display:none;">Admin</a>
+            </nav>
+            <div class="user-info" style="gap: 12px;">
+                <button class="app-icon-btn itinerary" id="c-openItinerary" title="Itinerary Generator">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </button>
+                <button class="app-icon-btn report" id="c-openReport" title="Reports Center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                </button>
+                <button class="app-icon-btn finance" id="c-openFinance" style="display:none" title="Finance">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                </button>
+                <span id="userNameDisplay">Admin</span>
+                <button id="c-logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </header>
 
-    <!-- ── HEADER ──────────────────────────────────────────── -->
-    <header class="app-header">
-        <div class="app-header-left">
-            <img src="logo.png" alt="Logo" class="app-logo">
-        </div>
-        <div class="app-header-right">
-            <button class="app-icon-btn itinerary" id="c-openItinerary" title="Itinerary Generator">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            </button>
-            <button class="app-icon-btn crm" onclick="window.location.href='crm.html'" title="CRM Center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </button>
-            <button class="app-icon-btn report" id="c-openReport" title="Reports Center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            </button>
-            <button class="app-icon-btn finance" id="c-openFinance" style="display:none" title="Finance">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-            </button>
-            <button class="app-icon-btn logout" id="c-logoutBtn" title="Logout">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            </button>
-        </div>
-    </header>
+        <main class="crm-main" style="flex-direction: row; align-items: stretch; overflow: hidden; padding: 0;">
+            <!-- Left Sidebar -->
+            <aside class="guest-sidebar" style="width: 380px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid var(--border); padding: 24px; gap: 24px; z-index: 10;">
+                <button class="primary-btn" id="c-fab" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 600; background: #2563eb; color: #fff; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(37,99,235,0.2);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    New Reservation
+                </button>
 
-    <!-- ── STATS STRIP ──────────────────────────────────────── -->
-    <div class="stats-strip centered">
-        <div class="stat-pill primary" id="c-pillToday">
-            <span class="stat-pill-val" id="c-statToday">0</span>
-            <span class="stat-pill-label">Today</span>
-        </div>
-        <div class="stat-pill following" id="c-pillPending">
-            <span class="stat-pill-val" id="c-statPending">0</span>
-            <span class="stat-pill-label">Pending</span>
-        </div>
-        <div class="stat-pill solved" id="c-pillConfirmed">
-            <span class="stat-pill-val" id="c-statConfirmed">0</span>
-            <span class="stat-pill-label">Confirmed</span>
-        </div>
+                <div class="search-bar" style="margin: 0; display: flex; flex-direction: column; gap: 12px;">
+                    <div class="search-input-wrap" style="position: relative;">
+                        <svg style="position: absolute; left: 12px; top: 12px; color: #9ca3af;" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="c-search" placeholder="Search reservations..." autocomplete="off" style="width: 100%; padding: 10px 10px 10px 36px; border: 1px solid #e5e7eb; border-radius: 8px; font-family: inherit; font-size: 13px;">
+                    </div>
+                    <input type="date" id="c-dateFilter" class="date-input" style="padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-family: inherit; font-size: 13px; color: #4b5563; width: 100%;">
+                </div>
+
+                <div class="stats-strip centered" style="display: flex; gap: 8px; margin: 0; padding: 0; background: transparent; border: none;">
+                    <div class="stat-pill primary" id="c-pillToday" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
+                        <span class="stat-pill-val" id="c-statToday" style="font-size: 20px; font-weight: 700;">0</span>
+                        <span class="stat-pill-label" style="font-size: 10px; font-weight: 600; opacity: 0.8; text-transform: uppercase;">Today</span>
+                    </div>
+                    <div class="stat-pill following" id="c-pillPending" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
+                        <span class="stat-pill-val" id="c-statPending" style="font-size: 20px; font-weight: 700;">0</span>
+                        <span class="stat-pill-label" style="font-size: 10px; font-weight: 600; opacity: 0.8; text-transform: uppercase;">Pending</span>
+                    </div>
+                    <div class="stat-pill solved" id="c-pillConfirmed" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
+                        <span class="stat-pill-val" id="c-statConfirmed" style="font-size: 20px; font-weight: 700;">0</span>
+                        <span class="stat-pill-label" style="font-size: 10px; font-weight: 600; opacity: 0.8; text-transform: uppercase;">Confirmed</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Feed -->
+            <section id="c-scroller" style="flex: 1; padding: 32px; overflow-y: auto; background: #f8fafc; position: relative;">
+                <div class="feed" id="c-feed" style="max-width: 800px; margin: 0 auto; padding: 0;">
+                    <!-- Cards injected by JS -->
+                </div>
+                <div class="empty-state" id="c-emptyState" style="display:none; text-align: center; padding-top: 100px;">
+                    <p style="font-size: 40px; margin-bottom: 10px;">🛎️</p>
+                    <span style="color: #6b7280; font-size: 15px; font-weight: 500;">No reservations found</span>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <!-- ── SEARCH / FILTER ───────────────────────────────────── -->
-    <div class="search-bar">
-        <div class="search-input-wrap">
-            <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="c-search" placeholder="Search reservations…" autocomplete="off">
-        </div>
-        <input type="date" id="c-dateFilter" class="date-input">
-    </div>
 
-    <!-- ── RESERVATION FEED ──────────────────────────────────── -->
-    <div class="feed" id="c-feed">
-        <!-- Cards injected by JS -->
-    </div>
-
-    <div class="empty-state" id="c-emptyState" style="display:none">
-        <p>🛎️</p>
-        <span>No reservations found</span>
-    </div>
-</div>
-
-    <!-- ── BOTTOM NAV ────────────────────────────────────────── -->
-    <nav class="bottom-nav">
-        <button class="bnav-btn active">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
-            <span>Concierge</span>
-        </button>
-        <button class="bnav-btn" onclick="window.location.href = window.innerWidth > 768 ? 'panel.html' : 'panel-mobile.html'">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            <span>Issues</span>
-        </button>
-        <button class="bnav-btn" id="c-adminNav" style="display:none" onclick="window.location.href='admin-mobile.html'">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
-            <span>Admin</span>
-        </button>
-    </nav>
-
-    <!-- ── FAB ────────────────────────────────────────────────── -->
-    <button class="fab" id="c-fab">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
-
-    <!-- ── BOTTOM SHEET: NEW RESERVATION ────────────────────── -->
+    <!-- ── BOTTOM SHEET: NEW RESERVATION ───────────────────── -->
     <div class="sheet-backdrop" id="resBackdrop"></div>
     <div class="sheet" id="resSheet">
         <div class="sheet-pill"></div>
@@ -127,6 +120,28 @@
                 <div class="field-group">
                     <label>Room</label>
                     <input type="text" id="rs-room" placeholder="No" inputmode="numeric">
+                </div>
+            </div>
+            <!-- Pre-Arrival & Stay Dates -->
+            <div style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 500; margin-bottom: 0;">
+                    <input type="checkbox" id="rs-isPreArrival" onchange="
+                        document.getElementById('rs-room').disabled = this.checked; 
+                        if(this.checked) document.getElementById('rs-room').value = '';
+                        document.getElementById('rs-dates-wrapper').style.display = this.checked ? 'flex' : 'none';
+                        this.parentElement.style.marginBottom = this.checked ? '10px' : '0';
+                    ">
+                    This is a Pre-Arrival Guest (No room yet)
+                </label>
+                <div id="rs-dates-wrapper" class="field-row" style="margin-bottom: 0; display: none; margin-top: 10px;">
+                    <div class="field-group">
+                        <label style="font-size: 11px;">Check-In Date</label>
+                        <input type="date" id="rs-checkIn">
+                    </div>
+                    <div class="field-group">
+                        <label style="font-size: 11px;">Check-Out Date</label>
+                        <input type="date" id="rs-checkOut">
+                    </div>
                 </div>
             </div>
             <div class="field-row">
@@ -170,7 +185,7 @@
         </div>
     </div>
 
-    <!-- ── BOTTOM SHEET: DETAIL ────────────────────────────── -->
+    <!-- â”€â”€ BOTTOM SHEET: DETAIL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="sheet-backdrop" id="detailBackdrop"></div>
     <div class="sheet" id="detailSheet">
         <div class="sheet-pill"></div>
@@ -249,7 +264,7 @@
                 <p id="d-notes"></p>
             </div>
 
-            <!-- ── INLINE DELETE CONFIRM ────────────────── -->
+            <!-- â”€â”€ INLINE DELETE CONFIRM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
             <div id="d-delete-confirm" class="delete-confirmation" style="display:none">
                 <div class="dc-content">
                     <p>Permanently delete this record?</p>
@@ -262,64 +277,9 @@
         </div>
     </div>
 
-    <!-- ── BOTTOM SHEET: EDIT RESERVATION ───────────────────── -->
-    <div class="sheet-backdrop" id="editBackdrop"></div>
-    <div class="sheet" id="editSheet">
-        <div class="sheet-pill"></div>
-        <div class="sheet-top">
-            <h3>Edit Reservation</h3>
-            <button class="sheet-close-btn" id="editClose">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <div class="sheet-body">
-            <div class="field-row">
-                <div class="field-group">
-                    <label>Guest Name</label>
-                    <input type="text" id="ed-guest">
-                </div>
-                <div class="field-group">
-                    <label>Room</label>
-                    <input type="text" id="ed-room">
-                </div>
-            </div>
-            <div class="field-row">
-                <div class="field-group">
-                    <label>Date</label>
-                    <input type="date" id="ed-date">
-                </div>
-                <div class="field-group">
-                    <label>Time</label>
-                    <input type="time" id="ed-time">
-                </div>
-            </div>
-            <div class="field-row">
-                <div class="field-group">
-                    <label>Price</label>
-                    <input type="number" id="ed-price">
-                </div>
-                <div class="field-group">
-                    <label>Deposit</label>
-                    <input type="number" id="ed-deposit">
-                </div>
-                <div class="field-group" style="max-width: 80px;">
-                    <label>Pax</label>
-                    <input type="number" id="ed-pax">
-                </div>
-            </div>
-            <div class="field-group">
-                <label>Voucher / Confirmation No</label>
-                <input type="text" id="ed-voucher">
-            </div>
-            <div class="field-group">
-                <label>Notes</label>
-                <textarea id="ed-notes"></textarea>
-            </div>
-            <button class="primary-btn" id="ed-submit">Save Changes</button>
-        </div>
-    </div>
 
-    <!-- ── BOTTOM SHEET: SECURITY AUTH ──────────────────── -->
+
+    <!-- â”€â”€ BOTTOM SHEET: SECURITY AUTH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="sheet-backdrop" id="authBackdrop"></div>
     <div class="sheet" id="authSheet" style="border-radius: 24px 24px 0 0; overflow: hidden;">
         <div class="sheet-pill"></div>
@@ -358,7 +318,7 @@
         </div>
     </div>
 
-    <!-- ── BOTTOM SHEET: ITINERARY GENERATOR ───────────── -->
+    <!-- â”€â”€ BOTTOM SHEET: ITINERARY GENERATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="sheet-backdrop" id="itiBackdrop"></div>
     <div class="sheet" id="itiSheet">
         <div class="sheet-pill"></div>
@@ -389,7 +349,7 @@
         </div>
     </div>
 
-    <!-- ── BOTTOM SHEET: REPORTS CENTER ───────────────────── -->
+    <!-- â”€â”€ BOTTOM SHEET: REPORTS CENTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="sheet-backdrop" id="reportBackdrop"></div>
     <div class="sheet" id="reportSheet">
         <div class="sheet-pill"></div>
@@ -470,7 +430,7 @@
         </div>
     </div>
 
-    <!-- ── BOTTOM SHEET: FINANCE ──────────────────────────── -->
+    <!-- â”€â”€ BOTTOM SHEET: FINANCE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="sheet-backdrop" id="financeBackdrop"></div>
     <div class="sheet" id="financeSheet">
         <div class="sheet-pill"></div>
@@ -511,7 +471,7 @@
         <!-- Content generated by JS -->
     </div>
 
-    <!-- ── TOAST ────────────────────────────────────────────── -->
+    <!-- â”€â”€ TOAST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="app-toast" id="c-toast"></div>
 
     <!-- Firebase -->
@@ -526,7 +486,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script src="concierge.js"></script>
-    <!-- ── SELECTION MODAL (For Reports) ───────────────────── -->
+    <!-- â”€â”€ SELECTION MODAL (For Reports) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="sheet-backdrop" id="selBackdrop"></div>
     <div class="sheet" id="selSheet">
         <div class="sheet-pill"></div>
@@ -541,6 +501,28 @@
             </div>
             <button class="primary-btn w-100" id="sel-confirm-btn">Confirm & Generate PDF</button>
         </div>
+        </div>
     </div>
+
+    <!-- ── BOTTOM NAV (MOBILE ONLY) ── -->
+    <nav class="bottom-nav">
+        <button class="bnav-btn active">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            <span>Concierge</span>
+        </button>
+        <button class="bnav-btn" onclick="window.location.href = window.innerWidth > 768 ? 'panel.html' : 'panel-mobile.html'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Issues</span>
+        </button>
+        <button class="bnav-btn" id="c-adminNavMobile" style="display:none" onclick="window.location.href='admin-mobile.html'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+            <span>Admin</span>
+        </button>
+    </nav>
+
+    <!-- ── FAB (MOBILE ONLY) ── -->
+    <button class="fab" id="c-fab-mobile">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
 </body>
 </html>

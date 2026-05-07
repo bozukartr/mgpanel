@@ -35,7 +35,7 @@
                         <input type="text" id="guestSearch" placeholder="Search guests, rooms...">
                     </div>
                     <div class="filter-group">
-                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn active" data-filter="arrival">Arrival</button>
                         <button class="filter-btn" data-filter="in_house">In House</button>
                         <button class="filter-btn" data-filter="checked_out">Checked Out</button>
                     </div>
@@ -54,6 +54,40 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Edit Stay Details Modal -->
+    <div id="roomChangeModal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+        <div class="modal-content" style="background: white; border-radius: 12px; max-width: 400px; width: 90%; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-top: 0; color: #1e293b;">Edit Stay Details</h3>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">
+                Updating details for <strong id="rcGuestName"></strong>
+            </p>
+            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                    <input type="checkbox" id="rcIsPreArrival" onchange="document.getElementById('rcNewRoom').disabled = this.checked; if(this.checked) document.getElementById('rcNewRoom').value = '';">
+                    Set as Pre-Arrival (No Room Assigned)
+                </label>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px;">Room Number</label>
+                <input type="text" id="rcNewRoom" style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;">
+            </div>
+            <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+                <div style="flex: 1;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px;">Check-In</label>
+                    <input type="date" id="rcCheckIn" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px;">Check-Out</label>
+                    <input type="date" id="rcCheckOut" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box;">
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeRoomChangeModal()" style="padding: 10px 16px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Cancel</button>
+                <button onclick="submitRoomChange()" style="padding: 10px 16px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Save Details</button>
+            </div>
+        </div>
     </div>
 
     <!-- Firebase SDK -->

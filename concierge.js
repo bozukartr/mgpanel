@@ -101,6 +101,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Guest Directory for Global Autocomplete
     db.collection('guestDirectory').onSnapshot(snap => {
         guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Auto Check-Out past guests
+        const today = new Date().toISOString().split('T')[0];
+        const batch = db.batch();
+        let needsCommit = false;
+
+        guestDirectory.forEach(g => {
+            if (g.status === 'in_house' && g.checkOut && g.checkOut < today) {
+                batch.update(db.collection('guestDirectory').doc(g.id), { status: 'checked_out' });
+                needsCommit = true;
+            }
+        });
+
+        if (needsCommit) batch.commit().catch(e => console.error("Auto-checkout error", e));
+
         updateAutocompletes();
     });
 
@@ -112,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reservations.forEach(r => { if (r.guestName && r.room) guestMap[r.guestName] = r.room; });
         updateAutocompletes();
 
+        if (dateFilterFp) dateFilterFp.redraw();
         renderReservations();
         if (window.selectedReservation) {
             const up = reservations.find(r => r.id === window.selectedReservation.id);
@@ -148,33 +164,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    async function syncGuestStatus(name, room) {
+    async function syncGuestStatus(name, room, isPreArrival, checkIn, checkOut) {
         if (!name) return;
         const normalized = name.trim();
         const existing = guestDirectory.find(g => g.name.toLowerCase() === normalized.toLowerCase());
         
+        const determineStatus = () => {
+            if (isPreArrival) return 'pre_arrival';
+            // Auto check-out logic might run and override, but we set in_house by default if room is assigned
+            return 'in_house';
+        };
+
+        const statusToSet = determineStatus();
+
         if (!existing) {
             const newGuest = {
                 name: normalized,
                 room: room || '',
-                status: 'in_house',
+                status: statusToSet,
+                checkIn: checkIn || '',
+                checkOut: checkOut || '',
                 lastUpdated: new Date().toISOString()
             };
             await db.collection('guestDirectory').add(newGuest);
         } else {
-            // Update room if provided and different, or if they were checked out
-            if (existing.status === 'checked_out' || (room && existing.room !== room)) {
-                await db.collection('guestDirectory').doc(existing.id).update({
-                    status: 'in_house',
-                    room: room || existing.room,
-                    lastUpdated: new Date().toISOString()
-                });
+            // Update room and dates if provided, or if status needs shifting
+            let updates = { lastUpdated: new Date().toISOString() };
+            
+            // If they were checked out, bring them back in house/pre-arrival
+            if (existing.status === 'checked_out') updates.status = statusToSet;
+            // Or if explicitly marking as pre_arrival
+            else if (isPreArrival && existing.status !== 'pre_arrival') updates.status = 'pre_arrival';
+            // Or moving from pre_arrival to in_house by providing a room
+            else if (!isPreArrival && existing.status === 'pre_arrival' && room) updates.status = 'in_house';
+
+            if (room && existing.room !== room) updates.room = room;
+            if (checkIn) updates.checkIn = checkIn;
+            if (checkOut) updates.checkOut = checkOut;
+
+            if (Object.keys(updates).length > 1) {
+                await db.collection('guestDirectory').doc(existing.id).update(updates);
             }
         }
     }
 
     document.getElementById('c-search').oninput = renderReservations;
-    document.getElementById('c-dateFilter').onchange = renderReservations;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    let dateFilterFp = null;
+
+    if (window.flatpickr) {
+        dateFilterFp = flatpickr("#c-dateFilter", {
+            inline: true,
+            defaultDate: todayStr,
+            onChange: function(selectedDates, dateStr, instance) {
+                renderReservations();
+            },
+            onDayCreate: function(dObj, dStr, fp, dayElem) {
+                const dateStr = fp.formatDate(dayElem.dateObj, "Y-m-d");
+                const hasRes = reservations.some(r => r.date === dateStr);
+                if (hasRes) {
+                    dayElem.innerHTML += '<span class="fp-dot"></span>';
+                }
+            }
+        });
+    } else {
+        document.getElementById('c-dateFilter').value = todayStr;
+        document.getElementById('c-dateFilter').onchange = renderReservations;
+    }
 
     document.getElementById('c-pillPending').onclick = () => {
         statusFilter = (statusFilter === 'Pending') ? null : 'Pending';
@@ -185,14 +242,14 @@ document.addEventListener('DOMContentLoaded', () => {
         renderReservations();
     };
     document.getElementById('c-pillToday').onclick = () => {
-        document.getElementById('c-dateFilter').value = todayStr;
+        if (dateFilterFp) {
+            dateFilterFp.setDate(todayStr);
+        } else {
+            document.getElementById('c-dateFilter').value = todayStr;
+        }
         statusFilter = null;
         renderReservations();
     };
-
-    // Default to Today
-    const todayStr = new Date().toISOString().split('T')[0];
-    document.getElementById('c-dateFilter').value = todayStr;
 
     function renderReservations() {
         const search = document.getElementById('c-search').value.toLowerCase();
@@ -372,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = typeSelect.value;
         const voucherGroup = document.getElementById('rs-voucher-group');
         const financeGroup = document.getElementById('rs-finance-group');
-        const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour'];
+        const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other'];
 
         const isPaidType = paidTypes.includes(type);
         if (voucherGroup) voucherGroup.style.display = isPaidType ? 'block' : 'none';
@@ -402,35 +459,62 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="field-group"><label>Provider / Guide</label><input type="text" id="rs-provider"></div>
                     <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
                 </div>`;
+        } else if (type === 'Other') {
+            html = `
+                <div class="field-row">
+                    <div class="field-group"><label>Service Name</label><input type="text" id="rs-otherType" placeholder="e.g. Spa, Rent a Car, Babysitter"></div>
+                </div>`;
         }
         dynamicFields.innerHTML = html;
     };
     typeSelect.onchange = updateFormFields;
     updateFormFields();
 
-    // ── NEW RESERVATION ───────────────────────────────────────
-    const resSheet = document.getElementById('resSheet');
-    const resBackdrop = document.getElementById('resBackdrop');
+    let editResId = null;
 
-    document.getElementById('c-fab').onclick = () => {
+    const openNewRes = () => {
+        editResId = null;
+        document.querySelector('#resSheet h3').textContent = 'New Reservation';
+        document.getElementById('rs-submit').textContent = 'Log Reservation';
+        
+        // Reset fields
+        ['rs-guest', 'rs-room', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.value = '';
+        });
+        document.getElementById('rs-isPreArrival').checked = false;
+        document.getElementById('rs-room').disabled = false;
+        document.getElementById('rs-dates-wrapper').style.display = 'none';
+        document.getElementById('rs-isPreArrival').parentElement.style.marginBottom = '0';
+        
+        typeSelect.value = 'Restaurant';
+        updateFormFields();
         document.getElementById('rs-date').valueAsDate = new Date();
         openSheet(resSheet, resBackdrop);
     };
+
+    const fabDesktop = document.getElementById('c-fab');
+    const fabMobile = document.getElementById('c-fab-mobile');
+    if (fabDesktop) fabDesktop.onclick = openNewRes;
+    if (fabMobile) fabMobile.onclick = openNewRes;
     document.getElementById('resClose').onclick = () => closeSheet(resSheet, resBackdrop);
     resBackdrop.onclick = () => closeSheet(resSheet, resBackdrop);
 
     document.getElementById('rs-submit').onclick = async () => {
         const type = typeSelect.value;
         const guestName = document.getElementById('rs-guest').value.trim();
+        const isPreArrival = document.getElementById('rs-isPreArrival').checked;
         const room = document.getElementById('rs-room').value.trim();
         const date = document.getElementById('rs-date').value;
         const time = document.getElementById('rs-time').value;
+        const checkIn = document.getElementById('rs-checkIn').value;
+        const checkOut = document.getElementById('rs-checkOut').value;
         const price = parseFloat(document.getElementById('rs-price').value) || 0;
         const deposit = parseFloat(document.getElementById('rs-deposit').value) || 0;
         const voucher = document.getElementById('rs-voucher').value.trim();
         const notes = document.getElementById('rs-notes').value.trim();
 
-        if (!guestName || !room || !date) { showToast('Please fill required fields', true); return; }
+        if (!guestName || date === '') { showToast('Please fill Guest Name and Date', true); return; }
+        if (!isPreArrival && !room) { showToast('Room is required unless Pre-Arrival is checked', true); return; }
 
         const dynamicData = {};
         dynamicFields.querySelectorAll('input').forEach(inp => {
@@ -438,23 +522,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const data = {
-            type, guestName, room, date, time, notes,
+            type, guestName, room: isPreArrival ? 'Pre-Arrival' : room, date, time, notes,
             totalPrice: price, deposit: deposit,
             voucherNo: voucher,
-            ...dynamicData,
-            status: 'Pending',
-            staffInitial: loggedUsername,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            ...dynamicData
         };
 
         try {
-            await db.collection('reservations').add(data);
-            await syncGuestStatus(guestName, room); // Sync with directory
-            showToast('Reservation logged');
+            if (editResId) {
+                // Update existing
+                await db.collection('reservations').doc(editResId).update(data);
+                showToast('Reservation updated');
+            } else {
+                // Create new
+                data.status = 'Pending';
+                data.staffInitial = loggedUsername;
+                data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                await db.collection('reservations').add(data);
+                await syncGuestStatus(guestName, isPreArrival ? '' : room, isPreArrival, checkIn, checkOut); // Sync with directory
+                showToast('Reservation logged');
+            }
+            
             closeSheet(resSheet, resBackdrop);
-            ['rs-guest', 'rs-room', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes'].forEach(id => {
+            ['rs-guest', 'rs-room', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
+            document.getElementById('rs-isPreArrival').checked = false;
+            document.getElementById('rs-room').disabled = false;
+            document.getElementById('rs-dates-wrapper').style.display = 'none';
+            document.getElementById('rs-isPreArrival').parentElement.style.marginBottom = '0';
         } catch (e) { showToast('Error', true); }
     };
 
@@ -495,6 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (r.type === 'Restaurant') dynHtml = `<p><strong>${r.resName || '—'}</strong> (${r.pax || '?'} Pax)</p>`;
         else if (r.type === 'Transfer') dynHtml = `<p><strong>${r.from || '?'} ➔ ${r.to || '?'}</strong><br><small>${r.vehicle || ''} (${r.pax || '?'} Pax)</small></p>`;
         else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${r.vessel || ''}</strong><br><small>Provider: ${r.provider || ''} (${r.pax || '?'} Pax)</small></p>`;
+        else if (r.type === 'Other') dynHtml = `<p><strong>${r.otherType || 'Other Service'}</strong></p>`;
         document.getElementById('d-dynamic-info').innerHTML = dynHtml;
     };
 
@@ -584,45 +681,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // ── EDIT SHEET LOGIC ─────────────────────────────────────
-    const editSheet = document.getElementById('editSheet');
-    const editBackdrop = document.getElementById('editBackdrop');
-
+    // ── EDIT LOGIC ───────────────────────────────────────────
     document.getElementById('d-editBtn').onclick = () => {
         if (!window.selectedReservation) return;
         const r = window.selectedReservation;
-        document.getElementById('ed-guest').value = r.guestName;
-        document.getElementById('ed-room').value = r.room;
-        document.getElementById('ed-date').value = r.date;
-        document.getElementById('ed-time').value = r.time || '';
-        document.getElementById('ed-price').value = r.totalPrice;
-        document.getElementById('ed-deposit').value = r.deposit;
-        document.getElementById('ed-pax').value = r.pax || '';
-        document.getElementById('ed-voucher').value = r.voucherNo || '';
-        document.getElementById('ed-notes').value = r.notes || '';
-        openSheet(editSheet, editBackdrop);
-    };
-    document.getElementById('editClose').onclick = () => closeSheet(editSheet, editBackdrop);
-    editBackdrop.onclick = () => closeSheet(editSheet, editBackdrop);
+        
+        editResId = r.id;
+        document.querySelector('#resSheet h3').textContent = 'Edit Reservation';
+        document.getElementById('rs-submit').textContent = 'Save Changes';
 
-    document.getElementById('ed-submit').onclick = async () => {
-        if (!window.selectedReservation) return;
-        const updated = {
-            guestName: document.getElementById('ed-guest').value.trim(),
-            room: document.getElementById('ed-room').value.trim(),
-            date: document.getElementById('ed-date').value,
-            time: document.getElementById('ed-time').value,
-            totalPrice: parseFloat(document.getElementById('ed-price').value) || 0,
-            deposit: parseFloat(document.getElementById('ed-deposit').value) || 0,
-            pax: document.getElementById('ed-pax').value.trim(),
-            voucherNo: document.getElementById('ed-voucher').value.trim(),
-            notes: document.getElementById('ed-notes').value.trim()
-        };
-        try {
-            await db.collection('reservations').doc(window.selectedReservation.id).update(updated);
-            showToast('Updated successfully');
-            closeSheet(editSheet, editBackdrop);
-        } catch (e) { showToast('Error updating', true); }
+        typeSelect.value = r.type;
+        updateFormFields();
+
+        document.getElementById('rs-guest').value = r.guestName;
+        
+        const isPreArrival = r.room === 'Pre-Arrival';
+        const paCheckbox = document.getElementById('rs-isPreArrival');
+        paCheckbox.checked = isPreArrival;
+        document.getElementById('rs-room').disabled = isPreArrival;
+        document.getElementById('rs-room').value = isPreArrival ? '' : r.room;
+        
+        document.getElementById('rs-dates-wrapper').style.display = isPreArrival ? 'flex' : 'none';
+        paCheckbox.parentElement.style.marginBottom = isPreArrival ? '10px' : '0';
+
+        // Pre-fill check-in/out if available from directory
+        if (isPreArrival) {
+            const guest = guestDirectory.find(g => g.name.toLowerCase() === r.guestName.toLowerCase());
+            if (guest) {
+                document.getElementById('rs-checkIn').value = guest.checkIn || '';
+                document.getElementById('rs-checkOut').value = guest.checkOut || '';
+            }
+        }
+
+        document.getElementById('rs-date').value = r.date;
+        document.getElementById('rs-time').value = r.time || '';
+        document.getElementById('rs-price').value = r.totalPrice || '';
+        document.getElementById('rs-deposit').value = r.deposit || '';
+        document.getElementById('rs-voucher').value = r.voucherNo || '';
+        document.getElementById('rs-notes').value = r.notes || '';
+
+        // Populate dynamic fields
+        dynamicFields.querySelectorAll('input').forEach(inp => {
+            const key = inp.id.replace('rs-', '');
+            if (r[key]) inp.value = r[key];
+        });
+
+        // Close detail sheet, open res sheet
+        closeSheet(detailSheet, detailBackdrop);
+        openSheet(resSheet, resBackdrop);
     };
 
     // ── ITINERARY GENERATOR ──────────────────────────────────
