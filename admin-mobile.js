@@ -197,4 +197,82 @@ document.addEventListener('DOMContentLoaded', () => {
             activityList.appendChild(item);
         });
     });
+
+    // ── SYSTEM EJECT (BACKUP & WIPE) ──────────────────────────
+    const ejectMobileBtn = document.getElementById('adminEjectMobileBtn');
+    if (ejectMobileBtn) {
+        ejectMobileBtn.addEventListener('click', async () => {
+            if (!confirm("⚠️ DANGER: This will permanently WIPE all system data (Reservations, Guests, Logs, Staff accounts)!\n\nA backup file will be generated and downloaded before the deletion.\n\nAre you sure you want to proceed?")) {
+                return;
+            }
+            if (!confirm("⚠️ FINAL WARNING: This action cannot be undone. Are you absolutely certain?")) {
+                return;
+            }
+
+            showToast("Generating system backup...", false);
+
+            try {
+                // Fetch all operational data
+                const [resSnap, dirSnap, logsSnap, usersSnap] = await Promise.all([
+                    db.collection('reservations').get(),
+                    db.collection('guestDirectory').get(),
+                    db.collection('guestLogs').get(),
+                    db.collection('systemUsers').get()
+                ]);
+
+                const backupObj = {
+                    timestamp: new Date().toISOString(),
+                    backupVersion: "1.0",
+                    reservations: resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                    guestDirectory: dirSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                    guestLogs: logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                    systemUsers: usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+                };
+
+                // Trigger file download
+                const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `hotel_system_eject_backup_mobile_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast("Backup downloaded! Initiating database wipe...", false);
+
+                const batch = db.batch();
+
+                // 1. Delete all reservations
+                resSnap.forEach(doc => batch.delete(doc.ref));
+
+                // 2. Delete all guests in directory
+                dirSnap.forEach(doc => batch.delete(doc.ref));
+
+                // 3. Delete all guest logs
+                logsSnap.forEach(doc => batch.delete(doc.ref));
+
+                // 4. Delete all system users EXCEPT the main admin account
+                usersSnap.forEach(doc => {
+                    const u = doc.data();
+                    if (u.username && u.username.toLowerCase() === 'admin') {
+                        return; // Safeguard admin account
+                    }
+                    batch.delete(doc.ref);
+                });
+
+                await batch.commit();
+
+                showToast("System Ejected Successfully! All data wiped.", false);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+
+            } catch (err) {
+                console.error(err);
+                showToast("Eject Failed: " + err.message, true);
+            }
+        });
+    }
 });

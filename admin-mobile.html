@@ -32,6 +32,7 @@
     <div class="adm-segment">
         <button class="seg-btn active" data-tab="adm-users">Users</button>
         <button class="seg-btn" data-tab="adm-activity">Activity</button>
+        <button class="seg-btn" data-tab="adm-system">System</button>
     </div>
 
     <!-- ── TAB: USERS ──────────────────────────────────────── -->
@@ -49,6 +50,22 @@
     <div class="adm-tab" id="adm-activity">
         <div class="activity-list" id="activityList">
             <!-- Activity items injected by JS -->
+        </div>
+    </div>
+
+    <!-- ── TAB: SYSTEM ──────────────────────────────────────── -->
+    <div class="adm-tab" id="adm-system">
+        <div style="padding: 20px;">
+            <div style="background: rgba(220,38,38,0.05); border: 1px dashed rgba(220,38,38,0.2); padding: 32px 20px; border-radius: 24px; text-align: center; box-sizing: border-box;">
+                <span style="font-size: 40px; display: block; margin-bottom: 12px;">💥</span>
+                <h3 style="font-size: 18px; font-weight: 700; color: #dc2626; margin: 0 0 8px 0;">Eject Database</h3>
+                <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin: 0 0 24px 0;">
+                    This action will permanently delete all reservations, guest directories, activity logs, and staff accounts. A backup JSON file will be generated and downloaded automatically before the wipe.
+                </p>
+                <button class="danger-btn" id="adminEjectMobileBtn" style="background: #dc2626; color: white; width: 100%; font-weight: 600; padding: 14px; border-radius: 12px; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-size: 14px;">
+                    EJECT SYSTEM (BACKUP & WIPE)
+                </button>
+            </div>
         </div>
     </div>
 

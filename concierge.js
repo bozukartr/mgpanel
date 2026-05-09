@@ -287,15 +287,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const matchesStatus = !statusFilter || r.status === statusFilter;
                 
-                // If it's Pending, show across all dates. If it's Confirmed, respect date.
+                // Global Search behavior: If searching, ignore date filter to search all dates.
+                // Otherwise, respect the date filter for 'Confirmed' status.
                 let matchesDate = true;
-                if (statusFilter === 'Confirmed') {
-                    matchesDate = !dateVal || r.date === dateVal;
-                } else if (search && !statusFilter) {
-                    // If just searching without a status pill, respect date
+                if (statusFilter === 'Confirmed' && !search) {
                     matchesDate = !dateVal || r.date === dateVal;
                 }
-                
                 return matchesText && matchesStatus && matchesDate;
             });
 
@@ -313,10 +310,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // ── AGENDA MODE (Default) ─────────────────────────
-        const filtered = reservations.filter(r => {
-            const matchesDate = !dateVal || r.date === dateVal;
+        const parts = dateVal.split('-');
+        const d = new Date(parts[0], parts[1] - 1, parts[2]);
+        d.setDate(d.getDate() + 1);
+        const nextDayStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+        const filtered = [];
+        reservations.forEach(r => {
             const matchesStatus = !statusFilter || r.status === statusFilter;
-            return matchesDate && matchesStatus;
+            if (!matchesStatus) return;
+
+            // Today's actual reservations
+            if (r.date === dateVal) {
+                filtered.push({ ...r, isNextDayVirtual: false });
+            }
+            // Tomorrow's early morning reservations (00:00 to 07:59)
+            else if (r.date === nextDayStr && r.time) {
+                const hour = parseInt(r.time.split(':')[0]);
+                if (hour >= 0 && hour < 8) {
+                    filtered.push({ ...r, isNextDayVirtual: true });
+                }
+            }
         });
 
         if (filtered.length === 0) { empty.style.display = 'flex'; return; }
@@ -326,10 +340,14 @@ document.addEventListener('DOMContentLoaded', () => {
         let slots = [];
         for (let h = 8; h <= 23; h++) slots.push(h.toString().padStart(2, '0') + ':00');
 
-        // Add extra hours that have reservations (e.g. 05:00, 01:00)
+        // Add extra hours that have reservations (e.g. 05:00, 01:00, and virtual hours like 25:00 for next day early morning)
         filtered.forEach(r => {
             if (r.time) {
-                const h = r.time.split(':')[0] + ':00';
+                let hourNum = parseInt(r.time.split(':')[0]);
+                if (r.isNextDayVirtual) {
+                    hourNum += 24;
+                }
+                const h = hourNum.toString().padStart(2, '0') + ':00';
                 if (!slots.includes(h)) slots.push(h);
             }
         });
@@ -342,10 +360,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const noTimeItems = [];
 
         filtered.forEach(r => {
-            if (!r.time) noTimeItems.push(r);
-            else {
-                const hour = r.time.split(':')[0] + ':00';
-                if (grouped[hour]) grouped[hour].push(r);
+            if (!r.time) {
+                noTimeItems.push(r);
+            } else {
+                let hourNum = parseInt(r.time.split(':')[0]);
+                if (r.isNextDayVirtual) {
+                    hourNum += 24;
+                }
+                const hourSlot = hourNum.toString().padStart(2, '0') + ':00';
+                if (grouped[hourSlot]) grouped[hourSlot].push(r);
             }
         });
 
@@ -375,8 +398,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 itemsHtml += card.outerHTML;
             });
 
+            // If slot is virtual (>= 24), display as e.g. "01:00 (+1)"
+            let displayTime = slot;
+            const hourVal = parseInt(slot);
+            if (hourVal >= 24) {
+                displayTime = (hourVal - 24).toString().padStart(2, '0') + ':00 (+1)';
+            }
+
             slotEl.innerHTML = `
-                <div class="slot-time">${slot}</div>
+                <div class="slot-time">${displayTime}</div>
                 <div class="slot-content">${itemsHtml || '<div class="empty-slot-msg">No entries</div>'}</div>
             `;
             feed.appendChild(slotEl);
@@ -390,11 +420,14 @@ document.addEventListener('DOMContentLoaded', () => {
         card.dataset.status = r.status;
         card.setAttribute('onclick', `openDetailById('${r.id}')`);
 
+        const isVirtual = r.isNextDayVirtual;
+        const nextDayBadge = isVirtual ? ' <span style="font-size:9px; background:#f97316; color:white; padding:1px 4px; border-radius:3px; font-weight:700; margin-left:4px;">+1 DAY</span>' : '';
+
         card.innerHTML = `
             <div class="res-card-icon">${SERVICE_ICONS[r.type] || '✨'}</div>
             <div class="res-card-info">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="res-card-guest">${r.guestName}</span>
+                    <span class="res-card-guest">${r.guestName}${nextDayBadge}</span>
                     <span style="font-size:9px; color:var(--text-muted);">${fmtDate(r.date)}</span>
                 </div>
                 <span class="res-card-room">Room ${r.room} ${r.time ? '• ' + r.time : ''}</span>
