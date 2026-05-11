@@ -139,12 +139,36 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let guestMap = {};
+    let globalGuestsHTML = ''; // Fast-access mobile cache
+
     function updateGuestMap() {
         guestMap = {};
         records.forEach(r => { if(r.guestName && r.room) guestMap[r.guestName] = r.room; });
-        const html = Object.keys(guestMap).sort().map(n => `<option value="${n}">${guestMap[n]}</option>`).join('');
-        document.querySelectorAll('#guest-list').forEach(list => list.innerHTML = html);
+        globalGuestsHTML = Object.keys(guestMap).sort().map(n => `<option value="${n}">${guestMap[n]}</option>`).join('');
+        
+        // Only force re-rendering into UI if list is currently alive
+        document.querySelectorAll('#guest-list').forEach(list => { 
+            if(list.children.length > 0) list.innerHTML = globalGuestsHTML; 
+        });
     }
+
+    // Attach gating listener for small devices
+    function setupDynamicAuto(inputId, listId) {
+        const inp = document.getElementById(inputId);
+        const list = document.getElementById(listId);
+        if (!inp || !list) return;
+
+        list.innerHTML = ''; // Ensure default lock
+        inp.addEventListener('input', (e) => {
+            const v = e.target.value.trim();
+            if (v.length >= 3) {
+                if (list.children.length === 0) list.innerHTML = globalGuestsHTML;
+            } else {
+                list.innerHTML = '';
+            }
+        });
+    }
+    setupDynamicAuto('ni-guest', 'guest-list');
 
     db.collection('guestLogs').orderBy('createdAt', 'desc').onSnapshot(snap => {
         records = snap.docs.map(d => ({ id: d.id, ...d.data() }));

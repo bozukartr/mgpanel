@@ -123,13 +123,11 @@
                 </div>
             </div>
             <!-- Pre-Arrival & Stay Dates -->
-            <div style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
+            <div id="rs-pa-box" style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 500; margin-bottom: 0;">
                     <input type="checkbox" id="rs-isPreArrival" onchange="
                         document.getElementById('rs-room').disabled = this.checked; 
-                        if(this.checked) document.getElementById('rs-room').value = '';
-                        document.getElementById('rs-dates-wrapper').style.display = this.checked ? 'flex' : 'none';
-                        this.parentElement.style.marginBottom = this.checked ? '10px' : '0';
+                        document.getElementById('rs-room').value = this.checked ? 'Pre-Arrival' : '';
                     ">
                     This is a Pre-Arrival Guest (No room yet)
                 </label>
@@ -147,11 +145,11 @@
             <div class="field-row">
                 <div class="field-group">
                     <label>Date</label>
-                    <input type="date" id="rs-date">
+                    <input type="text" id="rs-date" placeholder="DD/MM/YYYY" inputmode="numeric" style="letter-spacing: 1px;">
                 </div>
                 <div class="field-group">
                     <label>Time</label>
-                    <input type="time" id="rs-time">
+                    <input type="text" id="rs-time" placeholder="HH:MM" inputmode="numeric" style="letter-spacing: 1px;">
                 </div>
             </div>
 
@@ -180,6 +178,8 @@
                 <label>Internal Notes</label>
                 <textarea id="rs-notes" placeholder="Vendor info, specific requests..."></textarea>
             </div>
+            
+            <div id="rs-conflict-alert" style="display:none; margin-bottom:15px; padding:12px; border-radius:8px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
 
             <button class="primary-btn" id="rs-submit">Log Reservation</button>
         </div>

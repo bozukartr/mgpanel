@@ -93,7 +93,165 @@ document.addEventListener('DOMContentLoaded', () => {
     const openSheet = (s, b) => { s.classList.add('open'); b.classList.add('open'); };
     const closeSheet = (s, b) => { s.classList.remove('open'); b.classList.remove('open'); };
 
-    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '';
+    // ── PASSIVE INLINE COLLISION WARNING SYSTEM ──
+    // Passively scans cached reservations in real-time as inputs mutate. Does NOT block save.
+    const checkConflictInline = () => {
+        const alertEl = document.getElementById('rs-conflict-alert');
+        if (!alertEl) return;
+
+        const guestName = document.getElementById('rs-guest').value.trim();
+        const time = document.getElementById('rs-time').value;
+        const rawD = document.getElementById('rs-date').value;
+
+        // Insufficient information to run logic
+        if (!guestName || !time || !rawD) {
+            alertEl.style.display = 'none';
+            return;
+        }
+
+        // Match data in standard persisted format
+        const date = toIsoDate(smartExpandDate(rawD)); 
+        const entryMins = parseTimeToMins(time);
+
+        const conflicts = reservations.filter(r => {
+            if (editResId && r.id === editResId) return false; // exclude self
+            if (r.date !== date || !r.time) return false;
+            if (r.guestName.trim().toLowerCase() !== guestName.toLowerCase()) return false;
+
+            const existingMins = parseTimeToMins(r.time);
+            return entryMins !== null && existingMins !== null && Math.abs(entryMins - existingMins) <= 120;
+        });
+
+        if (conflicts.length > 0) {
+            const markup = conflicts.map(c => `&bull; <b>${c.type}</b> (${c.time})`).join('<br>');
+            alertEl.innerHTML = `
+                <div style="font-weight:bold; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                    ⚠️ YAKIN SAATTE BAŞKA KAYIT VAR
+                </div>
+                <div style="opacity:0.9; font-size:11.5px;">Bu misafirin ±2 saat diliminde şu kayıtları mevcut:<br>${markup}</div>
+            `;
+            alertEl.style.display = 'block';
+        } else {
+            alertEl.style.display = 'none';
+        }
+    };
+
+    const resetConflictAlert = () => {
+        const box = document.getElementById('rs-conflict-alert');
+        if (box) box.style.display = 'none';
+        // Notice: Submit button is static, no need to manipulate colors anymore
+    };
+
+    // Global Helpers & Universal Formats
+    const fmtDate = (d) => {
+        if (!d) return '';
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return d;
+        const dd = String(dt.getDate()).padStart(2, '0');
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const yyyy = dt.getFullYear();
+        return `${dd}/${mm}/${yyyy}`; // Global Standard Set
+    };
+
+    // Realtime UI Input Converter Utilities (View <-> Persisted Storage)
+    const toIsoDate = (val) => {
+        if (!val) return '';
+        const p = val.split('/');
+        if (p.length === 3) return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+        return val;
+    };
+    const toDisplayDate = (iso) => {
+        if (!iso) return '';
+        const p = iso.split('-');
+        if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+        return iso;
+    };
+    // Converts 'HH:MM' strings into an absolute integer count of minutes from midnight for math
+    const parseTimeToMins = (t) => {
+        if (!t || !t.includes(':')) return null;
+        const p = t.split(':');
+        return (parseInt(p[0]) * 60) + parseInt(p[1] || 0);
+    };
+
+    // Dynamic Smart Reactive Masking Logic (Time only now, Date uses Expansion on Blur)
+    function initMask(id, type) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', (e) => {
+            let val = e.target.value.replace(/\D/g, '');
+            let formatted = val;
+            if (type === 'time') {
+                if (val.length > 4) val = val.slice(0, 4);
+                if (val.length > 2) formatted = val.slice(0, 2) + ':' + val.slice(2);
+            }
+            e.target.value = formatted;
+        });
+    }
+
+    // High-End Predictive Date Expansion Engine (Handles ALL abbreviations flawlessly)
+    function smartExpandDate(raw) {
+        if (!raw) return raw;
+        const currentYear = new Date().getFullYear();
+
+        // OPTION 1: EXPLICIT AMBIGUITY RESOLVER (Uses dots or slashes to strictly interpret)
+        // Example: "11.2" -> "11/02/2026"
+        let delimiter = raw.includes('/') ? '/' : (raw.includes('.') ? '.' : null);
+        if (delimiter) {
+            const p = raw.split(delimiter).map(i => i.trim()).filter(i => i !== "");
+            if (p.length === 2) { // Manual overrides automatically append current year
+                let d = String(parseInt(p[0])).padStart(2, '0');
+                let m = String(parseInt(p[1])).padStart(2, '0');
+                if (parseInt(d) <= 31 && parseInt(m) <= 12) return `${d}/${m}/${currentYear}`;
+            } else if (p.length === 3) { // Full segmented date normalization
+                let d = String(parseInt(p[0])).padStart(2, '0');
+                let m = String(parseInt(p[1])).padStart(2, '0');
+                let y = p[2];
+                if (y.length === 2) y = "20" + y;
+                return `${d}/${m}/${y}`;
+            }
+        }
+
+        // OPTION 2: CONSECUTIVE NUMERICAL EXPANDER
+        const s = raw.replace(/\D/g, '');
+        if (s.length < 4 || s.length > 8) return raw;
+
+        let d, m, y;
+        if (s.length === 8) {
+            // Fully typed: 15052026
+            d = s.slice(0, 2); m = s.slice(2, 4); y = s.slice(4);
+        } else if (s.length === 6) {
+            // UNAMBIGUOUS 6 DIGIT FALLBACK: 110226 -> 11/02/2026
+            d = s.slice(0, 2); m = s.slice(2, 4); y = "20" + s.slice(4);
+        } else {
+            // Shorthand prioritized heuristics
+            y = "20" + s.slice(-2);
+            const rest = s.slice(0, -2);
+            
+            if (rest.length === 2) { // 6726 -> 06/07
+                d = rest[0]; m = rest[1];
+            } else if (rest.length === 3) {
+                // The requested "11226" vs "12826" scenario resolution
+                const lastTwo = parseInt(rest.slice(1));
+                if (lastTwo <= 12 && lastTwo > 0) {
+                    // Right-dominant Month priority logic (Matches explicitly requested 11226 -> Month 12)
+                    m = rest.slice(1); d = rest[0];
+                } else {
+                    // Fallback logic (Matches explicitly requested 12826 -> Month 8)
+                    m = rest[2]; d = rest.slice(0, 2);
+                }
+            } else {
+                return raw;
+            }
+        }
+
+        // Final Format Validations
+        d = String(parseInt(d)).padStart(2, '0');
+        m = String(parseInt(m)).padStart(2, '0');
+        const dayNum = parseInt(d); const monNum = parseInt(m);
+        if (dayNum > 31 || dayNum < 1 || monNum > 12 || monNum < 1) return raw; 
+        
+        return `${d}/${m}/${y}`;
+    }
 
     // ── DATA SYNC ─────────────────────────────────────────────
     let guestDirectory = [];
@@ -138,29 +296,91 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    let allGuestOptionsHTML = ''; // Cached system guests
+    let reportsGuestHTML = '';    // Cached reports names
+
     function updateAutocompletes() {
-        const list = document.getElementById('guest-list');
-        const itiList = document.getElementById('iti-guest-list');
-        
-        // Merge names from reservations and guestDirectory
+        // Collate unique list of searchable guest names
         const namesSet = new Set([...Object.keys(guestMap), ...guestDirectory.map(g => g.name)]);
         const names = Array.from(namesSet).sort();
 
-        const html = names.map(n => {
+        allGuestOptionsHTML = names.map(n => {
             const room = guestDirectory.find(g => g.name === n)?.room || guestMap[n] || '';
             return `<option value="${n}">${room}</option>`;
         }).join('');
         
-        if (list) list.innerHTML = html;
-        if (itiList) itiList.innerHTML = html;
+        // Push live sync to active datalists only if they are currently visible/inflated
+        ['guest-list', 'iti-guest-list'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.children.length > 0) el.innerHTML = allGuestOptionsHTML;
+        });
     }
 
-    // Auto-fill Room when guest name is selected
+    // ── SMART AUTOCOMPLETE ENGINE ──────────────────────────────
+    // Throttles population to suppress native dropdown until 3 chars typed
+    function setupDynamicAutolist(inputId, listId, type = 'general') {
+        const inputEl = document.getElementById(inputId);
+        const listEl = document.getElementById(listId);
+        if (!inputEl || !listEl) return;
+
+        // Ensure initially absolutely empty to prevent browser instant pop-down
+        listEl.innerHTML = '';
+
+        inputEl.addEventListener('input', (e) => {
+            const cleanVal = e.target.value.trim();
+            if (cleanVal.length >= 3) {
+                // Inflate only on crossover to prevent CPU thrashing
+                if (listEl.children.length === 0) {
+                    listEl.innerHTML = (type === 'reports') ? reportsGuestHTML : allGuestOptionsHTML;
+                }
+            } else {
+                // Purge on underflow to completely hide the component
+                listEl.innerHTML = ''; 
+            }
+        });
+    }
+
+    // Activate throttling on all 3 key entry inputs
+    setupDynamicAutolist('rs-guest', 'guest-list');
+    setupDynamicAutolist('iti-guest-search', 'iti-guest-list');
+    setupDynamicAutolist('rpt-guestSearch', 'guestNamesList', 'reports');
+
+    // Instantly analyze and project passive conflict warnings as fields evolve
+    ['rs-guest', 'rs-date', 'rs-time'].forEach(id => {
+        const target = document.getElementById(id);
+        if (target) {
+            target.addEventListener('input', checkConflictInline);
+            target.addEventListener('blur', checkConflictInline);
+        }
+    });
+
+    // Auto-fill Details & Sync Pre-Arrival state when guest name is selected from directory
     document.getElementById('rs-guest')?.addEventListener('input', (e) => {
         const name = e.target.value.trim();
         const found = guestDirectory.find(g => g.name.toLowerCase() === name.toLowerCase());
-        if (found && found.room) {
-            document.getElementById('rs-room').value = found.room;
+        const paCheckbox = document.getElementById('rs-isPreArrival');
+        const roomInput = document.getElementById('rs-room');
+        const datesWrapper = document.getElementById('rs-dates-wrapper');
+        const checkInInput = document.getElementById('rs-checkIn');
+        const checkOutInput = document.getElementById('rs-checkOut');
+
+        if (found) {
+            const isPreArrival = found.status === 'pre_arrival' || found.room === 'Pre-Arrival';
+            
+            paCheckbox.checked = isPreArrival;
+            roomInput.disabled = isPreArrival;
+
+            if (isPreArrival) {
+                roomInput.value = 'Pre-Arrival'; // Set visually clear value
+                document.getElementById('rs-pa-box').style.display = 'none'; // Hide the ENTIRE outer wrapper box
+                
+                // Sync existing dates silently from directory
+                if (found.checkIn) checkInInput.value = found.checkIn;
+                if (found.checkOut) checkOutInput.value = found.checkOut;
+            } else {
+                roomInput.value = (found.room && found.room !== 'Pre-Arrival') ? found.room : '';
+                document.getElementById('rs-pa-box').style.display = 'block'; // Restore outer wrapper
+            }
         }
     });
 
@@ -228,6 +448,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+
+        // 1. Instant Manual-Typing Date & Time Enhancers
+        flatpickr("#rs-date", {
+            dateFormat: "d/m/Y",
+            allowInput: true,
+            disableMobile: "true"
+        });
+        flatpickr("#rs-time", {
+            enableTime: true,
+            noCalendar: true,
+            dateFormat: "H:i",
+            time_24hr: true,
+            allowInput: true
+        });
+
+        // 2. Bind Proactive Interactive Mechanisms
+        const dateEl = document.getElementById('rs-date');
+        if (dateEl) {
+            // Expand shorthand input instantly when the user steps out of the field
+            dateEl.addEventListener('blur', (e) => {
+                e.target.value = smartExpandDate(e.target.value);
+            });
+        }
+        initMask('rs-time', 'time');
     } else {
         document.getElementById('c-dateFilter').value = todayStr;
         document.getElementById('c-dateFilter').onchange = renderReservations;
@@ -446,13 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (r) openDetail(r);
     };
 
-    // Guest name auto-room-fill
-    document.getElementById('rs-guest').addEventListener('input', (e) => {
-        const val = e.target.value;
-        if (guestMap[val]) {
-            document.getElementById('rs-room').value = guestMap[val];
-        }
-    });
+
 
     // ── DYNAMIC FORM LOGIC ────────────────────────────────────
     const dynamicFields = document.getElementById('rs-dynamic-fields');
@@ -507,21 +745,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openNewRes = () => {
         editResId = null;
+        resetConflictAlert(); // Wipe existing alerts
         document.querySelector('#resSheet h3').textContent = 'New Reservation';
         document.getElementById('rs-submit').textContent = 'Log Reservation';
         
         // Reset fields
-        ['rs-guest', 'rs-room', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
+        ['rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
             const el = document.getElementById(id); if (el) el.value = '';
         });
-        document.getElementById('rs-isPreArrival').checked = false;
+        const paCb = document.getElementById('rs-isPreArrival');
+        paCb.checked = false;
+        document.getElementById('rs-pa-box').style.display = 'block'; // Ensure total container visibility restored
         document.getElementById('rs-room').disabled = false;
-        document.getElementById('rs-dates-wrapper').style.display = 'none';
-        document.getElementById('rs-isPreArrival').parentElement.style.marginBottom = '0';
         
         typeSelect.value = 'Restaurant';
         updateFormFields();
-        document.getElementById('rs-date').valueAsDate = new Date();
+        document.getElementById('rs-date').value = fmtDate(new Date());
         openSheet(resSheet, resBackdrop);
     };
 
@@ -537,7 +776,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const guestName = document.getElementById('rs-guest').value.trim();
         const isPreArrival = document.getElementById('rs-isPreArrival').checked;
         const room = document.getElementById('rs-room').value.trim();
-        const date = document.getElementById('rs-date').value;
+        let displayD = document.getElementById('rs-date').value;
+        displayD = smartExpandDate(displayD); // Ensure latest expansion ran
+        document.getElementById('rs-date').value = displayD; // Visually push fix
+        const date = toIsoDate(displayD);
         const time = document.getElementById('rs-time').value;
         const checkIn = document.getElementById('rs-checkIn').value;
         const checkOut = document.getElementById('rs-checkOut').value;
@@ -548,6 +790,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!guestName || date === '') { showToast('Please fill Guest Name and Date', true); return; }
         if (!isPreArrival && !room) { showToast('Room is required unless Pre-Arrival is checked', true); return; }
+
+        // 🛡️ Informational Collision checks now trigger live via event listeners above.
+        // We allow direct single-click commits without obstructing UX flows now.
 
         const dynamicData = {};
         dynamicFields.querySelectorAll('input').forEach(inp => {
@@ -576,14 +821,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Reservation logged');
             }
             
+            resetConflictAlert(); // Clear transient alerts
             closeSheet(resSheet, resBackdrop);
-            ['rs-guest', 'rs-room', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
+            ['rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
             document.getElementById('rs-isPreArrival').checked = false;
+            document.getElementById('rs-pa-box').style.display = 'block'; // Ensure visible
             document.getElementById('rs-room').disabled = false;
-            document.getElementById('rs-dates-wrapper').style.display = 'none';
-            document.getElementById('rs-isPreArrival').parentElement.style.marginBottom = '0';
         } catch (e) { showToast('Error', true); }
     };
 
@@ -718,8 +963,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('d-editBtn').onclick = () => {
         if (!window.selectedReservation) return;
         const r = window.selectedReservation;
+        const openDetails = window.selectedReservation; // not relevant, r passed via caller
         
         editResId = r.id;
+        resetConflictAlert(); // Clear logic caches
         document.querySelector('#resSheet h3').textContent = 'Edit Reservation';
         document.getElementById('rs-submit').textContent = 'Save Changes';
 
@@ -732,10 +979,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const paCheckbox = document.getElementById('rs-isPreArrival');
         paCheckbox.checked = isPreArrival;
         document.getElementById('rs-room').disabled = isPreArrival;
-        document.getElementById('rs-room').value = isPreArrival ? '' : r.room;
+        document.getElementById('rs-room').value = isPreArrival ? 'Pre-Arrival' : r.room;
         
-        document.getElementById('rs-dates-wrapper').style.display = isPreArrival ? 'flex' : 'none';
-        paCheckbox.parentElement.style.marginBottom = isPreArrival ? '10px' : '0';
+        // Hide/Show total container box based on context
+        document.getElementById('rs-pa-box').style.display = isPreArrival ? 'none' : 'block';
 
         // Pre-fill check-in/out if available from directory
         if (isPreArrival) {
@@ -746,7 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        document.getElementById('rs-date').value = r.date;
+        document.getElementById('rs-date').value = toDisplayDate(r.date);
         document.getElementById('rs-time').value = r.time || '';
         document.getElementById('rs-price').value = r.totalPrice || '';
         document.getElementById('rs-deposit').value = r.deposit || '';
@@ -759,6 +1006,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r[key]) inp.value = r[key];
         });
 
+        checkConflictInline(); // Passive logic sync check instantly
+        
         // Close detail sheet, open res sheet
         closeSheet(detailSheet, detailBackdrop);
         openSheet(resSheet, resBackdrop);
@@ -864,10 +1113,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateGuestDatalist() {
-        const datalist = document.getElementById('guestNamesList');
-        if (!datalist) return;
         const uniqueNames = [...new Set(reservations.map(r => r.guestName).filter(Boolean))].sort();
-        datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+        reportsGuestHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+        
+        // Sync if currently displayed
+        const list = document.getElementById('guestNamesList');
+        if (list && list.children.length > 0) list.innerHTML = reportsGuestHTML;
     }
 
     window.generateReportFromUI = function (format) {

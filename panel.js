@@ -408,10 +408,45 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedRecord = null;
     let recordToDelete = null;
 
+    let globalGuestsHTML = ''; // Local cache for guests
+    let reportsHTML = '';      // Local cache for reports list
+
     function updateGuestMap() {
-        const html = guestDirectory.sort((a,b) => a.name.localeCompare(b.name)).map(g => `<option value="${g.name}">${g.room || ''}</option>`).join('');
-        document.querySelectorAll('#guest-list').forEach(list => list.innerHTML = html);
+        // Prepare the HTML snapshot in memory first
+        globalGuestsHTML = guestDirectory.sort((a,b) => a.name.localeCompare(b.name))
+            .map(g => `<option value="${g.name}">${g.room || ''}</option>`).join('');
+        
+        // Live sync running components only if they have active content
+        document.querySelectorAll('#guest-list').forEach(list => { 
+            if(list.children.length > 0) list.innerHTML = globalGuestsHTML; 
+        });
     }
+
+    // Advanced Reactive Autocompletion: only expand after 3 chars
+    function setupDynamicAutolist(inputId, listId, src = 'main') {
+        const inputEl = document.getElementById(inputId);
+        const listEl = document.getElementById(listId);
+        if (!inputEl || !listEl) return;
+
+        listEl.innerHTML = ''; // Start safely locked down
+
+        inputEl.addEventListener('input', (e) => {
+            const typedVal = e.target.value.trim();
+            if (typedVal.length >= 3) {
+                // Only render crossover when actually required
+                if (listEl.children.length === 0) {
+                    listEl.innerHTML = (src === 'reports') ? reportsHTML : globalGuestsHTML;
+                }
+            } else {
+                // Auto-suppress upon partial delete
+                listEl.innerHTML = '';
+            }
+        });
+    }
+
+    // Instigate gating hooks immediately
+    setupDynamicAutolist('guestName', 'guest-list');
+    setupDynamicAutolist('rpt-guestSearch', 'guestNamesList', 'reports');
 
     // 2. Data Persistence
     const fetchRecords = () => {
@@ -484,12 +519,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function populateGuestDatalist() {
-        const datalist = document.getElementById('guestNamesList');
-        if (!datalist) return;
-        
-        // Get unique guest names from all records
+        // Construct the latest unique names string
         const uniqueNames = [...new Set(records.map(r => r.guestName).filter(Boolean))].sort();
-        datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+        reportsHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+        
+        // Sync live component if active
+        const list = document.getElementById('guestNamesList');
+        if (list && list.children.length > 0) list.innerHTML = reportsHTML;
     }
 
     document.getElementById('closeReportsModal')?.addEventListener('click', () => {
