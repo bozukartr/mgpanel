@@ -95,17 +95,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sort by lastUpdated or status
         filtered.sort((a,b) => (b.lastUpdated || '').localeCompare(a.lastUpdated || ''));
 
-        listEl.innerHTML = filtered.map(g => `
-            <div class="guest-card ${currentGuestId === g.id ? 'active' : ''}" onclick="viewGuestDetail('${g.id}')">
+        listEl.innerHTML = filtered.map(g => {
+            const missingDates = (g.status === 'in_house' || g.status === 'pre_arrival') && (!g.checkIn || !g.checkOut);
+            const dateAlert = missingDates ? `<span style="font-size:9px; background:#ef4444; color:white; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:bold;">Tarih Eksik</span>` : '';
+            return `
+            <div class="guest-card ${currentGuestId === g.id ? 'active' : ''} ${missingDates ? 'missing-dates' : ''}" onclick="viewGuestDetail('${g.id}')">
                 <div class="guest-card-header">
-                    <span class="guest-card-name">${g.name}</span>
+                    <span class="guest-card-name">${g.name}${dateAlert}</span>
                     <span class="guest-card-status ${g.status === 'in_house' ? 'status-in-house' : (g.status === 'pre_arrival' ? 'status-arrival' : 'status-checked-out')}">
                         ${g.status === 'in_house' ? 'In House' : (g.status === 'pre_arrival' ? 'Pre-Arrival' : 'Checked Out')}
                     </span>
                 </div>
                 <div class="guest-card-room">Room: ${g.room || 'N/A'}</div>
             </div>
-        `).join('');
+        `}).join('');
     };
 
     window.viewGuestDetail = (guestId) => {
@@ -310,6 +313,54 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     loadAllData();
+
+    // ── SMART DATE EXPANSION ──
+    const toIsoDate = (val) => {
+        if (!val) return '';
+        const p = val.split('/');
+        if (p.length === 3) return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+        return val;
+    };
+    const toDisplayDate = (iso) => {
+        if (!iso) return '';
+        const p = iso.split('-');
+        if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+        return iso;
+    };
+    const smartExpandDate = (input) => {
+        if (!input) return '';
+        let v = input.replace(/\D/g, ''); 
+        
+        if (input.includes('.')) {
+            const parts = input.split('.');
+            if (parts.length >= 2) {
+                const dd = parts[0].padStart(2, '0');
+                const mm = parts[1].padStart(2, '0');
+                let yy = new Date().getFullYear();
+                if (parts[2]) yy = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                return `${dd}/${mm}/${yy}`;
+            }
+        }
+
+        if (v.length === 8) return `${v.slice(0,2)}/${v.slice(2,4)}/${v.slice(4)}`; 
+        if (v.length === 6) return `${v.slice(0,2)}/${v.slice(2,4)}/20${v.slice(4)}`; 
+        if (v.length === 4) return `0${v[0]}/0${v[1]}/20${v.slice(2)}`; 
+        if (v.length === 5) { 
+            if (parseInt(v.slice(0,2)) > 12) return `${v.slice(0,2)}/0${v.slice(2,3)}/20${v.slice(3)}`; 
+            return `0${v.slice(0,1)}/${v.slice(1,3)}/20${v.slice(3)}`; 
+        }
+        return input;
+    };
+
+    ['rcCheckIn', 'rcCheckOut'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('blur', (e) => {
+                e.target.value = smartExpandDate(e.target.value.trim());
+            });
+        }
+    });
+
     // Room Change Logic
     let rcGuestId = null;
     let rcGuestName = null;
@@ -319,8 +370,8 @@ document.addEventListener('DOMContentLoaded', () => {
         rcGuestName = name;
         document.getElementById('rcGuestName').textContent = name;
         document.getElementById('rcNewRoom').value = currentRoom;
-        document.getElementById('rcCheckIn').value = checkIn || '';
-        document.getElementById('rcCheckOut').value = checkOut || '';
+        document.getElementById('rcCheckIn').value = toDisplayDate(checkIn) || '';
+        document.getElementById('rcCheckOut').value = toDisplayDate(checkOut) || '';
         
         const isPreArrivalBox = document.getElementById('rcIsPreArrival');
         if (isPreArrivalBox) {
@@ -343,8 +394,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPreArrivalBox = document.getElementById('rcIsPreArrival');
         const isPreArrival = isPreArrivalBox ? isPreArrivalBox.checked : false;
         const newRoomRaw = document.getElementById('rcNewRoom').value.trim();
-        const checkInDate = document.getElementById('rcCheckIn').value;
-        const checkOutDate = document.getElementById('rcCheckOut').value;
+        
+        const rawCheckIn = document.getElementById('rcCheckIn').value.trim();
+        const rawCheckOut = document.getElementById('rcCheckOut').value.trim();
+        
+        const checkInDate = toIsoDate(smartExpandDate(rawCheckIn));
+        const checkOutDate = toIsoDate(smartExpandDate(rawCheckOut));
         
         if (!isPreArrival && !newRoomRaw) return showToast('Please enter a room number.', true);
         if (!rcGuestId || !rcGuestName) return;

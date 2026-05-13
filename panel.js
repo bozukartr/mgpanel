@@ -102,11 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const docRef = await db.collection('guestDirectory').add(newGuest);
             guestDirectory.push({ id: docRef.id, ...newGuest });
         } else {
-            // Repeat Guest Logic: If they were checked out, bring them back in house
-            // Also update room number as it might have changed this visit
-            if (existing.status === 'checked_out' || existing.room !== room) {
+            // Force status update and update room number if they changed
+            if (existing.status !== status || existing.room !== room) {
                 const updates = {
-                    status: 'in_house',
+                    status: status,
                     room: room || existing.room,
                     lastUpdated: new Date().toISOString()
                 };
@@ -363,6 +362,48 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             showToast('Error: ' + err.message, true);
         }
+    });
+
+    // ── PASSIVE INLINE ROOM CONFLICT DETECTOR ──
+    const checkRoomConflict = (nameId, roomId, alertId) => {
+        const alertEl = document.getElementById(alertId);
+        if (!alertEl) return;
+        
+        const guestName = document.getElementById(nameId)?.value.trim().toLowerCase();
+        const room = document.getElementById(roomId)?.value.trim();
+        
+        if (!room) {
+            alertEl.style.display = 'none';
+            return;
+        }
+
+        const conflict = guestDirectory.find(g => 
+            g.room === room && 
+            g.status === 'in_house' && 
+            guestName && g.name.toLowerCase() !== guestName
+        );
+
+        if (conflict) {
+            alertEl.innerHTML = `
+                <div style="font-weight:bold; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                    ⚠️ ODA ÇAKIŞMASI UYARISI
+                </div>
+                <div style="opacity:0.9;">Oda <b>${room}</b> şu an sistemde <b>${conflict.name}</b> (In-House) üzerine kayıtlı görünüyor.</div>
+            `;
+            alertEl.style.display = 'block';
+        } else {
+            alertEl.style.display = 'none';
+        }
+    };
+
+    ['guestName', 'room'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', () => checkRoomConflict('guestName', 'room', 'gi-conflict-alert'));
+        document.getElementById(id)?.addEventListener('blur', () => checkRoomConflict('guestName', 'room', 'gi-conflict-alert'));
+    });
+    
+    ['mob-guestName', 'mob-room'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', () => checkRoomConflict('mob-guestName', 'mob-room', 'mob-conflict-alert'));
+        document.getElementById(id)?.addEventListener('blur', () => checkRoomConflict('mob-guestName', 'mob-room', 'mob-conflict-alert'));
     });
 
     // Elements

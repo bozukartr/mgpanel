@@ -202,6 +202,72 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('newIssueClose')?.addEventListener('click',  () => closeSheet(newSheet, newBackdrop));
     newBackdrop?.addEventListener('click', () => closeSheet(newSheet, newBackdrop));
 
+    // ── GUEST DIRECTORY SYNC ──
+    async function syncGuestStatus(name, room, status = 'in_house') {
+        if (!name) return;
+        const normalized = name.trim();
+        const existing = guestDirectory.find(g => g.name.toLowerCase() === normalized.toLowerCase());
+        
+        if (!existing) {
+            const newGuest = {
+                name: normalized,
+                room: room || '',
+                status: status,
+                lastUpdated: new Date().toISOString()
+            };
+            const docRef = await db.collection('guestDirectory').add(newGuest);
+            guestDirectory.push({ id: docRef.id, ...newGuest });
+        } else {
+            if (existing.status !== status || existing.room !== room) {
+                const updates = {
+                    status: status,
+                    room: room || existing.room,
+                    lastUpdated: new Date().toISOString()
+                };
+                await db.collection('guestDirectory').doc(existing.id).update(updates);
+                existing.status = status;
+                existing.room = room || existing.room;
+            }
+        }
+    }
+
+    // ── PASSIVE INLINE ROOM CONFLICT DETECTOR ──
+    const checkRoomConflict = () => {
+        const alertEl = document.getElementById('mob-conflict-alert');
+        if (!alertEl) return;
+        
+        const guestName = document.getElementById('ni-guest')?.value.trim().toLowerCase();
+        const room = document.getElementById('ni-room')?.value.trim();
+        
+        if (!room) {
+            alertEl.style.display = 'none';
+            return;
+        }
+
+        const conflict = guestDirectory.find(g => 
+            g.room === room && 
+            g.status === 'in_house' && 
+            guestName && g.name.toLowerCase() !== guestName
+        );
+
+        if (conflict) {
+            alertEl.innerHTML = `
+                <div style="font-weight:bold; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                    ⚠️ ODA ÇAKIŞMASI UYARISI
+                </div>
+                <div style="opacity:0.9;">Oda <b>${room}</b> şu an sistemde <b>${conflict.name}</b> (In-House) üzerine kayıtlı görünüyor.</div>
+            `;
+            alertEl.style.display = 'block';
+        } else {
+            alertEl.style.display = 'none';
+        }
+    };
+
+    ['ni-guest', 'ni-room'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', checkRoomConflict);
+        document.getElementById(id)?.addEventListener('blur', checkRoomConflict);
+    });
+
     document.getElementById('ni-submit')?.addEventListener('click', async () => {
         const date  = document.getElementById('ni-date')?.value;
         const room  = document.getElementById('ni-room')?.value?.trim();
@@ -212,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!date || !room || !guest) { showToast('Date, Room & Guest are required.', true); return; }
         try {
+            await syncGuestStatus(guest, room);
             await db.collection('guestLogs').add({
                 date, room, guestName: guest, department: dept,
                 complaint: comp || '', solution: sol || '',

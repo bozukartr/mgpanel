@@ -421,3 +421,27 @@ body {
 @media (min-width: 769px) {
     .bottom-nav { display: none !important; }
 }
+
+.guest-card.missing-dates {
+    border-left: 4px solid #ef4444;
+    background-color: #fef2f2;
+}
+.guest-card.missing-dates:hover {
+    background-color: #fee2e2;
+}
+.guest-card.missing-dates.active {
+    background-color: #fca5a5;
+    border-left-color: #b91c1c;
+}
+.dark-theme .guest-card.missing-dates {
+    background-color: rgba(239, 68, 68, 0.1);
+    border-left: 4px solid #f87171;
+}
+.dark-theme .guest-card.missing-dates:hover {
+    background-color: rgba(239, 68, 68, 0.15);
+}
+.dark-theme .guest-card.missing-dates.active {
+    background-color: rgba(239, 68, 68, 0.25);
+    border-left-color: #ef4444;
+}
+
