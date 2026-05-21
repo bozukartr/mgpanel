@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (loggedUsername.toLowerCase() !== 'admin') {
         showToast('Unauthorized Access. Redirecting...', true);
-        setTimeout(() => window.location.href = 'panel.html', 1500);
+        setTimeout(() => window.location.href = 'concierge.html', 1500);
         return;
     }
 

@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loginCard.classList.add('fade-out');
 
             setTimeout(() => {
-                window.location.href = 'panel.html';
+                window.location.href = 'concierge.html';
             }, 800);
 
         } catch (error) {

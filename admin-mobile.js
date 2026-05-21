@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── AUTH GUARD ─────────────────────────────────────────────
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
     if (loggedUsername.toLowerCase() !== 'admin') {
-        window.location.href = 'panel-mobile.html';
+        window.location.href = 'concierge.html';
         return;
     }
     auth.onAuthStateChanged(u => { if (!u) window.location.href = 'index.html'; });

@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ── AUTO LOGOUT LOGIC (5 MINS) ─────────────────────────────
+    // ── AUTO LOGOUT LOGIC (15 MINS) ────────────────────────────
     let logoutTimer;
     function resetLogoutTimer() {
         clearTimeout(logoutTimer);
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem('hotelUsername');
                 window.location.href = 'index.html';
             });
-        }, 5 * 60 * 1000); // 5 minutes
+        }, 15 * 60 * 1000); // 15 minutes
     }
 
     // Reset on typing, changing inputs, scrolling, or touching
@@ -64,6 +64,118 @@ document.addEventListener('DOMContentLoaded', () => {
     }, true);
 
     resetLogoutTimer(); // Start timer on load
+
+    // ── BACKUP LOGIC (JSON IMPORT/EXPORT) ──────────────────────
+    const backupToggleBtn = document.getElementById('c-backupToggleBtn');
+    const backupMenu = document.getElementById('c-backupMenu');
+    const exportDataBtn = document.getElementById('c-exportDataBtn');
+    const importDataBtn = document.getElementById('c-importDataBtn');
+    const importFileInput = document.getElementById('c-importFileInput');
+
+    if (backupToggleBtn) {
+        backupToggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            backupMenu?.classList.toggle('show');
+        };
+    }
+
+    document.addEventListener('click', () => {
+        backupMenu?.classList.remove('show');
+    });
+
+    // EXPORT: JSON (Full System Backup)
+    exportDataBtn?.addEventListener('click', async () => {
+        try {
+            const logsSnap = await db.collection('guestLogs').get();
+            const resSnap = await db.collection('reservations').get();
+            const dirSnap = await db.collection('guestDirectory').get();
+
+            const fullBackup = {
+                guestLogs: logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                reservations: resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                guestDirectory: dirSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                backupDate: new Date().toISOString(),
+                version: "3.0"
+            };
+
+            const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Full_System_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Full system backup exported.');
+        } catch (e) { showToast('Export failed', true); }
+    });
+
+    // IMPORT: JSON (Full System Restore)
+    if (loggedUsername.toLowerCase() !== 'admin') {
+        if (importDataBtn) importDataBtn.style.display = 'none';
+    }
+
+    importDataBtn?.addEventListener('click', () => {
+        if (loggedUsername.toLowerCase() !== 'admin') {
+            return showToast('Only Admin can import backups.', true);
+        }
+        importFileInput.click();
+    });
+
+    importFileInput?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                const batch = db.batch();
+                let logCount = 0;
+                let resCount = 0;
+                let dirCount = 0;
+
+                // Case 1: Unified Backup Format
+                if (data.guestLogs || data.reservations || data.guestDirectory) {
+                    if (data.guestLogs) {
+                        data.guestLogs.forEach(item => {
+                            const { id, ...rest } = item;
+                            batch.set(db.collection('guestLogs').doc(id), rest, { merge: true });
+                            logCount++;
+                        });
+                    }
+                    if (data.reservations) {
+                        data.reservations.forEach(item => {
+                            const { id, ...rest } = item;
+                            batch.set(db.collection('reservations').doc(id), rest, { merge: true });
+                            resCount++;
+                        });
+                    }
+                    if (data.guestDirectory) {
+                        data.guestDirectory.forEach(item => {
+                            const { id, ...rest } = item;
+                            batch.set(db.collection('guestDirectory').doc(id), rest, { merge: true });
+                            dirCount++;
+                        });
+                    }
+                }
+                // Case 2: Legacy GuestLogs-only Array Format
+                else if (Array.isArray(data)) {
+                    data.forEach(item => {
+                        const { id, ...rest } = item;
+                        batch.set(db.collection('guestLogs').doc(id), rest, { merge: true });
+                        logCount++;
+                    });
+                } else {
+                    throw new Error('Unsupported backup format');
+                }
+
+                await batch.commit();
+                showToast(`Import Success: ${logCount} logs, ${resCount} res, ${dirCount} CRM profiles.`);
+                e.target.value = '';
+                setTimeout(() => window.location.reload(), 1500);
+            } catch (err) { showToast('Import failed: ' + err.message, true); }
+        };
+        reader.readAsText(file);
+    });
 
     // ── CONFIG ────────────────────────────────────────────────
     const SERVICE_ICONS = {

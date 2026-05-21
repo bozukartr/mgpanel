@@ -4,9 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const displayUsername = document.getElementById('displayUsername');
     const loggedUsername = localStorage.getItem('hotelUsername') || 'Admin';
     const toast = document.getElementById('toast');
-    
-    if(staffInitialInput) staffInitialInput.value = loggedUsername;
-    if(displayUsername) displayUsername.textContent = loggedUsername;
+
+    if (staffInitialInput) staffInitialInput.value = loggedUsername;
+    if (displayUsername) displayUsername.textContent = loggedUsername;
 
     // Show Admin Link if user is admin
     const adminNavLink = document.getElementById('adminNavLink');
@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const logoutBtn = document.getElementById('logoutBtn');
-    if(logoutBtn) {
+    if (logoutBtn) {
         logoutBtn.addEventListener('click', () => {
             auth.signOut().then(() => {
                 localStorage.removeItem('hotelUsername');
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ── AUTO LOGOUT LOGIC (5 MINS) ─────────────────────────────
+    // ── AUTO LOGOUT LOGIC (15 MINS) ────────────────────────────
     let logoutTimer;
     function resetLogoutTimer() {
         clearTimeout(logoutTimer);
@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem('hotelUsername');
                 window.location.href = 'index.html';
             });
-        }, 5 * 60 * 1000); // 5 minutes
+        }, 15 * 60 * 1000); // 15 minutes
     }
 
     // Reset on typing, changing inputs, scrolling, or touching
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!name) return;
         const normalized = name.trim();
         const existing = guestDirectory.find(g => g.name.toLowerCase() === normalized.toLowerCase());
-        
+
         if (!existing) {
             const newGuest = {
                 name: normalized,
@@ -110,12 +110,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastUpdated: new Date().toISOString()
                 };
                 await db.collection('guestDirectory').doc(existing.id).update(updates);
-                
+
                 // Update local state
                 existing.status = 'in_house';
                 existing.room = room || existing.room;
                 existing.lastUpdated = updates.lastUpdated;
-                
+
                 renderGuestProfileList();
                 updateView(globalSearch.value, dateSearch.value);
             }
@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── LEGACY SYNC: Backfill directory from existing logs ──
     async function backfillGuestDirectory() {
         if (!records.length) return;
-        
+
         try {
             // Load all current reservations to include concierge-only guests
             const resSnap = await db.collection('reservations').get();
@@ -146,8 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Find unique guest names from sources that aren't in directory
             const existingNames = new Set(guestDirectory.map(g => g.name.toLowerCase()));
-            const guestsToAddMap = {}; 
-            
+            const guestsToAddMap = {};
+
             allSourceGuests.forEach(g => {
                 if (g.name && !existingNames.has(g.name.toLowerCase())) {
                     guestsToAddMap[g.name.toLowerCase()] = { name: g.name, room: g.room };
@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             console.log(`Backfilling ${guestsToAdd.length} guests into directory...`);
             const batch = db.batch();
-            
+
             guestsToAdd.forEach(g => {
                 const newRef = db.collection('guestDirectory').doc();
                 const data = {
@@ -201,8 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
     exportDataBtn?.addEventListener('click', async () => {
         try {
             const logsSnap = await db.collection('guestLogs').get();
-            const resSnap  = await db.collection('reservations').get();
-            
+            const resSnap = await db.collection('reservations').get();
+
             const fullBackup = {
                 guestLogs: logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 reservations: resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             resCount++;
                         });
                     }
-                } 
+                }
                 // Case 2: Legacy GuestLogs-only Array Format
                 else if (Array.isArray(data)) {
                     data.forEach(item => {
@@ -300,11 +300,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ── MOBILE FAB & BOTTOM SHEET ──────────────────────────────
-    const mobFab          = document.getElementById('mobFab');
-    const mobSheet        = document.getElementById('mobSheet');
-    const mobSheetClose   = document.getElementById('mobSheetClose');
-    const mobBackdrop     = document.getElementById('mobSheetBackdrop');
-    const mobSubmitBtn    = document.getElementById('mobSubmitBtn');
+    const mobFab = document.getElementById('mobFab');
+    const mobSheet = document.getElementById('mobSheet');
+    const mobSheetClose = document.getElementById('mobSheetClose');
+    const mobBackdrop = document.getElementById('mobSheetBackdrop');
+    const mobSubmitBtn = document.getElementById('mobSubmitBtn');
 
     const openMobSheet = () => {
         // Pre-fill today's date
@@ -329,12 +329,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Mobile form submit — mirrors the desktop guestIssueForm
     mobSubmitBtn?.addEventListener('click', async () => {
-        const date       = document.getElementById('mob-date')?.value;
-        const room       = document.getElementById('mob-room')?.value?.trim();
-        const guestName  = document.getElementById('mob-guestName')?.value?.trim();
+        const date = document.getElementById('mob-date')?.value;
+        const room = document.getElementById('mob-room')?.value?.trim();
+        const guestName = document.getElementById('mob-guestName')?.value?.trim();
         const department = document.getElementById('mob-department')?.value;
-        const complaint  = document.getElementById('mob-complaint')?.value?.trim();
-        const solution   = document.getElementById('mob-solution')?.value?.trim();
+        const complaint = document.getElementById('mob-complaint')?.value?.trim();
+        const solution = document.getElementById('mob-solution')?.value?.trim();
 
         if (!date || !room || !guestName) {
             showToast('Date, Room and Guest Name are required.', true);
@@ -346,14 +346,14 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection('guestLogs').add({
                 date, room, guestName, department,
                 complaint: complaint || '',
-                solution:  solution  || '',
+                solution: solution || '',
                 staffInitial: loggedUsername,
                 status: 'Following',
                 updates: [],
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             // Reset & close
-            ['mob-date','mob-room','mob-guestName','mob-complaint','mob-solution'].forEach(id => {
+            ['mob-date', 'mob-room', 'mob-guestName', 'mob-complaint', 'mob-solution'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
@@ -368,18 +368,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const checkRoomConflict = (nameId, roomId, alertId) => {
         const alertEl = document.getElementById(alertId);
         if (!alertEl) return;
-        
+
         const guestName = document.getElementById(nameId)?.value.trim().toLowerCase();
         const room = document.getElementById(roomId)?.value.trim();
-        
+
         if (!room) {
             alertEl.style.display = 'none';
             return;
         }
 
-        const conflict = guestDirectory.find(g => 
-            g.room === room && 
-            g.status === 'in_house' && 
+        const conflict = guestDirectory.find(g =>
+            g.room === room &&
+            g.status === 'in_house' &&
             guestName && g.name.toLowerCase() !== guestName
         );
 
@@ -400,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(id)?.addEventListener('input', () => checkRoomConflict('guestName', 'room', 'gi-conflict-alert'));
         document.getElementById(id)?.addEventListener('blur', () => checkRoomConflict('guestName', 'room', 'gi-conflict-alert'));
     });
-    
+
     ['mob-guestName', 'mob-room'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', () => checkRoomConflict('mob-guestName', 'mob-room', 'mob-conflict-alert'));
         document.getElementById(id)?.addEventListener('blur', () => checkRoomConflict('mob-guestName', 'mob-room', 'mob-conflict-alert'));
@@ -454,12 +454,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateGuestMap() {
         // Prepare the HTML snapshot in memory first
-        globalGuestsHTML = guestDirectory.sort((a,b) => a.name.localeCompare(b.name))
+        globalGuestsHTML = guestDirectory.sort((a, b) => a.name.localeCompare(b.name))
             .map(g => `<option value="${g.name}">${g.room || ''}</option>`).join('');
-        
+
         // Live sync running components only if they have active content
-        document.querySelectorAll('#guest-list').forEach(list => { 
-            if(list.children.length > 0) list.innerHTML = globalGuestsHTML; 
+        document.querySelectorAll('#guest-list').forEach(list => {
+            if (list.children.length > 0) list.innerHTML = globalGuestsHTML;
         });
     }
 
@@ -495,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
             records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             updateGuestMap();
             updateView(globalSearch.value, dateSearch.value);
-            
+
             // Trigger backfill check
             if (guestDirectory.length >= 0) backfillGuestDirectory();
 
@@ -514,11 +514,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Guest auto-fill logic
     document.getElementById('guestName')?.addEventListener('input', (e) => {
         const g = guestDirectory.find(x => x.name === e.target.value);
-        if(g && g.room) document.getElementById('room').value = g.room;
+        if (g && g.room) document.getElementById('room').value = g.room;
     });
     document.getElementById('mob-guestName')?.addEventListener('input', (e) => {
         const g = guestDirectory.find(x => x.name === e.target.value);
-        if(g && g.room) document.getElementById('mob-room').value = g.room;
+        if (g && g.room) document.getElementById('mob-room').value = g.room;
     });
 
     issueForm.addEventListener('submit', async (e) => {
@@ -552,7 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ═══════════════════════════════════════════════════════════
     const reportsModal = document.getElementById('reportsModal');
     const rptTypeSelect = document.getElementById('reportTypeSelect');
-    
+
     document.getElementById('openReportsBtn')?.addEventListener('click', () => {
         reportsModal.style.display = 'flex';
         populateGuestDatalist();
@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Construct the latest unique names string
         const uniqueNames = [...new Set(records.map(r => r.guestName).filter(Boolean))].sort();
         reportsHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
-        
+
         // Sync live component if active
         const list = document.getElementById('guestNamesList');
         if (list && list.children.length > 0) list.innerHTML = reportsHTML;
@@ -602,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Proxy function called from HTML buttons
-    window.generateReportFromUI = function(format) {
+    window.generateReportFromUI = function (format) {
         const type = rptTypeSelect.value;
         generateReport(type, format);
     };
@@ -614,7 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getRptDates() {
         return {
             from: document.getElementById('rpt-dateFrom')?.value || '',
-            to:   document.getElementById('rpt-dateTo')?.value   || '',
+            to: document.getElementById('rpt-dateTo')?.value || '',
             specific: document.getElementById('rpt-specificDate')?.value || getLocalDate(),
             dept: document.getElementById('rpt-departmentSelect')?.value || 'All',
             guest: document.getElementById('rpt-guestSearch')?.value || ''
@@ -624,7 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function filterByRange(data, from, to) {
         return data.filter(r => {
             if (from && r.date < from) return false;
-            if (to   && r.date > to)   return false;
+            if (to && r.date > to) return false;
             return true;
         });
     }
@@ -646,9 +646,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function exportExcel(rows, filename, sheetName = 'Report', summaryData = null) {
         if (!rows || rows.length === 0) return showToast('No data for this report.', true);
-        
+
         const keys = Object.keys(rows[0]);
-        
+
         // Build Summary Table if provided
         let summaryHtml = '';
         if (summaryData) {
@@ -669,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="height: 20px;"></div>
             `;
         }
-        
+
         // Build Excel-compatible XML/HTML String for full styling support
         let excelHtml = `
             <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -711,15 +711,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${rows.map(r => `
                             <tr>
                                 ${keys.map(k => {
-                                    const val = r[k] || '';
-                                    let className = '';
-                                    if (k.toLowerCase().includes('date')) className = 'col-date text-center';
-                                    if (k.toLowerCase().includes('room')) className = 'col-room text-center';
-                                    if (k.toLowerCase().includes('guest')) className = 'col-guest';
-                                    if (k.toLowerCase().includes('complaint') || k.toLowerCase().includes('solution') || k.toLowerCase().includes('notes')) className = 'col-desc';
-                                    
-                                    return `<td class="${className}">${val}</td>`;
-                                }).join('')}
+            const val = r[k] || '';
+            let className = '';
+            if (k.toLowerCase().includes('date')) className = 'col-date text-center';
+            if (k.toLowerCase().includes('room')) className = 'col-room text-center';
+            if (k.toLowerCase().includes('guest')) className = 'col-guest';
+            if (k.toLowerCase().includes('complaint') || k.toLowerCase().includes('solution') || k.toLowerCase().includes('notes')) className = 'col-desc';
+
+            return `<td class="${className}">${val}</td>`;
+        }).join('')}
                             </tr>
                         `).join('')}
                     </tbody>
@@ -737,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         showToast('Styled Excel report downloaded.');
     }
 
@@ -795,16 +795,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Report Engine ──────────────────────────────────────────
-    window.generateReport = function(type, format) {
+    window.generateReport = function (type, format) {
         const { from, to, specific, dept, guest } = getRptDates();
 
         if (type === 'summary') {
             const date = specific || getLocalDate();
             let data = records.filter(r => r.date === date);
-            
+
             // Optional: apply dept filter even here if user selected one? 
             // Usually summary is general, but let's stick to the specific date.
-            
+
             const total = data.length, solved = data.filter(r => r.status === 'Solved').length;
             const following = total - solved, overdue = data.filter(r => isOverdueFn(r)).length;
             const deptCounts = {};
@@ -840,10 +840,10 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (type === 'inHouseIssues') {
             const inHouseNames = new Set(guestDirectory.filter(g => g.status === 'in_house').map(g => g.name.toLowerCase()));
             const data = records.filter(r => inHouseNames.has(r.guestName?.toLowerCase()));
-            
+
             const deptSummary = {};
             data.forEach(r => deptSummary[r.department] = (deptSummary[r.department] || 0) + 1);
-            
+
             const summaryData = {
                 'Total In-House Issues': data.length,
                 ...Object.entries(deptSummary).reduce((acc, [d, c]) => { acc[`Dept: ${d}`] = c; return acc; }, {})
@@ -852,9 +852,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (format === 'excel') {
                 exportExcel(data.map(rowBase), 'In_House_Issues', 'InHouse', summaryData);
             } else {
-                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,35), r.staffInitial, r.status || 'Following']);
-                exportPDF('In-House Guest Issues', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'In_House_Issues', 
-                    `Total Active In-House Issues: ${data.length} | ` + Object.entries(deptSummary).map(([d,c]) => `${d}:${c}`).join(' | '));
+                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.staffInitial, r.status || 'Following']);
+                exportPDF('In-House Guest Issues', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'In_House_Issues',
+                    `Total Active In-House Issues: ${data.length} | ` + Object.entries(deptSummary).map(([d, c]) => `${d}:${c}`).join(' | '));
             }
         }
 
@@ -862,7 +862,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const date = specific || getLocalDate();
             let data = records.filter(r => r.date === date);
             if (dept !== 'All') data = data.filter(r => r.department === dept);
-            
+
             const grouped = {};
             data.forEach(r => {
                 const d = r.department || 'Unknown';
@@ -900,7 +900,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = records.filter(r => r.date === date);
             if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${date}`, date);
             else exportPDF(`Issues — ${date}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'],
-                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,40), r.staffInitial, r.status || 'Following']),
+                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, r.status || 'Following']),
                 `Issues_${date}`);
         }
 
@@ -909,14 +909,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = filterByRange(records, from, to);
             if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${from}_to_${to}`, 'Date Range');
             else exportPDF(`Issues: ${from} → ${to}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'],
-                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,40), r.staffInitial, r.status || 'Following']),
+                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, r.status || 'Following']),
                 `DateRange_${from}_${to}`, `From: ${from}  To: ${to}`);
         }
 
         else if (type === 'guest') {
             let data = records;
             if (guest) data = records.filter(r => r.guestName && r.guestName.toLowerCase().includes(guest.toLowerCase()));
-            
+
             const grouped = {};
             data.forEach(r => {
                 const key = r.guestName || 'Unknown';
@@ -939,7 +939,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Excel report downloaded.');
             } else {
                 const rows = Object.entries(grouped).flatMap(([name, arr]) =>
-                    arr.map(r => [name, r.room, r.date, r.department, r.complaint?.substring(0,35), r.status || 'Following'])
+                    arr.map(r => [name, r.room, r.date, r.department, r.complaint?.substring(0, 35), r.status || 'Following'])
                 );
                 exportPDF(`Issues by Guest: ${guest || 'All'}`, ['Guest Name', 'Room', 'Date', 'Department', 'Complaint', 'Status'], rows, `By_Guest_${guest || 'All'}`);
             }
@@ -960,7 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 XLSX.writeFile(wb, `By_Status_${getLocalDate()}.xlsx`);
                 showToast('Excel report downloaded.');
             } else {
-                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,35), r.status || 'Following']);
+                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.status || 'Following']);
                 exportPDF('Issues by Status', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Status'], rows, 'By_Status',
                     `Total: ${data.length} | Solved: ${solved.length} | Following: ${following.length}`);
             }
@@ -977,7 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (r.status === 'Solved') dailyMap[r.date].solved++;
                 else { dailyMap[r.date].following++; if (isOverdueFn(r)) dailyMap[r.date].overdue++; }
             });
-            const dailyRows = Object.values(dailyMap).sort((a,b) => a.date.localeCompare(b.date));
+            const dailyRows = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
             if (format === 'excel') {
                 const wb = XLSX.utils.book_new();
                 const summaryData = dailyRows.map(d => ({
@@ -1001,7 +1001,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (type === 'deptHistorical') {
             let data = (from || to) ? filterByRange(records, from, to) : records;
             if (dept !== 'All') data = data.filter(r => r.department === dept);
-            
+
             const matrix = {};
             data.forEach(r => {
                 const d = r.department || 'Unknown';
@@ -1019,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 exportExcel(sheetRows, `Dept_Historical_${dept}_${getLocalDate()}`, 'Dept vs Date');
             } else {
-                const rows = Object.entries(matrix).map(([d, dates]) => [d, ...allDates.map(dt => dates[dt] || 0), Object.values(dates).reduce((a,b)=>a+b,0)]);
+                const rows = Object.entries(matrix).map(([d, dates]) => [d, ...allDates.map(dt => dates[dt] || 0), Object.values(dates).reduce((a, b) => a + b, 0)]);
                 exportPDF(`Department × Historical (${dept})`, ['Department', ...allDates, 'Total'], rows, `Dept_Historical_${dept}`);
             }
         }
@@ -1028,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (lastRenderedRows.length === 0) return showToast('No visible records to export.', true);
             if (format === 'excel') exportExcel(lastRenderedRows.map(rowBase), 'Current_View', 'Filtered');
             else {
-                const rows = lastRenderedRows.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,40), r.staffInitial, r.status || 'Following']);
+                const rows = lastRenderedRows.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, r.status || 'Following']);
                 exportPDF('Current Filtered View', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'Current_View');
             }
         }
@@ -1036,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (type === 'fullArchive') {
             if (format === 'excel') exportExcel(records.map(rowBase), 'Full_Archive', 'Archive');
             else {
-                const rows = records.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0,35), r.staffInitial, r.status || 'Following']);
+                const rows = records.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.staffInitial, r.status || 'Following']);
                 exportPDF('Full Archive — All Records', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'Full_Archive',
                     `Total Records: ${records.length}`);
             }
@@ -1052,7 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const triggerSearch = () => updateView(globalSearch.value, dateSearch.value);
     globalSearch.addEventListener('input', triggerSearch);
     dateSearch.addEventListener('change', triggerSearch);
-    
+
     let activeStatusFilter = null;
     document.getElementById('filterTotal').addEventListener('click', () => { activeStatusFilter = null; triggerSearch(); });
     document.getElementById('filterFollowing').addEventListener('click', () => { activeStatusFilter = 'Following'; triggerSearch(); });
@@ -1060,8 +1060,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filterOverdue').addEventListener('click', () => { activeStatusFilter = 'Overdue'; triggerSearch(); });
 
     resetFilters.addEventListener('click', () => {
-        globalSearch.value = ''; 
-        dateSearch.value = getLocalDate(); 
+        globalSearch.value = '';
+        dateSearch.value = getLocalDate();
         activeStatusFilter = null;
         updateView(globalSearch.value, dateSearch.value);
     });
@@ -1101,7 +1101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderGuestProfileList() {
         if (!guestProfileList) return;
         const search = profileSearchInput.value.toLowerCase();
-        
+
         let filtered = guestDirectory.filter(g => {
             const matchesSearch = g.name.toLowerCase().includes(search) || (g.room && g.room.includes(search));
             const matchesStatus = currentProfileFilter === 'all' || g.status === currentProfileFilter;
@@ -1121,13 +1121,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 display: flex; justify-content: space-between; align-items: center; 
                 padding: 12px 15px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s;
             `;
-            
+
             const isInHouse = guest.status === 'in_house';
-            
+
             item.innerHTML = `
                 <div style="flex: 1;">
                     <div style="font-weight: 600; color: #333;">${guest.name}</div>
-                    <div style="font-size: 12px; color: #888;">Room: ${guest.room || 'N/A'} • <span style="color:${isInHouse ? '#27ae60' : '#7f8c8d'}; font-weight:700;">${guest.status.replace('_',' ').toUpperCase()}</span></div>
+                    <div style="font-size: 12px; color: #888;">Room: ${guest.room || 'N/A'} • <span style="color:${isInHouse ? '#27ae60' : '#7f8c8d'}; font-weight:700;">${guest.status.replace('_', ' ').toUpperCase()}</span></div>
                 </div>
                 <button onclick="toggleGuestStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')"
                         style="padding: 6px 12px; border-radius: 4px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; 
@@ -1150,13 +1150,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (idx !== -1) guestDirectory[idx].status = newStatus;
             renderGuestProfileList();
             updateView(globalSearch.value, dateSearch.value); // Refresh table badges
-            showToast(`Guest marked as ${newStatus.replace('_',' ')}`);
+            showToast(`Guest marked as ${newStatus.replace('_', ' ')}`);
         } catch (e) { showToast('Update failed', true); }
     };
 
     profileSearchInput?.addEventListener('input', renderGuestProfileList);
 
-    window.selectGuestProfile = function(name) {
+    window.selectGuestProfile = function (name) {
         guestProfileModal.style.display = 'none';
         globalSearch.value = name;
         dateSearch.value = ''; // clear date to show all history
@@ -1185,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recordsTableBody.innerHTML = '';
         const lowerText = textFilter.toLowerCase();
         let stats = { total: 0, following: 0, solved: 0, overdue: 0 };
-        
+
         const tableTitle = document.getElementById('tableTitle');
         if (tableTitle) {
             if (dateFilter) {
@@ -1255,11 +1255,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Update Stats Dashboard UI
-        if(document.getElementById('statTotal')) document.getElementById('statTotal').textContent = stats.total;
-        if(document.getElementById('statFollowing')) document.getElementById('statFollowing').textContent = stats.following;
-        if(document.getElementById('statSolved')) document.getElementById('statSolved').textContent = stats.solved;
-        if(document.getElementById('statOverdue')) document.getElementById('statOverdue').textContent = stats.overdue;
-        
+        if (document.getElementById('statTotal')) document.getElementById('statTotal').textContent = stats.total;
+        if (document.getElementById('statFollowing')) document.getElementById('statFollowing').textContent = stats.following;
+        if (document.getElementById('statSolved')) document.getElementById('statSolved').textContent = stats.solved;
+        if (document.getElementById('statOverdue')) document.getElementById('statOverdue').textContent = stats.overdue;
+
         recordCountElement.textContent = finalFiltered.length;
     }
 
@@ -1269,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalGuestRoom.textContent = `${record.guestName} - Room ${record.room}`;
         modalDept.textContent = record.department;
         modalDesc.innerHTML = `<strong>Complaint:</strong> ${record.complaint}<br><strong>Solution:</strong> ${record.solution}`;
-        
+
         updateStatusBadge(record.status || 'Following');
         renderTimeline(record);
 
@@ -1280,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Bind Status Update Buttons
         document.getElementById('setFollowingBtn').onclick = () => updateRecordStatus('Following');
         document.getElementById('setSolvedBtn').onclick = () => updateRecordStatus('Solved');
-        
+
         document.getElementById('emailModalBtn').onclick = () => draftEmail(record);
         document.getElementById('editModalBtn').onclick = () => startModalEdit(record);
         document.getElementById('deleteModalBtn').onclick = () => {
@@ -1315,7 +1315,7 @@ document.addEventListener('DOMContentLoaded', () => {
             item.className = 'timeline-item';
             item.id = `note-${index}`;
             const isOwner = note.user === loggedUsername;
-            
+
             item.innerHTML = `
                 <div class="timeline-header">
                     <span class="timeline-author">${note.user} ${note.isEdited ? '<span class="edited-tag">(edited)</span>' : ''}</span>
@@ -1338,7 +1338,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.deleteNote = (index) => {
         const item = document.getElementById(`note-${index}`);
         const actions = item.querySelector('.timeline-actions');
-        
+
         actions.innerHTML = `
             <span class="confirm-msg">Delete?</span>
             <button class="timeline-confirm-btn" onclick="confirmDeleteNote(${index})">Yes</button>
@@ -1357,7 +1357,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const item = document.getElementById(`note-${index}`);
         const body = item.querySelector('.timeline-body');
         const originalText = selectedRecord.updates[index].text;
-        
+
         body.innerHTML = `
             <div class="inline-edit-area">
                 <textarea id="edit-note-input-${index}" class="inline-textarea">${originalText}</textarea>
@@ -1483,15 +1483,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     document.getElementById('successEmailBtn').onclick = () => {
-        if(selectedRecord) draftEmail(selectedRecord);
+        if (selectedRecord) draftEmail(selectedRecord);
         document.getElementById('successModal').style.display = 'none';
     };
     document.getElementById('successSkipBtn').onclick = () => document.getElementById('successModal').style.display = 'none';
-    
+
     function closeModalFunc() { modal.style.display = 'none'; selectedRecord = null; }
     closeModal.onclick = closeModalFunc;
-    window.onclick = (e) => { 
-        if (e.target == modal) closeModalFunc(); 
+    window.onclick = (e) => {
+        if (e.target == modal) closeModalFunc();
         if (e.target == confirmModal) { confirmModal.style.display = 'none'; recordToDelete = null; }
         if (e.target == authModal) authModal.style.display = 'none';
     };
