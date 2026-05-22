@@ -1263,7 +1263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Type: r.type,
             Details: details,
             Pax: r.pax || '',
-            Price: r.price || 0,
+            Price: r.totalPrice || 0,
             Deposit: r.deposit || 0,
             Status: r.status || 'Pending'
         };
@@ -1355,7 +1355,7 @@ document.addEventListener('DOMContentLoaded', () => {
             data = reservations.filter(r => r.date === specific && r.status !== 'Cancelled');
             const summaryRows = [
                 { Metric: 'Total Reservations', Value: data.length },
-                { Metric: 'Total Revenue', Value: data.reduce((a, b) => a + (Number(b.price) || 0), 0) + ' €' },
+                { Metric: 'Total Revenue', Value: data.reduce((a, b) => a + (Number(b.totalPrice) || 0), 0) + ' €' },
                 { Metric: 'Total Deposits', Value: data.reduce((a, b) => a + (Number(b.deposit) || 0), 0) + ' €' }
             ];
             if (format === 'excel') {
@@ -1409,7 +1409,7 @@ document.addEventListener('DOMContentLoaded', () => {
             data.forEach(r => {
                 if (!revenueMap[r.date]) revenueMap[r.date] = { Date: r.date, Reservations: 0, Price: 0, Deposit: 0 };
                 revenueMap[r.date].Reservations++;
-                revenueMap[r.date].Price += (Number(r.price) || 0);
+                revenueMap[r.date].Price += (Number(r.totalPrice) || 0);
                 revenueMap[r.date].Deposit += (Number(r.deposit) || 0);
             });
             const revenueRows = Object.values(revenueMap).sort((a, b) => a.Date.localeCompare(b.Date));
