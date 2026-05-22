@@ -228,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const conflicts = reservations.filter(r => {
             if (editResId && r.id === editResId) return false; // exclude self
+            if (r.status === 'Cancelled') return false;
             if (r.date !== date || !r.time) return false;
             if (r.guestName.trim().toLowerCase() !== guestName.toLowerCase()) return false;
 
