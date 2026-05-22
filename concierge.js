@@ -826,6 +826,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="field-group"><label>Restaurant Name</label><input type="text" id="rs-resName"></div>
                     <div class="field-group"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
                 </div>`;
+        } else if (type === 'Beach') {
+            html = `
+        <div class="field-row">
+            <div class="field-group"><label>Beach / Venue Name</label><input type="text" id="rs-resName"></div>
+            <div class="field-group"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
+        </div>`;
         } else if (type === 'Transfer') {
             html = `
                 <div class="field-row">
@@ -979,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         let dynHtml = '';
-        if (r.type === 'Restaurant') dynHtml = `<p><strong>${r.resName || '—'}</strong> (${r.pax || '?'} Pax)</p>`;
+        if (r.type === 'Restaurant' || r.type === 'Beach') dynHtml = `<p><strong>${r.resName || '—'}</strong> (${r.pax || '?'} Pax)</p>`;
         else if (r.type === 'Transfer') dynHtml = `<p><strong>${r.from || '?'} ➔ ${r.to || '?'}</strong><br><small>${r.vehicle || ''} (${r.pax || '?'} Pax)</small></p>`;
         else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${r.vessel || ''}</strong><br><small>Provider: ${r.provider || ''} (${r.pax || '?'} Pax)</small></p>`;
         else if (r.type === 'Other') dynHtml = `<p><strong>${r.otherType || 'Other Service'}</strong></p>`;
@@ -1251,7 +1257,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function rowBase(r) {
         let details = '';
-        if (r.type === 'Restaurant') details = r.resName || '';
+        if (r.type === 'Restaurant' || r.type === 'Beach') details = r.resName || '';
         else if (r.type === 'Transfer') details = `${r.from || ''} -> ${r.to || ''} (${r.vehicle || ''})`;
         else if (r.type === 'Boat' || r.type === 'Tour') details = `${r.vessel || ''} (${r.provider || ''})`;
         else details = r.notes || '';
@@ -1534,7 +1540,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const timeStr = item.time || '—';
 
             let details = '';
-            if (item.type === 'Restaurant') details = `<strong>${item.resName}</strong><br>Pax: ${item.pax}`;
+            if (item.type === 'Restaurant' || item.type === 'Beach') details = `<strong>${item.resName}</strong><br>Pax: ${item.pax}`;
             else if (item.type === 'Transfer') details = `<strong>Path:</strong> ${item.from} ➔ ${item.to}<br><strong>Vehicle:</strong> ${item.vehicle || 'Standard'}`;
             else if (item.type === 'Boat' || item.type === 'Tour') details = `<strong>Service:</strong> ${item.vessel || 'Private Tour'}<br><strong>Provider:</strong> ${item.provider || 'Hotel Direct'}`;
             else details = `<strong>Request:</strong> ${item.resName || item.type}`;
@@ -1585,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pdfEl.style.display = 'block';
 
         let details = '';
-        if (r.type === 'Restaurant') details = `Restaurant: <strong>${r.resName}</strong><br>Guests: ${r.pax} Pax`;
+        if (r.type === 'Restaurant' || r.type === 'Beach') details = `Restaurant: <strong>${r.resName}</strong><br>Guests: ${r.pax} Pax`;
         else if (r.type === 'Transfer') details = `Path: <strong>${r.from} ➔ ${r.to}</strong><br>Vehicle/Flight: ${r.vehicle || 'Standard'}<br>Pax: ${r.pax || '—'}`;
         else if (r.type === 'Boat' || r.type === 'Tour') details = `Service: <strong>${r.vessel || r.type}</strong><br>Provider: ${r.provider || 'Hotel Direct'}<br>Pax: ${r.pax || '—'}`;
         else details = `Arrangement: <strong>${r.resName || r.type}</strong>`;
