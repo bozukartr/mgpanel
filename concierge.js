@@ -813,7 +813,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = typeSelect.value;
         const voucherGroup = document.getElementById('rs-voucher-group');
         const financeGroup = document.getElementById('rs-finance-group');
-        const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other', 'Beach'];
+        const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other'];
 
         const isPaidType = paidTypes.includes(type);
         if (voucherGroup) voucherGroup.style.display = isPaidType ? 'block' : 'none';
@@ -1007,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Security check for 'Confirmed'
             if (st === 'Confirmed') {
-                const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Beach'];
+                const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour'];
                 if (paidTypes.includes(r.type) && !r.voucherNo) {
                     showToast('Voucher No required to confirm!', true);
                     return;
