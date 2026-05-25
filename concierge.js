@@ -858,9 +858,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         dynamicFields.innerHTML = html;
     };
-    document.getElementById('rs-costPrice')?.addEventListener('input', calcBoat);
-}
-    };
     typeSelect.onchange = updateFormFields;
     updateFormFields();
 
