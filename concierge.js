@@ -843,33 +843,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="field-group"><label>Vehicle / Flight No</label><input type="text" id="rs-vehicle"></div>
                     <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
                 </div>`;
-        } else if (type === 'Boat') {
-    html = `
-        <div class="field-row">
-            <div class="field-group"><label>Vessel Name</label><input type="text" id="rs-vessel"></div>
-            <div class="field-group" style="max-width: 110px;"><label>Trip Type</label>
-                <select id="rs-tripType">
-                    <option value="Full Day">Full Day</option>
-                    <option value="Sunset">Sunset</option>
-                </select>
-            </div>
-        </div>
-        <div class="field-row">
-            <div class="field-group"><label>Provider</label><input type="text" id="rs-provider"></div>
-            <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
-        </div>
-        <div class="field-group"><label>Geliş Fiyatı (€)</label><input type="number" id="rs-costPrice" placeholder="0.00" inputmode="decimal"></div>
-        <div class="field-row">
-            <div class="field-group"><label>Komisyon (€)</label><input type="number" id="rs-commission" placeholder="0.00" readonly style="background:#f3f4f6;"></div>
-            <div class="field-group"><label>Satış Fiyatı (€)</label><input type="number" id="rs-salePrice" placeholder="0.00" readonly style="background:#f3f4f6;"></div>
-        </div>`;
-            } else if (type === 'Tour') {
-        html = `
-            <div class="field-group"><label>Tour Name</label><input type="text" id="rs-vessel"></div>
-            <div class="field-row">
-                <div class="field-group"><label>Provider / Guide</label><input type="text" id="rs-provider"></div>
-                <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
-            </div>`;
+        } else if (type === 'Boat' || type === 'Tour') {
+            html = `
+                <div class="field-group"><label>Vessel / Tour Name</label><input type="text" id="rs-vessel"></div>
+                <div class="field-row">
+                    <div class="field-group"><label>Provider / Guide</label><input type="text" id="rs-provider"></div>
+                    <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
+                </div>`;
         } else if (type === 'Other') {
             html = `
                 <div class="field-row">
@@ -877,20 +857,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>`;
         }
         dynamicFields.innerHTML = html;
-        if (typeSelect.value === 'Boat') {
-    const calcBoat = () => {
-        const cost = parseFloat(document.getElementById('rs-costPrice')?.value) || 0;
-        let commission = 0;
-        if (cost <= 1500) commission = cost * 0.25;
-        else if (cost <= 2500) commission = cost * 0.30;
-        else commission = cost * 0.35;
-        const salePrice = ((cost + commission) * 1.20) * 1.04;
-        const commEl = document.getElementById('rs-commission');
-        const saleEl = document.getElementById('rs-salePrice');
-        const priceEl = document.getElementById('rs-price');
-        if (commEl) commEl.value = commission.toFixed(2);
-        if (saleEl) saleEl.value = salePrice.toFixed(2);
-        if (priceEl) priceEl.value = salePrice.toFixed(2);
     };
     document.getElementById('rs-costPrice')?.addEventListener('input', calcBoat);
 }
