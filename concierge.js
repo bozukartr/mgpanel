@@ -650,12 +650,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ].some(val => val && val.toString().toLowerCase().includes(search));
 
                 const matchesStatus = !statusFilter || r.status === statusFilter;
-                
-                // Global Search behavior: If searching, ignore date filter to search all dates.
-                // Otherwise, respect the date filter for 'Confirmed' status.
-                const matchesDate = !dateVal || r.date === dateVal;
-                }
-                return matchesText && matchesStatus && matchesDate;
+                const matchesDate = !dateVal || r.date === dateVal;   // ← değiştirilen kısım
+
+                return matchesText && matchesStatus && matchesDate;   // ← bu satır olmalı
             });
 
             if (results.length === 0) { empty.style.display = 'flex'; return; }
