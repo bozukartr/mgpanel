@@ -608,6 +608,12 @@ document.addEventListener('DOMContentLoaded', () => {
         statusFilter = null;
         renderReservations();
     };
+    document.getElementById('c-pillAllTime')?.addEventListener('click', () => {
+        if (dateFilterFp) dateFilterFp.clear();
+        else document.getElementById('c-dateFilter').value = '';
+        statusFilter = null;
+        renderReservations();
+    });
 
     function renderReservations() {
         const search = document.getElementById('c-search').value.toLowerCase();
@@ -647,9 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Global Search behavior: If searching, ignore date filter to search all dates.
                 // Otherwise, respect the date filter for 'Confirmed' status.
-                let matchesDate = true;
-                if (statusFilter === 'Confirmed' && !search) {
-                    matchesDate = !dateVal || r.date === dateVal;
+                const matchesDate = !dateVal || r.date === dateVal;
                 }
                 return matchesText && matchesStatus && matchesDate;
             });
@@ -668,6 +672,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // ── AGENDA MODE (Default) ─────────────────────────
+        // All Time mode: no date selected, show flat list of all
+    if (!dateVal) {
+        const allRes = [...reservations].sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return (a.time || '00:00').localeCompare(b.time || '00:00');
+        });
+            if (allRes.length === 0) { empty.style.display = 'flex'; return; }
+            empty.style.display = 'none';
+            allRes.forEach(r => feed.appendChild(createResCard(r)));
+            return;
+        }
         const parts = dateVal.split('-');
         const d = new Date(parts[0], parts[1] - 1, parts[2]);
         d.setDate(d.getDate() + 1);
