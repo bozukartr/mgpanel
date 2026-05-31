@@ -598,7 +598,7 @@
     #userNameDisplay, #c-logoutBtn { display: none !important; }
     .crm-main { flex-direction: column !important; overflow-y: auto !important; }
     .guest-sidebar { width: 100% !important; border-right: none !important; border-bottom: 1px solid var(--border) !important; padding: 16px !important; }
-    #c-scroller { height: auto !important; padding: 16px 16px 120px 16px !important; overflow: visible !important; }
+    #c-scroller { height: auto !important; padding: 16px 16px calc(140px + env(safe-area-inset-bottom, 0px)) 16px !important; overflow: visible !important; }
     #c-fab { display: none !important; }
     .sheet { 
         top: auto !important; 
