@@ -3,16 +3,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginCard = document.getElementById('loginCard');
     const loginForm = document.getElementById('loginForm');
     const errorMessage = document.getElementById('errorMessage');
+    const paymentOverlay = document.getElementById('paymentOverlay');
+    const paymentCloseBtn = document.getElementById('paymentCloseBtn');
 
-    // Başlangıç animasyonu
     setTimeout(() => {
         logoWrapper.classList.add('active');
         setTimeout(() => {
             loginCard.classList.add('show');
         }, 400);
-    }, 1200); 
+    }, 1200);
 
-    // Form gönderimi
+    paymentCloseBtn.addEventListener('click', () => {
+        paymentOverlay.classList.remove('show');
+        auth.signOut();
+    });
+
+    function showPaymentOverlay() {
+        paymentOverlay.classList.add('show');
+    }
+
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const userInput = document.getElementById('username').value.trim();
@@ -23,20 +32,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
             const uid = userCredential.user.uid;
 
-            // Fetch extra info from Firestore (Roles/Dept)
+            // Check team-wide subscription
+            const subDoc = await db.collection('systemConfig').doc('subscription').get();
+            if (subDoc.exists) {
+                const subData = subDoc.data();
+                const now = new Date();
+                const end = subData.subscriptionEnd ? subData.subscriptionEnd.toDate() : null;
+                if (!end || end < now) {
+                    showPaymentOverlay();
+                    return;
+                }
+            } else {
+                showPaymentOverlay();
+                return;
+            }
+
             const userDoc = await db.collection('systemUsers').doc(uid).get();
-            
             if (userDoc.exists) {
                 const userData = userDoc.data();
                 localStorage.setItem('hotelUsername', userData.username);
                 localStorage.setItem('hotelDept', userData.department);
                 localStorage.setItem('hotelRole', userData.role);
             } else {
-                // Compatibility for users not yet in systemUsers
                 localStorage.setItem('hotelUsername', userInput);
             }
 
-            // Success Transition
             logoWrapper.classList.add('expand');
             loginCard.classList.add('fade-out');
 
@@ -49,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loginCard.classList.add('shake');
             errorMessage.textContent = "Kullanıcı adı veya şifre yanlış";
             errorMessage.classList.add('show');
-            
+
             setTimeout(() => {
                 loginCard.classList.remove('shake');
             }, 500);
