@@ -223,6 +223,55 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+        // Subscription Management
+    const subStatus = document.getElementById('subStatus');
+    const subExpiry = document.getElementById('subExpiry');
+    const subDateInput = document.getElementById('subDateInput');
+    const subSaveBtn = document.getElementById('subSaveBtn');
+
+    const loadSubscription = () => {
+        db.collection('systemConfig').doc('subscription').onSnapshot(doc => {
+            if (doc.exists) {
+                const data = doc.data();
+                const end = data.subscriptionEnd ? data.subscriptionEnd.toDate() : null;
+                const now = new Date();
+                if (end && end > now) {
+                    const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+                    subStatus.textContent = `Active — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
+                    subStatus.className = 'sub-status active';
+                    subExpiry.textContent = `Expires: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+                } else {
+                    subStatus.textContent = 'Expired';
+                    subStatus.className = 'sub-status expired';
+                    subExpiry.textContent = end ? `Expired: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}` : 'No subscription set';
+                }
+                if (end) subDateInput.value = end.toISOString().slice(0, 10);
+            } else {
+                subStatus.textContent = 'Not Set';
+                subStatus.className = 'sub-status expired';
+                subExpiry.textContent = 'No subscription document found';
+            }
+        });
+    };
+
+    subSaveBtn.addEventListener('click', async () => {
+        const val = subDateInput.value;
+        if (!val) { showToast('Please select a date.', true); return; }
+        const newEnd = new Date(val);
+        newEnd.setHours(23, 59, 59, 0);
+        try {
+            await db.collection('systemConfig').doc('subscription').set({
+                subscriptionEnd: firebase.firestore.Timestamp.fromDate(newEnd),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: loggedUsername
+            }, { merge: true });
+            showToast(`Subscription extended until ${newEnd.toLocaleDateString('tr-TR')}`);
+        } catch (err) {
+            showToast('Error: ' + err.message, true);
+        }
+    });
+
     fetchUsers();
     fetchActivity();
+    loadSubscription();
 });
