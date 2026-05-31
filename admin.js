@@ -226,8 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Subscription Management
     const subStatus = document.getElementById('subStatus');
     const subExpiry = document.getElementById('subExpiry');
-    const subDateInput = document.getElementById('subDateInput');
-    const subSaveBtn = document.getElementById('subSaveBtn');
 
     const loadSubscription = () => {
         db.collection('systemConfig').doc('subscription').onSnapshot(doc => {
@@ -253,23 +251,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     };
-
-    subSaveBtn.addEventListener('click', async () => {
-        const val = subDateInput.value;
-        if (!val) { showToast('Please select a date.', true); return; }
-        const newEnd = new Date(val);
-        newEnd.setHours(23, 59, 59, 0);
-        try {
-            await db.collection('systemConfig').doc('subscription').set({
-                subscriptionEnd: firebase.firestore.Timestamp.fromDate(newEnd),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedBy: loggedUsername
-            }, { merge: true });
-            showToast(`Subscription extended until ${newEnd.toLocaleDateString('tr-TR')}`);
-        } catch (err) {
-            showToast('Error: ' + err.message, true);
-        }
-    });
 
     fetchUsers();
     fetchActivity();
