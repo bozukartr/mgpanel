@@ -665,6 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return (a.time || '00:00').localeCompare(b.time || '00:00');
             });
 
+            filteredReservations = results;
             results.forEach(r => feed.appendChild(createResCard(r)));
             return;
         }
@@ -678,6 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
             if (allRes.length === 0) { empty.style.display = 'flex'; return; }
             empty.style.display = 'none';
+            filteredReservations = allRes;
             allRes.forEach(r => feed.appendChild(createResCard(r)));
             return;
         }
