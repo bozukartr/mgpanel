@@ -191,6 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── STATE ─────────────────────────────────────────────────
     let reservations = [];
+    let filteredReservations = [];
     let guestMap = {}; // { guestName: roomNumber }
     let statusFilter = null; // 'Pending' or 'Confirmed'
     window.selectedReservation = null;
@@ -702,7 +703,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-
+        
+        filteredReservations = filtered;
         if (filtered.length === 0) { empty.style.display = 'flex'; return; }
         empty.style.display = 'none';
 
@@ -1438,8 +1440,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 revenueRows.map(r => [r.Date, r.Reservations, r.Price + ' €', r.Deposit + ' €']),
                 'Revenue_Matrix');
         } else if (type === 'currentView') {
-            // Need to track filtered view, but for now use current global list
-            exportExcel(reservations.map(rowBase), 'Current_View');
+            exportExcel(filteredReservations.map(rowBase), 'Current_View');
         } else if (type === 'fullArchive') {
             exportExcel(reservations.map(rowBase), 'Full_Archive');
         }
