@@ -6,11 +6,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── AUTH & INIT ───────────────────────────────────────────
     const userNameDisplay = document.getElementById('userNameDisplay');
     const loggedUsername = localStorage.getItem('hotelUsername') || 'Admin';
+    const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
+    let isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     if (userNameDisplay) userNameDisplay.textContent = loggedUsername;
 
-    auth.onAuthStateChanged(user => {
-        if (!user) window.location.href = 'index.html';
-        if (loggedUsername.toLowerCase() === 'admin') {
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) { window.location.href = 'index.html'; return; }
+        // Confirm admin from Firestore (source of truth) and reveal the Admin link.
+        try {
+            const doc = await db.collection('systemUsers').doc(user.uid).get();
+            if (doc.exists) {
+                const data = doc.data();
+                if (data.role) localStorage.setItem('hotelRole', data.role);
+                const role = (data.role || '').toLowerCase();
+                const uname = (data.username || '').toLowerCase();
+                if (role === 'admin' || uname === 'admin') isAdminUser = true;
+            }
+        } catch (e) { console.error('Auth check failed', e); }
+
+        if (isAdminUser) {
             const adminLink = document.getElementById('adminLink');
             if (adminLink) adminLink.style.display = 'inline-block';
         }
@@ -175,8 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${guest.status === 'in_house' ? 'Check Out Now' : 'Check In (In House)'}
                     </button>
                     `}
-                    ${loggedUsername.toLowerCase() === 'admin' ? `
-                    <button class="btn-status-toggle" style="background-color: #ef4444; color: white;" 
+                    ${isAdminUser ? `
+                    <button class="btn-status-toggle" style="background-color: #ef4444; color: white;"
                             onclick="deleteGuest('${guest.id}', '${guest.name.replace(/'/g, "\\'")}')">
                         Delete Guest
                     </button>
@@ -271,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.deleteGuest = async (guestId, guestName) => {
-        if (loggedUsername.toLowerCase() !== 'admin') {
+        if (!isAdminUser) {
             return showToast('Only Admin can delete guests!', true);
         }
         
