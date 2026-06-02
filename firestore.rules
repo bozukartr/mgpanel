@@ -2,16 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helpers ---
     function signedIn() {
       return request.auth != null;
-    }
-
-    // True only for provisioned staff: a user who actually has a systemUsers
-    // document. This blocks self-registered accounts (Firebase Auth signup is
-    // open via the public API key) from touching any data.
-    function isStaff() {
-      return signedIn() && exists(/databases/$(database)/documents/systemUsers/$(request.auth.uid));
     }
 
     // Reads the caller's role from their own systemUsers document.
@@ -19,49 +11,35 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/systemUsers/$(request.auth.uid)).data.role;
     }
 
+    // Case-insensitive: stored role may be 'Admin' or 'admin'.
     function isAdmin() {
-      // Case-insensitive: stored role may be 'Admin' or 'admin' in existing data.
-      return isStaff() && callerRole().lower() == 'admin';
+      return signedIn() && callerRole().lower() == 'admin';
     }
 
-    // Subscription must be active (subscriptionEnd in the future) for writes.
-    function subActive() {
-      return get(/databases/$(database)/documents/systemConfig/subscription).data.subscriptionEnd > request.time;
-    }
+    // --- Business data: any signed-in user ---
+    match /reservations/{id}   { allow read, write: if signedIn(); }
+    match /guestLogs/{id}      { allow read, write: if signedIn(); }
+    match /guestDirectory/{id} { allow read, write: if signedIn(); }
 
-    // --- Business data: provisioned staff only; writes also require active subscription ---
-    match /reservations/{id} {
-      allow read:  if isStaff();
-      allow write: if isStaff() && subActive();
-    }
-    match /guestLogs/{id} {
-      allow read:  if isStaff();
-      allow write: if isStaff() && subActive();
-    }
-    match /guestDirectory/{id} {
-      allow read:  if isStaff();
-      allow write: if isStaff() && subActive();
-    }
-
-    // --- User accounts: staff can read the directory, only admin can modify roles ---
+    // --- User accounts ---
     match /systemUsers/{uid} {
-      allow read:           if isStaff();
+      allow read:           if signedIn();
       allow create, delete: if isAdmin();
       // Admin can update anything; a user may only clear their own forced-password flag.
       allow update: if isAdmin()
-        || (isStaff()
+        || (signedIn()
             && request.auth.uid == uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword'])
             && request.resource.data.mustChangePassword == false);
     }
 
-    // --- System config (subscription, settings): read by staff, written by admin only ---
+    // --- System config (subscription, settings): read by any signed-in user, written by admin ---
     match /systemConfig/{doc} {
       allow read:  if signedIn();
       allow write: if isAdmin();
     }
 
-    // --- Deny everything else by default ---
+    // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;
     }
