@@ -9,11 +9,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
     const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
     const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
-    if (!isAdminUser) {
-        window.location.href = 'concierge.html';
-        return;
-    }
-    auth.onAuthStateChanged(u => { if (!u) window.location.href = 'index.html'; });
+    // Verify admin access against Firestore (source of truth), not just localStorage.
+    auth.onAuthStateChanged(async (u) => {
+        if (!u) { window.location.href = 'index.html'; return; }
+        try {
+            const doc = await db.collection('systemUsers').doc(u.uid).get();
+            const role = doc.exists ? (doc.data().role || '').toLowerCase() : '';
+            const uname = doc.exists ? (doc.data().username || '').toLowerCase() : '';
+            if (role !== 'admin' && uname !== 'admin' && !isAdminUser) {
+                window.location.href = 'concierge.html';
+            }
+        } catch (e) {
+            console.error('Auth check failed', e);
+            window.location.href = 'concierge.html';
+        }
+    });
 
     // ── TOAST ──────────────────────────────────────────────────
     const toast = document.getElementById('adm-toast');
