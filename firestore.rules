@@ -20,7 +20,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isStaff() && callerRole() == 'Admin';
+      // Case-insensitive: stored role may be 'Admin' or 'admin' in existing data.
+      return isStaff() && callerRole().lower() == 'admin';
     }
 
     // Subscription must be active (subscriptionEnd in the future) for writes.
