@@ -1,4 +1,8 @@
 /* admin-mobile.js — Admin Console Mobile Logic */
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 document.addEventListener('DOMContentLoaded', () => {
 
     // ── AUTH GUARD ─────────────────────────────────────────────
@@ -132,10 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `
                 <div class="user-card-info">
                     <div class="user-card-name">
-                        ${u.username}
-                        <span class="role-badge ${roleLower}">${u.role}</span>
+                        ${esc(u.username)}
+                        <span class="role-badge ${roleLower}">${esc(u.role)}</span>
                     </div>
-                    <div class="user-card-meta">${u.department}</div>
+                    <div class="user-card-meta">${esc(u.department)}</div>
                 </div>
                 <button class="user-card-delete" data-id="${doc.id}" title="Remove access">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -185,14 +189,14 @@ document.addEventListener('DOMContentLoaded', () => {
             item.className = 'activity-item';
             item.innerHTML = `
                 <div class="activity-item-top">
-                    <span class="activity-staff">${log.staffInitial || '—'}</span>
-                    <span class="activity-dept">${log.department || ''}</span>
+                    <span class="activity-staff">${esc(log.staffInitial || '—')}</span>
+                    <span class="activity-dept">${esc(log.department || '')}</span>
                 </div>
                 <div class="activity-desc">
-                    Room <strong>${log.room}</strong> — ${log.guestName} 
-                    <span style="color: var(--text-muted);">[${log.status || 'Following'}]</span>
+                    Room <strong>${esc(log.room)}</strong> — ${esc(log.guestName)}
+                    <span style="color: var(--text-muted);">[${esc(log.status || 'Following')}]</span>
                 </div>
-                <div class="activity-date">${log.date || ''}</div>
+                <div class="activity-date">${esc(log.date || '')}</div>
             `;
             activityList.appendChild(item);
         });

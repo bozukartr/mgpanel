@@ -1,3 +1,7 @@
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 document.addEventListener('DOMContentLoaded', () => {
     // ── AUTH & INIT ───────────────────────────────────────────
     const userNameDisplay = document.getElementById('userNameDisplay');
@@ -101,12 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
             <div class="guest-card ${currentGuestId === g.id ? 'active' : ''} ${missingDates ? 'missing-dates' : ''}" onclick="viewGuestDetail('${g.id}')">
                 <div class="guest-card-header">
-                    <span class="guest-card-name">${g.name}${dateAlert}</span>
+                    <span class="guest-card-name">${esc(g.name)}${dateAlert}</span>
                     <span class="guest-card-status ${g.status === 'in_house' ? 'status-in-house' : (g.status === 'pre_arrival' ? 'status-arrival' : 'status-checked-out')}">
                         ${g.status === 'in_house' ? 'In House' : (g.status === 'pre_arrival' ? 'Pre-Arrival' : 'Checked Out')}
                     </span>
                 </div>
-                <div class="guest-card-room">Room: ${g.room || 'N/A'}</div>
+                <div class="guest-card-room">Room: ${esc(g.room || 'N/A')}</div>
             </div>
         `}).join('');
     };
@@ -146,14 +150,14 @@ document.addEventListener('DOMContentLoaded', () => {
         detailEl.innerHTML = `
             <div class="profile-header">
                 <div class="profile-main-info">
-                    <h1>${guest.name}</h1>
+                    <h1>${esc(guest.name)}</h1>
                     <div class="guest-tags" style="margin: 8px 0;">
-                        ${tags.map(t => `<span class="tag">${t}</span>`).join('')}
+                        ${tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}
                     </div>
                     <div class="profile-room-badge">
-                        Room ${guest.room || 'N/A'} • Registry updated ${new Date(guest.lastUpdated).toLocaleDateString()}
-                        ${guest.checkIn ? `<br><span style="color:#2563eb; font-weight:600;">Check-In: ${guest.checkIn}</span>` : ''}
-                        ${guest.checkOut ? ` <span style="color:#e11d48; font-weight:600; margin-left:10px;">Check-Out: ${guest.checkOut}</span>` : ''}
+                        Room ${esc(guest.room || 'N/A')} • Registry updated ${new Date(guest.lastUpdated).toLocaleDateString()}
+                        ${guest.checkIn ? `<br><span style="color:#2563eb; font-weight:600;">Check-In: ${esc(guest.checkIn)}</span>` : ''}
+                        ${guest.checkOut ? ` <span style="color:#e11d48; font-weight:600; margin-left:10px;">Check-Out: ${esc(guest.checkOut)}</span>` : ''}
                     </div>
                 </div>
                 <div class="profile-actions" style="display: flex; gap: 8px;">
@@ -187,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="notes-content">
                     <textarea id="guestNotesInput" placeholder="Add preferences, allergies, or special requests..." 
-                              oninput="updateGuestNotes('${guest.id}', this.value)">${guest.notes || ''}</textarea>
+                              oninput="updateGuestNotes('${guest.id}', this.value)">${esc(guest.notes || '')}</textarea>
                 </div>
             </div>
 
@@ -225,10 +229,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <span class="item-type type-${isIssue ? 'issue' : 'concierge'}">${isIssue ? 'Issue Log' : 'Concierge'}</span>
                                     <span class="item-date">${new Date(i.sortDate).toLocaleDateString()}</span>
                                 </div>
-                                <div class="item-title">${title}</div>
-                                <div class="item-desc">${desc}</div>
+                                <div class="item-title">${esc(title)}</div>
+                                <div class="item-desc">${esc(desc)}</div>
                                 <div style="font-size:11px; color:#94a3b8; margin-top:8px;">
-                                    ${isIssue ? `Dept: ${i.department} • Staff: ${i.staffInitial}` : `Time: ${i.time || '—'} • Status: ${i.status} • Staff: ${i.staffInitial}`}
+                                    ${isIssue ? `Dept: ${esc(i.department)} • Staff: ${esc(i.staffInitial)}` : `Time: ${esc(i.time || '—')} • Status: ${esc(i.status)} • Staff: ${esc(i.staffInitial)}`}
                                 </div>
                             </div>
                         `;

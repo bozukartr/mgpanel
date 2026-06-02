@@ -1,4 +1,8 @@
 /* mobile.js — Hotel Panel Mobile App — Full Feature Parity with panel.js */
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 document.addEventListener('DOMContentLoaded', () => {
 
     // ── AUTH ───────────────────────────────────────────────────
@@ -117,20 +121,20 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `
                 <div class="card-header">
                     <div class="header-left">
-                        <span class="room-no">#${r.room}</span>
-                        <span class="status-pill ${status.toLowerCase()}">${status}</span>
+                        <span class="room-no">#${esc(r.room)}</span>
+                        <span class="status-pill ${esc(status.toLowerCase())}">${esc(status)}</span>
                         ${overdueFlag ? '<span class="status-pill overdue">LATE</span>' : ''}
                     </div>
                     <span class="card-date">${fmtDate(r.date)}</span>
                 </div>
                 <div class="card-guest">
-                    <span class="guest-name">${r.guestName}</span>
+                    <span class="guest-name">${esc(r.guestName)}</span>
                     <span class="${gStatusClass}" style="font-size:9px; font-weight:800; padding:2px 5px; border-radius:4px; margin-left:8px;">${gStatusLabel}</span>
                     ${noteCount > 0 ? `<span class="note-count">💬 ${noteCount}</span>` : ''}
                 </div>
                 <div class="card-meta">
-                    <span class="dept-badge">${r.department}</span>
-                    <span class="staff-badge">${r.staffInitial}</span>
+                    <span class="dept-badge">${esc(r.department)}</span>
+                    <span class="staff-badge">${esc(r.staffInitial)}</span>
                 </div>
             `;
             card.addEventListener('click', () => openDetail(r));
@@ -144,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateGuestMap() {
         guestMap = {};
         records.forEach(r => { if(r.guestName && r.room) guestMap[r.guestName] = r.room; });
-        globalGuestsHTML = Object.keys(guestMap).sort().map(n => `<option value="${n}">${guestMap[n]}</option>`).join('');
+        globalGuestsHTML = Object.keys(guestMap).sort().map(n => `<option value="${esc(n)}">${esc(guestMap[n])}</option>`).join('');
         
         // Only force re-rendering into UI if list is currently alive
         document.querySelectorAll('#guest-list').forEach(list => { 
@@ -255,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="font-weight:bold; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
                     ⚠️ ODA ÇAKIŞMASI UYARISI
                 </div>
-                <div style="opacity:0.9;">Oda <b>${room}</b> şu an sistemde <b>${conflict.name}</b> (In-House) üzerine kayıtlı görünüyor.</div>
+                <div style="opacity:0.9;">Oda <b>${esc(room)}</b> şu an sistemde <b>${esc(conflict.name)}</b> (In-House) üzerine kayıtlı görünüyor.</div>
             `;
             alertEl.style.display = 'block';
         } else {
@@ -329,11 +333,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '');
             item.innerHTML = `
                 <div class="timeline-item-header">
-                    <span class="timeline-item-author">${author}${note.isEdited ? ' <span class="edited-tag">(edited)</span>' : ''}</span>
-                    <span class="timeline-item-time">${timeStr}</span>
+                    <span class="timeline-item-author">${esc(author)}${note.isEdited ? ' <span class="edited-tag">(edited)</span>' : ''}</span>
+                    <span class="timeline-item-time">${esc(timeStr)}</span>
                 </div>
                 <div class="timeline-item-body" id="mob-note-body-${idx}">
-                    <div class="timeline-item-text">${note.text}</div>
+                    <div class="timeline-item-text">${esc(note.text)}</div>
                 </div>
                 ${isOwner ? `
                 <div class="timeline-item-actions" id="mob-note-actions-${idx}">
@@ -417,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!getSelected()) return;
         const orig = getSelected().updates[idx].text;
         body.innerHTML = `
-            <textarea class="inline-note-edit" id="mob-edit-input-${idx}">${orig}</textarea>
+            <textarea class="inline-note-edit" id="mob-edit-input-${idx}">${esc(orig)}</textarea>
             <div class="inline-note-actions">
                 <button class="note-action-btn" onclick="mobSaveEdit(${idx})">Save</button>
                 <button class="note-action-btn" onclick="mobCancelAction()">Cancel</button>

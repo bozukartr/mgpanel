@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (conflicts.length > 0) {
-            const markup = conflicts.map(c => `&bull; <b>${c.type}</b> (${c.time})`).join('<br>');
+            const markup = conflicts.map(c => `&bull; <b>${esc(c.type)}</b> (${esc(c.time)})`).join('<br>');
             alertEl.innerHTML = `
                 <div style="font-weight:bold; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
                     ⚠️ YAKIN SAATTE BAŞKA KAYIT VAR
@@ -427,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         allGuestOptionsHTML = names.map(n => {
             const room = guestDirectory.find(g => g.name === n)?.room || guestMap[n] || '';
-            return `<option value="${n}">${room}</option>`;
+            return `<option value="${esc(n)}">${esc(room)}</option>`;
         }).join('');
         
         // Push live sync to active datalists only if they are currently visible/inflated
@@ -1008,10 +1008,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         let dynHtml = '';
-        if (r.type === 'Restaurant' || r.type === 'Beach') dynHtml = `<p><strong>${r.resName || '—'}</strong> (${r.pax || '?'} Pax)</p>`;
-        else if (r.type === 'Transfer') dynHtml = `<p><strong>${r.from || '?'} ➔ ${r.to || '?'}</strong><br><small>${r.vehicle || ''} (${r.pax || '?'} Pax)</small></p>`;
-        else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${r.vessel || ''}</strong><br><small>Provider: ${r.provider || ''} (${r.pax || '?'} Pax)</small></p>`;
-        else if (r.type === 'Other') dynHtml = `<p><strong>${r.otherType || 'Other Service'}</strong></p>`;
+        if (r.type === 'Restaurant' || r.type === 'Beach') dynHtml = `<p><strong>${esc(r.resName || '—')}</strong> (${esc(r.pax || '?')} Pax)</p>`;
+        else if (r.type === 'Transfer') dynHtml = `<p><strong>${esc(r.from || '?')} ➔ ${esc(r.to || '?')}</strong><br><small>${esc(r.vehicle || '')} (${esc(r.pax || '?')} Pax)</small></p>`;
+        else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${esc(r.vessel || '')}</strong><br><small>Provider: ${esc(r.provider || '')} (${esc(r.pax || '?')} Pax)</small></p>`;
+        else if (r.type === 'Other') dynHtml = `<p><strong>${esc(r.otherType || 'Other Service')}</strong></p>`;
         document.getElementById('d-dynamic-info').innerHTML = dynHtml;
     };
 
@@ -1190,9 +1190,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <label class="sel-item-row">
                 <div class="sel-item-icon-wrap">${SERVICE_ICONS[item.type] || '✨'}</div>
                 <div class="sel-item-info">
-                    <span class="sel-item-type">${item.type}</span>
-                    <span class="sel-item-date">${fmtDate(item.date)} ${item.time || ''}</span>
-                    ${item.resName ? `<span class="sel-item-sub">${item.resName}</span>` : ''}
+                    <span class="sel-item-type">${esc(item.type)}</span>
+                    <span class="sel-item-date">${fmtDate(item.date)} ${esc(item.time || '')}</span>
+                    ${item.resName ? `<span class="sel-item-sub">${esc(item.resName)}</span>` : ''}
                 </div>
                 <div class="sel-item-check">
                     <input type="checkbox" name="iti-item" value="${item.id}" checked>
@@ -1256,7 +1256,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populateGuestDatalist() {
         const uniqueNames = [...new Set(reservations.map(r => r.guestName).filter(Boolean))].sort();
-        reportsGuestHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+        reportsGuestHTML = uniqueNames.map(name => `<option value="${esc(name)}">`).join('');
         
         // Sync if currently displayed
         const list = document.getElementById('guestNamesList');
@@ -1501,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .sort()
             .map(cat => `
                 <div class="f-cat-item">
-                    <span class="f-cat-label">${cat}</span>
+                    <span class="f-cat-label">${esc(cat)}</span>
                     <span class="f-cat-val">€${catMap[cat].toLocaleString()}</span>
                 </div>
             `).join('');
@@ -1542,7 +1542,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <div class="pdf-guest-info">
-                    <p>Dear <strong>${guest}</strong>,</p>
+                    <p>Dear <strong>${esc(guest)}</strong>,</p>
                     <p style="margin-top: 5px;">We hope you are enjoying your stay. Please find below the updated details of your arrangements. We remain at your full disposal for any further assistance.</p>
                 </div>
 
@@ -1562,16 +1562,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const timeStr = item.time || '—';
 
             let details = '';
-            if (item.type === 'Restaurant' || item.type === 'Beach') details = `<strong>${item.resName}</strong><br>Pax: ${item.pax}`;
-            else if (item.type === 'Transfer') details = `<strong>Path:</strong> ${item.from} ➔ ${item.to}<br><strong>Vehicle:</strong> ${item.vehicle || 'Standard'}`;
-            else if (item.type === 'Boat' || item.type === 'Tour') details = `<strong>Service:</strong> ${item.vessel || 'Private Tour'}<br><strong>Provider:</strong> ${item.provider || 'Hotel Direct'}`;
-            else details = `<strong>Request:</strong> ${item.resName || item.type}`;
+            if (item.type === 'Restaurant' || item.type === 'Beach') details = `<strong>${esc(item.resName)}</strong><br>Pax: ${esc(item.pax)}`;
+            else if (item.type === 'Transfer') details = `<strong>Path:</strong> ${esc(item.from)} ➔ ${esc(item.to)}<br><strong>Vehicle:</strong> ${esc(item.vehicle || 'Standard')}`;
+            else if (item.type === 'Boat' || item.type === 'Tour') details = `<strong>Service:</strong> ${esc(item.vessel || 'Private Tour')}<br><strong>Provider:</strong> ${esc(item.provider || 'Hotel Direct')}`;
+            else details = `<strong>Request:</strong> ${esc(item.resName || item.type)}`;
 
             html += `
                 <tr>
-                    <td class="pdf-date-cell">${dateStr}<br><span style="font-weight: normal; color: #7f8c8d;">${timeStr}</span></td>
+                    <td class="pdf-date-cell">${dateStr}<br><span style="font-weight: normal; color: #7f8c8d;">${esc(timeStr)}</span></td>
                     <td>
-                        <span class="pdf-service-type">${item.type.toUpperCase()}</span>
+                        <span class="pdf-service-type">${esc(item.type.toUpperCase())}</span>
                     </td>
                     <td class="pdf-item-details">${details}</td>
                 </tr>
@@ -1613,10 +1613,10 @@ document.addEventListener('DOMContentLoaded', () => {
         pdfEl.style.display = 'block';
 
         let details = '';
-        if (r.type === 'Restaurant' || r.type === 'Beach') details = `Restaurant: <strong>${r.resName}</strong><br>Guests: ${r.pax} Pax`;
-        else if (r.type === 'Transfer') details = `Path: <strong>${r.from} ➔ ${r.to}</strong><br>Vehicle/Flight: ${r.vehicle || 'Standard'}<br>Pax: ${r.pax || '—'}`;
-        else if (r.type === 'Boat' || r.type === 'Tour') details = `Service: <strong>${r.vessel || r.type}</strong><br>Provider: ${r.provider || 'Hotel Direct'}<br>Pax: ${r.pax || '—'}`;
-        else details = `Arrangement: <strong>${r.resName || r.type}</strong>`;
+        if (r.type === 'Restaurant' || r.type === 'Beach') details = `Restaurant: <strong>${esc(r.resName)}</strong><br>Guests: ${esc(r.pax)} Pax`;
+        else if (r.type === 'Transfer') details = `Path: <strong>${esc(r.from)} ➔ ${esc(r.to)}</strong><br>Vehicle/Flight: ${esc(r.vehicle || 'Standard')}<br>Pax: ${esc(r.pax || '—')}`;
+        else if (r.type === 'Boat' || r.type === 'Tour') details = `Service: <strong>${esc(r.vessel || r.type)}</strong><br>Provider: ${esc(r.provider || 'Hotel Direct')}<br>Pax: ${esc(r.pax || '—')}`;
+        else details = `Arrangement: <strong>${esc(r.resName || r.type)}</strong>`;
 
         let html = `
             <style>
@@ -1640,16 +1640,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <div class="pdf-content">
-                    <p>Dear <strong>${r.guestName}</strong>,</p>
+                    <p>Dear <strong>${esc(r.guestName)}</strong>,</p>
                     <p>We are pleased to confirm your upcoming arrangement as follows:</p>
-                    
+
                     <div class="conf-box">
-                        <div class="conf-row"><div class="conf-label">Service Type</div><div class="conf-value" style="font-weight:bold; color:#2980b9;">${r.type.toUpperCase()}</div></div>
+                        <div class="conf-row"><div class="conf-label">Service Type</div><div class="conf-value" style="font-weight:bold; color:#2980b9;">${esc(r.type.toUpperCase())}</div></div>
                         <div class="conf-row"><div class="conf-label">Date</div><div class="conf-value">${fmtDate(r.date)}</div></div>
-                        <div class="conf-row"><div class="conf-label">Time</div><div class="conf-value">${r.time || '—'}</div></div>
+                        <div class="conf-row"><div class="conf-label">Time</div><div class="conf-value">${esc(r.time || '—')}</div></div>
                         <div class="conf-row"><div class="conf-label">Details</div><div class="conf-value">${details}</div></div>
-                        <div class="conf-row"><div class="conf-label">Status</div><div class="conf-value"><strong>${r.status}</strong></div></div>
-                        ${r.voucherNo ? `<div class="conf-row"><div class="conf-label">Confirmation No</div><div class="conf-value">${r.voucherNo}</div></div>` : ''}
+                        <div class="conf-row"><div class="conf-label">Status</div><div class="conf-value"><strong>${esc(r.status)}</strong></div></div>
+                        ${r.voucherNo ? `<div class="conf-row"><div class="conf-label">Confirmation No</div><div class="conf-value">${esc(r.voucherNo)}</div></div>` : ''}
                     </div>
 
                     <p>Should you require any further assistance or wish to make changes, please contact the Concierge desk.</p>
