@@ -1,3 +1,7 @@
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Auth & Initial Setting
     const staffInitialInput = document.getElementById('staffInitial');
@@ -388,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="font-weight:bold; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
                     ⚠️ ODA ÇAKIŞMASI UYARISI
                 </div>
-                <div style="opacity:0.9;">Oda <b>${room}</b> şu an sistemde <b>${conflict.name}</b> (In-House) üzerine kayıtlı görünüyor.</div>
+                <div style="opacity:0.9;">Oda <b>${esc(room)}</b> şu an sistemde <b>${esc(conflict.name)}</b> (In-House) üzerine kayıtlı görünüyor.</div>
             `;
             alertEl.style.display = 'block';
         } else {
@@ -455,7 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateGuestMap() {
         // Prepare the HTML snapshot in memory first
         globalGuestsHTML = guestDirectory.sort((a, b) => a.name.localeCompare(b.name))
-            .map(g => `<option value="${g.name}">${g.room || ''}</option>`).join('');
+            .map(g => `<option value="${esc(g.name)}">${esc(g.room || '')}</option>`).join('');
 
         // Live sync running components only if they have active content
         document.querySelectorAll('#guest-list').forEach(list => {
@@ -562,7 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateGuestDatalist() {
         // Construct the latest unique names string
         const uniqueNames = [...new Set(records.map(r => r.guestName).filter(Boolean))].sort();
-        reportsHTML = uniqueNames.map(name => `<option value="${name}">`).join('');
+        reportsHTML = uniqueNames.map(name => `<option value="${esc(name)}">`).join('');
 
         // Sync live component if active
         const list = document.getElementById('guestNamesList');
@@ -1126,8 +1130,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             item.innerHTML = `
                 <div style="flex: 1;">
-                    <div style="font-weight: 600; color: #333;">${guest.name}</div>
-                    <div style="font-size: 12px; color: #888;">Room: ${guest.room || 'N/A'} • <span style="color:${isInHouse ? '#27ae60' : '#7f8c8d'}; font-weight:700;">${guest.status.replace('_', ' ').toUpperCase()}</span></div>
+                    <div style="font-weight: 600; color: #333;">${esc(guest.name)}</div>
+                    <div style="font-size: 12px; color: #888;">Room: ${esc(guest.room || 'N/A')} • <span style="color:${isInHouse ? '#27ae60' : '#7f8c8d'}; font-weight:700;">${esc(guest.status.replace('_', ' ').toUpperCase())}</span></div>
                 </div>
                 <button onclick="toggleGuestStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')"
                         style="padding: 6px 12px; border-radius: 4px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; 
@@ -1238,17 +1242,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             row.innerHTML = `
                 <td class="date-cell">${formatDateShort(record.date)}</td>
-                <td class="room-cell"><span>${record.room}</span></td>
+                <td class="room-cell"><span>${esc(record.room)}</span></td>
                 <td class="guest-cell">
                     <div style="display:flex; flex-direction:column;">
-                        <strong>${record.guestName} ${noteIndicator}</strong>
+                        <strong>${esc(record.guestName)} ${noteIndicator}</strong>
                         <span class="${gStatusClass}" style="font-size:9px; font-weight:800; width:fit-content; margin-top:2px;">${gStatusLabel}</span>
                     </div>
                     ${lateBadge}
                 </td>
-                <td><span class="dept-badge">${record.department}</span></td>
-                <td class="staff-cell">${record.staffInitial}</td>
-                <td><span class="status-badge ${statusClass}">${status}</span></td>
+                <td><span class="dept-badge">${esc(record.department)}</span></td>
+                <td class="staff-cell">${esc(record.staffInitial)}</td>
+                <td><span class="status-badge ${statusClass}">${esc(status)}</span></td>
             `;
             row.onclick = () => openModal(record);
             recordsTableBody.appendChild(row);
@@ -1268,7 +1272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editingId = record.id;
         modalGuestRoom.textContent = `${record.guestName} - Room ${record.room}`;
         modalDept.textContent = record.department;
-        modalDesc.innerHTML = `<strong>Complaint:</strong> ${record.complaint}<br><strong>Solution:</strong> ${record.solution}`;
+        modalDesc.innerHTML = `<strong>Complaint:</strong> ${esc(record.complaint)}<br><strong>Solution:</strong> ${esc(record.solution)}`;
 
         updateStatusBadge(record.status || 'Following');
         renderTimeline(record);
@@ -1318,11 +1322,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             item.innerHTML = `
                 <div class="timeline-header">
-                    <span class="timeline-author">${note.user} ${note.isEdited ? '<span class="edited-tag">(edited)</span>' : ''}</span>
-                    <span class="timeline-time">${note.time}</span>
+                    <span class="timeline-author">${esc(note.user)} ${note.isEdited ? '<span class="edited-tag">(edited)</span>' : ''}</span>
+                    <span class="timeline-time">${esc(note.time)}</span>
                 </div>
                 <div class="timeline-body">
-                    <div class="timeline-text">${note.text}</div>
+                    <div class="timeline-text">${esc(note.text)}</div>
                 </div>
                 ${isOwner ? `
                 <div class="timeline-actions">
@@ -1360,7 +1364,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         body.innerHTML = `
             <div class="inline-edit-area">
-                <textarea id="edit-note-input-${index}" class="inline-textarea">${originalText}</textarea>
+                <textarea id="edit-note-input-${index}" class="inline-textarea">${esc(originalText)}</textarea>
                 <div class="inline-actions">
                     <button class="inline-save-btn" onclick="saveInlineEdit(${index})">Save</button>
                     <button class="inline-cancel-btn" onclick="cancelInlineEdit(${index})">Cancel</button>

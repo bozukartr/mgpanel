@@ -1,3 +1,7 @@
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Auth Guard
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
@@ -34,9 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tr = document.createElement('tr');
                 tr.style.cursor = 'pointer';
                 tr.innerHTML = `
-                    <td><strong>${user.username}</strong></td>
-                    <td><span class="role-badge">${user.role}</span></td>
-                    <td>${user.department}</td>
+                    <td><strong>${esc(user.username)}</strong></td>
+                    <td><span class="role-badge">${esc(user.role)}</span></td>
+                    <td>${esc(user.department)}</td>
                     <td>
                         <button class="delete-user-btn" onclick="event.stopPropagation(); deleteUser('${doc.id}')">Remove Access</button>
                     </td>
@@ -120,8 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const logItem = document.createElement('div');
                 logItem.className = 'log-item';
                 logItem.innerHTML = `
-                    <p><strong>${log.staffInitial}</strong> modified record for room <strong>${log.room}</strong></p>
-                    <span>${log.date || 'Today'} - ${log.department}</span>
+                    <p><strong>${esc(log.staffInitial)}</strong> modified record for room <strong>${esc(log.room)}</strong></p>
+                    <span>${esc(log.date || 'Today')} - ${esc(log.department)}</span>
                 `;
                 activityLogsContainer.innerHTML += logItem.outerHTML;
             });

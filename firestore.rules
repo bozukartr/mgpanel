@@ -7,13 +7,20 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // True only for provisioned staff: a user who actually has a systemUsers
+    // document. This blocks self-registered accounts (Firebase Auth signup is
+    // open via the public API key) from touching any data.
+    function isStaff() {
+      return signedIn() && exists(/databases/$(database)/documents/systemUsers/$(request.auth.uid));
+    }
+
     // Reads the caller's role from their own systemUsers document.
     function callerRole() {
       return get(/databases/$(database)/documents/systemUsers/$(request.auth.uid)).data.role;
     }
 
     function isAdmin() {
-      return signedIn() && callerRole() == 'Admin';
+      return isStaff() && callerRole() == 'Admin';
     }
 
     // Subscription must be active (subscriptionEnd in the future) for writes.
@@ -21,23 +28,23 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/systemConfig/subscription).data.subscriptionEnd > request.time;
     }
 
-    // --- Business data: any signed-in staff member with an active subscription ---
+    // --- Business data: provisioned staff only; writes also require active subscription ---
     match /reservations/{id} {
-      allow read:  if signedIn();
-      allow write: if signedIn() && subActive();
+      allow read:  if isStaff();
+      allow write: if isStaff() && subActive();
     }
     match /guestLogs/{id} {
-      allow read:  if signedIn();
-      allow write: if signedIn() && subActive();
+      allow read:  if isStaff();
+      allow write: if isStaff() && subActive();
     }
     match /guestDirectory/{id} {
-      allow read:  if signedIn();
-      allow write: if signedIn() && subActive();
+      allow read:  if isStaff();
+      allow write: if isStaff() && subActive();
     }
 
-    // --- User accounts: anyone signed in can read, only admin can modify roles ---
+    // --- User accounts: staff can read the directory, only admin can modify roles ---
     match /systemUsers/{uid} {
-      allow read:  if signedIn();
+      allow read:  if isStaff();
       allow write: if isAdmin();
     }
 
