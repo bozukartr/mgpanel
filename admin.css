@@ -138,6 +138,25 @@ td {
     margin-right: 14px;
 }
 
+/* Support Tickets */
+.ticket-list { display: flex; flex-direction: column; gap: 10px; max-height: 480px; overflow-y: auto; }
+.ticket-item { padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: background .15s; }
+.ticket-item:hover { background: #f8fafc; }
+.ticket-item-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ticket-subject { font-weight: 600; color: #1e293b; }
+.ticket-meta { font-size: 11px; color: #94a3b8; margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+.ticket-status, .ticket-priority { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.ticket-status.open { background: #dbeafe; color: #1d4ed8; }
+.ticket-status.in-progress { background: #fef3c7; color: #b45309; }
+.ticket-status.closed { background: #dcfce7; color: #15803d; }
+.ticket-priority.low { background: #f1f5f9; color: #475569; }
+.ticket-priority.medium { background: #fef3c7; color: #b45309; }
+.ticket-priority.high { background: #fee2e2; color: #b91c1c; }
+.td-msg { padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; background: #f8fafc; border: 1px solid #eef2f7; }
+.td-msg .who { font-weight: 600; font-size: 12px; color: #1e293b; }
+.td-msg .when { font-weight: 400; font-size: 10px; color: #94a3b8; margin-left: 6px; }
+.td-msg .text { font-size: 13px; color: #334155; margin-top: 4px; white-space: pre-wrap; }
+
 /* Activity Logs */
 .activity-logs {
     overflow-y: auto;
