@@ -289,7 +289,130 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // ── SUPPORT TICKETS ────────────────────────────────────────
+    const ticketList = document.getElementById('ticketList');
+    const ticketModal = document.getElementById('ticketModal');
+    const ticketDetailModal = document.getElementById('ticketDetailModal');
+    let currentTicketId = null;
+
+    const fetchTickets = () => {
+        db.collection('tickets').orderBy('createdAt', 'desc').onSnapshot(snap => {
+            ticketList.innerHTML = '';
+            if (snap.empty) {
+                ticketList.innerHTML = '<p style="color:#94a3b8; font-size:13px; padding:10px;">No tickets yet.</p>';
+                return;
+            }
+            snap.forEach(doc => {
+                const t = doc.data();
+                const item = document.createElement('div');
+                item.className = 'ticket-item';
+                const statusClass = (t.status || 'Open').toLowerCase().replace(/\s+/g, '-');
+                const prioClass = (t.priority || 'Medium').toLowerCase();
+                const when = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString('tr-TR') : '';
+                const replyCount = Array.isArray(t.replies) ? t.replies.length : 0;
+                item.innerHTML = `
+                    <div class="ticket-item-top">
+                        <span class="ticket-subject">${esc(t.subject)}</span>
+                        <span class="ticket-status ${statusClass}">${esc(t.status || 'Open')}</span>
+                    </div>
+                    <div class="ticket-meta">
+                        <span class="ticket-priority ${prioClass}">${esc(t.priority || 'Medium')}</span>
+                        ${esc(t.createdBy || 'Unknown')} • ${when}${replyCount ? ` • ${replyCount} reply${replyCount > 1 ? 's' : ''}` : ''}
+                    </div>
+                `;
+                item.onclick = () => openTicketDetail(doc.id, t);
+                ticketList.appendChild(item);
+            });
+        });
+    };
+
+    function openTicketDetail(id, t) {
+        currentTicketId = id;
+        document.getElementById('tdSubject').textContent = t.subject || 'Ticket';
+        const when = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString('tr-TR') : '';
+        document.getElementById('tdMeta').textContent = `${t.priority || 'Medium'} • Opened by ${t.createdBy || 'Unknown'} • ${when}`;
+        document.getElementById('tdStatus').value = t.status || 'Open';
+        document.getElementById('tdReply').value = '';
+
+        let html = `<div class="td-msg"><div class="who">${esc(t.createdBy || 'Unknown')}</div><div class="text">${esc(t.message || '')}</div></div>`;
+        (t.replies || []).forEach(r => {
+            const rwhen = r.at ? new Date(r.at).toLocaleString('tr-TR') : '';
+            html += `<div class="td-msg"><div class="who">${esc(r.by || '')} <span class="when">${rwhen}</span></div><div class="text">${esc(r.text || '')}</div></div>`;
+        });
+        document.getElementById('tdThread').innerHTML = html;
+        ticketDetailModal.style.display = 'flex';
+    }
+
+    document.getElementById('openTicketModal').onclick = () => {
+        document.getElementById('ticketForm').reset();
+        ticketModal.style.display = 'flex';
+    };
+    document.getElementById('closeTicketModal').onclick = () => ticketModal.style.display = 'none';
+    document.getElementById('closeTicketDetail').onclick = () => ticketDetailModal.style.display = 'none';
+
+    document.getElementById('ticketForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const subject = document.getElementById('ticketSubject').value.trim();
+        const priority = document.getElementById('ticketPriority').value;
+        const message = document.getElementById('ticketMessage').value.trim();
+        if (!subject || !message) return;
+        try {
+            await db.collection('tickets').add({
+                subject, message, priority,
+                status: 'Open',
+                createdBy: loggedUsername,
+                createdByUid: auth.currentUser ? auth.currentUser.uid : '',
+                replies: [],
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            ticketModal.style.display = 'none';
+            showToast('Ticket created.');
+        } catch (err) {
+            console.error(err);
+            showToast('Error: ' + err.message, true);
+        }
+    };
+
+    document.getElementById('tdSendReply').onclick = async () => {
+        const text = document.getElementById('tdReply').value.trim();
+        if (!text || !currentTicketId) return;
+        try {
+            await db.collection('tickets').doc(currentTicketId).update({
+                replies: firebase.firestore.FieldValue.arrayUnion({
+                    by: loggedUsername,
+                    byUid: auth.currentUser ? auth.currentUser.uid : '',
+                    text,
+                    at: new Date().toISOString()
+                }),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            showToast('Reply sent.');
+            const fresh = await db.collection('tickets').doc(currentTicketId).get();
+            if (fresh.exists) openTicketDetail(currentTicketId, fresh.data());
+        } catch (err) {
+            console.error(err);
+            showToast('Error: ' + err.message, true);
+        }
+    };
+
+    document.getElementById('tdUpdateStatus').onclick = async () => {
+        if (!currentTicketId) return;
+        const status = document.getElementById('tdStatus').value;
+        try {
+            await db.collection('tickets').doc(currentTicketId).update({
+                status,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            showToast('Status updated.');
+        } catch (err) {
+            console.error(err);
+            showToast('Error: ' + err.message, true);
+        }
+    };
+
     fetchUsers();
     fetchActivity();
     loadSubscription();
+    fetchTickets();
 });

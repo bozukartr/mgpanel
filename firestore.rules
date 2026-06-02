@@ -39,6 +39,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- Support tickets: admins only (open, view, reply, change status) ---
+    match /tickets/{id} {
+      allow read, write: if isAdmin();
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;
