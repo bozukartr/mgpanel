@@ -7,11 +7,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── AUTH ───────────────────────────────────────────────────
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
+    const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
+    const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     if (!loggedUsername) { window.location.href = 'index.html'; return; }
     auth.onAuthStateChanged(u => { if (!u) window.location.href = 'index.html'; });
 
     document.querySelectorAll('.app-username').forEach(el => el.textContent = loggedUsername);
-    if (loggedUsername.toLowerCase() === 'admin') {
+    if (isAdminUser) {
         const adminNav = document.getElementById('mob-adminNav');
         if (adminNav) adminNav.style.display = 'flex';
     }
