@@ -104,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     email: email,
                     role: role,
                     department: department,
+                    mustChangePassword: true,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 showToast('New Account Created: ' + username);
@@ -248,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Subscription Management
     const subStatus = document.getElementById('subStatus');
     const subExpiry = document.getElementById('subExpiry');
+    const subDateInput = document.getElementById('subDateInput');
 
     const loadSubscription = () => {
         db.collection('systemConfig').doc('subscription').onSnapshot(doc => {
@@ -265,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     subStatus.className = 'sub-status expired';
                     subExpiry.textContent = end ? `Expired: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}` : 'No subscription set';
                 }
-                if (end) subDateInput.value = end.toISOString().slice(0, 10);
+                if (end && subDateInput) subDateInput.value = end.toISOString().slice(0, 10);
             } else {
                 subStatus.textContent = 'Not Set';
                 subStatus.className = 'sub-status expired';
