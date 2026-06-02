@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helpers ---
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Reads the caller's role from their own systemUsers document.
+    function callerRole() {
+      return get(/databases/$(database)/documents/systemUsers/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return signedIn() && callerRole() == 'Admin';
+    }
+
+    // Subscription must be active (subscriptionEnd in the future) for writes.
+    function subActive() {
+      return get(/databases/$(database)/documents/systemConfig/subscription).data.subscriptionEnd > request.time;
+    }
+
+    // --- Business data: any signed-in staff member with an active subscription ---
+    match /reservations/{id} {
+      allow read:  if signedIn();
+      allow write: if signedIn() && subActive();
+    }
+    match /guestLogs/{id} {
+      allow read:  if signedIn();
+      allow write: if signedIn() && subActive();
+    }
+    match /guestDirectory/{id} {
+      allow read:  if signedIn();
+      allow write: if signedIn() && subActive();
+    }
+
+    // --- User accounts: anyone signed in can read, only admin can modify roles ---
+    match /systemUsers/{uid} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- System config (subscription, settings): read by staff, written by admin only ---
+    match /systemConfig/{doc} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- Deny everything else by default ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
