@@ -373,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rcGuestId = id;
         rcGuestName = name;
         document.getElementById('rcGuestName').textContent = name;
+        document.getElementById('rcGuestNameInput').value = name;
         document.getElementById('rcNewRoom').value = currentRoom;
         document.getElementById('rcCheckIn').value = toDisplayDate(checkIn) || '';
         document.getElementById('rcCheckOut').value = toDisplayDate(checkOut) || '';
@@ -398,15 +399,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPreArrivalBox = document.getElementById('rcIsPreArrival');
         const isPreArrival = isPreArrivalBox ? isPreArrivalBox.checked : false;
         const newRoomRaw = document.getElementById('rcNewRoom').value.trim();
-        
+        const newName = document.getElementById('rcGuestNameInput').value.trim();
+
         const rawCheckIn = document.getElementById('rcCheckIn').value.trim();
         const rawCheckOut = document.getElementById('rcCheckOut').value.trim();
-        
+
         const checkInDate = toIsoDate(smartExpandDate(rawCheckIn));
         const checkOutDate = toIsoDate(smartExpandDate(rawCheckOut));
-        
+
         if (!isPreArrival && !newRoomRaw) return showToast('Please enter a room number.', true);
+        if (!newName) return showToast('Please enter a guest name.', true);
         if (!rcGuestId || !rcGuestName) return;
+
+        const nameChanged = newName !== rcGuestName;
 
         const newRoomForDir = isPreArrival ? '' : newRoomRaw;
         const newRoomForLogs = isPreArrival ? 'Pre-Arrival' : newRoomRaw;
@@ -420,29 +425,36 @@ document.addEventListener('DOMContentLoaded', () => {
             const batch = db.batch();
             
             // 1. Update Guest Directory
-            const updates = { 
-                room: newRoomForDir, 
+            const updates = {
+                room: newRoomForDir,
                 checkIn: checkInDate,
                 checkOut: checkOutDate,
-                lastUpdated: new Date().toISOString() 
+                lastUpdated: new Date().toISOString()
             };
             if (isPreArrival) updates.status = 'pre_arrival';
+            if (nameChanged) updates.name = newName;
 
             batch.update(db.collection('guestDirectory').doc(rcGuestId), updates);
 
-            // 2. Update Guest Logs (Issues)
+            // 2. Update Guest Logs (Issues) — match by the OLD name, then sync room/name
             const gLogsToUpdate = guestLogs.filter(l => l.guestName.toLowerCase() === rcGuestName.toLowerCase());
             gLogsToUpdate.forEach(log => {
-                if (log.room !== newRoomForLogs) {
-                    batch.update(db.collection('guestLogs').doc(log.id), { room: newRoomForLogs });
+                const logUpdate = {};
+                if (log.room !== newRoomForLogs) logUpdate.room = newRoomForLogs;
+                if (nameChanged) logUpdate.guestName = newName;
+                if (Object.keys(logUpdate).length) {
+                    batch.update(db.collection('guestLogs').doc(log.id), logUpdate);
                 }
             });
 
-            // 3. Update Reservations (Concierge)
+            // 3. Update Reservations (Concierge) — match by the OLD name, then sync room/name
             const gResToUpdate = reservations.filter(r => r.guestName.toLowerCase() === rcGuestName.toLowerCase());
             gResToUpdate.forEach(res => {
-                if (res.room !== newRoomForLogs) {
-                    batch.update(db.collection('reservations').doc(res.id), { room: newRoomForLogs });
+                const resUpdate = {};
+                if (res.room !== newRoomForLogs) resUpdate.room = newRoomForLogs;
+                if (nameChanged) resUpdate.guestName = newName;
+                if (Object.keys(resUpdate).length) {
+                    batch.update(db.collection('reservations').doc(res.id), resUpdate);
                 }
             });
 
