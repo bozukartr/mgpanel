@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const staffInitialInput = document.getElementById('staffInitial');
     const displayUsername = document.getElementById('displayUsername');
     const loggedUsername = localStorage.getItem('hotelUsername') || 'Admin';
+    const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
+    const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     const toast = document.getElementById('toast');
 
     if (staffInitialInput) staffInitialInput.value = loggedUsername;
@@ -15,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Show Admin Link if user is admin
     const adminNavLink = document.getElementById('adminNavLink');
     const mobAdminBtn = document.getElementById('mobAdminBtn');
-    if (loggedUsername.toLowerCase() === 'admin') {
+    if (isAdminUser) {
         if (adminNavLink) adminNavLink.style.display = 'inline-block';
         if (mobAdminBtn) mobAdminBtn.style.display = 'flex';
     }
@@ -226,12 +228,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // IMPORT: JSON (Full System Restore)
-    if (loggedUsername.toLowerCase() !== 'admin') {
+    if (!isAdminUser) {
         if (importDataBtn) importDataBtn.style.display = 'none';
     }
 
     importDataBtn?.addEventListener('click', () => {
-        if (loggedUsername.toLowerCase() !== 'admin') {
+        if (!isAdminUser) {
             return showToast('Only Admin can import backups.', true);
         }
         importFileInput.click();

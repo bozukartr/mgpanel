@@ -7,7 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── AUTH GUARD ─────────────────────────────────────────────
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
-    if (loggedUsername.toLowerCase() !== 'admin') {
+    const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
+    const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
+    if (!isAdminUser) {
         window.location.href = 'concierge.html';
         return;
     }

@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── AUTH ───────────────────────────────────────────────────
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
+    const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
+    const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     if (!loggedUsername) { window.location.href = 'index.html'; return; }
     auth.onAuthStateChanged(async (u) => {
         if (!u) {
@@ -23,9 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const role = (data.role || '').toLowerCase();
                     const uname = (data.username || '').toLowerCase();
 
-                    // Admin sekmesi SADECE "admin" kullanıcı adına
-                    if (uname === 'admin') {
+                    // Admin sekmesi: admin rolündeki (veya "admin" kullanıcı adlı) herkese
+                    if (role === 'admin' || uname === 'admin') {
                         if (document.getElementById('c-adminNav')) document.getElementById('c-adminNav').style.display = 'flex';
+                        if (document.getElementById('c-adminNavMobile')) document.getElementById('c-adminNavMobile').style.display = 'flex';
                     }
 
                     // Finans butonu admin ve manager rollerine
@@ -116,12 +119,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // IMPORT: JSON (Full System Restore)
-    if (loggedUsername.toLowerCase() !== 'admin') {
+    if (!isAdminUser) {
         if (importDataBtn) importDataBtn.style.display = 'none';
     }
 
     importDataBtn?.addEventListener('click', () => {
-        if (loggedUsername.toLowerCase() !== 'admin') {
+        if (!isAdminUser) {
             return showToast('Only Admin can import backups.', true);
         }
         importFileInput.click();

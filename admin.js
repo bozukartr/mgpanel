@@ -5,6 +5,8 @@ function esc(s) {
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Auth Guard
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
+    const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
+    const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     const toast = document.getElementById('toast');
 
     function showToast(message, isError = false) {
@@ -13,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { toast.className = 'toast-notification'; }, 3000);
     }
 
-    if (loggedUsername.toLowerCase() !== 'admin') {
+    if (!isAdminUser) {
         showToast('Unauthorized Access. Redirecting...', true);
         setTimeout(() => window.location.href = 'concierge.html', 1500);
         return;
