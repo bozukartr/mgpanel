@@ -25,6 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const role = (data.role || '').toLowerCase();
                     const uname = (data.username || '').toLowerCase();
 
+                    // Keep localStorage role fresh so other pages (admin, panel) gate correctly.
+                    if (data.role) localStorage.setItem('hotelRole', data.role);
+
                     // Admin sekmesi: admin rolündeki (veya "admin" kullanıcı adlı) herkese
                     if (role === 'admin' || uname === 'admin') {
                         if (document.getElementById('c-adminNav')) document.getElementById('c-adminNav').style.display = 'flex';

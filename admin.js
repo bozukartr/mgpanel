@@ -15,11 +15,22 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { toast.className = 'toast-notification'; }, 3000);
     }
 
-    if (!isAdminUser) {
-        showToast('Unauthorized Access. Redirecting...', true);
-        setTimeout(() => window.location.href = 'concierge.html', 1500);
-        return;
-    }
+    // Verify admin access against Firestore (source of truth), not just localStorage.
+    auth.onAuthStateChanged(async (u) => {
+        if (!u) { window.location.href = 'index.html'; return; }
+        try {
+            const doc = await db.collection('systemUsers').doc(u.uid).get();
+            const role = doc.exists ? (doc.data().role || '').toLowerCase() : '';
+            const uname = doc.exists ? (doc.data().username || '').toLowerCase() : '';
+            if (role !== 'admin' && uname !== 'admin' && !isAdminUser) {
+                showToast('Unauthorized Access. Redirecting...', true);
+                setTimeout(() => window.location.href = 'concierge.html', 1500);
+            }
+        } catch (e) {
+            console.error('Auth check failed', e);
+            window.location.href = 'concierge.html';
+        }
+    });
 
     // Elements
     const usersTableBody = document.querySelector('#usersTable tbody');
