@@ -1,5 +1,11 @@
 /* concierge.js — Concierge Logic */
 
+// Escapes user-supplied text before it is inserted into innerHTML, preventing stored XSS.
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
 
     // ── AUTH ───────────────────────────────────────────────────
@@ -801,13 +807,13 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="res-card-icon">${SERVICE_ICONS[r.type] || '✨'}</div>
             <div class="res-card-info">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="res-card-guest">${r.guestName}${nextDayBadge}</span>
+                    <span class="res-card-guest">${esc(r.guestName)}${nextDayBadge}</span>
                     <span style="font-size:9px; color:var(--text-muted);">${fmtDate(r.date)}</span>
                 </div>
-                <span class="res-card-room">Room ${r.room} ${r.time ? '• ' + r.time : ''}</span>
+                <span class="res-card-room">Room ${esc(r.room)} ${r.time ? '• ' + esc(r.time) : ''}</span>
             </div>
             <div class="res-card-status">
-                <span class="status-badge ${r.status.toLowerCase()}">${r.status}</span>
+                <span class="status-badge ${esc(r.status.toLowerCase())}">${esc(r.status)}</span>
             </div>
         `;
         return card;
