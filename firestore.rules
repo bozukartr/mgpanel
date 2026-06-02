@@ -44,8 +44,14 @@ service cloud.firestore {
 
     // --- User accounts: staff can read the directory, only admin can modify roles ---
     match /systemUsers/{uid} {
-      allow read:  if isStaff();
-      allow write: if isAdmin();
+      allow read:           if isStaff();
+      allow create, delete: if isAdmin();
+      // Admin can update anything; a user may only clear their own forced-password flag.
+      allow update: if isAdmin()
+        || (isStaff()
+            && request.auth.uid == uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword'])
+            && request.resource.data.mustChangePassword == false);
     }
 
     // --- System config (subscription, settings): read by staff, written by admin only ---

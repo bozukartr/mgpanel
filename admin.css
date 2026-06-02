@@ -129,6 +129,15 @@ td {
     font-weight: 500;
 }
 
+.reset-pw-btn {
+    color: #2563eb;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    margin-right: 14px;
+}
+
 /* Activity Logs */
 .activity-logs {
     overflow-y: auto;

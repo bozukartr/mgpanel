@@ -69,6 +69,25 @@
                 <div id="errorMessage" class="error-message"></div>
             </form>
         </div>
+
+        <!-- Force Password Change Area -->
+        <div class="login-card" id="forcePwCard" style="display:none;">
+            <p style="font-size:13px; color:#666; text-align:center; margin:0 0 18px;">
+                Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.
+            </p>
+            <form id="forcePwForm">
+                <div class="input-group">
+                    <input type="password" id="newPassword" required placeholder=" ">
+                    <label for="newPassword">Yeni Şifre</label>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="newPassword2" required placeholder=" ">
+                    <label for="newPassword2">Yeni Şifre (Tekrar)</label>
+                </div>
+                <button type="submit" class="login-btn">Şifreyi Kaydet</button>
+                <div id="pwError" class="error-message"></div>
+            </form>
+        </div>
     </div>
 
     <!-- Firebase SDK -->
