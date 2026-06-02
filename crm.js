@@ -190,6 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     </button>
                     `}
                     ${isAdminUser ? `
+                    <button class="btn-status-toggle" style="background-color: #7c3aed; color: white;"
+                            onclick="openMergeModal('${guest.id}')">
+                        Merge
+                    </button>
                     <button class="btn-status-toggle" style="background-color: #ef4444; color: white;"
                             onclick="deleteGuest('${guest.id}', '${guest.name.replace(/'/g, "\\'")}')">
                         Delete Guest
@@ -309,7 +313,111 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ── MERGE GUESTS ───────────────────────────────────────────
+    let mergePrimaryId = null;
+
+    function populateMergeOptions(search) {
+        const sel = document.getElementById('mergeSelect');
+        if (!sel) return;
+        const s = (search || '').toLowerCase();
+        const opts = guestDirectory
+            .filter(g => g.id !== mergePrimaryId)
+            .filter(g => !s || g.name.toLowerCase().includes(s) || (g.room && g.room.toLowerCase().includes(s)))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        const statusLabel = (st) => st === 'in_house' ? 'In House' : (st === 'pre_arrival' ? 'Pre-Arrival' : 'Checked Out');
+        sel.innerHTML = opts.map(g =>
+            `<option value="${g.id}">${esc(g.name)} — ${esc(g.room || 'N/A')} (${statusLabel(g.status)})</option>`
+        ).join('');
+    }
+
+    window.openMergeModal = (primaryId) => {
+        if (!isAdminUser) return showToast('Only Admin can merge guests!', true);
+        const primary = guestDirectory.find(g => g.id === primaryId);
+        if (!primary) return;
+        mergePrimaryId = primaryId;
+        document.getElementById('mergePrimaryName').textContent = primary.name;
+        document.getElementById('mergeSearch').value = '';
+        populateMergeOptions('');
+        const modal = document.getElementById('mergeModal');
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+    };
+
+    window.closeMergeModal = () => {
+        document.getElementById('mergeModal').style.display = 'none';
+        mergePrimaryId = null;
+    };
+
+    window.submitMerge = async () => {
+        if (!isAdminUser) return showToast('Only Admin can merge guests!', true);
+        const secondaryId = document.getElementById('mergeSelect').value;
+        if (!mergePrimaryId || !secondaryId) return showToast('Select a duplicate guest to merge.', true);
+        if (secondaryId === mergePrimaryId) return showToast('Cannot merge a guest into itself.', true);
+
+        const primary = guestDirectory.find(g => g.id === mergePrimaryId);
+        const secondary = guestDirectory.find(g => g.id === secondaryId);
+        if (!primary || !secondary) return showToast('Guest not found.', true);
+
+        if (!confirm(`Merge "${secondary.name}" into "${primary.name}"?\n\nAll of "${secondary.name}"'s reservations, logs and notes will be transferred to "${primary.name}", and the duplicate profile will be deleted. This cannot be undone.`)) {
+            return;
+        }
+
+        const btn = document.querySelector('#mergeModal button:last-child');
+        const originalText = btn.textContent;
+        btn.textContent = 'Merging...';
+        btn.disabled = true;
+
+        try {
+            const batch = db.batch();
+            const secName = secondary.name.toLowerCase();
+
+            // Reassign the duplicate's reservations to the primary name
+            reservations
+                .filter(r => r.guestName && r.guestName.toLowerCase() === secName)
+                .forEach(r => batch.update(db.collection('reservations').doc(r.id), { guestName: primary.name }));
+
+            // Reassign the duplicate's logs to the primary name
+            guestLogs
+                .filter(l => l.guestName && l.guestName.toLowerCase() === secName)
+                .forEach(l => batch.update(db.collection('guestLogs').doc(l.id), { guestName: primary.name }));
+
+            // Merge notes
+            const primaryNotes = (primary.notes || '').trim();
+            const secondaryNotes = (secondary.notes || '').trim();
+            let mergedNotes = primaryNotes;
+            if (secondaryNotes && !primaryNotes.includes(secondaryNotes)) {
+                mergedNotes = primaryNotes
+                    ? `${primaryNotes}\n\n[Merged from ${secondary.name}]\n${secondaryNotes}`
+                    : secondaryNotes;
+            }
+
+            batch.update(db.collection('guestDirectory').doc(primary.id), {
+                notes: mergedNotes,
+                lastUpdated: new Date().toISOString()
+            });
+
+            // Remove the duplicate profile
+            batch.delete(db.collection('guestDirectory').doc(secondary.id));
+
+            await batch.commit();
+
+            showToast(`Merged "${secondary.name}" into "${primary.name}".`);
+            closeMergeModal();
+            currentGuestId = primary.id;
+            await loadAllData();
+            viewGuestDetail(primary.id);
+        } catch (e) {
+            console.error('Merge failed', e);
+            showToast('Merge failed. Check permissions.', true);
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    };
+
     // ── EVENT LISTENERS ────────────────────────────────────────
+    document.getElementById('mergeSearch')?.addEventListener('input', (e) => populateMergeOptions(e.target.value));
     document.getElementById('guestSearch')?.addEventListener('input', renderGuestList);
     
     document.querySelectorAll('.filter-btn').forEach(btn => {
