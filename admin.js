@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><span class="role-badge">${esc(user.role)}</span></td>
                     <td>${esc(user.department)}</td>
                     <td>
+                        <button class="reset-pw-btn" onclick="event.stopPropagation(); resetUserPassword('${doc.id}', '${esc(user.username).replace(/'/g, "\\'")}')">Reset Password</button>
                         <button class="delete-user-btn" onclick="event.stopPropagation(); deleteUser('${doc.id}')">Remove Access</button>
                     </td>
                 `;
@@ -146,6 +147,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm('Are you sure you want to remove this user?')) {
             db.collection('systemUsers').doc(id).delete();
             showToast('User removed from system.');
+        }
+    };
+
+    // Force the user to set a new password on their next login.
+    window.resetUserPassword = async (id, username) => {
+        if (!confirm(`Reset password for ${username}?\n\nThey will keep their current password to log in once, then be required to set a new password before continuing.`)) {
+            return;
+        }
+        try {
+            await db.collection('systemUsers').doc(id).update({
+                mustChangePassword: true,
+                passwordResetAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            showToast(`${username} will be asked to set a new password on next login.`);
+        } catch (err) {
+            console.error(err);
+            showToast('Error: ' + err.message, true);
         }
     };
 
