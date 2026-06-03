@@ -33,6 +33,13 @@ service cloud.firestore {
             && request.resource.data.mustChangePassword == false);
     }
 
+    // --- Maintenance flag: publicly readable so the login page / guard can check it
+    //     before authentication. Only the flag/end-time/message live here. ---
+    match /systemConfig/maintenance {
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
+
     // --- System config (subscription, settings): read by any signed-in user, written by admin ---
     match /systemConfig/{doc} {
       allow read:  if signedIn();

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bakım Çalışması</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            padding: 24px;
+        }
+        .m-container { text-align: center; max-width: 520px; width: 100%; }
+        .m-logo {
+            width: 120px; height: auto; margin-bottom: 28px;
+            cursor: default; user-select: none;
+            filter: brightness(0) invert(1); opacity: 0.95;
+        }
+        h1 { font-size: 26px; font-weight: 600; margin-bottom: 12px; }
+        #mMessage { font-size: 15px; color: #94a3b8; margin-bottom: 36px; line-height: 1.5; }
+        .m-countdown { display: flex; gap: 14px; justify-content: center; margin-bottom: 8px; }
+        .cd-block {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px; padding: 16px 10px; min-width: 78px;
+        }
+        .cd-block span { display: block; font-size: 34px; font-weight: 700; line-height: 1; }
+        .cd-block label { display: block; font-size: 11px; color: #94a3b8; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        .m-unlock {
+            margin-top: 40px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px; padding: 22px;
+        }
+        .m-unlock h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; color: #cbd5e1; }
+        .m-unlock input {
+            width: 100%; padding: 12px 14px; margin-bottom: 10px;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px; color: #fff; font-family: inherit; font-size: 14px;
+        }
+        .m-unlock input::placeholder { color: #64748b; }
+        .m-unlock button {
+            width: 100%; padding: 12px; background: #2563eb; color: #fff;
+            border: none; border-radius: 8px; font-family: inherit; font-size: 14px;
+            font-weight: 600; cursor: pointer; margin-top: 4px;
+        }
+        .m-unlock button:hover { background: #1d4ed8; }
+        .m-error { color: #f87171; font-size: 13px; margin-top: 10px; min-height: 18px; }
+    </style>
+</head>
+<body>
+    <div class="m-container">
+        <img src="logo.png" alt="Logo" class="m-logo" id="mLogo" title="">
+        <h1>Bakım Çalışması</h1>
+        <p id="mMessage">Sistem şu anda bakımdadır. Lütfen daha sonra tekrar deneyin.</p>
+
+        <div class="m-countdown" id="mCountdown">
+            <div class="cd-block"><span id="cdDays">00</span><label>Gün</label></div>
+            <div class="cd-block"><span id="cdHours">00</span><label>Saat</label></div>
+            <div class="cd-block"><span id="cdMins">00</span><label>Dakika</label></div>
+            <div class="cd-block"><span id="cdSecs">00</span><label>Saniye</label></div>
+        </div>
+
+        <!-- Admin unlock (revealed on logo double-click) -->
+        <div class="m-unlock" id="mUnlock" style="display:none;">
+            <h3>Yönetici Erişimi</h3>
+            <form id="mUnlockForm">
+                <input type="text" id="mUser" placeholder="Kullanıcı Adı" autocomplete="username" required>
+                <input type="password" id="mPass" placeholder="Şifre" autocomplete="current-password" required>
+                <button type="submit">Giriş Yap</button>
+                <div id="mError" class="m-error"></div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="maintenance.js"></script>
+</body>
+</html>

@@ -84,6 +84,28 @@
                 <!-- Tickets render here -->
             </div>
         </section>
+
+        <!-- Maintenance Mode -->
+        <section class="admin-card" style="margin-top: 20px;">
+            <div class="card-header">
+                <h2>Maintenance Mode</h2>
+                <span id="mtStatus" style="font-size:12px; color:#64748b;"></span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:14px; padding-top:6px;">
+                <label style="display:flex; align-items:center; gap:10px; font-size:14px; cursor:pointer;">
+                    <input type="checkbox" id="mtEnabled"> Enable maintenance mode
+                </label>
+                <div class="form-group">
+                    <label>Ends at</label>
+                    <input type="datetime-local" id="mtEndsAt">
+                </div>
+                <div class="form-group">
+                    <label>Message (optional)</label>
+                    <input type="text" id="mtMessage" placeholder="Sistem bakımda, kısa süre içinde döneceğiz...">
+                </div>
+                <button class="add-user-btn" id="mtSave" style="align-self:flex-start;">Save Maintenance Settings</button>
+            </div>
+        </section>
     </div>
 
     <!-- User Management Modal -->
