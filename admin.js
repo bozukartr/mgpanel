@@ -34,7 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Elements
     const usersTableBody = document.querySelector('#usersTable tbody');
-    const activityLogsContainer = document.getElementById('activityLogs');
+    const statUsers = document.getElementById('statUsers');
+    const statTickets = document.getElementById('statTickets');
+    const statMaintenance = document.getElementById('statMaintenance');
     const userModal = document.getElementById('userModal');
     const openUserModalBtn = document.getElementById('openUserModal');
     const closeUserModalBtn = document.getElementById('closeUserModal');
@@ -46,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchUsers = () => {
         db.collection('systemUsers').onSnapshot(snapshot => {
             usersTableBody.innerHTML = '';
+            if (statUsers) statUsers.textContent = snapshot.size;
             snapshot.forEach(doc => {
                 const user = doc.data();
                 const tr = document.createElement('tr');
@@ -128,23 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(err);
             showToast('Error: ' + err.message, true);
         }
-    };
-
-    // 3. Fetch Activity
-    const fetchActivity = () => {
-        db.collection('guestLogs').orderBy('createdAt', 'desc').limit(15).onSnapshot(snapshot => {
-            activityLogsContainer.innerHTML = '';
-            snapshot.forEach(doc => {
-                const log = doc.data();
-                const logItem = document.createElement('div');
-                logItem.className = 'log-item';
-                logItem.innerHTML = `
-                    <p><strong>${esc(log.staffInitial)}</strong> modified record for room <strong>${esc(log.room)}</strong></p>
-                    <span>${esc(log.date || 'Today')} - ${esc(log.department)}</span>
-                `;
-                activityLogsContainer.innerHTML += logItem.outerHTML;
-            });
-        });
     };
 
     // Modal Handlers
@@ -298,6 +284,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchTickets = () => {
         db.collection('tickets').orderBy('createdAt', 'desc').onSnapshot(snap => {
             ticketList.innerHTML = '';
+            let openCount = 0;
+            snap.forEach(doc => {
+                if ((doc.data().status || 'Open') !== 'Closed') openCount++;
+            });
+            if (statTickets) statTickets.textContent = openCount;
             if (snap.empty) {
                 ticketList.innerHTML = '<p style="color:#94a3b8; font-size:13px; padding:10px;">No tickets yet.</p>';
                 return;
@@ -432,12 +423,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 mtMessage.value = d.message || '';
                 const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
                 const active = d.enabled && ends && ends > new Date();
-                mtStatus.textContent = active
-                    ? `Active until ${ends.toLocaleString('tr-TR')}`
-                    : 'Inactive';
-                mtStatus.style.color = active ? '#dc2626' : '#64748b';
+                mtStatus.textContent = active ? 'Active' : 'Inactive';
+                mtStatus.classList.toggle('active', active);
+                mtStatus.title = active && ends ? `Active until ${ends.toLocaleString('tr-TR')}` : '';
+                if (statMaintenance) statMaintenance.textContent = active ? 'On' : 'Off';
             } else {
                 mtStatus.textContent = 'Inactive';
+                mtStatus.classList.remove('active');
+                if (statMaintenance) statMaintenance.textContent = 'Off';
             }
         });
     };
@@ -461,7 +454,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     fetchUsers();
-    fetchActivity();
     loadSubscription();
     fetchTickets();
     loadMaintenance();

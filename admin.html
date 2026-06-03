@@ -19,93 +19,118 @@
     <div class="admin-wrapper">
         <header class="admin-header">
             <div class="header-left">
-                <span class="badge-admin">Root</span>
-                <h1>Admin Console</h1>
+                <div class="brand-mark">⌘</div>
+                <div class="brand-text">
+                    <h1>Admin Console</h1>
+                    <span class="brand-sub">System Administration</span>
+                </div>
             </div>
-            <div class="header-right" style="display:flex; gap:10px; align-items:center;">
-                <button id="adminEjectBtn" class="exit-btn" style="background:#dc2626; color:white; border:none; font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;">💥 EJECT SYSTEM</button>
-                <button onclick="window.location.href='crm.html'" class="exit-btn" style="background:#2563eb; color:white; border:none;">CRM Center</button>
-                <button onclick="window.location.href='concierge.html'" class="exit-btn">Return to Dashboard</button>
+            <div class="header-right">
+                <button onclick="window.location.href='concierge.html'" class="btn btn-ghost">Dashboard</button>
+                <button onclick="window.location.href='crm.html'" class="btn btn-ghost">CRM Center</button>
+                <button id="adminEjectBtn" class="btn btn-danger">Eject System</button>
             </div>
         </header>
 
-        <!-- Subscription Banner -->
-        <section class="admin-card subscription-banner" id="subscriptionBanner">
-            <div class="sub-info">
-                <div>
-                    <span class="sub-label">Team Subscription</span>
-                    <span id="subStatus" class="sub-status"></span>
+        <!-- Overview -->
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-icon i-users">👥</div>
+                <div class="stat-body">
+                    <span class="stat-label">Team Members</span>
+                    <span class="stat-value" id="statUsers">—</span>
                 </div>
-                <span id="subExpiry" class="sub-expiry"></span>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon i-sub">💳</div>
+                <div class="stat-body">
+                    <span class="stat-label">Subscription</span>
+                    <span class="sub-status" id="subStatus">—</span>
+                    <span class="sub-expiry" id="subExpiry"></span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon i-tickets">🎫</div>
+                <div class="stat-body">
+                    <span class="stat-label">Open Tickets</span>
+                    <span class="stat-value" id="statTickets">—</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon i-maint">🛠️</div>
+                <div class="stat-body">
+                    <span class="stat-label">Maintenance</span>
+                    <span class="stat-value" id="statMaintenance">Off</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Management -->
+        <section class="admin-card">
+            <div class="card-header">
+                <div class="card-title">
+                    <h2>User Management</h2>
+                    <p class="card-sub">Staff accounts, roles and access control.</p>
+                </div>
+                <button class="btn btn-primary" id="openUserModal">+ Add User</button>
+            </div>
+            <div class="table-container">
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Department</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Users will be listed here -->
+                    </tbody>
+                </table>
+            </div>
         </section>
 
+        <!-- Tickets + Maintenance -->
         <div class="admin-grid">
-            <!-- Left: User Management -->
             <section class="admin-card">
                 <div class="card-header">
-                    <h2>User Management</h2>
-                    <button class="add-user-btn" id="openUserModal">+ Add User</button>
+                    <div class="card-title">
+                        <h2>Support Tickets</h2>
+                        <p class="card-sub">Requests routed to system administrators.</p>
+                    </div>
+                    <button class="btn btn-primary" id="openTicketModal">+ New Ticket</button>
                 </div>
-                <div class="table-container">
-                    <table id="usersTable">
-                        <thead>
-                            <tr>
-                                <th>Username</th>
-                                <th>Role</th>
-                                <th>Department</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Users will be listed here -->
-                        </tbody>
-                    </table>
+                <div id="ticketList" class="ticket-list">
+                    <!-- Tickets render here -->
                 </div>
             </section>
 
-            <!-- Right: System Activity or Settings -->
             <section class="admin-card">
                 <div class="card-header">
-                    <h2>System Activity</h2>
+                    <div class="card-title">
+                        <h2>Maintenance Mode</h2>
+                        <p class="card-sub">Temporarily restrict access for everyone but admins.</p>
+                    </div>
+                    <span id="mtStatus" class="status-pill">Inactive</span>
                 </div>
-                <div id="activityLogs" class="activity-logs">
-                    <!-- Global logs from Firestore -->
+                <div class="settings-body">
+                    <label class="switch-row">
+                        <input type="checkbox" id="mtEnabled">
+                        <span>Enable maintenance mode</span>
+                    </label>
+                    <div class="form-group">
+                        <label>Ends at</label>
+                        <input type="datetime-local" id="mtEndsAt">
+                    </div>
+                    <div class="form-group">
+                        <label>Message (optional)</label>
+                        <input type="text" id="mtMessage" placeholder="Sistem bakımda, kısa süre içinde döneceğiz...">
+                    </div>
+                    <button class="btn btn-primary" id="mtSave" style="align-self:flex-start;">Save Settings</button>
                 </div>
             </section>
         </div>
-
-        <!-- Support Tickets -->
-        <section class="admin-card" style="margin-top: 20px;">
-            <div class="card-header">
-                <h2>Support Tickets</h2>
-                <button class="add-user-btn" id="openTicketModal">+ New Ticket</button>
-            </div>
-            <div id="ticketList" class="ticket-list">
-                <!-- Tickets render here -->
-            </div>
-        </section>
-
-        <!-- Maintenance Mode -->
-        <section class="admin-card" style="margin-top: 20px;">
-            <div class="card-header">
-                <h2>Maintenance Mode</h2>
-                <span id="mtStatus" style="font-size:12px; color:#64748b;"></span>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:14px; padding-top:6px;">
-                <label style="display:flex; align-items:center; gap:10px; font-size:14px; cursor:pointer;">
-                    <input type="checkbox" id="mtEnabled"> Enable maintenance mode
-                </label>
-                <div class="form-group">
-                    <label>Ends at</label>
-                    <input type="datetime-local" id="mtEndsAt">
-                </div>
-                <div class="form-group">
-                    <label>Message (optional)</label>
-                    <input type="text" id="mtMessage" placeholder="Sistem bakımda, kısa süre içinde döneceğiz...">
-                </div>
-                <button class="add-user-btn" id="mtSave" style="align-self:flex-start;">Save Maintenance Settings</button>
-            </div>
-        </section>
     </div>
 
     <!-- User Management Modal -->
