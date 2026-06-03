@@ -198,7 +198,7 @@
                     </div>
                     <div class="form-group">
                         <label>Message</label>
-                        <textarea id="ticketMessage" rows="5" required style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:14px; box-sizing:border-box; resize:vertical;"></textarea>
+                        <textarea id="ticketMessage" rows="5" required></textarea>
                     </div>
                 </div>
                 <div class="modal-actions vertical">
@@ -216,11 +216,11 @@
                 <button class="close-modal" id="closeTicketDetail">&times;</button>
             </div>
             <div class="modal-body">
-                <div id="tdMeta" style="font-size:12px; color:#64748b; margin-bottom:12px;"></div>
-                <div id="tdThread" style="max-height:260px; overflow-y:auto; margin-bottom:14px;"></div>
+                <div id="tdMeta"></div>
+                <div id="tdThread"></div>
                 <div class="form-group">
                     <label>Reply</label>
-                    <textarea id="tdReply" rows="3" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:14px; box-sizing:border-box; resize:vertical;"></textarea>
+                    <textarea id="tdReply" rows="3"></textarea>
                 </div>
                 <div class="form-group">
                     <label>Status</label>
@@ -233,7 +233,7 @@
             </div>
             <div class="modal-actions vertical">
                 <button class="action-btn save-btn" id="tdSendReply">Send Reply</button>
-                <button class="action-btn" id="tdUpdateStatus" style="background:#e2e8f0; color:#475569;">Update Status</button>
+                <button class="action-btn secondary" id="tdUpdateStatus">Update Status</button>
             </div>
         </div>
     </div>
