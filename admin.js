@@ -411,8 +411,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ── MAINTENANCE MODE ───────────────────────────────────────
+    const mtEnabled = document.getElementById('mtEnabled');
+    const mtEndsAt = document.getElementById('mtEndsAt');
+    const mtMessage = document.getElementById('mtMessage');
+    const mtStatus = document.getElementById('mtStatus');
+
+    // Convert a Date to the value format a datetime-local input expects (local time).
+    const toLocalInput = (date) => {
+        const tz = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() - tz).toISOString().slice(0, 16);
+    };
+
+    const loadMaintenance = () => {
+        db.collection('systemConfig').doc('maintenance').onSnapshot(doc => {
+            if (doc.exists) {
+                const d = doc.data();
+                mtEnabled.checked = !!d.enabled;
+                if (d.endsAt && d.endsAt.toDate) mtEndsAt.value = toLocalInput(d.endsAt.toDate());
+                mtMessage.value = d.message || '';
+                const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
+                const active = d.enabled && ends && ends > new Date();
+                mtStatus.textContent = active
+                    ? `Active until ${ends.toLocaleString('tr-TR')}`
+                    : 'Inactive';
+                mtStatus.style.color = active ? '#dc2626' : '#64748b';
+            } else {
+                mtStatus.textContent = 'Inactive';
+            }
+        });
+    };
+
+    document.getElementById('mtSave').onclick = async () => {
+        const enabled = mtEnabled.checked;
+        const endsVal = mtEndsAt.value;
+        if (enabled && !endsVal) return showToast('Please set an end time.', true);
+        try {
+            await db.collection('systemConfig').doc('maintenance').set({
+                enabled,
+                endsAt: endsVal ? firebase.firestore.Timestamp.fromDate(new Date(endsVal)) : null,
+                message: mtMessage.value.trim(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            showToast('Maintenance settings saved.');
+        } catch (err) {
+            console.error(err);
+            showToast('Error: ' + err.message, true);
+        }
+    };
+
     fetchUsers();
     fetchActivity();
     loadSubscription();
     fetchTickets();
+    loadMaintenance();
 });
