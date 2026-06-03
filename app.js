@@ -1,3 +1,15 @@
+// Maintenance enforcement — also runs here so it works even if a cached page
+// didn't load the guard script.
+(function () {
+    if (typeof db === 'undefined') return;
+    db.collection('systemConfig').doc('maintenance').onSnapshot((doc) => {
+        if (!doc.exists) return;
+        const d = doc.data();
+        const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
+        if (d.enabled && ends && ends > new Date()) window.location.replace('maintenance.html');
+    }, function () {});
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
     const logoWrapper = document.getElementById('logoWrapper');
     const loginCard = document.getElementById('loginCard');
