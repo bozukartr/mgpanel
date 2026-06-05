@@ -10,6 +10,26 @@
     }, function () {});
 })();
 
+// Returns true if the given hotel (tenant) has an active subscription.
+// Reads the tenant document first; falls back to the legacy systemConfig
+// document during the multi-tenancy transition.
+async function isSubscriptionActive(tenantId) {
+    const now = new Date();
+    try {
+        const tDoc = await db.collection('tenants').doc(tenantId).get();
+        if (tDoc.exists && tDoc.data().subscriptionEnd) {
+            return tDoc.data().subscriptionEnd.toDate() > now;
+        }
+    } catch (e) { /* fall through to legacy */ }
+    try {
+        const subDoc = await db.collection('systemConfig').doc('subscription').get();
+        if (subDoc.exists && subDoc.data().subscriptionEnd) {
+            return subDoc.data().subscriptionEnd.toDate() > now;
+        }
+    } catch (e) { /* ignore */ }
+    return false;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const logoWrapper = document.getElementById('logoWrapper');
     const loginCard = document.getElementById('loginCard');
@@ -69,23 +89,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
             const uid = userCredential.user.uid;
 
-            // Check team-wide subscription
-            const subDoc = await db.collection('systemConfig').doc('subscription').get();
-            if (subDoc.exists) {
-                const subData = subDoc.data();
-                const now = new Date();
-                const end = subData.subscriptionEnd ? subData.subscriptionEnd.toDate() : null;
-                if (!end || end < now) {
-                    showPaymentOverlay();
-                    return;
-                }
-            } else {
+            // Resolve the user's hotel (tenant). Falls back to the default during transition.
+            const userDoc = await db.collection('systemUsers').doc(uid).get();
+            const userData = userDoc.exists ? userDoc.data() : null;
+            const tenantId = (userData && userData.tenantId) ? userData.tenantId : TENANT_ID;
+
+            // Check this hotel's subscription (tenant document first, legacy config as fallback).
+            const subActive = await isSubscriptionActive(tenantId);
+            if (!subActive) {
                 showPaymentOverlay();
                 return;
             }
-
-            const userDoc = await db.collection('systemUsers').doc(uid).get();
-            const userData = userDoc.exists ? userDoc.data() : null;
 
             // Admin requested a password reset: force a new password before continuing.
             if (userData && userData.mustChangePassword === true) {

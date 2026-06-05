@@ -128,11 +128,20 @@
         // Tenant registry document (requires updated Firestore rules; non-blocking)
         log('• tenants/' + TENANT + ' kaydı oluşturuluyor...');
         try {
-          await db.collection('tenants').doc(TENANT).set({
+          const reg = {
             id: TENANT,
             name: TENANT_NAME,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
+          };
+          // Carry over the existing subscription from the legacy systemConfig doc.
+          try {
+            const legacy = await db.collection('systemConfig').doc('subscription').get();
+            if (legacy.exists && legacy.data().subscriptionEnd) {
+              reg.subscriptionEnd = legacy.data().subscriptionEnd;
+              log('  → mevcut abonelik tarihi tenant belgesine taşınıyor', 'ok');
+            }
+          } catch (e) { /* ignore */ }
+          await db.collection('tenants').doc(TENANT).set(reg, { merge: true });
           log('  ✓ Otel kaydı hazır: ' + TENANT_NAME, 'ok');
         } catch (e) {
           log('  ⚠ Otel kaydı yazılamadı (önce güncel kuralları deploy edin): ' + e.message, 'warn');
