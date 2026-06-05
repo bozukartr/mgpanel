@@ -3,97 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>StayOS — Otel Yönetim Platformu</title>
-    <meta name="description" content="StayOS — oteller için modern resepsiyon, concierge ve misafir yönetim platformu. Çok yakında.">
-    <meta property="og:title" content="StayOS — Otel Yönetim Platformu">
-    <meta property="og:description" content="Oteliniz için modern resepsiyon, concierge ve misafir yönetim platformu. Çok yakında.">
+    <title>StayOS</title>
+    <meta name="description" content="StayOS — otel yönetim platformu.">
     <meta name="theme-color" content="#0f172a">
     <link rel="icon" href="logo.png">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
         body {
-            font-family: 'Outfit', sans-serif;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
-            color: #e2e8f0;
             padding: 24px;
         }
-        .s-container { text-align: center; max-width: 520px; width: 100%; }
+        .s-logo-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+        }
         .s-logo {
-            width: 120px; height: auto; margin-bottom: 30px;
+            width: 180px;
+            max-width: 60vw;
+            height: auto;
             user-select: none;
-            filter: brightness(0) invert(1); opacity: 0.95;
+            filter: brightness(0) invert(1);
+            opacity: 0.95;
+            transition: opacity .2s ease;
         }
-        .s-badge {
-            display: inline-block;
-            font-size: 11px; font-weight: 600;
-            letter-spacing: 2px; text-transform: uppercase;
-            color: #93c5fd;
-            background: rgba(37,99,235,0.12);
-            border: 1px solid rgba(37,99,235,0.3);
-            padding: 6px 16px; border-radius: 999px;
-            margin-bottom: 22px;
-        }
-        h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 14px; }
-        .s-sub {
-            font-size: 15px; color: #94a3b8; line-height: 1.6;
-            max-width: 420px; margin: 0 auto 32px;
-        }
-        .s-features {
-            display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
-            margin-bottom: 40px;
-        }
-        .s-feature {
-            font-size: 13px; color: #cbd5e1;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 10px; padding: 10px 16px;
-        }
-        .s-login {
-            display: inline-flex; align-items: center; gap: 9px;
-            padding: 13px 28px;
-            background: #2563eb; color: #fff;
-            text-decoration: none; font-weight: 600; font-size: 14px;
-            border-radius: 10px;
-            transition: background .15s ease;
-        }
-        .s-login:hover { background: #1d4ed8; }
-        .s-login svg { width: 17px; height: 17px; }
-        .s-footer { margin-top: 44px; font-size: 12.5px; color: #475569; }
-        .s-footer a { color: #64748b; text-decoration: none; }
-        .s-footer a:hover { color: #94a3b8; }
+        .s-logo-link:hover .s-logo { opacity: 1; }
     </style>
 </head>
 <body>
-    <div class="s-container">
+    <a href="login.html" class="s-logo-link" aria-label="Giriş">
         <img src="logo.png" alt="StayOS" class="s-logo">
-        <div class="s-badge">Çok Yakında</div>
-        <h1>StayOS</h1>
-        <p class="s-sub">
-            Oteliniz için modern resepsiyon, concierge ve misafir yönetim platformu.
-            Tek panelde rezervasyon, misafir takibi ve operasyon.
-        </p>
-        <div class="s-features">
-            <div class="s-feature">Rezervasyon Yönetimi</div>
-            <div class="s-feature">Concierge &amp; CRM</div>
-            <div class="s-feature">Misafir Takibi</div>
-        </div>
-        <a href="login.html" class="s-login">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-                <polyline points="10 17 15 12 10 7"></polyline>
-                <line x1="15" y1="12" x2="3" y2="12"></line>
-            </svg>
-            Personel Girişi
-        </a>
-        <div class="s-footer">
-            © <span id="year"></span> StayOS · <a href="login.html">Giriş</a>
-        </div>
-    </div>
-    <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+    </a>
 </body>
 </html>
