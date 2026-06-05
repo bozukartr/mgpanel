@@ -251,29 +251,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const subExpiry = document.getElementById('subExpiry');
     const subDateInput = document.getElementById('subDateInput');
 
+    const renderSubscription = (end) => {
+        const now = new Date();
+        if (end && end > now) {
+            const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+            subStatus.textContent = `Active — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
+            subStatus.className = 'sub-status active';
+            subExpiry.textContent = `Expires: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+        } else if (end) {
+            subStatus.textContent = 'Expired';
+            subStatus.className = 'sub-status expired';
+            subExpiry.textContent = `Expired: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+        } else {
+            subStatus.textContent = 'Not Set';
+            subStatus.className = 'sub-status expired';
+            subExpiry.textContent = 'No subscription set';
+        }
+        if (end && subDateInput) subDateInput.value = end.toISOString().slice(0, 10);
+    };
+
     const loadSubscription = () => {
-        db.collection('systemConfig').doc('subscription').onSnapshot(doc => {
-            if (doc.exists) {
-                const data = doc.data();
-                const end = data.subscriptionEnd ? data.subscriptionEnd.toDate() : null;
-                const now = new Date();
-                if (end && end > now) {
-                    const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-                    subStatus.textContent = `Active — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
-                    subStatus.className = 'sub-status active';
-                    subExpiry.textContent = `Expires: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
-                } else {
-                    subStatus.textContent = 'Expired';
-                    subStatus.className = 'sub-status expired';
-                    subExpiry.textContent = end ? `Expired: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}` : 'No subscription set';
-                }
-                if (end && subDateInput) subDateInput.value = end.toISOString().slice(0, 10);
-            } else {
-                subStatus.textContent = 'Not Set';
-                subStatus.className = 'sub-status expired';
-                subExpiry.textContent = 'No subscription document found';
+        // Read this hotel's subscription from its tenant document (realtime),
+        // falling back to the legacy systemConfig doc during the transition.
+        db.collection('tenants').doc(TENANT_ID).onSnapshot(async doc => {
+            let end = (doc.exists && doc.data().subscriptionEnd) ? doc.data().subscriptionEnd.toDate() : null;
+            if (!end) {
+                try {
+                    const legacy = await db.collection('systemConfig').doc('subscription').get();
+                    if (legacy.exists && legacy.data().subscriptionEnd) end = legacy.data().subscriptionEnd.toDate();
+                } catch (e) { /* ignore */ }
             }
-        });
+            renderSubscription(end);
+        }, () => {});
     };
 
     // ── SUPPORT TICKETS ────────────────────────────────────────
