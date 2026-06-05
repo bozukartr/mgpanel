@@ -7,10 +7,12 @@
     <meta name="description" content="StayOS — otel yönetim platformu.">
     <meta name="theme-color" content="#0f172a">
     <link rel="icon" href="logo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; }
         body {
+            font-family: 'Outfit', sans-serif;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -20,12 +22,13 @@
         }
         .s-logo-link {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            line-height: 0;
+            text-decoration: none;
         }
         .s-logo {
-            width: 180px;
+            width: 170px;
             max-width: 60vw;
             height: auto;
             user-select: none;
@@ -33,12 +36,20 @@
             opacity: 0.95;
             transition: opacity .2s ease;
         }
+        .s-name {
+            margin-top: 22px;
+            font-size: 34px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #f8fafc;
+        }
         .s-logo-link:hover .s-logo { opacity: 1; }
     </style>
 </head>
 <body>
     <a href="login.html" class="s-logo-link" aria-label="Giriş">
         <img src="logo.png" alt="StayOS" class="s-logo">
+        <span class="s-name">StayOS</span>
     </a>
 </body>
 </html>
