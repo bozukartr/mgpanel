@@ -332,6 +332,13 @@
     });
     $('logoutBtn').addEventListener('click', () => auth.signOut());
     $('deniedLogout').addEventListener('click', () => auth.signOut());
+    $('copyUid').addEventListener('click', () => {
+        const uid = $('deniedUid').textContent;
+        navigator.clipboard.writeText(uid).then(() => {
+            const b = $('copyUid'); b.textContent = 'Kopyalandı ✓';
+            setTimeout(() => { b.textContent = 'Kopyala'; }, 1600);
+        });
+    });
 
     function show(screen) {
         loginScreen.classList.toggle('hidden', screen !== 'login');
@@ -348,7 +355,11 @@
             const doc = await db.collection('superAdmins').doc(user.uid).get();
             isSuper = doc.exists;
         } catch (e) { isSuper = false; }
-        if (!isSuper) { show('denied'); return; }
+        if (!isSuper) {
+            $('deniedUid').textContent = user.uid;
+            show('denied');
+            return;
+        }
 
         // Fill operator identity
         $('sbEmail').textContent = user.email || '';

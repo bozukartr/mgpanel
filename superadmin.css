@@ -64,6 +64,14 @@ button { font-family: inherit; cursor: pointer; }
 }
 .denied-icon svg { width: 30px; height: 30px; }
 .auth-card.text-center { text-align: center; }
+.uid-box { background: #f6f8fb; border: 1px solid var(--border); border-radius: 11px; padding: 14px; margin-top: 18px; text-align: left; }
+.uid-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+.uid-row { display: flex; align-items: center; gap: 8px; }
+.uid-row code {
+    flex: 1; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12.5px; color: var(--text);
+    background: #fff; border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; overflow-x: auto; white-space: nowrap;
+}
+.uid-row .btn-ghost { padding: 8px 12px; flex-shrink: 0; }
 
 /* ===== App shell ===== */
 .shell { display: flex; min-height: 100vh; }
