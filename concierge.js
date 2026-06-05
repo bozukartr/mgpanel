@@ -110,9 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // EXPORT: JSON (Full System Backup)
     exportDataBtn?.addEventListener('click', async () => {
         try {
-            const logsSnap = await db.collection('guestLogs').get();
-            const resSnap = await db.collection('reservations').get();
-            const dirSnap = await db.collection('guestDirectory').get();
+            const logsSnap = await db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get();
+            const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
+            const dirSnap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
 
             const fullBackup = {
                 guestLogs: logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -396,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let guestDirectory = [];
 
     // Load Guest Directory for Global Autocomplete
-    db.collection('guestDirectory').onSnapshot(snap => {
+    db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
         guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         // Auto Check-Out past guests
@@ -416,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAutocompletes();
     });
 
-    db.collection('reservations').orderBy('date', 'asc').onSnapshot(snap => {
+    db.collection('reservations').where('tenantId', '==', TENANT_ID).orderBy('date', 'asc').onSnapshot(snap => {
         reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // Update Guest Map for Autocomplete

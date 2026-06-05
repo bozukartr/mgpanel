@@ -23,18 +23,51 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
     }
 
-    // --- Business data: any signed-in user ---
-    match /reservations/{id}   { allow read, write: if signedIn(); }
-    match /guestLogs/{id}      { allow read, write: if signedIn(); }
-    match /guestDirectory/{id} { allow read, write: if signedIn(); }
+    // The caller's hotel (tenant). Untagged legacy users are treated as the
+    // first hotel so nothing is locked out before/while data is migrated.
+    function callerTenant() {
+      return get(/databases/$(database)/documents/systemUsers/$(request.auth.uid))
+               .data.get('tenantId', 'mgallery');
+    }
 
-    // --- User accounts ---
+    // Tenant guards. Untagged legacy documents default to the first hotel.
+    function readOwnTenant() {
+      return isSuperAdmin()
+        || (signedIn() && resource.data.get('tenantId', 'mgallery') == callerTenant());
+    }
+    function writeOwnTenant() {
+      return isSuperAdmin()
+        || (signedIn() && request.resource.data.get('tenantId', 'mgallery') == callerTenant());
+    }
+
+    // --- Business data: isolated per hotel (tenant) ---
+    match /reservations/{id} {
+      allow read:   if readOwnTenant();
+      allow create: if writeOwnTenant();
+      allow update: if readOwnTenant() && writeOwnTenant();
+      allow delete: if readOwnTenant();
+    }
+    match /guestLogs/{id} {
+      allow read:   if readOwnTenant();
+      allow create: if writeOwnTenant();
+      allow update: if readOwnTenant() && writeOwnTenant();
+      allow delete: if readOwnTenant();
+    }
+    match /guestDirectory/{id} {
+      allow read:   if readOwnTenant();
+      allow create: if writeOwnTenant();
+      allow update: if readOwnTenant() && writeOwnTenant();
+      allow delete: if readOwnTenant();
+    }
+
+    // --- User accounts: scoped to the caller's hotel ---
     match /systemUsers/{uid} {
-      allow read:           if signedIn();
+      allow read: if readOwnTenant();
       // Tenant admins manage their own staff; superadmins can provision any hotel.
-      allow create, delete: if isAdmin() || isSuperAdmin();
-      // Admin/superadmin can update; a user may only clear their own forced-password flag.
-      allow update: if isAdmin() || isSuperAdmin()
+      allow create, delete: if (isAdmin() && writeOwnTenant()) || isSuperAdmin();
+      // Admin/superadmin can update within their hotel; a user may only clear
+      // their own forced-password flag.
+      allow update: if (isAdmin() && readOwnTenant() && writeOwnTenant()) || isSuperAdmin()
         || (signedIn()
             && request.auth.uid == uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword'])
@@ -42,28 +75,30 @@ service cloud.firestore {
     }
 
     // --- Maintenance flag: publicly readable so the login page / guard can check it
-    //     before authentication. Only the flag/end-time/message live here. ---
+    //     before authentication. ---
     match /systemConfig/maintenance {
       allow read:  if true;
       allow write: if isAdmin();
     }
 
-    // --- System config (subscription, settings): read by any signed-in user, written by admin ---
+    // --- System config (legacy global subscription/settings) ---
     match /systemConfig/{doc} {
       allow read:  if signedIn();
       allow write: if isAdmin();
     }
 
-    // --- Support tickets: admins only (open, view, reply, change status) ---
+    // --- Support tickets: per-hotel, admins only ---
     match /tickets/{id} {
-      allow read, write: if isAdmin();
+      allow read:   if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'mgallery') == callerTenant());
+      allow create: if isSuperAdmin() || (isAdmin() && request.resource.data.get('tenantId', 'mgallery') == callerTenant());
+      allow update: if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'mgallery') == callerTenant());
+      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'mgallery') == callerTenant());
     }
 
-    // --- Tenant registry (hotels). Each document represents one hotel/property.
-    //     Readable by any signed-in user; only the platform operator (superadmin)
-    //     creates hotels and manages subscriptions. ---
+    // --- Tenant registry (hotels). A user may read only their own hotel;
+    //     the platform operator (superadmin) reads/manages all. ---
     match /tenants/{tenantId} {
-      allow read:  if signedIn();
+      allow read:  if isSuperAdmin() || (signedIn() && tenantId == callerTenant());
       allow write: if isSuperAdmin();
     }
 
