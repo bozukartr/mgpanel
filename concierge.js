@@ -24,10 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
     const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
     const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
-    if (!loggedUsername) { window.location.href = 'index.html'; return; }
+    if (!loggedUsername) { window.location.href = 'login.html'; return; }
     auth.onAuthStateChanged(async (u) => {
         if (!u) {
-            window.location.href = 'index.html';
+            window.location.href = 'login.html';
         } else {
             // Doğrudan Firestore'dan güncel yetkiyi çek
             try {
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('c-logoutBtn')?.addEventListener('click', () => {
         auth.signOut().then(() => {
             localStorage.removeItem('hotelUsername');
-            window.location.href = 'index.html';
+            window.location.href = 'login.html';
         });
     });
 
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutTimer = setTimeout(() => {
             auth.signOut().then(() => {
                 localStorage.removeItem('hotelUsername');
-                window.location.href = 'index.html';
+                window.location.href = 'login.html';
             });
         }, 15 * 60 * 1000); // 15 minutes
     }

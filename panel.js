@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutBtn.addEventListener('click', () => {
             auth.signOut().then(() => {
                 localStorage.removeItem('hotelUsername');
-                window.location.href = 'index.html';
+                window.location.href = 'login.html';
             });
         });
     }
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutTimer = setTimeout(() => {
             auth.signOut().then(() => {
                 localStorage.removeItem('hotelUsername');
-                window.location.href = 'index.html';
+                window.location.href = 'login.html';
             });
         }, 15 * 60 * 1000); // 15 minutes
     }
@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetLogoutTimer(); // Start timer on load
 
     auth.onAuthStateChanged(user => {
-        if (!user) window.location.href = 'index.html';
+        if (!user) window.location.href = 'login.html';
     });
 
     // ── GUEST DIRECTORY & STATUS LOGIC ────────────────────────

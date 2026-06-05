@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>StayOS — Giriş</title>
+    <meta name="description" content="Ultra minimalistic login experience.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Splash / Logo Area -->
+        <div class="logo-wrapper" id="logoWrapper">
+            <img src="logo.png" alt="Logo" class="logo" id="logo">
+        </div>
+
+        <!-- Payment Required Overlay -->
+        <div id="paymentOverlay" class="payment-overlay">
+            <div class="payment-card">
+                <div class="payment-header">
+                    <span class="payment-badge">Abonelik Gerekli</span>
+                    <h2>Erişim Askıya Alındı</h2>
+                    <p>Sisteme erişim sağlamak için aylık abonelik ücretinin ödenmesi gerekmektedir.</p>
+                </div>
+                <div class="payment-amount">
+                    <span class="amount-label">Aylık Abonelik Ücreti</span>
+                    <span class="amount-value">15.000,00 TRY</span>
+                </div>
+                <div class="payment-iban">
+                    <div class="iban-row">
+                        <span class="iban-label">IBAN</span>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="iban-value" id="ibanValue">TR70 0004 6001 2088 8000 1943 49</span>
+                    <button id="copyIbanBtn" onclick="navigator.clipboard.writeText('TR700004600120888000194349').then(()=>{ this.textContent='✓'; setTimeout(()=>{ this.textContent='Kopyala'; },1500); })" style="background:#f0f0f0; border:none; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer; color:#444; white-space:nowrap;">Kopyala</button>
+                    </div>
+                </div>
+                    <div class="iban-row">
+                        <span class="iban-label">Hesap Sahibi</span>
+                        <span class="iban-value">Burak Göl</span>
+                    </div>
+                    <div class="iban-row">
+                        <span class="iban-label">Banka</span>
+                        <span class="iban-value">AKBANK A.Ş.</span>
+                    </div>
+                </div>
+                <p class="payment-note">Ödemenizi yaptıktan sonra yöneticinizle iletişime geçin. Onay sonrası erişiminiz aktifleştirilecektir.</p>
+                <button id="paymentCloseBtn" class="payment-close-btn">Geri Dön</button>
+            </div>
+        </div>
+
+        <!-- Login Form Area -->
+        <div class="login-card" id="loginCard">
+            
+            <form id="loginForm">
+                <div class="input-group">
+                    <input type="text" id="username" required placeholder=" ">
+                    <label for="username">Kullanıcı Adı</label>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" id="password" required placeholder=" ">
+                    <label for="password">Şifre</label>
+                </div>
+                
+
+                
+                <button type="submit" class="login-btn">Devam Et</button>
+                <div id="errorMessage" class="error-message"></div>
+            </form>
+        </div>
+
+        <!-- Force Password Change Area -->
+        <div class="login-card" id="forcePwCard" style="display:none;">
+            <p style="font-size:13px; color:#666; text-align:center; margin:0 0 18px;">
+                Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.
+            </p>
+            <form id="forcePwForm">
+                <div class="input-group">
+                    <input type="password" id="newPassword" required placeholder=" ">
+                    <label for="newPassword">Yeni Şifre</label>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="newPassword2" required placeholder=" ">
+                    <label for="newPassword2">Yeni Şifre (Tekrar)</label>
+                </div>
+                <button type="submit" class="login-btn">Şifreyi Kaydet</button>
+                <div id="pwError" class="error-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="maintenance-guard.js"></script>
+
+    <script src="app.js"></script>
+</body>
+</html>

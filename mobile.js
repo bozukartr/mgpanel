@@ -22,8 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
     const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
     const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
-    if (!loggedUsername) { window.location.href = 'index.html'; return; }
-    auth.onAuthStateChanged(u => { if (!u) window.location.href = 'index.html'; });
+    if (!loggedUsername) { window.location.href = 'login.html'; return; }
+    auth.onAuthStateChanged(u => { if (!u) window.location.href = 'login.html'; });
 
     document.querySelectorAll('.app-username').forEach(el => el.textContent = loggedUsername);
     if (isAdminUser) {
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('mob-logoutBtn')?.addEventListener('click', () => {
-        auth.signOut().then(() => { localStorage.removeItem('hotelUsername'); window.location.href = 'index.html'; });
+        auth.signOut().then(() => { localStorage.removeItem('hotelUsername'); window.location.href = 'login.html'; });
     });
 
     // ── TOAST ──────────────────────────────────────────────────

@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Verify admin access against Firestore (source of truth), not just localStorage.
     auth.onAuthStateChanged(async (u) => {
-        if (!u) { window.location.href = 'index.html'; return; }
+        if (!u) { window.location.href = 'login.html'; return; }
         try {
             const doc = await db.collection('systemUsers').doc(u.uid).get();
             const role = doc.exists ? (doc.data().role || '').toLowerCase() : '';
