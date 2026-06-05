@@ -17,8 +17,10 @@ async function isSubscriptionActive(tenantId) {
     const now = new Date();
     try {
         const tDoc = await db.collection('tenants').doc(tenantId).get();
-        if (tDoc.exists && tDoc.data().subscriptionEnd) {
-            return tDoc.data().subscriptionEnd.toDate() > now;
+        if (tDoc.exists) {
+            const t = tDoc.data();
+            if (t.suspended === true) return false;          // suspended by the operator
+            if (t.subscriptionEnd) return t.subscriptionEnd.toDate() > now;
         }
     } catch (e) { /* fall through to legacy */ }
     try {

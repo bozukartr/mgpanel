@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StayOS — Yönetim Konsolu</title>
+<meta name="theme-color" content="#0b1120">
+<link rel="icon" href="logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="superadmin.css">
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="loginScreen" class="auth-wrap">
+    <div class="auth-card">
+        <div class="brand"><img src="logo.png" alt=""><b>StayOS</b></div>
+        <span class="tag">Yönetim Konsolu</span>
+        <h1>Operatör Girişi</h1>
+        <p class="sub">Bu alan yalnızca platform yöneticileri içindir.</p>
+        <form id="loginForm">
+            <label for="suEmail">E-posta</label>
+            <input id="suEmail" type="email" autocomplete="username" placeholder="operator@stayos.org" required>
+            <label for="suPass">Şifre</label>
+            <input id="suPass" type="password" autocomplete="current-password" placeholder="••••••••" required>
+            <button type="submit" class="btn-primary" id="loginBtn">Giriş Yap</button>
+            <div class="auth-err" id="loginErr"></div>
+        </form>
+    </div>
+</div>
+
+<!-- ===== ACCESS DENIED ===== -->
+<div id="deniedScreen" class="auth-wrap hidden">
+    <div class="auth-card text-center">
+        <div class="denied-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
+        </div>
+        <h1>Erişim Reddedildi</h1>
+        <p class="sub">Bu hesap platform yöneticisi değil. Yönetim konsoluna erişim yetkiniz bulunmuyor.</p>
+        <button class="btn-ghost" id="deniedLogout" style="margin:0 auto;">Çıkış Yap</button>
+    </div>
+</div>
+
+<!-- ===== CONSOLE ===== -->
+<div id="console" class="shell hidden">
+    <aside class="sidebar" id="sidebar">
+        <div class="sb-brand">
+            <img src="logo.png" alt="">
+            <div><div class="name">StayOS</div><div class="role">Konsol</div></div>
+        </div>
+        <nav class="sb-nav">
+            <button class="sb-link active" data-view="overview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+                Genel Bakış
+            </button>
+            <button class="sb-link" data-view="hotels">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+                Oteller
+            </button>
+        </nav>
+        <div class="sb-foot">
+            <div class="sb-user">
+                <div class="avatar" id="sbAvatar">··</div>
+                <div class="info"><b id="sbName">Operatör</b><span id="sbEmail">—</span></div>
+            </div>
+            <button class="sb-logout" id="logoutBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Çıkış Yap
+            </button>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <div style="display:flex; align-items:center; gap:14px;">
+                <button class="icon-btn menu-toggle" id="menuToggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+                <div>
+                    <h1 id="pageTitle">Genel Bakış</h1>
+                    <div class="sub" id="pageSub">Platform genelinde özet</div>
+                </div>
+            </div>
+            <button class="btn-primary" id="newHotelBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Yeni Otel
+            </button>
+        </header>
+
+        <div class="content">
+            <!-- OVERVIEW -->
+            <section class="view active" id="view-overview">
+                <div class="kpi-grid" id="kpiGrid"></div>
+                <div class="card">
+                    <div class="card-head">
+                        <div><h3>Yaklaşan Yenilemeler</h3><div class="sub">Aboneliği 14 gün içinde bitecek oteller</div></div>
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Otel</th><th>Durum</th><th>Bitiş</th><th>Kalan</th></tr></thead>
+                        <tbody id="renewalsBody"></tbody>
+                    </table></div>
+                </div>
+            </section>
+
+            <!-- HOTELS -->
+            <section class="view" id="view-hotels">
+                <div class="card">
+                    <div class="card-head">
+                        <div><h3>Oteller</h3><div class="sub" id="hotelsCount">—</div></div>
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr>
+                            <th>Otel</th><th>Abonelik</th><th>Bitiş Tarihi</th><th>Kullanıcı</th><th>Oluşturma</th><th style="text-align:right;">İşlemler</th>
+                        </tr></thead>
+                        <tbody id="hotelsBody"></tbody>
+                    </table></div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: New Hotel ===== -->
+<div class="modal-backdrop" id="hotelModal">
+    <div class="modal">
+        <div class="modal-head"><h3>Yeni Otel Oluştur</h3><p>Otel kaydı ve ilk yönetici hesabı birlikte açılır.</p></div>
+        <div class="modal-body">
+            <label>Otel Adı</label>
+            <input id="nhName" placeholder="Grand Hotel İstanbul">
+            <label>Otel Kodu (subdomain / tenantId)</label>
+            <input id="nhSlug" placeholder="grandhotel" autocapitalize="off" spellcheck="false">
+            <div class="hint" id="nhSlugHint">Küçük harf, rakam ve tire. Örn: grandhotel → grandhotel.stayos.org</div>
+            <div class="field-row">
+                <div>
+                    <label>Yönetici Kullanıcı Adı</label>
+                    <input id="nhUser" placeholder="admin" autocapitalize="off" spellcheck="false">
+                </div>
+                <div>
+                    <label>Geçici Şifre</label>
+                    <input id="nhPass" type="text" placeholder="en az 6 karakter">
+                </div>
+            </div>
+            <label>Abonelik Bitiş Tarihi</label>
+            <input id="nhSubEnd" type="date">
+            <div class="modal-err" id="nhErr"></div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-ghost" data-close>Vazgeç</button>
+            <button class="btn-primary" id="nhCreate">Otel Oluştur</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: Subscription ===== -->
+<div class="modal-backdrop" id="subModal">
+    <div class="modal">
+        <div class="modal-head"><h3>Abonelik Yönetimi</h3><p id="subModalHotel">—</p></div>
+        <div class="modal-body">
+            <label>Abonelik Bitiş Tarihi</label>
+            <input id="subDate" type="date">
+            <div class="hint">Bu tarihe kadar otelin erişimi açık kalır.</div>
+            <div class="modal-err" id="subErr"></div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-ghost" data-close>Vazgeç</button>
+            <button class="btn-primary" id="subSave">Kaydet</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+<script src="firebase-config.js"></script>
+<script src="superadmin.js"></script>
+</body>
+</html>

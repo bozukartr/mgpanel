@@ -16,6 +16,13 @@ service cloud.firestore {
       return signedIn() && callerRole().lower() == 'admin';
     }
 
+    // Platform (vendor) operator. Membership lives in a dedicated collection
+    // that no tenant admin can write to, preventing privilege escalation.
+    function isSuperAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
+    }
+
     // --- Business data: any signed-in user ---
     match /reservations/{id}   { allow read, write: if signedIn(); }
     match /guestLogs/{id}      { allow read, write: if signedIn(); }
@@ -24,9 +31,10 @@ service cloud.firestore {
     // --- User accounts ---
     match /systemUsers/{uid} {
       allow read:           if signedIn();
-      allow create, delete: if isAdmin();
-      // Admin can update anything; a user may only clear their own forced-password flag.
-      allow update: if isAdmin()
+      // Tenant admins manage their own staff; superadmins can provision any hotel.
+      allow create, delete: if isAdmin() || isSuperAdmin();
+      // Admin/superadmin can update; a user may only clear their own forced-password flag.
+      allow update: if isAdmin() || isSuperAdmin()
         || (signedIn()
             && request.auth.uid == uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword'])
@@ -52,10 +60,18 @@ service cloud.firestore {
     }
 
     // --- Tenant registry (hotels). Each document represents one hotel/property.
-    //     Readable by any signed-in user; only admins manage the registry. ---
+    //     Readable by any signed-in user; only the platform operator (superadmin)
+    //     creates hotels and manages subscriptions. ---
     match /tenants/{tenantId} {
       allow read:  if signedIn();
-      allow write: if isAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    // --- Platform operators (vendor). Bootstrapped manually in the console;
+    //     never writable from the client to avoid privilege escalation. ---
+    match /superAdmins/{uid} {
+      allow read:  if isSuperAdmin();
+      allow write: if false;
     }
 
     // --- Deny everything else ---
