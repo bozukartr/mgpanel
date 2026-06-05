@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Fetch Users
     const fetchUsers = () => {
-        db.collection('systemUsers').onSnapshot(snapshot => {
+        db.collection('systemUsers').where('tenantId', '==', TENANT_ID).onSnapshot(snapshot => {
             usersTableBody.innerHTML = '';
             if (statUsers) statUsers.textContent = snapshot.size;
             snapshot.forEach(doc => {
@@ -184,10 +184,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 // Fetch all operational data
                 const [resSnap, dirSnap, logsSnap, usersSnap] = await Promise.all([
-                    db.collection('reservations').get(),
-                    db.collection('guestDirectory').get(),
-                    db.collection('guestLogs').get(),
-                    db.collection('systemUsers').get()
+                    db.collection('reservations').where('tenantId', '==', TENANT_ID).get(),
+                    db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get(),
+                    db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get(),
+                    db.collection('systemUsers').where('tenantId', '==', TENANT_ID).get()
                 ]);
 
                 const backupObj = {
@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTicketId = null;
 
     const fetchTickets = () => {
-        db.collection('tickets').orderBy('createdAt', 'desc').onSnapshot(snap => {
+        db.collection('tickets').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snap => {
             ticketList.innerHTML = '';
             let openCount = 0;
             snap.forEach(doc => {

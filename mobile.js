@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let guestDirectory = [];
     
     // Load Guest Directory
-    db.collection('guestDirectory').onSnapshot(snap => {
+    db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
         guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderFeed(); // Re-render to show status badges
     });
@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     setupDynamicAuto('ni-guest', 'guest-list');
 
-    db.collection('guestLogs').orderBy('createdAt', 'desc').onSnapshot(snap => {
+    db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snap => {
         records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         updateGuestMap();
         renderFeed();

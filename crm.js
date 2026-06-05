@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── CORE FUNCTIONS ─────────────────────────────────────────
     const loadAllData = async () => {
         try {
-            const dirSnap = await db.collection('guestDirectory').get();
+            const dirSnap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
             guestDirectory = dirSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
             // Auto Check-Out past guests
@@ -82,10 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Auto-checkout executed for past guests.");
             }
 
-            const logsSnap = await db.collection('guestLogs').get();
+            const logsSnap = await db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get();
             guestLogs = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            const resSnap = await db.collection('reservations').get();
+            const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
             reservations = resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
             renderGuestList();

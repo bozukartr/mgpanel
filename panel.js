@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let guestDirectory = [];
     async function loadGuestDirectory() {
         try {
-            const snap = await db.collection('guestDirectory').get();
+            const snap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
             guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
             // Auto Check-Out past guests
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // Load all current reservations to include concierge-only guests
-            const resSnap = await db.collection('reservations').get();
+            const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
             const resData = resSnap.docs.map(doc => doc.data());
 
             // Combine guest names from both logs and reservations
@@ -220,8 +220,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // EXPORT: JSON (Full System Backup)
     exportDataBtn?.addEventListener('click', async () => {
         try {
-            const logsSnap = await db.collection('guestLogs').get();
-            const resSnap = await db.collection('reservations').get();
+            const logsSnap = await db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get();
+            const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
 
             const fullBackup = {
                 guestLogs: logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -512,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Data Persistence
     const fetchRecords = () => {
-        db.collection('guestLogs').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+        db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snapshot => {
             records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             updateGuestMap();
             updateView(globalSearch.value, dateSearch.value);

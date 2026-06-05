@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const userList  = document.getElementById('userList');
     const userEmpty = document.getElementById('userEmpty');
 
-    db.collection('systemUsers').onSnapshot(snap => {
+    db.collection('systemUsers').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
         userList.innerHTML = '';
         if (snap.empty) {
             userEmpty.style.display = 'flex';
@@ -194,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── ACTIVITY FEED ──────────────────────────────────────────
     const activityList = document.getElementById('activityList');
 
-    db.collection('guestLogs').orderBy('createdAt', 'desc').limit(20).onSnapshot(snap => {
+    db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').limit(20).onSnapshot(snap => {
         activityList.innerHTML = '';
         snap.forEach(doc => {
             const log = doc.data();
@@ -231,10 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 // Fetch all operational data
                 const [resSnap, dirSnap, logsSnap, usersSnap] = await Promise.all([
-                    db.collection('reservations').get(),
-                    db.collection('guestDirectory').get(),
-                    db.collection('guestLogs').get(),
-                    db.collection('systemUsers').get()
+                    db.collection('reservations').where('tenantId', '==', TENANT_ID).get(),
+                    db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get(),
+                    db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get(),
+                    db.collection('systemUsers').where('tenantId', '==', TENANT_ID).get()
                 ]);
 
                 const backupObj = {
