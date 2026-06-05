@@ -36,8 +36,15 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>
         </div>
         <h1>Erişim Reddedildi</h1>
-        <p class="sub">Bu hesap platform yöneticisi değil. Yönetim konsoluna erişim yetkiniz bulunmuyor.</p>
-        <button class="btn-ghost" id="deniedLogout" style="margin:0 auto;">Çıkış Yap</button>
+        <p class="sub">Bu hesap henüz platform yöneticisi değil. Aşağıdaki kimliği <b>superAdmins</b> koleksiyonuna <b>belge ID'si</b> olarak ekleyin.</p>
+        <div class="uid-box">
+            <span class="uid-label">Hesap UID'niz</span>
+            <div class="uid-row">
+                <code id="deniedUid">—</code>
+                <button class="btn-ghost" id="copyUid">Kopyala</button>
+            </div>
+        </div>
+        <button class="btn-ghost" id="deniedLogout" style="margin:18px auto 0;">Çıkış Yap</button>
     </div>
 </div>
 
