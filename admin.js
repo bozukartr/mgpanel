@@ -120,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     email: email,
                     role: role,
                     department: department,
+                    tenantId: TENANT_ID,
                     mustChangePassword: true,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
@@ -351,6 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection('tickets').add({
                 subject, message, priority,
                 status: 'Open',
+                tenantId: TENANT_ID,
                 createdBy: loggedUsername,
                 createdByUid: auth.currentUser ? auth.currentUser.uid : '',
                 replies: [],

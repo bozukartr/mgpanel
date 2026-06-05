@@ -232,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: normalized,
                 room: room || '',
                 status: status,
+                tenantId: TENANT_ID,
                 lastUpdated: new Date().toISOString()
             };
             const docRef = await db.collection('guestDirectory').add(newGuest);
@@ -302,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 date, room, guestName: guest, department: dept,
                 complaint: comp || '', solution: sol || '',
                 staffInitial: loggedUsername,
+                tenantId: TENANT_ID,
                 status: 'Following', updates: [],
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });

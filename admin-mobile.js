@@ -119,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await db.collection('systemUsers').doc(uid).set({
                     uid, username, email, role,
                     department: dept,
+                    tenantId: TENANT_ID,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 showToast('User created: ' + username);
