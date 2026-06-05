@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const userInput = document.getElementById('username').value.trim();
-        const email = userInput.includes('@') ? userInput : userInput + "@hotel.com";
+        const email = userInput.includes('@') ? userInput : userEmail(userInput, resolveTenant());
         const password = document.getElementById('password').value;
 
         try {
@@ -92,7 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Resolve the user's hotel (tenant). Falls back to the default during transition.
             const userDoc = await db.collection('systemUsers').doc(uid).get();
             const userData = userDoc.exists ? userDoc.data() : null;
-            const tenantId = (userData && userData.tenantId) ? userData.tenantId : TENANT_ID;
+            const tenantId = (userData && userData.tenantId) ? userData.tenantId : resolveTenant();
+            // Persist the active hotel so every page stamps writes with the right tenant.
+            localStorage.setItem('hotelTenantId', tenantId);
 
             // Check this hotel's subscription (tenant document first, legacy config as fallback).
             const subActive = await isSubscriptionActive(tenantId);

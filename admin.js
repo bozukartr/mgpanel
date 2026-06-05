@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 // CREATE MODE
                 const password = passwordInput.value;
-                const email = username + "@hotel.com";
+                const email = userEmail(username, TENANT_ID);
 
                 // Ensure Secondary app is fresh
                 let secondaryApp;

@@ -131,6 +131,7 @@
           const reg = {
             id: TENANT,
             name: TENANT_NAME,
+            emailDomain: (TENANT === 'mgallery' ? 'hotel.com' : TENANT + '.com'),
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           };
           // Carry over the existing subscription from the legacy systemConfig doc.

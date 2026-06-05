@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!password || password.length < 6) {
                     showToast('Password must be at least 6 characters.', true); return;
                 }
-                const email = username + '@hotel.com';
+                const email = userEmail(username, TENANT_ID);
 
                 // Secondary app — don't disturb main session
                 let secondaryApp;

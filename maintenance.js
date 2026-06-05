@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const errEl = document.getElementById('mError');
         errEl.textContent = '';
         const userInput = document.getElementById('mUser').value.trim();
-        const email = userInput.includes('@') ? userInput : userInput + '@hotel.com';
+        const email = userInput.includes('@') ? userInput : userEmail(userInput, resolveTenant());
         const password = document.getElementById('mPass').value;
 
         try {
