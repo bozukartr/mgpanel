@@ -51,6 +51,13 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // --- Tenant registry (hotels). Each document represents one hotel/property.
+    //     Readable by any signed-in user; only admins manage the registry. ---
+    match /tenants/{tenantId} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;

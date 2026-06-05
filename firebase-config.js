@@ -13,3 +13,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+
+// --- Multi-tenancy (transitional) ---
+// Currently a single hotel. Every new document is stamped with this tenant id.
+// When a second hotel is added, this will be resolved dynamically from the
+// signed-in user's account instead of a hard-coded constant.
+const TENANT_ID = 'mgallery';

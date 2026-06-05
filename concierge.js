@@ -543,6 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: statusToSet,
                 checkIn: checkIn || '',
                 checkOut: checkOut || '',
+                tenantId: TENANT_ID,
                 lastUpdated: new Date().toISOString()
             };
             await db.collection('guestDirectory').add(newGuest);
@@ -975,6 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Create new
                 data.status = 'Pending';
                 data.staffInitial = loggedUsername;
+                data.tenantId = TENANT_ID;
                 data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
                 await db.collection('reservations').add(data);
                 await syncGuestStatus(guestName, isPreArrival ? '' : room, isPreArrival, checkIn, checkOut); // Sync with directory

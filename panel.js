@@ -116,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: normalized,
                 room: room || '',
                 status: status,
+                tenantId: TENANT_ID,
                 lastUpdated: new Date().toISOString()
             };
             const docRef = await db.collection('guestDirectory').add(newGuest);
@@ -367,6 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 complaint: complaint || '',
                 solution: solution || '',
                 staffInitial: loggedUsername,
+                tenantId: TENANT_ID,
                 status: 'Following',
                 updates: [],
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -553,6 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 staffInitial: document.getElementById('staffInitial').value,
                 status: 'Following',
                 updates: [],
+                tenantId: TENANT_ID,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             await syncGuestStatus(formData.guestName, formData.room);

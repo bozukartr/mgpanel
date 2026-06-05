@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tenant Etiketleme · MGallery</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #0f172a; color: #e2e8f0; margin: 0;
+    display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px;
+  }
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 16px;
+    padding: 32px; width: 100%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { color: #94a3b8; font-size: 13px; margin: 0 0 24px; line-height: 1.6; }
+  label { display: block; font-size: 13px; color: #cbd5e1; margin: 14px 0 6px; }
+  input {
+    width: 100%; padding: 11px 13px; border-radius: 9px; border: 1px solid #475569;
+    background: #0f172a; color: #fff; font-size: 14px;
+  }
+  input:focus { outline: none; border-color: #6366f1; }
+  button {
+    width: 100%; margin-top: 22px; padding: 12px; border: none; border-radius: 9px;
+    background: #6366f1; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #4f46e5; }
+  button:disabled { background: #475569; cursor: not-allowed; }
+  .tenant-box {
+    background: #0f172a; border: 1px solid #334155; border-radius: 9px;
+    padding: 12px 14px; font-size: 13px; color: #cbd5e1; margin-bottom: 4px;
+  }
+  .tenant-box b { color: #818cf8; }
+  .log {
+    margin-top: 20px; font-size: 12.5px; color: #94a3b8; line-height: 1.7;
+    background: #0f172a; border: 1px solid #334155; border-radius: 9px; padding: 12px 14px;
+    max-height: 240px; overflow-y: auto; white-space: pre-wrap; display: none;
+  }
+  .log.show { display: block; }
+  .ok { color: #4ade80; } .err { color: #f87171; } .warn { color: #fbbf24; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🏨 Tenant Etiketleme</h1>
+    <p class="sub">Mevcut tüm verileri <b>MGallery</b> otelinin (<code>tenantId: "mgallery"</code>) altına etiketler. Yalnızca <b>tenantId'si olmayan</b> belgeler güncellenir — tekrar çalıştırmak güvenlidir. Admin hesabıyla giriş yapın.</p>
+
+    <div id="loginBox">
+      <label for="email">E-posta</label>
+      <input id="email" type="email" autocomplete="username" placeholder="admin@ornek.com">
+      <label for="password">Şifre</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+      <button id="loginBtn">Giriş yap ve devam et</button>
+    </div>
+
+    <div id="runBox" class="hidden">
+      <div class="tenant-box">Hedef otel: <b>MGallery</b> · tenantId: <b>mgallery</b></div>
+      <p class="sub" id="who"></p>
+      <button id="runBtn">🏷️ Mevcut verileri etiketle</button>
+      <button id="logoutBtn" style="background:#334155; margin-top:10px;">Çıkış yap</button>
+    </div>
+
+    <div id="log" class="log"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+
+  <script>
+    const TENANT = (typeof TENANT_ID !== 'undefined') ? TENANT_ID : 'mgallery';
+    const TENANT_NAME = 'MGallery';
+    const COLLECTIONS = ['reservations', 'guestLogs', 'guestDirectory', 'systemUsers', 'tickets'];
+
+    const logEl = document.getElementById('log');
+    function log(msg, cls) {
+      logEl.classList.add('show');
+      const span = document.createElement('div');
+      if (cls) span.className = cls;
+      span.textContent = msg;
+      logEl.appendChild(span);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function tagCollection(col) {
+      const snap = await db.collection(col).get();
+      let toUpdate = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        if (!d.tenantId) toUpdate.push(doc.ref);
+      });
+      if (toUpdate.length === 0) {
+        log('  ✓ ' + col + ': zaten etiketli (' + snap.size + ' belge)', 'ok');
+        return 0;
+      }
+      // Commit in batches of 400
+      let done = 0;
+      for (let i = 0; i < toUpdate.length; i += 400) {
+        const batch = db.batch();
+        toUpdate.slice(i, i + 400).forEach(ref => batch.set(ref, { tenantId: TENANT }, { merge: true }));
+        await batch.commit();
+        done += Math.min(400, toUpdate.length - i);
+      }
+      log('  ✓ ' + col + ': ' + done + ' belge etiketlendi (' + snap.size + ' toplam)', 'ok');
+      return done;
+    }
+
+    async function run() {
+      const btn = document.getElementById('runBtn');
+      btn.disabled = true;
+      logEl.innerHTML = '';
+      try {
+        let total = 0;
+        for (const col of COLLECTIONS) {
+          log('• ' + col + ' işleniyor...');
+          try {
+            total += await tagCollection(col);
+          } catch (e) {
+            log('  ⚠ ' + col + ' hatası: ' + e.message, 'err');
+          }
+        }
+
+        // Tenant registry document (requires updated Firestore rules; non-blocking)
+        log('• tenants/' + TENANT + ' kaydı oluşturuluyor...');
+        try {
+          await db.collection('tenants').doc(TENANT).set({
+            id: TENANT,
+            name: TENANT_NAME,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          log('  ✓ Otel kaydı hazır: ' + TENANT_NAME, 'ok');
+        } catch (e) {
+          log('  ⚠ Otel kaydı yazılamadı (önce güncel kuralları deploy edin): ' + e.message, 'warn');
+        }
+
+        log('Tamamlandı. ' + total + ' belge "' + TENANT + '" olarak etiketlendi.', 'ok');
+      } catch (e) {
+        log('Hata: ' + e.message, 'err');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function showRun(user) {
+      document.getElementById('loginBox').classList.add('hidden');
+      document.getElementById('runBox').classList.remove('hidden');
+      document.getElementById('who').textContent = 'Giriş yapıldı: ' + user.email;
+    }
+    function showLogin() {
+      document.getElementById('runBox').classList.add('hidden');
+      document.getElementById('loginBox').classList.remove('hidden');
+    }
+
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const pass = document.getElementById('password').value;
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      try {
+        await auth.signInWithEmailAndPassword(email, pass);
+      } catch (e) {
+        log('Giriş hatası: ' + e.message, 'err');
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('runBtn').addEventListener('click', run);
+    document.getElementById('logoutBtn').addEventListener('click', () => auth.signOut());
+
+    auth.onAuthStateChanged(user => {
+      document.getElementById('loginBtn').disabled = false;
+      if (user) showRun(user); else showLogin();
+    });
+  </script>
+</body>
+</html>
