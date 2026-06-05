@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>StayOS — Giriş</title>
+    <meta name="description" content="Ultra minimalistic login experience.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Splash / Logo Area -->
+        <div class="logo-wrapper" id="logoWrapper">
+            <img src="logo.png" alt="Logo" class="logo" id="logo">
+        </div>
+
+        <!-- Access Restricted Overlay -->
+        <div id="paymentOverlay" class="payment-overlay">
+            <div class="payment-card">
+                <div class="restricted-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                </div>
+                <div class="payment-header">
+                    <h2>Erişim Kısıtlandı</h2>
+                </div>
+                <button id="paymentCloseBtn" class="payment-close-btn">Geri Dön</button>
+            </div>
+        </div>
+
+        <!-- Login Form Area -->
+        <div class="login-card" id="loginCard">
+            
+            <form id="loginForm">
+                <div class="input-group">
+                    <input type="text" id="username" required placeholder=" ">
+                    <label for="username">Kullanıcı Adı</label>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" id="password" required placeholder=" ">
+                    <label for="password">Şifre</label>
+                </div>
+                
+
+                
+                <button type="submit" class="login-btn">Devam Et</button>
+                <div id="errorMessage" class="error-message"></div>
+            </form>
+        </div>
+
+        <!-- Force Password Change Area -->
+        <div class="login-card" id="forcePwCard" style="display:none;">
+            <p style="font-size:13px; color:#666; text-align:center; margin:0 0 18px;">
+                Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.
+            </p>
+            <form id="forcePwForm">
+                <div class="input-group">
+                    <input type="password" id="newPassword" required placeholder=" ">
+                    <label for="newPassword">Yeni Şifre</label>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="newPassword2" required placeholder=" ">
+                    <label for="newPassword2">Yeni Şifre (Tekrar)</label>
+                </div>
+                <button type="submit" class="login-btn">Şifreyi Kaydet</button>
+                <div id="pwError" class="error-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="maintenance-guard.js"></script>
+
+    <script src="app.js"></script>
+</body>
+</html>

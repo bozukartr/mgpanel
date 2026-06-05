@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (!pendingPwUser) {
-            window.location.href = 'index.html';
+            window.location.href = 'login.html';
             return;
         }
 

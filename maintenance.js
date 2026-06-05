@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let timer = null;
 
     const pad = (n) => String(n).padStart(2, '0');
-    const goToLogin = () => window.location.replace('index.html');
+    const goToLogin = () => window.location.replace('login.html');
 
     function tick() {
         if (!endsAt) return;
