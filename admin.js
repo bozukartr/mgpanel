@@ -43,12 +43,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const userForm = document.getElementById('userForm');
 
     let currentEditingUserId = null;
+    let userCount = 0;
+    const maxUsers = () => parseInt(localStorage.getItem('hotelMaxUsers') || '0', 10);
 
     // 2. Fetch Users
     const fetchUsers = () => {
         db.collection('systemUsers').where('tenantId', '==', TENANT_ID).onSnapshot(snapshot => {
             usersTableBody.innerHTML = '';
-            if (statUsers) statUsers.textContent = snapshot.size;
+            userCount = snapshot.size;
+            const lim = maxUsers();
+            if (statUsers) statUsers.textContent = lim > 0 ? `${snapshot.size} / ${lim}` : snapshot.size;
             snapshot.forEach(doc => {
                 const user = doc.data();
                 const tr = document.createElement('tr');
@@ -97,6 +101,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Permissions updated for ' + username);
             } else {
                 // CREATE MODE
+                const lim = maxUsers();
+                if (lim > 0 && userCount >= lim) {
+                    showToast(`Kullanıcı limitine ulaşıldı (${lim}). Daha fazlası için paketinizi yükseltin.`, true);
+                    return;
+                }
                 const password = passwordInput.value;
                 const email = userEmail(username, TENANT_ID);
 

@@ -115,7 +115,7 @@
                     </div>
                     <div class="table-wrap"><table>
                         <thead><tr>
-                            <th>Otel</th><th>Abonelik</th><th>Bitiş Tarihi</th><th>Kullanıcı</th><th>Oluşturma</th><th style="text-align:right;">İşlemler</th>
+                            <th>Otel</th><th>Paket</th><th>Abonelik</th><th>Kullanıcı</th><th>Modüller</th><th style="text-align:right;">İşlemler</th>
                         </tr></thead>
                         <tbody id="hotelsBody"></tbody>
                     </table></div>
@@ -145,6 +145,27 @@
                     <input id="nhPass" type="text" placeholder="en az 6 karakter">
                 </div>
             </div>
+            <div class="field-row">
+                <div>
+                    <label>Paket</label>
+                    <select id="nhPlan" class="m-select">
+                        <option value="starter">Başlangıç</option>
+                        <option value="pro">Profesyonel</option>
+                        <option value="enterprise">Kurumsal</option>
+                        <option value="custom">Özel</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Maks. Kullanıcı</label>
+                    <input id="nhMaxUsers" type="number" min="0" placeholder="0 = sınırsız">
+                </div>
+            </div>
+            <label>Modüller</label>
+            <div class="mod-checks" id="nhModules">
+                <label class="mod-check"><input type="checkbox" data-mod="concierge"> Concierge</label>
+                <label class="mod-check"><input type="checkbox" data-mod="crm"> CRM</label>
+                <label class="mod-check"><input type="checkbox" data-mod="guestIssues"> Misafir Kayıtları</label>
+            </div>
             <label>Abonelik Bitiş Tarihi</label>
             <input id="nhSubEnd" type="date">
             <div class="modal-err" id="nhErr"></div>
@@ -152,6 +173,41 @@
         <div class="modal-foot">
             <button class="btn-ghost" data-close>Vazgeç</button>
             <button class="btn-primary" id="nhCreate">Otel Oluştur</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: Package & Modules ===== -->
+<div class="modal-backdrop" id="pkgModal">
+    <div class="modal">
+        <div class="modal-head"><h3>Paket &amp; Modüller</h3><p id="pkgHotel">—</p></div>
+        <div class="modal-body">
+            <div class="field-row">
+                <div>
+                    <label>Paket</label>
+                    <select id="pkgPlan" class="m-select">
+                        <option value="starter">Başlangıç</option>
+                        <option value="pro">Profesyonel</option>
+                        <option value="enterprise">Kurumsal</option>
+                        <option value="custom">Özel</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Maks. Kullanıcı</label>
+                    <input id="pkgMaxUsers" type="number" min="0" placeholder="0 = sınırsız">
+                </div>
+            </div>
+            <label>Modüller</label>
+            <div class="mod-checks" id="pkgModules">
+                <label class="mod-check"><input type="checkbox" data-mod="concierge"> Concierge</label>
+                <label class="mod-check"><input type="checkbox" data-mod="crm"> CRM</label>
+                <label class="mod-check"><input type="checkbox" data-mod="guestIssues"> Misafir Kayıtları</label>
+            </div>
+            <div class="modal-err" id="pkgErr"></div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-ghost" data-close>Vazgeç</button>
+            <button class="btn-primary" id="pkgSave">Kaydet</button>
         </div>
     </div>
 </div>

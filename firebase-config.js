@@ -67,3 +67,27 @@ function guardTenant() {
     } catch (e) { /* ignore */ }
     return localStorage.getItem('hotelTenantId') || resolveTenant();
 }
+
+// --- Plan / package config ---
+// Feature modules a hotel can have. Default (legacy hotels with no config):
+// everything on, unlimited users — so nothing is restricted before a plan is set.
+const ALL_MODULES = { concierge: true, crm: true, guestIssues: true };
+
+// Persist the hotel's plan/limits/modules at login so every page can gate
+// features instantly without an extra read.
+function applyTenantConfig(tenant) {
+    const modules = (tenant && tenant.modules) ? tenant.modules : ALL_MODULES;
+    localStorage.setItem('hotelModules', JSON.stringify(modules));
+    localStorage.setItem('hotelMaxUsers', String((tenant && tenant.maxUsers) || 0));
+    localStorage.setItem('hotelPlan', (tenant && tenant.plan) || '');
+}
+
+// Read the cached module flags. A module counts as enabled unless explicitly
+// disabled, so legacy hotels keep full access.
+function hotelModules() {
+    try { return JSON.parse(localStorage.getItem('hotelModules')) || {}; }
+    catch (e) { return {}; }
+}
+function moduleEnabled(key) {
+    return hotelModules()[key] !== false;
+}
