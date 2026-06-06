@@ -64,7 +64,9 @@ service cloud.firestore {
     match /systemUsers/{uid} {
       allow read: if readOwnTenant();
       // Tenant admins manage their own staff; superadmins can provision any hotel.
-      allow create, delete: if (isAdmin() && writeOwnTenant()) || isSuperAdmin();
+      allow create: if (isAdmin() && writeOwnTenant()) || isSuperAdmin();
+      // Delete is gated on the EXISTING document (request.resource is null on delete).
+      allow delete: if (isAdmin() && readOwnTenant()) || isSuperAdmin();
       // Admin/superadmin can update within their hotel; a user may only clear
       // their own forced-password flag.
       allow update: if (isAdmin() && readOwnTenant() && writeOwnTenant()) || isSuperAdmin()
