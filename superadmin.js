@@ -12,6 +12,7 @@
     let tenants = [];          // [{ id, ...data }]
     let userCountByTenant = {}; // { tenantId: n }
     let currentSubTenant = null;
+    let drawerTenantId = null;
 
     // ---------- helpers ----------
     function toast(msg, isErr) {
@@ -125,6 +126,7 @@
         renderKpis();
         renderRenewals();
         renderHotels();
+        if (drawerTenantId) refreshDrawerStats();
     }
 
     function renderKpis() {
@@ -193,7 +195,7 @@
             const mods = modulesOf(t);
             const chips = MODULE_KEYS.map(k => `<span class="mchip ${mods[k] !== false ? 'on' : 'off'}">${MODULE_LABELS[k]}</span>`).join('');
             return `
-            <tr>
+            <tr class="row-click" data-hotel="${esc(t.id)}">
                 <td><div class="hotel-cell"><div class="av">${esc(initials(t.name || t.id))}</div><div><b>${esc(t.name || t.id)}</b><div class="mono">${esc(t.id)}.stayos.org</div></div></div></td>
                 <td><span class="plan-badge">${esc(planName(t))}</span></td>
                 <td><span class="pill ${s.cls}">${s.label}</span><div class="sub-end">${fmtDate(s.end)}</div></td>
@@ -386,14 +388,199 @@
         }
     }
 
+    // ---------- hotel detail drawer ----------
+    function openHotelDrawer(id) {
+        if (!tenants.find(x => x.id === id)) return;
+        drawerTenantId = id;
+        refreshDrawerStats();
+        loadDrawerUsers(id);
+        $('hotelDrawer').classList.add('show');
+        $('drawerBackdrop').classList.add('show');
+    }
+    function closeDrawer() {
+        drawerTenantId = null;
+        $('hotelDrawer').classList.remove('show');
+        $('drawerBackdrop').classList.remove('show');
+    }
+    function refreshDrawerStats() {
+        const t = tenants.find(x => x.id === drawerTenantId);
+        if (!t) { closeDrawer(); return; }
+        const s = statusOf(t);
+        $('dAvatar').textContent = initials(t.name || t.id);
+        $('dName').textContent = t.name || t.id;
+        $('dSub').textContent = t.id + '.stayos.org';
+        $('dPlan').textContent = planName(t);
+        $('dStatus').innerHTML = `<span class="pill ${s.cls}">${s.label}</span>`;
+        const count = userCountByTenant[t.id] || 0;
+        const max = t.maxUsers || 0;
+        $('dUserCount').textContent = max > 0 ? `${count} / ${max}` : count;
+        $('dToggle').textContent = t.suspended ? 'Aktifleştir' : 'Askıya Al';
+    }
+    async function loadDrawerUsers(id) {
+        const list = $('dUserList');
+        list.innerHTML = '<div class="empty" style="padding:20px;">Yükleniyor…</div>';
+        try {
+            const snap = await db.collection('systemUsers').where('tenantId', '==', id).get();
+            if (snap.empty) { list.innerHTML = '<div class="empty" style="padding:20px;">Kullanıcı yok.</div>'; return; }
+            const rows = [];
+            snap.forEach(doc => {
+                const u = doc.data();
+                const role = u.role || 'staff';
+                const roleCls = role.toLowerCase() === 'admin' ? '' : 'staff';
+                rows.push(`
+                    <div class="u-row">
+                        <div class="u-info"><b>${esc(u.username || '—')}</b><div class="u-meta">${esc(u.email || '')}${u.department ? ' · ' + esc(u.department) : ''}</div></div>
+                        <span class="role-badge ${roleCls}">${esc(role)}</span>
+                        <div class="u-actions">
+                            <button class="icon-btn" title="Şifre sıfırla" data-uact="reset" data-uid="${doc.id}" data-uname="${esc(u.username || '')}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/></svg>
+                            </button>
+                            <button class="icon-btn" title="Kaldır" data-uact="remove" data-uid="${doc.id}" data-uname="${esc(u.username || '')}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
+                    </div>`);
+            });
+            list.innerHTML = rows.join('');
+        } catch (e) {
+            list.innerHTML = `<div class="empty" style="padding:20px;">Hata: ${esc(e.message)}</div>`;
+        }
+    }
+
+    // Edit hotel name
+    function openEditModal() {
+        const t = tenants.find(x => x.id === drawerTenantId); if (!t) return;
+        $('editHotelId').textContent = t.id;
+        $('editName').value = t.name || '';
+        $('editErr').textContent = '';
+        $('editModal').classList.add('show');
+    }
+    async function saveEdit() {
+        const name = $('editName').value.trim();
+        const err = $('editErr'); err.textContent = '';
+        if (!name) return err.textContent = 'Otel adı gerekli.';
+        const btn = $('editSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+        try {
+            await db.collection('tenants').doc(drawerTenantId).update({ name });
+            $('editModal').classList.remove('show');
+            toast('Otel güncellendi');
+        } catch (e) { err.textContent = 'Hata: ' + e.message; }
+        finally { btn.disabled = false; btn.textContent = 'Kaydet'; }
+    }
+
+    // Add user to the open hotel
+    function openAddUserModal() {
+        const t = tenants.find(x => x.id === drawerTenantId); if (!t) return;
+        $('uaHotel').textContent = (t.name || t.id) + ' · ' + t.id;
+        $('uaUser').value = ''; $('uaPass').value = ''; $('uaRole').value = 'staff';
+        $('uaErr').textContent = '';
+        $('userAddModal').classList.add('show');
+    }
+    async function createDrawerUser() {
+        const t = tenants.find(x => x.id === drawerTenantId); if (!t) return;
+        const user = $('uaUser').value.trim().toLowerCase();
+        const pass = $('uaPass').value;
+        const role = $('uaRole').value;
+        const err = $('uaErr'); err.textContent = '';
+        if (!/^[a-z0-9._-]{2,}$/.test(user)) return err.textContent = 'Geçerli bir kullanıcı adı girin (küçük harf/rakam).';
+        if (pass.length < 6) return err.textContent = 'Şifre en az 6 karakter olmalı.';
+        const count = userCountByTenant[t.id] || 0;
+        const max = t.maxUsers || 0;
+        if (max > 0 && count >= max) return err.textContent = `Kullanıcı limitine ulaşıldı (${max}).`;
+        const btn = $('uaCreate'); btn.disabled = true; btn.textContent = 'Oluşturuluyor...';
+        try {
+            let secondary;
+            try { secondary = firebase.app('secondary'); } catch (e) { secondary = firebase.initializeApp(firebaseConfig, 'secondary'); }
+            const email = userEmail(user, t.id);
+            const cred = await secondary.auth().createUserWithEmailAndPassword(email, pass);
+            const uid = cred.user.uid;
+            await secondary.auth().signOut();
+            await db.collection('systemUsers').doc(uid).set({
+                uid, username: user, email, role,
+                department: role === 'admin' ? 'Management' : 'Staff',
+                tenantId: t.id, mustChangePassword: true,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            $('userAddModal').classList.remove('show');
+            toast('Kullanıcı oluşturuldu');
+            await refresh();
+            loadDrawerUsers(t.id);
+        } catch (e) { err.textContent = 'Hata: ' + e.message; }
+        finally { btn.disabled = false; btn.textContent = 'Oluştur'; }
+    }
+
+    // Delete hotel
+    function openDeleteModal() {
+        const t = tenants.find(x => x.id === drawerTenantId); if (!t) return;
+        $('delHotel').textContent = (t.name || t.id) + ' · ' + t.id;
+        $('delCode').textContent = t.id;
+        $('delConfirm').value = '';
+        $('delErr').textContent = '';
+        $('deleteModal').classList.add('show');
+    }
+    async function doDeleteHotel() {
+        const t = tenants.find(x => x.id === drawerTenantId); if (!t) return;
+        const err = $('delErr'); err.textContent = '';
+        if ($('delConfirm').value.trim() !== t.id) return err.textContent = 'Otel kodu eşleşmiyor.';
+        const btn = $('delConfirmBtn'); btn.disabled = true; btn.textContent = 'Siliniyor...';
+        try {
+            // Remove the hotel's user accounts (revokes access), then the tenant document.
+            const snap = await db.collection('systemUsers').where('tenantId', '==', t.id).get();
+            const batch = db.batch();
+            snap.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            await db.collection('tenants').doc(t.id).delete();
+            $('deleteModal').classList.remove('show');
+            closeDrawer();
+            toast(t.name + ' silindi');
+            await refresh();
+        } catch (e) { err.textContent = 'Hata: ' + e.message; }
+        finally { btn.disabled = false; btn.textContent = 'Kalıcı Olarak Sil'; }
+    }
+
     // ---------- events ----------
     $('hotelsBody').addEventListener('click', (e) => {
         const btn = e.target.closest('[data-act]');
+        if (btn) {
+            const id = btn.dataset.id;
+            if (btn.dataset.act === 'sub') openSubModal(id);
+            else if (btn.dataset.act === 'pkg') openPkgModal(id);
+            else if (btn.dataset.act === 'toggle') toggleSuspend(id, btn.dataset.suspended === 'true');
+            return;
+        }
+        const row = e.target.closest('tr[data-hotel]');
+        if (row) openHotelDrawer(row.dataset.hotel);
+    });
+    $('drawerClose').addEventListener('click', closeDrawer);
+    $('drawerBackdrop').addEventListener('click', closeDrawer);
+    $('dEdit').addEventListener('click', openEditModal);
+    $('dSubBtn').addEventListener('click', () => openSubModal(drawerTenantId));
+    $('dPkgBtn').addEventListener('click', () => openPkgModal(drawerTenantId));
+    $('dToggle').addEventListener('click', () => { const t = tenants.find(x => x.id === drawerTenantId); if (t) toggleSuspend(t.id, t.suspended === true); });
+    $('dDelete').addEventListener('click', openDeleteModal);
+    $('dAddUser').addEventListener('click', openAddUserModal);
+    $('editSave').addEventListener('click', saveEdit);
+    $('uaCreate').addEventListener('click', createDrawerUser);
+    $('delConfirmBtn').addEventListener('click', doDeleteHotel);
+    $('dUserList').addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-uact]');
         if (!btn) return;
-        const id = btn.dataset.id;
-        if (btn.dataset.act === 'sub') openSubModal(id);
-        else if (btn.dataset.act === 'pkg') openPkgModal(id);
-        else if (btn.dataset.act === 'toggle') toggleSuspend(id, btn.dataset.suspended === 'true');
+        const uid = btn.dataset.uid, uname = btn.dataset.uname;
+        if (btn.dataset.uact === 'reset') {
+            if (!confirm(`${uname} için şifre sıfırlansın mı?\n\nKullanıcı mevcut şifresiyle bir kez girip yeni şifre belirleyecek.`)) return;
+            try {
+                await db.collection('systemUsers').doc(uid).update({ mustChangePassword: true, passwordResetAt: firebase.firestore.FieldValue.serverTimestamp() });
+                toast('Şifre sıfırlama istendi');
+            } catch (e2) { toast('Hata: ' + e2.message, true); }
+        } else if (btn.dataset.uact === 'remove') {
+            if (!confirm(`${uname} kaldırılsın mı? Bu kullanıcı giriş yapamayacak.`)) return;
+            try {
+                await db.collection('systemUsers').doc(uid).delete();
+                toast('Kullanıcı kaldırıldı');
+                await refresh();
+                loadDrawerUsers(drawerTenantId);
+            } catch (e2) { toast('Hata: ' + e2.message, true); }
+        }
     });
     $('newHotelBtn').addEventListener('click', openHotelModal);
     $('nhCreate').addEventListener('click', createHotel);

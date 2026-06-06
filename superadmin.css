@@ -176,6 +176,7 @@ thead th {
 tbody td { padding: 14px 20px; border-bottom: 1px solid #eef1f6; font-size: 13.5px; vertical-align: middle; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: #fafbff; }
+tbody tr.row-click { cursor: pointer; }
 .hotel-cell { display: flex; align-items: center; gap: 12px; }
 .hotel-cell .av {
     width: 38px; height: 38px; border-radius: 10px; background: #eef2ff; color: var(--accent);
@@ -274,3 +275,57 @@ tbody tr:hover { background: #fafbff; }
     .menu-toggle { display: inline-flex !important; }
 }
 .menu-toggle { display: none; }
+
+/* ===== Hotel detail drawer ===== */
+.drawer-backdrop {
+    position: fixed; inset: 0; background: rgba(15,23,42,.4); backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 90;
+}
+.drawer-backdrop.show { opacity: 1; pointer-events: all; }
+.drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 460px; max-width: 92vw;
+    background: var(--bg); border-left: 1px solid var(--border); z-index: 95;
+    transform: translateX(100%); transition: transform .24s ease; display: flex; flex-direction: column;
+    box-shadow: -20px 0 50px rgba(15,23,42,.15);
+}
+.drawer.show { transform: none; }
+.drawer-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 18px 22px; border-bottom: 1px solid var(--border); background: #fff;
+}
+.drawer-body { padding: 22px; overflow-y: auto; flex: 1; }
+.d-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.d-stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 11px; padding: 13px;
+}
+.d-stat span { display: block; font-size: 11px; color: var(--faint); margin-bottom: 6px; }
+.d-stat b { font-size: 14px; font-weight: 700; }
+.d-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
+.d-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.d-section-head h4 { font-size: 14px; font-weight: 700; }
+.btn-sm { padding: 7px 13px; font-size: 12.5px; }
+.btn-danger { background: var(--red); }
+.btn-danger:hover { background: #b91c1c; }
+.d-users { display: flex; flex-direction: column; gap: 8px; }
+.u-row {
+    display: flex; align-items: center; gap: 12px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 11px; padding: 11px 13px;
+}
+.u-row .u-info { flex: 1; min-width: 0; }
+.u-row .u-info b { font-size: 13.5px; font-weight: 600; }
+.u-row .u-info .u-meta { font-size: 11.5px; color: var(--faint); }
+.u-row .role-badge {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+    padding: 2px 8px; border-radius: 6px; background: #eef2ff; color: var(--accent);
+}
+.u-row .role-badge.staff { background: var(--gray-bg); color: var(--gray); }
+.u-actions { display: flex; gap: 6px; }
+.del-warn {
+    font-size: 13px; color: #7c2d12; background: #fff7ed; border: 1px solid #fed7aa;
+    border-radius: 9px; padding: 12px; line-height: 1.5; margin-bottom: 14px;
+}
+.modal-body code { font-family: ui-monospace, Menlo, monospace; background: #f1f5f9; padding: 1px 6px; border-radius: 5px; color: var(--accent); }
+
+@media (max-width: 760px) {
+    .d-actions { gap: 6px; }
+}

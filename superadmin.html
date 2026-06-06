@@ -229,6 +229,97 @@
     </div>
 </div>
 
+<!-- ===== HOTEL DETAIL DRAWER ===== -->
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="hotelDrawer">
+    <div class="drawer-head">
+        <div class="hotel-cell">
+            <div class="av" id="dAvatar">··</div>
+            <div><b id="dName">—</b><div class="mono" id="dSub">—</div></div>
+        </div>
+        <button class="icon-btn" id="drawerClose" title="Kapat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+    </div>
+    <div class="drawer-body">
+        <div class="d-stats">
+            <div class="d-stat"><span>Paket</span><b id="dPlan">—</b></div>
+            <div class="d-stat"><span>Abonelik</span><b id="dStatus">—</b></div>
+            <div class="d-stat"><span>Kullanıcı</span><b id="dUserCount">—</b></div>
+        </div>
+        <div class="d-actions">
+            <button class="btn-ghost" id="dEdit">Düzenle</button>
+            <button class="btn-ghost" id="dSubBtn">Abonelik</button>
+            <button class="btn-ghost" id="dPkgBtn">Paket</button>
+            <button class="btn-ghost" id="dToggle">Askıya Al</button>
+            <button class="btn-ghost btn-danger-ghost" id="dDelete">Sil</button>
+        </div>
+        <div class="d-section-head">
+            <h4>Kullanıcılar</h4>
+            <button class="btn-primary btn-sm" id="dAddUser">+ Kullanıcı</button>
+        </div>
+        <div id="dUserList" class="d-users"></div>
+    </div>
+</aside>
+
+<!-- ===== MODAL: Edit Hotel ===== -->
+<div class="modal-backdrop" id="editModal">
+    <div class="modal">
+        <div class="modal-head"><h3>Oteli Düzenle</h3><p id="editHotelId">—</p></div>
+        <div class="modal-body">
+            <label>Otel Adı</label>
+            <input id="editName">
+            <div class="hint">Otel kodu (subdomain) kimlik olduğundan değiştirilemez.</div>
+            <div class="modal-err" id="editErr"></div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-ghost" data-close>Vazgeç</button>
+            <button class="btn-primary" id="editSave">Kaydet</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: Add User ===== -->
+<div class="modal-backdrop" id="userAddModal">
+    <div class="modal">
+        <div class="modal-head"><h3>Kullanıcı Ekle</h3><p id="uaHotel">—</p></div>
+        <div class="modal-body">
+            <div class="field-row">
+                <div><label>Kullanıcı Adı</label><input id="uaUser" autocapitalize="off" spellcheck="false"></div>
+                <div><label>Geçici Şifre</label><input id="uaPass" type="text" placeholder="en az 6 karakter"></div>
+            </div>
+            <label>Rol</label>
+            <select id="uaRole" class="m-select">
+                <option value="staff">Personel</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+            </select>
+            <div class="modal-err" id="uaErr"></div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-ghost" data-close>Vazgeç</button>
+            <button class="btn-primary" id="uaCreate">Oluştur</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: Delete Hotel ===== -->
+<div class="modal-backdrop" id="deleteModal">
+    <div class="modal">
+        <div class="modal-head"><h3>Oteli Sil</h3><p id="delHotel">—</p></div>
+        <div class="modal-body">
+            <p class="del-warn">⚠️ Bu işlem oteli ve <b>tüm kullanıcı hesaplarını</b> kaldırır. Misafir/rezervasyon kayıtları arşiv olarak kalır. <b>Geri alınamaz.</b></p>
+            <label>Onaylamak için otel kodunu yazın: <code id="delCode">—</code></label>
+            <input id="delConfirm" autocapitalize="off" spellcheck="false">
+            <div class="modal-err" id="delErr"></div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-ghost" data-close>Vazgeç</button>
+            <button class="btn-primary btn-danger" id="delConfirmBtn">Kalıcı Olarak Sil</button>
+        </div>
+    </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
