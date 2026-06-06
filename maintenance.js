@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Live-watch maintenance state; auto-return to login when it ends or is disabled.
-    db.collection('systemConfig').doc('maintenance').onSnapshot((doc) => {
+    db.collection('maintenance').doc(guardTenant()).onSnapshot((doc) => {
         if (!doc.exists) { goToLogin(); return; }
         const d = doc.data();
         const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const errEl = document.getElementById('mError');
         errEl.textContent = '';
         const userInput = document.getElementById('mUser').value.trim();
-        const email = userInput.includes('@') ? userInput : userEmail(userInput, resolveTenant());
+        const email = userInput.includes('@') ? userInput : userEmail(userInput, guardTenant());
         const password = document.getElementById('mPass').value;
 
         try {

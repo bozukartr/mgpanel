@@ -426,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const loadMaintenance = () => {
-        db.collection('systemConfig').doc('maintenance').onSnapshot(doc => {
+        db.collection('maintenance').doc(TENANT_ID).onSnapshot(doc => {
             if (doc.exists) {
                 const d = doc.data();
                 mtEnabled.checked = !!d.enabled;
@@ -451,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const endsVal = mtEndsAt.value;
         if (enabled && !endsVal) return showToast('Please set an end time.', true);
         try {
-            await db.collection('systemConfig').doc('maintenance').set({
+            await db.collection('maintenance').doc(TENANT_ID).set({
                 enabled,
                 endsAt: endsVal ? firebase.firestore.Timestamp.fromDate(new Date(endsVal)) : null,
                 message: mtMessage.value.trim(),

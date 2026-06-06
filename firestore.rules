@@ -74,11 +74,18 @@ service cloud.firestore {
             && request.resource.data.mustChangePassword == false);
     }
 
-    // --- Maintenance flag: publicly readable so the login page / guard can check it
-    //     before authentication. ---
+    // --- Legacy global maintenance flag (kept for backward compatibility) ---
     match /systemConfig/maintenance {
       allow read:  if true;
       allow write: if isAdmin();
+    }
+
+    // --- Per-hotel maintenance flags. Publicly readable so the guard can check
+    //     before authentication; written only by that hotel's admin (or the
+    //     platform operator). One hotel's maintenance never affects another. ---
+    match /maintenance/{tid} {
+      allow read:  if true;
+      allow write: if isSuperAdmin() || (isAdmin() && tid == callerTenant());
     }
 
     // --- System config (legacy global subscription/settings) ---

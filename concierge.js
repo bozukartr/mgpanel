@@ -10,7 +10,7 @@ function esc(s) {
 // works even if a cached page didn't load the guard script.
 (function () {
     if (typeof db === 'undefined') return;
-    db.collection('systemConfig').doc('maintenance').onSnapshot((doc) => {
+    db.collection('maintenance').doc(guardTenant()).onSnapshot((doc) => {
         if (!doc.exists) return;
         const d = doc.data();
         const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('c-logoutBtn')?.addEventListener('click', () => {
         auth.signOut().then(() => {
-            localStorage.removeItem('hotelUsername');
+            localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
             window.location.href = 'login.html';
         });
     });
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
             auth.signOut().then(() => {
-                localStorage.removeItem('hotelUsername');
+                localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
                 window.location.href = 'login.html';
             });
         }, 15 * 60 * 1000); // 15 minutes
