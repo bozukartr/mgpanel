@@ -57,11 +57,9 @@
         .am-top{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
         .am-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#1f2937;padding:2px 2px}
         .am-title .ico{width:24px;height:24px;border-radius:7px;background:#448aff;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
-        .am-pills{display:flex;gap:8px}
-        .am-pill{flex:1;border:2px solid transparent;background:#fff;border-radius:12px;padding:9px 8px;font-family:inherit;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:.18s}
-        .am-pill b{font-size:13px;color:#1f2937}
-        .am-pill.active{border-color:#448aff;color:#448aff;box-shadow:0 4px 12px rgba(68,138,255,.16)}
-        .am-pill.active b{color:#448aff}
+        .am-tabs{display:flex;gap:6px;background:#fff;border-radius:12px;padding:5px}
+        .am-tab{flex:1;border:none;background:transparent;border-radius:9px;padding:8px 8px;font-family:inherit;font-size:12.5px;font-weight:600;color:#64748b;cursor:pointer;transition:.15s}
+        .am-tab.active{background:#1f2937;color:#fff;box-shadow:0 3px 8px rgba(31,41,55,.2)}
         .am-list{display:flex;flex-direction:column;gap:9px;min-height:236px}
         .rc{background:#fff;border:1px solid #eceff3;border-radius:12px;padding:9px 12px;display:grid;grid-template-columns:34px 1fr auto;gap:11px;align-items:center;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.03);transition:transform .15s,box-shadow .15s,background .2s;border-left:4px solid #9e9e9e;border-right:3px solid #9e9e9e}
         .rc:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(0,0,0,.08)}
@@ -75,6 +73,17 @@
         .rc-badge{font-size:10px;font-weight:800;padding:4px 9px;border-radius:7px;white-space:nowrap}
         .rc-badge.Pending{background:#fff3e0;color:#e65100}
         .rc-badge.Confirmed{background:#e8f5e9;color:#2e7d32}
+        .rc-badge.in_house{background:#dcfce7;color:#15803d}
+        .rc-badge.pre_arrival{background:#eef2ff;color:#4f46e5}
+        .rc-badge.checked_out{background:#f1f5f9;color:#64748b}
+        .rc-badge.Following{background:#fff7ed;color:#b45309}
+        .rc-badge.Solved{background:#e8f5e9;color:#2e7d32}
+        .rc[data-status="in_house"]{border-left-color:#10b981}
+        .rc[data-status="pre_arrival"]{border-left-color:#6366f1}
+        .rc[data-status="checked_out"]{border-left-color:#94a3b8}
+        .rc[data-status="Following"]{border-left-color:#f59e0b}
+        .rc[data-status="Solved"]{border-left-color:#4caf50}
+        .rc-icon.txt{font-size:12px;font-weight:700;color:#4f46e5;background:#eef2ff}
         .am-hint{font-size:11.5px;color:#94a3b8;text-align:center;margin-top:13px}
 
         /* sections */
@@ -161,15 +170,15 @@
 
             <div class="app-mock" aria-label="Uygulama önizlemesi">
                 <div class="am-top">
-                    <div class="am-title"><span class="ico">✦</span> Concierge · Rezervasyonlar</div>
-                    <div class="am-pills">
-                        <button class="am-pill active" data-filter="all">Tümü <b id="cntAll">4</b></button>
-                        <button class="am-pill" data-filter="Pending">Bekleyen <b id="cntPending">2</b></button>
-                        <button class="am-pill" data-filter="Confirmed">Onaylı <b id="cntConfirmed">2</b></button>
+                    <div class="am-title"><span class="ico">✦</span> <span id="amTitleText">Concierge · Rezervasyonlar</span></div>
+                    <div class="am-tabs">
+                        <button class="am-tab active" data-tab="concierge">Concierge</button>
+                        <button class="am-tab" data-tab="crm">CRM</button>
+                        <button class="am-tab" data-tab="logs">Kayıtlar</button>
                     </div>
                 </div>
                 <div class="am-list" id="amList"></div>
-                <div class="am-hint">Bir rezervasyona dokunarak durumunu değiştirin — tıpkı uygulamadaki gibi.</div>
+                <div class="am-hint" id="amHint">Bir rezervasyona dokunarak durumunu değiştirin.</div>
             </div>
         </div>
     </section>
@@ -340,54 +349,75 @@
     <script>
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    // ── Interactive concierge preview (mirrors the real app) ──
+    // ── Interactive app preview (3 modules, mirrors the real app) ──
     (function () {
-        var data = [
-            { guest: 'Ayşe Yılmaz',  room: 'Oda 204', type: 'Restaurant', icon: '🍽️', detail: 'Akşam yemeği · 20:00 · 4 kişi', status: 'Confirmed' },
-            { guest: 'Mehmet Kaya',  room: 'Oda 118', type: 'Transfer',   icon: '🚗', detail: 'Havalimanı transferi · 14:30',  status: 'Pending'  },
-            { guest: 'Elif Demir',   room: 'Oda 305', type: 'Flower',     icon: '💐', detail: 'Oda süslemesi · Yıldönümü',     status: 'Confirmed' },
-            { guest: 'John Carter',  room: 'Pre-Arrival', type: 'Boat',   icon: '⛵', detail: 'Tekne turu · Yarın 11:00',      status: 'Pending'  }
-        ];
-        var typeColor = { Restaurant: '#ff5252', Transfer: '#448aff', Flower: '#e040fb', Cake: '#ffd740', Boat: '#00bcd4', Tour: '#8bc34a', Other: '#9e9e9e' };
-        var badge = { Pending: 'Bekliyor', Confirmed: 'Onaylı' };
-        var filter = 'all';
+        var DATA = {
+            concierge: [
+                { icon: '🍽️', guest: 'Ayşe Yılmaz', detail: 'Oda 204 · Akşam yemeği 20:00', status: 'Confirmed', stripe: '#ff5252' },
+                { icon: '🚗', guest: 'Mehmet Kaya', detail: 'Oda 118 · Havalimanı transferi', status: 'Pending', stripe: '#448aff' },
+                { icon: '💐', guest: 'Elif Demir', detail: 'Oda 305 · Oda süslemesi · Yıldönümü', status: 'Confirmed', stripe: '#e040fb' },
+                { icon: '⛵', guest: 'John Carter', detail: 'Pre-Arrival · Tekne turu yarın 11:00', status: 'Pending', stripe: '#00bcd4' }
+            ],
+            crm: [
+                { icon: 'AY', txt: true, guest: 'Ayşe Yılmaz', detail: 'Oda 204 · 2 gece · Deluxe', status: 'in_house', stripe: '#10b981' },
+                { icon: 'JC', txt: true, guest: 'John Carter', detail: 'Pre-Arrival · yarın giriş', status: 'pre_arrival', stripe: '#6366f1' },
+                { icon: 'SD', txt: true, guest: 'Sema Doğan', detail: 'Oda 410 · 5 gece · Suite', status: 'in_house', stripe: '#10b981' },
+                { icon: 'RK', txt: true, guest: 'Radu Kovač', detail: 'Çıkış yapıldı · 12 Haziran', status: 'checked_out', stripe: '#94a3b8' }
+            ],
+            logs: [
+                { icon: '🛠️', guest: 'Mehmet Kaya · Oda 118', detail: 'Klima çalışmıyor · Teknik', status: 'Following', stripe: '#f59e0b' },
+                { icon: '🧺', guest: 'Sema Doğan · Oda 410', detail: 'Ekstra yastık talebi · Kat Hizmetleri', status: 'Solved', stripe: '#10b981' },
+                { icon: '🕔', guest: 'Ayşe Yılmaz · Oda 204', detail: 'Geç check-out isteği · Resepsiyon', status: 'Following', stripe: '#f59e0b' }
+            ]
+        };
+        var BADGE = {
+            Confirmed: 'Onaylı', Pending: 'Bekliyor',
+            in_house: 'In-House', pre_arrival: 'Pre-Arrival', checked_out: 'Çıkış',
+            Following: 'Takipte', Solved: 'Çözüldü'
+        };
+        var TITLES = { concierge: 'Concierge · Rezervasyonlar', crm: 'CRM · Misafir Rehberi', logs: 'Kayıtlar · Talepler' };
+        var HINTS = {
+            concierge: 'Bir rezervasyona dokunarak onaylayın.',
+            crm: 'Misafire dokunarak giriş/çıkış durumunu değiştirin.',
+            logs: 'Bir talebe dokunarak çözüldü olarak işaretleyin.'
+        };
+        function nextStatus(s) {
+            var map = { Pending: 'Confirmed', Confirmed: 'Pending', in_house: 'checked_out', checked_out: 'in_house', pre_arrival: 'in_house', Following: 'Solved', Solved: 'Following' };
+            return map[s] || s;
+        }
+        var tab = 'concierge';
         var list = document.getElementById('amList');
 
-        function counts() {
-            document.getElementById('cntAll').textContent = data.length;
-            document.getElementById('cntPending').textContent = data.filter(function (d) { return d.status === 'Pending'; }).length;
-            document.getElementById('cntConfirmed').textContent = data.filter(function (d) { return d.status === 'Confirmed'; }).length;
-        }
         function render() {
             list.innerHTML = '';
-            data.forEach(function (d, i) {
-                if (filter !== 'all' && d.status !== filter) return;
+            DATA[tab].forEach(function (d, i) {
                 var el = document.createElement('div');
                 el.className = 'rc';
                 el.setAttribute('data-status', d.status);
                 el.dataset.i = i;
-                el.style.borderRightColor = typeColor[d.type] || '#9e9e9e';
+                el.style.borderRightColor = d.stripe || '#9e9e9e';
                 el.innerHTML =
-                    '<div class="rc-icon">' + d.icon + '</div>' +
+                    '<div class="rc-icon' + (d.txt ? ' txt' : '') + '">' + d.icon + '</div>' +
                     '<div class="rc-info"><div class="rc-guest">' + d.guest + '</div>' +
-                    '<div class="rc-detail">' + d.room + ' · ' + d.detail + '</div></div>' +
-                    '<span class="rc-badge ' + d.status + '">' + badge[d.status] + '</span>';
+                    '<div class="rc-detail">' + d.detail + '</div></div>' +
+                    '<span class="rc-badge ' + d.status + '">' + BADGE[d.status] + '</span>';
                 list.appendChild(el);
             });
-            counts();
+            document.getElementById('amTitleText').textContent = TITLES[tab];
+            document.getElementById('amHint').textContent = HINTS[tab];
         }
         list.addEventListener('click', function (e) {
             var card = e.target.closest('.rc');
             if (!card) return;
-            var i = +card.dataset.i;
-            data[i].status = data[i].status === 'Pending' ? 'Confirmed' : 'Pending';
+            var d = DATA[tab][+card.dataset.i];
+            d.status = nextStatus(d.status);
             render();
         });
-        document.querySelectorAll('.am-pill').forEach(function (p) {
-            p.addEventListener('click', function () {
-                document.querySelectorAll('.am-pill').forEach(function (x) { x.classList.remove('active'); });
-                p.classList.add('active');
-                filter = p.dataset.filter;
+        document.querySelectorAll('.am-tab').forEach(function (t) {
+            t.addEventListener('click', function () {
+                document.querySelectorAll('.am-tab').forEach(function (x) { x.classList.remove('active'); });
+                t.classList.add('active');
+                tab = t.dataset.tab;
                 render();
             });
         });
