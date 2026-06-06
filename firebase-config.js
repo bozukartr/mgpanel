@@ -27,6 +27,13 @@ const TENANT_ID = localStorage.getItem('hotelTenantId') || DEFAULT_TENANT;
 // mgallery.stayos.org -> "mgallery". Apex domains, *.web.app previews and
 // localhost fall back to the default tenant.
 function resolveTenant() {
+    // Explicit ?tenant= override — lets you test any hotel before custom-domain
+    // subdomains exist (e.g. .../login.html?tenant=testhotel).
+    try {
+        const q = (new URLSearchParams(window.location.search).get('tenant') || '').toLowerCase();
+        if (/^[a-z0-9-]{2,24}$/.test(q)) return q;
+    } catch (e) { /* ignore */ }
+
     const host = (window.location.hostname || '').toLowerCase();
     if (!host || host === 'localhost' || host.endsWith('.web.app') || host.endsWith('.firebaseapp.com')) {
         return DEFAULT_TENANT;
