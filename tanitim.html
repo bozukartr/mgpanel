@@ -52,23 +52,30 @@
         .btn-ghost{background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text)}
         .btn-ghost:hover{background:rgba(255,255,255,.1)}
 
-        /* hero mock dashboard */
-        .mock{max-width:920px;margin:0 auto;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
-            border:1px solid var(--border);border-radius:18px;padding:14px;box-shadow:0 40px 100px rgba(0,0,0,.5)}
-        .mock-bar{display:flex;align-items:center;gap:7px;padding:8px 10px 14px}
-        .mock-bar i{width:11px;height:11px;border-radius:50%;background:#475569;display:inline-block}
-        .mock-bar i:nth-child(1){background:#f87171}.mock-bar i:nth-child(2){background:#fbbf24}.mock-bar i:nth-child(3){background:#34d399}
-        .mock-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 6px 8px}
-        @media(max-width:620px){.mock-grid{grid-template-columns:repeat(2,1fr)}}
-        .mock-card{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:left}
-        .mock-card .k{font-size:11px;color:var(--faint);margin-bottom:8px}
-        .mock-card .v{font-size:26px;font-weight:800;letter-spacing:-1px}
-        .mock-card .v.green{color:#34d399}.mock-card .v.blue{color:#818cf8}.mock-card .v.cyan{color:#22d3ee}.mock-card .v.amber{color:#fbbf24}
-        .mock-row{display:flex;align-items:center;gap:12px;padding:11px 14px;margin:0 6px 8px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px}
-        .mock-row .av{width:30px;height:30px;border-radius:8px;background:rgba(99,102,241,.2);color:#a5b4fc;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
-        .mock-row .nm{font-size:13px;font-weight:600}
-        .mock-row .sub{font-size:11px;color:var(--faint)}
-        .mock-row .tag{margin-left:auto;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:rgba(52,211,153,.15);color:#34d399}
+        /* hero app mock — mirrors the real concierge screen (light app on dark hero) */
+        .app-mock{max-width:560px;margin:0 auto;background:#eef1f6;border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:14px;box-shadow:0 40px 100px rgba(0,0,0,.55);text-align:left}
+        .am-top{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
+        .am-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#1f2937;padding:2px 2px}
+        .am-title .ico{width:24px;height:24px;border-radius:7px;background:#448aff;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
+        .am-pills{display:flex;gap:8px}
+        .am-pill{flex:1;border:2px solid transparent;background:#fff;border-radius:12px;padding:9px 8px;font-family:inherit;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:.18s}
+        .am-pill b{font-size:13px;color:#1f2937}
+        .am-pill.active{border-color:#448aff;color:#448aff;box-shadow:0 4px 12px rgba(68,138,255,.16)}
+        .am-pill.active b{color:#448aff}
+        .am-list{display:flex;flex-direction:column;gap:9px;min-height:236px}
+        .rc{background:#fff;border:1px solid #eceff3;border-radius:12px;padding:9px 12px;display:grid;grid-template-columns:34px 1fr auto;gap:11px;align-items:center;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.03);transition:transform .15s,box-shadow .15s,background .2s;border-left:4px solid #9e9e9e;border-right:3px solid #9e9e9e}
+        .rc:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(0,0,0,.08)}
+        .rc:active{transform:scale(.985)}
+        .rc[data-status="Confirmed"]{background:linear-gradient(to left,rgba(76,175,80,.14),#fff 55%);border-left-color:#4caf50}
+        .rc[data-status="Pending"]{background:linear-gradient(to left,rgba(255,152,0,.14),#fff 55%);border-left-color:#ff9800}
+        .rc-icon{width:34px;height:34px;border-radius:9px;background:#f3f5f9;display:flex;align-items:center;justify-content:center;font-size:17px}
+        .rc-info{min-width:0}
+        .rc-guest{font-size:13.5px;font-weight:700;color:#1f2937;line-height:1.25}
+        .rc-detail{font-size:11px;font-weight:500;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .rc-badge{font-size:10px;font-weight:800;padding:4px 9px;border-radius:7px;white-space:nowrap}
+        .rc-badge.Pending{background:#fff3e0;color:#e65100}
+        .rc-badge.Confirmed{background:#e8f5e9;color:#2e7d32}
+        .am-hint{font-size:11.5px;color:#94a3b8;text-align:center;margin-top:13px}
 
         /* sections */
         section{padding:80px 0}
@@ -152,16 +159,17 @@
                 <a href="#fiyatlar" class="btn btn-ghost">Paketleri Gör</a>
             </div>
 
-            <div class="mock">
-                <div class="mock-bar"><i></i><i></i><i></i></div>
-                <div class="mock-grid">
-                    <div class="mock-card"><div class="k">Bugünkü Giriş</div><div class="v green">24</div></div>
-                    <div class="mock-card"><div class="k">Doluluk</div><div class="v blue">86%</div></div>
-                    <div class="mock-card"><div class="k">Açık Talep</div><div class="v amber">7</div></div>
-                    <div class="mock-card"><div class="k">Aktif Misafir</div><div class="v cyan">142</div></div>
+            <div class="app-mock" aria-label="Uygulama önizlemesi">
+                <div class="am-top">
+                    <div class="am-title"><span class="ico">✦</span> Concierge · Rezervasyonlar</div>
+                    <div class="am-pills">
+                        <button class="am-pill active" data-filter="all">Tümü <b id="cntAll">4</b></button>
+                        <button class="am-pill" data-filter="Pending">Bekleyen <b id="cntPending">2</b></button>
+                        <button class="am-pill" data-filter="Confirmed">Onaylı <b id="cntConfirmed">2</b></button>
+                    </div>
                 </div>
-                <div class="mock-row"><div class="av">AY</div><div><div class="nm">Ayşe Yılmaz · Oda 204</div><div class="sub">Check-in · 2 gece · Deluxe</div></div><span class="tag">In-House</span></div>
-                <div class="mock-row"><div class="av">MK</div><div><div class="nm">Mehmet Kaya · Oda 118</div><div class="sub">Concierge talebi · Havalimanı transferi</div></div><span class="tag">Çözüldü</span></div>
+                <div class="am-list" id="amList"></div>
+                <div class="am-hint">Bir rezervasyona dokunarak durumunu değiştirin — tıpkı uygulamadaki gibi.</div>
             </div>
         </div>
     </section>
@@ -329,6 +337,62 @@
         </div>
     </footer>
 
-    <script>document.getElementById('year').textContent=new Date().getFullYear();</script>
+    <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // ── Interactive concierge preview (mirrors the real app) ──
+    (function () {
+        var data = [
+            { guest: 'Ayşe Yılmaz',  room: 'Oda 204', type: 'Restaurant', icon: '🍽️', detail: 'Akşam yemeği · 20:00 · 4 kişi', status: 'Confirmed' },
+            { guest: 'Mehmet Kaya',  room: 'Oda 118', type: 'Transfer',   icon: '🚗', detail: 'Havalimanı transferi · 14:30',  status: 'Pending'  },
+            { guest: 'Elif Demir',   room: 'Oda 305', type: 'Flower',     icon: '💐', detail: 'Oda süslemesi · Yıldönümü',     status: 'Confirmed' },
+            { guest: 'John Carter',  room: 'Pre-Arrival', type: 'Boat',   icon: '⛵', detail: 'Tekne turu · Yarın 11:00',      status: 'Pending'  }
+        ];
+        var typeColor = { Restaurant: '#ff5252', Transfer: '#448aff', Flower: '#e040fb', Cake: '#ffd740', Boat: '#00bcd4', Tour: '#8bc34a', Other: '#9e9e9e' };
+        var badge = { Pending: 'Bekliyor', Confirmed: 'Onaylı' };
+        var filter = 'all';
+        var list = document.getElementById('amList');
+
+        function counts() {
+            document.getElementById('cntAll').textContent = data.length;
+            document.getElementById('cntPending').textContent = data.filter(function (d) { return d.status === 'Pending'; }).length;
+            document.getElementById('cntConfirmed').textContent = data.filter(function (d) { return d.status === 'Confirmed'; }).length;
+        }
+        function render() {
+            list.innerHTML = '';
+            data.forEach(function (d, i) {
+                if (filter !== 'all' && d.status !== filter) return;
+                var el = document.createElement('div');
+                el.className = 'rc';
+                el.setAttribute('data-status', d.status);
+                el.dataset.i = i;
+                el.style.borderRightColor = typeColor[d.type] || '#9e9e9e';
+                el.innerHTML =
+                    '<div class="rc-icon">' + d.icon + '</div>' +
+                    '<div class="rc-info"><div class="rc-guest">' + d.guest + '</div>' +
+                    '<div class="rc-detail">' + d.room + ' · ' + d.detail + '</div></div>' +
+                    '<span class="rc-badge ' + d.status + '">' + badge[d.status] + '</span>';
+                list.appendChild(el);
+            });
+            counts();
+        }
+        list.addEventListener('click', function (e) {
+            var card = e.target.closest('.rc');
+            if (!card) return;
+            var i = +card.dataset.i;
+            data[i].status = data[i].status === 'Pending' ? 'Confirmed' : 'Pending';
+            render();
+        });
+        document.querySelectorAll('.am-pill').forEach(function (p) {
+            p.addEventListener('click', function () {
+                document.querySelectorAll('.am-pill').forEach(function (x) { x.classList.remove('active'); });
+                p.classList.add('active');
+                filter = p.dataset.filter;
+                render();
+            });
+        });
+        render();
+    })();
+    </script>
 </body>
 </html>
