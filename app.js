@@ -1,8 +1,10 @@
-// Maintenance enforcement — also runs here so it works even if a cached page
-// didn't load the guard script.
+// Maintenance enforcement — runs on the login page (and as a fallback on cached
+// pages). Pre-auth, the relevant hotel comes from the URL (subdomain / ?tenant),
+// NOT a previous session's localStorage, so switching hotels isn't blocked by
+// another hotel's maintenance.
 (function () {
     if (typeof db === 'undefined') return;
-    db.collection('maintenance').doc(guardTenant()).onSnapshot((doc) => {
+    db.collection('maintenance').doc(resolveTenant()).onSnapshot((doc) => {
         if (!doc.exists) return;
         const d = doc.data();
         const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
