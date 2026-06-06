@@ -2,7 +2,7 @@
 // didn't load the guard script.
 (function () {
     if (typeof db === 'undefined') return;
-    db.collection('systemConfig').doc('maintenance').onSnapshot((doc) => {
+    db.collection('maintenance').doc(guardTenant()).onSnapshot((doc) => {
         if (!doc.exists) return;
         const d = doc.data();
         const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;

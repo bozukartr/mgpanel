@@ -57,3 +57,13 @@ function tenantEmailDomain(tenantId) {
 function userEmail(username, tenantId) {
     return username + '@' + tenantEmailDomain(tenantId);
 }
+
+// Which hotel's state (e.g. maintenance) applies to the current page:
+// an explicit ?tenant override wins, then the signed-in hotel, then the host.
+function guardTenant() {
+    try {
+        const q = (new URLSearchParams(window.location.search).get('tenant') || '').toLowerCase();
+        if (/^[a-z0-9-]{2,24}$/.test(q)) return q;
+    } catch (e) { /* ignore */ }
+    return localStorage.getItem('hotelTenantId') || resolveTenant();
+}
