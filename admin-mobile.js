@@ -102,6 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Updated: ' + username);
             } else {
                 // CREATE
+                const lim = parseInt(localStorage.getItem('hotelMaxUsers') || '0', 10);
+                if (lim > 0 && userCount >= lim) {
+                    showToast(`Kullanıcı limitine ulaşıldı (${lim}). Paketinizi yükseltin.`, true); return;
+                }
                 if (!password || password.length < 6) {
                     showToast('Password must be at least 6 characters.', true); return;
                 }
@@ -133,9 +137,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── RENDER USERS ───────────────────────────────────────────
     const userList  = document.getElementById('userList');
     const userEmpty = document.getElementById('userEmpty');
+    let userCount = 0;
 
     db.collection('systemUsers').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
         userList.innerHTML = '';
+        userCount = snap.size;
         if (snap.empty) {
             userEmpty.style.display = 'flex';
             return;

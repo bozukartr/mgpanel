@@ -100,6 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Persist the active hotel so every page stamps writes with the right tenant.
             localStorage.setItem('hotelTenantId', tenantId);
 
+            // Load hotel plan/modules/limits so every page can gate features.
+            try {
+                const tSnap = await db.collection('tenants').doc(tenantId).get();
+                applyTenantConfig(tSnap.exists ? tSnap.data() : null);
+            } catch (e) { applyTenantConfig(null); }
+
             // Check this hotel's subscription (tenant document first, legacy config as fallback).
             const subActive = await isSubscriptionActive(tenantId);
             if (!subActive) {

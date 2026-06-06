@@ -42,6 +42,34 @@
     }
     function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+    // ---------- plans / modules ----------
+    const PLANS = {
+        starter:    { name: 'Başlangıç',   maxUsers: 5,  modules: { concierge: true, crm: false, guestIssues: true } },
+        pro:        { name: 'Profesyonel', maxUsers: 25, modules: { concierge: true, crm: true,  guestIssues: true } },
+        enterprise: { name: 'Kurumsal',    maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true } },
+        custom:     { name: 'Özel',        maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true } }
+    };
+    const MODULE_KEYS = ['concierge', 'crm', 'guestIssues'];
+    const MODULE_LABELS = { concierge: 'Concierge', crm: 'CRM', guestIssues: 'Kayıtlar' };
+
+    function planKey(t) { return (t && t.plan && PLANS[t.plan]) ? t.plan : 'custom'; }
+    function planName(t) { return PLANS[planKey(t)].name; }
+    function modulesOf(t) { return (t && t.modules) ? t.modules : { concierge: true, crm: true, guestIssues: true }; }
+    function applyPlanToForm(planSel, maxInput, modsContainer) {
+        const p = PLANS[planSel.value];
+        if (!p || planSel.value === 'custom') return;
+        maxInput.value = p.maxUsers;
+        modsContainer.querySelectorAll('input[data-mod]').forEach(cb => { cb.checked = p.modules[cb.dataset.mod] !== false; });
+    }
+    function readModules(container) {
+        const mods = {};
+        container.querySelectorAll('input[data-mod]').forEach(cb => { mods[cb.dataset.mod] = cb.checked; });
+        return mods;
+    }
+    function setModules(container, mods) {
+        container.querySelectorAll('input[data-mod]').forEach(cb => { cb.checked = mods[cb.dataset.mod] !== false; });
+    }
+
     // ---------- data ----------
     async function loadUserCounts() {
         const snap = await db.collection('systemUsers').get();
@@ -66,6 +94,30 @@
                 render();
             });
         });
+    }
+
+    // Ensure the founding hotel (mgallery) has a tenant document so it appears
+    // in the console. Tenant writes are superadmin-only, so this can't be done
+    // by the migration tool; the operator console self-heals it once.
+    async function ensureDefaultTenant() {
+        try {
+            const ref = db.collection('tenants').doc(DEFAULT_TENANT);
+            const snap = await ref.get();
+            if (snap.exists) return;
+            const reg = {
+                id: DEFAULT_TENANT,
+                name: 'MGallery',
+                emailDomain: tenantEmailDomain(DEFAULT_TENANT),
+                plan: 'enterprise',
+                maxUsers: 0,
+                modules: { concierge: true, crm: true, guestIssues: true },
+                suspended: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            const legacy = await db.collection('systemConfig').doc('subscription').get().catch(() => null);
+            if (legacy && legacy.exists && legacy.data().subscriptionEnd) reg.subscriptionEnd = legacy.data().subscriptionEnd;
+            await ref.set(reg, { merge: true });
+        } catch (e) { /* ignore */ }
     }
 
     // ---------- render ----------
@@ -133,19 +185,26 @@
         }
         body.innerHTML = tenants.map(t => {
             const s = statusOf(t);
-            const created = t.createdAt && t.createdAt.toDate ? fmtDate(t.createdAt.toDate()) : '—';
             const count = userCountByTenant[t.id] || 0;
+            const max = t.maxUsers || 0;
+            const usage = max > 0 ? `${count} / ${max}` : `${count} <span class="muted-sm">/ ∞</span>`;
+            const overLimit = max > 0 && count > max;
             const suspended = t.suspended === true;
+            const mods = modulesOf(t);
+            const chips = MODULE_KEYS.map(k => `<span class="mchip ${mods[k] !== false ? 'on' : 'off'}">${MODULE_LABELS[k]}</span>`).join('');
             return `
             <tr>
                 <td><div class="hotel-cell"><div class="av">${esc(initials(t.name || t.id))}</div><div><b>${esc(t.name || t.id)}</b><div class="mono">${esc(t.id)}.stayos.org</div></div></div></td>
-                <td><span class="pill ${s.cls}">${s.label}</span></td>
-                <td>${fmtDate(s.end)}</td>
-                <td>${count}</td>
-                <td>${created}</td>
+                <td><span class="plan-badge">${esc(planName(t))}</span></td>
+                <td><span class="pill ${s.cls}">${s.label}</span><div class="sub-end">${fmtDate(s.end)}</div></td>
+                <td><span class="${overLimit ? 'usage-over' : ''}">${usage}</span></td>
+                <td><div class="mchips">${chips}</div></td>
                 <td><div class="row-actions">
                     <button class="icon-btn" title="Abonelik" data-act="sub" data-id="${esc(t.id)}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </button>
+                    <button class="icon-btn" title="Paket & Modüller" data-act="pkg" data-id="${esc(t.id)}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                     </button>
                     <button class="icon-btn" title="${suspended ? 'Aktifleştir' : 'Askıya Al'}" data-act="toggle" data-id="${esc(t.id)}" data-suspended="${suspended}">
                         ${suspended
@@ -166,9 +225,12 @@
     // New hotel
     function openHotelModal() {
         ['nhName', 'nhSlug', 'nhUser', 'nhPass'].forEach(id => $(id).value = '');
+        $('nhSlug').dataset.touched = '';
         $('nhUser').value = 'admin';
         const d = new Date(); d.setMonth(d.getMonth() + 1);
         $('nhSubEnd').value = d.toISOString().slice(0, 10);
+        $('nhPlan').value = 'pro';
+        applyPlanToForm($('nhPlan'), $('nhMaxUsers'), $('nhModules'));
         $('nhErr').textContent = '';
         $('hotelModal').classList.add('show');
     }
@@ -187,6 +249,9 @@
         const user = $('nhUser').value.trim().toLowerCase();
         const pass = $('nhPass').value;
         const subEnd = $('nhSubEnd').value;
+        const plan = $('nhPlan').value;
+        const maxUsersVal = parseInt($('nhMaxUsers').value || '0', 10) || 0;
+        const mods = readModules($('nhModules'));
         const err = $('nhErr');
         err.textContent = '';
 
@@ -196,6 +261,7 @@
         if (!user) return err.textContent = 'Yönetici kullanıcı adı gerekli.';
         if (pass.length < 6) return err.textContent = 'Şifre en az 6 karakter olmalı.';
         if (!subEnd) return err.textContent = 'Abonelik bitiş tarihi gerekli.';
+        if (!MODULE_KEYS.some(k => mods[k])) return err.textContent = 'En az bir modül seçili olmalı.';
 
         const btn = $('nhCreate'); btn.disabled = true; btn.textContent = 'Oluşturuluyor...';
         try {
@@ -208,6 +274,9 @@
                 emailDomain: tenantEmailDomain(slug),
                 subscriptionEnd: firebase.firestore.Timestamp.fromDate(endDate),
                 suspended: false,
+                plan: plan,
+                maxUsers: maxUsersVal,
+                modules: mods,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
@@ -286,16 +355,51 @@
         }
     }
 
+    // Package & modules
+    let currentPkgTenant = null;
+    function openPkgModal(id) {
+        const t = tenants.find(x => x.id === id);
+        if (!t) return;
+        currentPkgTenant = id;
+        $('pkgHotel').textContent = (t.name || id) + ' · ' + id;
+        $('pkgPlan').value = planKey(t);
+        $('pkgMaxUsers').value = t.maxUsers || 0;
+        setModules($('pkgModules'), modulesOf(t));
+        $('pkgErr').textContent = '';
+        $('pkgModal').classList.add('show');
+    }
+    async function savePkg() {
+        const plan = $('pkgPlan').value;
+        const maxUsersVal = parseInt($('pkgMaxUsers').value || '0', 10) || 0;
+        const mods = readModules($('pkgModules'));
+        const err = $('pkgErr'); err.textContent = '';
+        if (!MODULE_KEYS.some(k => mods[k])) return err.textContent = 'En az bir modül seçili olmalı.';
+        const btn = $('pkgSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+        try {
+            await db.collection('tenants').doc(currentPkgTenant).update({ plan, maxUsers: maxUsersVal, modules: mods });
+            $('pkgModal').classList.remove('show');
+            toast('Paket güncellendi');
+        } catch (e) {
+            err.textContent = 'Hata: ' + e.message;
+        } finally {
+            btn.disabled = false; btn.textContent = 'Kaydet';
+        }
+    }
+
     // ---------- events ----------
     $('hotelsBody').addEventListener('click', (e) => {
         const btn = e.target.closest('[data-act]');
         if (!btn) return;
         const id = btn.dataset.id;
         if (btn.dataset.act === 'sub') openSubModal(id);
+        else if (btn.dataset.act === 'pkg') openPkgModal(id);
         else if (btn.dataset.act === 'toggle') toggleSuspend(id, btn.dataset.suspended === 'true');
     });
     $('newHotelBtn').addEventListener('click', openHotelModal);
     $('nhCreate').addEventListener('click', createHotel);
+    $('nhPlan').addEventListener('change', () => applyPlanToForm($('nhPlan'), $('nhMaxUsers'), $('nhModules')));
+    $('pkgPlan').addEventListener('change', () => applyPlanToForm($('pkgPlan'), $('pkgMaxUsers'), $('pkgModules')));
+    $('pkgSave').addEventListener('click', savePkg);
     $('subSave').addEventListener('click', saveSub);
     document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => {
         b.closest('.modal-backdrop').classList.remove('show');
@@ -367,6 +471,7 @@
         $('sbAvatar').textContent = initials(user.email || 'OP');
 
         show('console');
+        await ensureDefaultTenant();
         subscribeTenants();
         await refresh();
     });
