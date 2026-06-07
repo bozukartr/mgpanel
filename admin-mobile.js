@@ -298,4 +298,59 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // ── SUBSCRIPTION + PAYMENT (PayTR) ──────────────────────────
+    (function () {
+        const subStatus = document.getElementById('m-subStatus');
+        const subExpiry = document.getElementById('m-subExpiry');
+        function renderSub(end) {
+            const now = new Date();
+            if (end && end > now) {
+                const days = Math.ceil((end - now) / 86400000);
+                subStatus.textContent = 'Aktif · ' + days + ' gün kaldı';
+                subStatus.style.color = '#16a34a';
+                subExpiry.textContent = 'Bitiş: ' + end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
+            } else if (end) {
+                subStatus.textContent = 'Süresi Doldu';
+                subStatus.style.color = '#dc2626';
+                subExpiry.textContent = 'Bitiş: ' + end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
+            } else {
+                subStatus.textContent = 'Tanımsız';
+                subStatus.style.color = '#64748b';
+                subExpiry.textContent = '';
+            }
+        }
+        db.collection('tenants').doc(TENANT_ID).onSnapshot(async function (doc) {
+            let end = (doc.exists && doc.data().subscriptionEnd) ? doc.data().subscriptionEnd.toDate() : null;
+            if (!end) {
+                try { const lg = await db.collection('systemConfig').doc('subscription').get(); if (lg.exists && lg.data().subscriptionEnd) end = lg.data().subscriptionEnd.toDate(); } catch (e) {}
+            }
+            renderSub(end);
+        }, function () {});
+
+        const payModal = document.getElementById('m-payModal');
+        const iframe = document.getElementById('m-paytriframe');
+        const loading = document.getElementById('m-payLoading');
+        const closePay = function () { payModal.style.display = 'none'; iframe.src = ''; };
+        document.getElementById('m-payClose')?.addEventListener('click', closePay);
+        payModal?.addEventListener('click', function (e) { if (e.target === payModal) closePay(); });
+        document.getElementById('m-payBtn')?.addEventListener('click', async function () {
+            payModal.style.display = 'flex';
+            loading.style.display = 'block';
+            loading.textContent = 'PayTR güvenli ödeme hazırlanıyor…';
+            iframe.style.display = 'none';
+            try {
+                const createPayment = firebase.app().functions('us-central1').httpsCallable('createPayment');
+                const res = await createPayment({});
+                iframe.onload = function () {
+                    loading.style.display = 'none';
+                    iframe.style.display = 'block';
+                    if (window.iFrameResize) { try { iFrameResize({}, '#m-paytriframe'); } catch (e) {} }
+                };
+                iframe.src = res.data.iframeUrl;
+            } catch (err) {
+                loading.textContent = 'Ödeme başlatılamadı: ' + (err.message || 'hata');
+            }
+        });
+    })();
 });
