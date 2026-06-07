@@ -473,6 +473,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ── SUBSCRIPTION PAYMENT (PayTR) ───────────────────────────
+    const payBtn = document.getElementById('payBtn');
+    const payModal = document.getElementById('payModal');
+    const paytriframe = document.getElementById('paytriframe');
+    const payLoading = document.getElementById('payLoading');
+    const closePay = () => {
+        if (payModal) payModal.style.display = 'none';
+        if (paytriframe) paytriframe.src = '';
+    };
+    document.getElementById('payClose')?.addEventListener('click', closePay);
+    payModal?.addEventListener('click', (e) => { if (e.target === payModal) closePay(); });
+
+    if (payBtn) {
+        payBtn.addEventListener('click', async () => {
+            payModal.style.display = 'flex';
+            payLoading.style.display = 'block';
+            payLoading.textContent = 'PayTR güvenli ödeme hazırlanıyor…';
+            paytriframe.style.display = 'none';
+            try {
+                const createPayment = firebase.app().functions('us-central1').httpsCallable('createPayment');
+                const res = await createPayment({});
+                paytriframe.onload = () => {
+                    payLoading.style.display = 'none';
+                    paytriframe.style.display = 'block';
+                    if (window.iFrameResize) { try { iFrameResize({}, '#paytriframe'); } catch (e) {} }
+                };
+                paytriframe.src = res.data.iframeUrl;
+            } catch (err) {
+                payLoading.textContent = 'Ödeme başlatılamadı: ' + (err.message || 'bilinmeyen hata');
+            }
+        });
+    }
+
     fetchUsers();
     loadSubscription();
     fetchTickets();

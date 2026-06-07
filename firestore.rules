@@ -118,6 +118,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // --- Payments. Written only by Cloud Functions (Admin SDK bypasses rules);
+    //     a hotel admin may read their own hotel's payment history. ---
+    match /payments/{oid} {
+      allow read:  if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', '') == callerTenant());
+      allow write: if false;
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;
