@@ -139,9 +139,19 @@
         .price-note{text-align:center;color:var(--faint);font-size:13px;margin-top:30px}
 
         /* footer */
-        footer{border-top:1px solid var(--border);padding:40px 0;margin-top:40px}
-        .foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
-        .foot small{color:var(--faint);font-size:13px}
+        footer{border-top:1px solid var(--border);padding:56px 0 30px;margin-top:40px}
+        .foot-top{display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap;margin-bottom:34px}
+        .foot-brand{max-width:300px}
+        .foot-brand .brand{margin-bottom:12px}
+        .foot-brand p{color:var(--muted);font-size:14px}
+        .foot-cols{display:flex;gap:64px;flex-wrap:wrap}
+        .foot-col{display:flex;flex-direction:column;gap:11px}
+        .foot-col h4{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px}
+        .foot-col a{font-size:13.5px;color:var(--muted);transition:color .15s}
+        .foot-col a:hover{color:var(--text)}
+        .foot-bottom{border-top:1px solid var(--border);padding-top:22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+        .foot-bottom small{color:var(--faint);font-size:13px}
+        @media(max-width:560px){.foot-cols{gap:40px}}
     </style>
 </head>
 <body>
@@ -340,9 +350,32 @@
     </section>
 
     <footer>
-        <div class="wrap foot">
-            <div class="brand"><img src="logo.png" alt="StayOS"><span>StayOS</span></div>
-            <small>© <span id="year"></span> StayOS · Otel Yönetim Platformu</small>
+        <div class="wrap">
+            <div class="foot-top">
+                <div class="foot-brand">
+                    <div class="brand"><img src="logo.png" alt="StayOS"><span>StayOS</span></div>
+                    <p>Oteller için modern, çok otelli yönetim platformu. Rezervasyon, concierge ve misafir operasyonu tek panelde.</p>
+                </div>
+                <div class="foot-cols">
+                    <div class="foot-col">
+                        <h4>Ürün</h4>
+                        <a href="#ozellikler">Özellikler</a>
+                        <a href="#moduller">Modüller</a>
+                        <a href="#nasil">Nasıl Çalışır</a>
+                        <a href="#fiyatlar">Paketler</a>
+                    </div>
+                    <div class="foot-col">
+                        <h4>Yasal</h4>
+                        <a href="legal/gizlilik-kvkk.pdf" target="_blank" rel="noopener">Gizlilik Politikası &amp; KVKK</a>
+                        <a href="legal/kullanim-kosullari.pdf" target="_blank" rel="noopener">Kullanım Koşulları</a>
+                        <a href="legal/iptal-iade.pdf" target="_blank" rel="noopener">İptal &amp; İade Politikası</a>
+                    </div>
+                </div>
+            </div>
+            <div class="foot-bottom">
+                <small>© <span id="year"></span> StayOS · Tüm hakları saklıdır.</small>
+                <small>Otel Yönetim Platformu</small>
+            </div>
         </div>
     </footer>
 
