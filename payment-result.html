@@ -33,6 +33,10 @@
         document.getElementById('msg').textContent = ok
             ? 'Aboneliğiniz güncellendi. Bu pencereyi kapatabilirsiniz.'
             : 'Ödeme tamamlanamadı. Lütfen tekrar deneyin veya farklı bir kart kullanın.';
+
+        // This page loads inside the admin's payment iframe (same origin) —
+        // notify the panel so it can close the modal and refresh.
+        try { window.parent.postMessage({ source: 'stayos-payment', status: ok ? 'ok' : 'fail' }, '*'); } catch (e) {}
     </script>
 </body>
 </html>

@@ -485,6 +485,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('payClose')?.addEventListener('click', closePay);
     payModal?.addEventListener('click', (e) => { if (e.target === payModal) closePay(); });
 
+    // Show the plan price on the renewal button.
+    if (payBtn) {
+        const price = (typeof PLAN_PRICES !== 'undefined') ? PLAN_PRICES[localStorage.getItem('hotelPlan')] : 0;
+        if (price) payBtn.textContent = 'Aboneliği Yenile · ' + price.toLocaleString('tr-TR') + ' ₺';
+    }
+
+    // The result page (inside the iframe) posts back when payment finishes.
+    window.addEventListener('message', (e) => {
+        if (e.data && e.data.source === 'stayos-payment') {
+            closePay();
+            showToast(e.data.status === 'ok' ? 'Ödeme alındı, aboneliğiniz güncellendi.' : 'Ödeme tamamlanamadı.', e.data.status !== 'ok');
+        }
+    });
+
     if (payBtn) {
         payBtn.addEventListener('click', async () => {
             payModal.style.display = 'flex';
@@ -504,6 +518,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 payLoading.textContent = 'Ödeme başlatılamadı: ' + (err.message || 'bilinmeyen hata');
             }
         });
+    }
+
+    // ── PAYMENT HISTORY ─────────────────────────────────────────
+    const payHistBody = document.getElementById('payHistBody');
+    if (payHistBody) {
+        const stMap = { success: ['Başarılı', '#16a34a'], pending: ['Bekliyor', '#d97706'], failed: ['Başarısız', '#dc2626'], error: ['Hata', '#dc2626'] };
+        const planName = { starter: 'Başlangıç', pro: 'Profesyonel', enterprise: 'Kurumsal' };
+        db.collection('payments').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
+            const rows = snap.docs.map(d => d.data())
+                .sort((a, b) => ((b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0) - (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0)));
+            if (!rows.length) { payHistBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">Henüz ödeme yok</td></tr>'; return; }
+            payHistBody.innerHTML = rows.map(p => {
+                const d = p.createdAt && p.createdAt.toDate ? p.createdAt.toDate().toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+                const st = stMap[p.status] || [p.status || '—', '#64748b'];
+                const amt = (p.amountTRY || 0).toLocaleString('tr-TR') + ' ₺';
+                return `<tr><td>${d}</td><td>${esc(planName[p.plan] || p.plan || '—')}</td><td>${amt}</td><td><span style="color:${st[1]};font-weight:600;">${esc(st[0])}</span></td></tr>`;
+            }).join('');
+        }, () => {});
     }
 
     // ── FINANCE MODULE ──────────────────────────────────────────
