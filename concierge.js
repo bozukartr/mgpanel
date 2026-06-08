@@ -129,8 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
             a.download = `Full_System_Backup_${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
-            showToast('Full system backup exported.');
-        } catch (e) { showToast('Export failed', true); }
+            showToast('Tam sistem yedeği dışa aktarıldı.');
+        } catch (e) { showToast('Dışa aktarma başarısız', true); }
     });
 
     // IMPORT: JSON (Full System Restore)
@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     importDataBtn?.addEventListener('click', () => {
         if (!isAdminUser) {
-            return showToast('Only Admin can import backups.', true);
+            return showToast('Yalnızca admin yedek içe aktarabilir.', true);
         }
         importFileInput.click();
     });
@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(`Import Success: ${logCount} logs, ${resCount} res, ${dirCount} CRM profiles.`);
                 e.target.value = '';
                 setTimeout(() => window.location.reload(), 1500);
-            } catch (err) { showToast('Import failed: ' + err.message, true); }
+            } catch (err) { showToast('İçe aktarma başarısız: ' + err.message, true); }
         };
         reader.readAsText(file);
     });
@@ -832,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="res-card-room">Room ${esc(r.room)} ${r.time ? '• ' + esc(r.time) : ''}</span>
             </div>
             <div class="res-card-status">
-                <span class="status-badge ${esc(r.status.toLowerCase())}">${esc(r.status)}</span>
+                <span class="status-badge ${esc(r.status.toLowerCase())}">${esc(({Pending:'Bekliyor',Confirmed:'Onaylı',Cancelled:'İptal'})[r.status] || r.status)}</span>
             </div>
         `;
         return card;
@@ -949,8 +949,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const voucher = document.getElementById('rs-voucher').value.trim();
         const notes = document.getElementById('rs-notes').value.trim();
 
-        if (!guestName || date === '') { showToast('Please fill Guest Name and Date', true); return; }
-        if (!isPreArrival && !room) { showToast('Room is required unless Pre-Arrival is checked', true); return; }
+        if (!guestName || date === '') { showToast('Lütfen Misafir Adı ve Tarih girin', true); return; }
+        if (!isPreArrival && !room) { showToast('Ön Geliş işaretli değilse Oda zorunludur', true); return; }
 
         // 🛡️ Informational Collision checks now trigger live via event listeners above.
         // We allow direct single-click commits without obstructing UX flows now.
@@ -971,7 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (editResId) {
                 // Update existing
                 await db.collection('reservations').doc(editResId).update(data);
-                showToast('Reservation updated');
+                showToast('Rezervasyon güncellendi');
             } else {
                 // Create new
                 data.status = 'Pending';
@@ -980,7 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
                 await db.collection('reservations').add(data);
                 await syncGuestStatus(guestName, isPreArrival ? '' : room, isPreArrival, checkIn, checkOut); // Sync with directory
-                showToast('Reservation logged');
+                showToast('Rezervasyon kaydedildi');
             }
             
             resetConflictAlert(); // Clear transient alerts
@@ -991,7 +991,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('rs-isPreArrival').checked = false;
             document.getElementById('rs-pa-box').style.display = 'block'; // Ensure visible
             document.getElementById('rs-room').disabled = false;
-        } catch (e) { showToast('Error', true); }
+        } catch (e) { showToast('Hata', true); }
     };
 
     // ── DETAIL SHEET ──────────────────────────────────────────
@@ -1052,15 +1052,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (st === 'Confirmed') {
                 const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour'];
                 if (paidTypes.includes(r.type) && !r.voucherNo) {
-                    showToast('Voucher No required to confirm!', true);
+                    showToast('Onaylamak için Voucher No gerekli!', true);
                     return;
                 }
             }
 
             try {
                 await db.collection('reservations').doc(r.id).update({ status: st });
-                showToast('Status: ' + st);
-            } catch (e) { showToast('Error', true); }
+                showToast('Durum: ' + st);
+            } catch (e) { showToast('Hata', true); }
         };
     });
 
@@ -1086,7 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Security Check: Only creator can delete
         if (window.selectedReservation.staffInitial !== loggedUsername) {
-            showToast('Only the creator can delete this log!', true);
+            showToast('Bu kaydı yalnızca oluşturan kişi silebilir!', true);
             return;
         }
 
@@ -1097,7 +1097,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('auth-confirm-btn').onclick = async () => {
         const password = authPassInput.value;
-        if (!password) return showToast('Please enter your password', true);
+        if (!password) return showToast('Lütfen şifrenizi girin', true);
 
         const btn = document.getElementById('auth-confirm-btn');
         btn.disabled = true;
@@ -1110,11 +1110,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Success: Proceed with deletion
             await db.collection('reservations').doc(window.selectedReservation.id).delete();
-            showToast('Deleted');
+            showToast('Silindi');
             closeSheet(authSheet, authBackdrop);
             closeSheet(detailSheet, detailBackdrop);
         } catch (e) {
-            showToast('Authentication failed. Incorrect password.', true);
+            showToast('Doğrulama başarısız. Şifre yanlış.', true);
         } finally {
             btn.disabled = false;
             btn.textContent = 'Verify & Delete';
@@ -1204,7 +1204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const guestName = itiGuestSearch.value.trim();
         if (!guestName) return;
         const guestItems = reservations.filter(r => r.guestName === guestName && r.status !== 'Cancelled');
-        if (guestItems.length === 0) { showToast('No active reservations found', true); return; }
+        if (guestItems.length === 0) { showToast('Aktif rezervasyon bulunamadı', true); return; }
 
         selOptions.innerHTML = guestItems.map(item => `
             <label class="sel-item-row">
@@ -1225,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('sel-confirm-btn').onclick = () => {
             const checked = Array.from(document.querySelectorAll('input[name="iti-item"]:checked')).map(cb => cb.value);
-            if (checked.length === 0) { showToast('Please select at least one item', true); return; }
+            if (checked.length === 0) { showToast('Lütfen en az bir öğe seçin', true); return; }
 
             const selectedItems = guestItems.filter(r => checked.includes(r.id));
             generatePDF(guestName, guestMap[guestName], selectedItems);
@@ -1338,13 +1338,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function exportExcel(rows, filename, sheetName = 'Report') {
-        if (!rows || rows.length === 0) return showToast('No data for this report.', true);
+        if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
         const ws = XLSX.utils.json_to_sheet(rows);
         autoSizeSheet(ws, rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
         XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
-        showToast('Excel report downloaded.');
+        showToast('Excel raporu indirildi.');
     }
 
     function fixTurkishChars(str) {
@@ -1359,7 +1359,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function exportPDF(title, headers, rows, filename, subtitle = '') {
-        if (!rows || rows.length === 0) return showToast('No data for this report.', true);
+        if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: rows[0].length > 6 ? 'landscape' : 'portrait' });
 
@@ -1394,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             doc.text(`Page ${i} of ${pageCount} — Concierge Management System`, 14, doc.internal.pageSize.getHeight() - 8);
         }
         doc.save(`${filename}_${new Date().toISOString().split('T')[0]}.pdf`);
-        showToast('PDF report downloaded.');
+        showToast('PDF raporu indirildi.');
     }
 
     window.generateReport = function (type, format) {
@@ -1440,7 +1440,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     rows, `By_Activity_${cat}`);
             }
         } else if (type === 'guest') {
-            if (!guest) return showToast('Please select a guest.', true);
+            if (!guest) return showToast('Lütfen bir misafir seçin.', true);
             data = reservations.filter(r => r.guestName && r.guestName.toLowerCase().includes(guest.toLowerCase()) && r.status !== 'Cancelled');
             if (format === 'excel') exportExcel(data.map(rowBase), `Guest_Report_${guest}`);
             else {
@@ -1530,7 +1530,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── PDF GENERATOR ────────────────────────────────────────
     const generatePDF = (guest, room, itemsOverride = null) => {
         let guestItems = itemsOverride || reservations.filter(r => r.guestName === guest && r.status !== 'Cancelled');
-        if (guestItems.length === 0) { showToast('No active reservations found', true); return; }
+        if (guestItems.length === 0) { showToast('Aktif rezervasyon bulunamadı', true); return; }
 
         guestItems.sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
 
