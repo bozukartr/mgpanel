@@ -31,7 +31,7 @@ const PLAN_PRICE = { starter: 7500, pro: 15000, enterprise: 30000 };
 // '1' uses PayTR test cards (no real charge). Switch to '0' when going live.
 const TEST_MODE = '1';
 
-const BASE_URL = 'https://panel-d25c9.web.app';
+const BASE_URL = 'https://stayos.org';
 const REGION = 'us-central1';
 
 exports.createPayment = onCall(
