@@ -118,6 +118,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // --- Per-hotel finance settings (commission rates). Read by the hotel's
+    //     team, written by its admin (or the platform operator). ---
+    match /financeConfig/{tid} {
+      allow read:  if isSuperAdmin() || (signedIn() && tid == callerTenant());
+      allow write: if isSuperAdmin() || (isAdmin() && tid == callerTenant());
+    }
+
     // --- Payments. Written only by Cloud Functions (Admin SDK bypasses rules);
     //     a hotel admin may read their own hotel's payment history. ---
     match /payments/{oid} {

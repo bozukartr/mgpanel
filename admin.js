@@ -506,6 +506,143 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ── FINANCE MODULE ──────────────────────────────────────────
+    (function () {
+        const CATS = [
+            { key: 'Restaurant', label: 'Restoran' },
+            { key: 'Transfer', label: 'Transfer' },
+            { key: 'Flower', label: 'Çiçek' },
+            { key: 'Cake', label: 'Pasta' },
+            { key: 'Boat', label: 'Tekne' },
+            { key: 'Tour', label: 'Tur' },
+            { key: 'Beach', label: 'Plaj' },
+            { key: 'Other', label: 'Diğer' }
+        ];
+        const labelOf = (k) => (CATS.find(c => c.key === k) || { label: k }).label;
+        const money = (n) => '€' + Math.round(n || 0).toLocaleString('tr-TR');
+        const num = (v) => parseFloat(v) || 0;
+
+        let finReservations = [];
+        let commissions = {};
+
+        const finRange = document.getElementById('finRange');
+        const finFrom = document.getElementById('finFrom');
+        const finTo = document.getElementById('finTo');
+        if (!finRange) return; // finance UI not present
+
+        const iso = (d) => d.toISOString().slice(0, 10);
+        function rangeBounds() {
+            const v = finRange.value, today = new Date();
+            if (v === 'all') return [null, null];
+            if (v === 'custom') return [finFrom.value || null, finTo.value || null];
+            if (v === 'today') { const t = iso(today); return [t, t]; }
+            if (v === 'week') { const d = new Date(today); d.setDate(d.getDate() - 6); return [iso(d), iso(today)]; }
+            const f = new Date(today.getFullYear(), today.getMonth(), 1);
+            const l = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            return [iso(f), iso(l)];
+        }
+
+        function render() {
+            const [from, to] = rangeBounds();
+            const inRange = finReservations.filter(r => r.date && (!from || r.date >= from) && (!to || r.date <= to));
+            const active = inRange.filter(r => (r.status || '') !== 'Cancelled');
+
+            let gross = 0, collected = 0, commission = 0;
+            const cat = {};
+            active.forEach(r => {
+                const p = num(r.totalPrice), d = num(r.deposit), rate = num(commissions[r.type]);
+                gross += p; collected += d; commission += p * rate / 100;
+                const c = cat[r.type] || (cat[r.type] = { count: 0, gross: 0, collected: 0 });
+                c.count++; c.gross += p; c.collected += d;
+            });
+            const balance = gross - collected, net = gross - commission;
+            const collRate = gross > 0 ? (collected / gross * 100) : 0;
+
+            const kpis = [
+                { l: 'Brüt Gelir', v: money(gross), s: active.length + ' rezervasyon', cls: '' },
+                { l: 'Tahsil Edilen', v: money(collected), s: '%' + collRate.toFixed(0) + ' tahsilat', cls: 'green' },
+                { l: 'Açık Bakiye', v: money(balance), s: 'Bekleyen tahsilat', cls: balance > 0 ? 'amber' : '' },
+                { l: 'Komisyon', v: money(commission), s: 'Toplam komisyon', cls: 'accent' },
+                { l: 'Net Gelir', v: money(net), s: 'Brüt − komisyon', cls: '' },
+                { l: 'Ortalama Tutar', v: money(active.length ? gross / active.length : 0), s: 'Rezervasyon başına', cls: '' }
+            ];
+            document.getElementById('finKpis').innerHTML = kpis.map(k =>
+                `<div class="fin-kpi ${k.cls}"><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="s">${k.s}</div></div>`).join('');
+
+            const keys = CATS.map(c => c.key).filter(k => cat[k]);
+            document.getElementById('finCatBody').innerHTML = keys.map(k => {
+                const c = cat[k], rate = num(commissions[k]), comm = c.gross * rate / 100;
+                return `<tr><td>${esc(labelOf(k))}</td><td>${c.count}</td><td>${money(c.gross)}</td><td>${money(c.collected)}</td><td>${money(c.gross - c.collected)}</td><td>%${rate}</td><td>${money(comm)}</td><td>${money(c.gross - comm)}</td></tr>`;
+            }).join('') || `<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px;">Bu aralıkta kayıt yok</td></tr>`;
+            document.getElementById('finCatFoot').innerHTML = keys.length
+                ? `<tr><td>Toplam</td><td>${active.length}</td><td>${money(gross)}</td><td>${money(collected)}</td><td>${money(balance)}</td><td>—</td><td>${money(commission)}</td><td>${money(net)}</td></tr>`
+                : '';
+
+            const byStatus = (s) => active.filter(r => r.status === s);
+            const conf = byStatus('Confirmed'), pend = byStatus('Pending');
+            const cancelled = inRange.filter(r => r.status === 'Cancelled');
+            const sg = (arr) => arr.reduce((a, r) => a + num(r.totalPrice), 0);
+            document.getElementById('finStatus').innerHTML =
+                `<div class="fin-line"><span>✅ Onaylı</span><span><b>${money(sg(conf))}</b> <span class="muted">${conf.length} adet</span></span></div>` +
+                `<div class="fin-line"><span>⏳ Bekleyen</span><span><b>${money(sg(pend))}</b> <span class="muted">${pend.length} adet</span></span></div>` +
+                `<div class="fin-line"><span>✖ İptal</span><span><span class="muted">${cancelled.length} adet</span></span></div>`;
+
+            const staff = {};
+            active.forEach(r => { const s = r.staffInitial || '—'; const o = staff[s] || (staff[s] = { count: 0, gross: 0 }); o.count++; o.gross += num(r.totalPrice); });
+            const staffRows = Object.keys(staff).sort((a, b) => staff[b].gross - staff[a].gross);
+            document.getElementById('finStaff').innerHTML = staffRows.length
+                ? staffRows.map(s => `<div class="fin-line"><span>${esc(s)}</span><span><b>${money(staff[s].gross)}</b> <span class="muted">${staff[s].count} adet</span></span></div>`).join('')
+                : `<div class="fin-line"><span class="muted">Kayıt yok</span></div>`;
+
+            const missingPrice = active.filter(r => num(r.totalPrice) <= 0);
+            const missingVoucher = active.filter(r => r.status === 'Confirmed' && !(r.voucherNo && String(r.voucherNo).trim()));
+            const overpaid = active.filter(r => num(r.deposit) > num(r.totalPrice) && num(r.totalPrice) > 0);
+            const uncollected = active.filter(r => r.status === 'Confirmed' && (num(r.totalPrice) - num(r.deposit)) > 0);
+            const uncollectedSum = uncollected.reduce((a, r) => a + (num(r.totalPrice) - num(r.deposit)), 0);
+            const checks = [
+                { label: 'Fiyatı girilmemiş rezervasyon', n: missingPrice.length, sev: missingPrice.length ? 'warn' : 'ok' },
+                { label: 'Onaylı ama voucher/onay no eksik', n: missingVoucher.length, sev: missingVoucher.length ? 'warn' : 'ok' },
+                { label: 'Fazla ödeme (kapora > fiyat)', n: overpaid.length, sev: overpaid.length ? 'bad' : 'ok' },
+                { label: 'Onaylı ama tahsil edilmemiş bakiye · ' + money(uncollectedSum), n: uncollected.length, sev: uncollected.length ? 'bad' : 'ok' }
+            ];
+            document.getElementById('finChecks').innerHTML = checks.map(c =>
+                `<div class="fin-check ${c.sev}"><span>${c.sev === 'ok' ? '✓' : '!'}</span> ${c.label}<span class="cnt">${c.n}</span></div>`).join('');
+        }
+
+        function renderCommInputs() {
+            document.getElementById('commGrid').innerHTML = CATS.map(c =>
+                `<div class="comm-item"><label>${esc(c.label)}</label><div class="inrow"><input type="number" min="0" max="100" step="0.5" data-cat="${c.key}" value="${num(commissions[c.key])}"><span>%</span></div></div>`).join('');
+        }
+
+        document.getElementById('commSave').addEventListener('click', async () => {
+            const next = {};
+            document.querySelectorAll('#commGrid input[data-cat]').forEach(inp => { next[inp.dataset.cat] = num(inp.value); });
+            try {
+                await db.collection('financeConfig').doc(TENANT_ID).set({ commissions: next, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                showToast('Komisyon oranları kaydedildi.');
+            } catch (e) { showToast('Hata: ' + e.message, true); }
+        });
+
+        finRange.addEventListener('change', () => {
+            const custom = finRange.value === 'custom';
+            finFrom.style.display = custom ? 'block' : 'none';
+            finTo.style.display = custom ? 'block' : 'none';
+            render();
+        });
+        finFrom.addEventListener('change', render);
+        finTo.addEventListener('change', render);
+
+        db.collection('reservations').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
+            finReservations = snap.docs.map(d => d.data());
+            render();
+        }, () => {});
+        db.collection('financeConfig').doc(TENANT_ID).onSnapshot(doc => {
+            commissions = (doc.exists && doc.data().commissions) ? doc.data().commissions : {};
+            renderCommInputs();
+            render();
+        }, () => { renderCommInputs(); });
+    })();
+
     fetchUsers();
     loadSubscription();
     fetchTickets();

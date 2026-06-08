@@ -47,9 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Finans butonu admin ve manager rollerine
-                    if (role === 'admin' || role === 'manager' || uname === 'admin') {
-                        if (document.getElementById('c-openFinance')) document.getElementById('c-openFinance').style.display = 'flex';
-                    }
+                    // Finance moved to the Admin panel — button stays hidden here.
                 }
             } catch (e) { console.error("Auth error", e); }
         }
