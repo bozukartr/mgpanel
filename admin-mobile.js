@@ -334,6 +334,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const closePay = function () { payModal.style.display = 'none'; iframe.src = ''; };
         document.getElementById('m-payClose')?.addEventListener('click', closePay);
         payModal?.addEventListener('click', function (e) { if (e.target === payModal) closePay(); });
+
+        const mPayBtn = document.getElementById('m-payBtn');
+        const mPrice = (typeof PLAN_PRICES !== 'undefined') ? PLAN_PRICES[localStorage.getItem('hotelPlan')] : 0;
+        if (mPayBtn && mPrice) mPayBtn.textContent = 'Aboneliği Yenile · ' + mPrice.toLocaleString('tr-TR') + ' ₺';
+
+        window.addEventListener('message', function (e) {
+            if (e.data && e.data.source === 'stayos-payment') {
+                closePay();
+                showToast(e.data.status === 'ok' ? 'Ödeme alındı, aboneliğiniz güncellendi.' : 'Ödeme tamamlanamadı.', e.data.status !== 'ok');
+            }
+        });
+
         document.getElementById('m-payBtn')?.addEventListener('click', async function () {
             payModal.style.display = 'flex';
             loading.style.display = 'block';

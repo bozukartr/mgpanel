@@ -73,6 +73,10 @@ function guardTenant() {
 // everything on, unlimited users — so nothing is restricted before a plan is set.
 const ALL_MODULES = { concierge: true, crm: true, guestIssues: true };
 
+// Monthly plan price in TRY (display only — the server is authoritative in
+// functions/index.js). Used to show the amount on the renewal button.
+const PLAN_PRICES = { starter: 7500, pro: 15000, enterprise: 30000 };
+
 // Persist the hotel's plan/limits/modules at login so every page can gate
 // features instantly without an extra read.
 function applyTenantConfig(tenant) {
