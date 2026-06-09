@@ -132,6 +132,18 @@
                 <div class="card">
                     <div class="card-head">
                         <div><h3>Siparişler</h3><div class="sub" id="ordersCount">—</div></div>
+                        <div class="o-search-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input id="orderSearch" type="search" placeholder="Otel, yetkili, e-posta…" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="o-filters" id="orderFilters">
+                        <button class="o-tab active" data-filter="all">Tümü</button>
+                        <button class="o-tab" data-filter="unprovisioned">Açılmamış</button>
+                        <button class="o-tab" data-filter="success">Ödendi</button>
+                        <button class="o-tab" data-filter="pending">Bekliyor</button>
+                        <button class="o-tab" data-filter="provisioned">Açıldı</button>
+                        <button class="o-tab" data-filter="archived">Arşiv</button>
                     </div>
                     <div class="table-wrap"><table>
                         <thead><tr>
@@ -280,6 +292,36 @@
             <button class="btn-primary btn-sm" id="dAddUser">+ Kullanıcı</button>
         </div>
         <div id="dUserList" class="d-users"></div>
+    </div>
+</aside>
+
+<!-- ===== ORDER DETAIL DRAWER ===== -->
+<div class="drawer-backdrop" id="orderDrawerBackdrop"></div>
+<aside class="drawer" id="orderDrawer">
+    <div class="drawer-head">
+        <div class="hotel-cell">
+            <div class="av" id="odAvatar">··</div>
+            <div><b id="odName">—</b><div class="mono" id="odSub">—</div></div>
+        </div>
+        <button class="icon-btn" id="orderDrawerClose" title="Kapat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+    </div>
+    <div class="drawer-body">
+        <div class="d-stats">
+            <div class="d-stat"><span>Durum</span><b id="odStatus">—</b></div>
+            <div class="d-stat"><span>Tutar</span><b id="odPrice">—</b></div>
+            <div class="d-stat"><span>Döngü</span><b id="odCycle">—</b></div>
+        </div>
+        <div class="d-actions" id="odActions"></div>
+        <div class="d-section-head"><h4>Sipariş Bilgileri</h4></div>
+        <div class="o-detail" id="odDetail"></div>
+        <div class="d-section-head" style="margin-top:22px;"><h4>Not</h4></div>
+        <textarea id="odNote" class="o-note" placeholder="Bu sipariş hakkında not (iletişim, takip, vb.)…"></textarea>
+        <div class="o-note-foot">
+            <span class="muted-sm" id="odNoteHint"></span>
+            <button class="btn-primary btn-sm" id="odNoteSave">Notu Kaydet</button>
+        </div>
     </div>
 </aside>
 

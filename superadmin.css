@@ -320,6 +320,40 @@ tbody tr.row-click { cursor: pointer; }
     white-space: nowrap;
 }
 .order-open:hover { text-decoration: underline; }
+a.btn-ghost, a.btn-primary { text-decoration: none; }
+
+/* ===== Orders: search, filters, drawer ===== */
+.o-search-wrap { position: relative; display: flex; align-items: center; }
+.o-search-wrap svg {
+    position: absolute; left: 11px; width: 15px; height: 15px; stroke: var(--faint); pointer-events: none;
+}
+.o-search-wrap input {
+    padding: 8px 12px 8px 32px; border: 1px solid var(--border); border-radius: 9px;
+    font-size: 13px; color: var(--text); background: #fbfcfe; width: 230px; max-width: 46vw;
+}
+.o-search-wrap input:focus { outline: none; border-color: var(--accent); background: #fff; }
+.o-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px; border-bottom: 1px solid var(--border); }
+.o-tab {
+    padding: 6px 12px; border: 1px solid var(--border); border-radius: 20px; background: #fff;
+    color: var(--muted); font-size: 12.5px; font-weight: 600; transition: .12s;
+}
+.o-tab:hover { border-color: #cbd5e1; color: var(--text); }
+.o-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.row-archived { opacity: .55; }
+.note-dot { color: var(--amber); font-size: 9px; vertical-align: middle; }
+.o-detail { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 11px; overflow: hidden; }
+.o-row { display: flex; justify-content: space-between; gap: 14px; padding: 11px 14px; background: var(--card); font-size: 13px; }
+.o-row > span { color: var(--faint); flex-shrink: 0; }
+.o-row > div { text-align: right; font-weight: 600; word-break: break-word; }
+.o-row a { color: var(--accent); text-decoration: none; }
+.o-row a:hover { text-decoration: underline; }
+.o-note {
+    width: 100%; min-height: 84px; resize: vertical; padding: 11px 13px; border: 1px solid var(--border);
+    border-radius: 10px; font-family: inherit; font-size: 13px; color: var(--text); background: #fbfcfe;
+}
+.o-note:focus { outline: none; border-color: var(--accent); background: #fff; }
+.o-note-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.o-note-foot .muted-sm { color: var(--green); }
 .btn-danger { background: var(--red); }
 .btn-danger:hover { background: #b91c1c; }
 .d-users { display: flex; flex-direction: column; gap: 8px; }

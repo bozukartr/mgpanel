@@ -132,11 +132,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // --- Public checkout orders (from the marketing site). Written only by the
-    //     Cloud Function; readable by the platform operator. ---
+    // --- Public checkout orders (from the marketing site). Created only by the
+    //     Cloud Function (Admin SDK bypasses rules). The platform operator can
+    //     read all, annotate/archive (limited fields only — never status, amount
+    //     or buyer details), and delete. ---
     match /checkoutOrders/{oid} {
-      allow read:  if isSuperAdmin();
-      allow write: if false;
+      allow read:   if isSuperAdmin();
+      allow create: if false;
+      allow update: if isSuperAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['note', 'archived', 'archivedAt']);
+      allow delete: if isSuperAdmin();
     }
 
     // --- Deny everything else ---
