@@ -305,7 +305,7 @@
             });
 
             $('hotelModal').classList.remove('show');
-            toast(name + ' oluşturuldu');
+            toast(name + ' oluşturuldu · ' + slug + '.stayos.org');
             await refresh();
         } catch (e) {
             err.textContent = 'Hata: ' + e.message;
@@ -408,7 +408,7 @@
         const s = statusOf(t);
         $('dAvatar').textContent = initials(t.name || t.id);
         $('dName').textContent = t.name || t.id;
-        $('dSub').textContent = t.id + '.stayos.org';
+        $('dSub').innerHTML = '<a href="https://' + esc(t.id) + '.stayos.org" target="_blank" rel="noopener" style="color:inherit">' + esc(t.id) + '.stayos.org ↗</a>';
         $('dPlan').textContent = planName(t);
         $('dStatus').innerHTML = `<span class="pill ${s.cls}">${s.label}</span>`;
         const count = userCountByTenant[t.id] || 0;
