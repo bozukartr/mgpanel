@@ -15,6 +15,9 @@
     let currentSubTenant = null;
     let currentOrderId = null;  // set when the new-hotel modal is opened from an order
     let drawerTenantId = null;
+    let drawerOrderId = null;   // open order in the order detail drawer
+    let orderFilter = 'all';    // all | unprovisioned | success | pending | provisioned | archived
+    let orderSearch = '';
 
     // ---------- helpers ----------
     function toast(msg, isErr) {
@@ -167,10 +170,26 @@
         if (it.pms) parts.push('PMS');
         return parts.length ? parts.join(', ') : 'Core';
     }
+    // Paid but not yet turned into a hotel and not archived — needs operator action.
+    function isActionable(o) { return o.status === 'success' && !o.archived && !orderTenant(o); }
+    function matchesFilter(o) {
+        switch (orderFilter) {
+            case 'archived':      return !!o.archived;
+            case 'unprovisioned': return isActionable(o);
+            case 'success':       return o.status === 'success' && !o.archived;
+            case 'pending':       return o.status === 'pending' && !o.archived;
+            case 'provisioned':   return !!orderTenant(o) && !o.archived;
+            default:              return !o.archived; // 'all' hides the archive
+        }
+    }
+    function matchesSearch(o) {
+        if (!orderSearch) return true;
+        const b = o.buyer || {};
+        return [b.hotel, b.name, b.email, b.phone, o.id].some(v => (v || '').toLowerCase().includes(orderSearch));
+    }
 
     function renderOrders() {
-        // Badge: paid orders not yet turned into a hotel.
-        const actionable = orders.filter(o => o.status === 'success' && !orderTenant(o)).length;
+        const actionable = orders.filter(isActionable).length;
         const badge = $('ordersBadge');
         if (badge) { badge.textContent = actionable; badge.hidden = actionable === 0; }
 
@@ -179,13 +198,19 @@
 
         const body = $('ordersBody');
         if (!body) return;
-        if (!orders.length) {
+
+        const rows = orders.filter(o => matchesFilter(o) && matchesSearch(o));
+        if (!rows.length) {
+            const msg = orders.length
+                ? 'Bu filtreye uygun sipariş yok.'
+                : 'Henüz sipariş yok. Tanıtım sitesinden gelen ödemeler burada listelenir.';
             body.innerHTML = `<tr><td colspan="6"><div class="empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-                <div>Henüz sipariş yok. Tanıtım sitesinden gelen ödemeler burada listelenir.</div></div></td></tr>`;
+                <div>${msg}</div></div></td></tr>`;
+            if (drawerOrderId) refreshOrderDrawer();
             return;
         }
-        body.innerHTML = orders.map(o => {
+        body.innerHTML = rows.map(o => {
             const st = ORDER_STATUS[o.status] || { label: o.status || '—', cls: 'pill-gray' };
             const b = o.buyer || {};
             const created = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : null;
@@ -194,21 +219,117 @@
             let action;
             if (tn) {
                 action = `<a class="order-open" href="https://${esc(tn.id)}.stayos.org" target="_blank" rel="noopener">Açıldı · ${esc(tn.id)} ↗</a>`;
-            } else if (o.status === 'success') {
+            } else if (o.status === 'success' && !o.archived) {
                 action = `<button class="btn-primary btn-sm" data-act="provision" data-id="${esc(o.id)}">Otel Aç</button>`;
             } else {
                 action = `<span class="muted-sm">—</span>`;
             }
+            const noteIco = o.note ? ' <span class="note-dot" title="Not var">●</span>' : '';
             return `
-            <tr>
+            <tr class="row-click${o.archived ? ' row-archived' : ''}" data-order="${esc(o.id)}">
                 <td><div class="mono">${fmtDate(created)}</div></td>
-                <td><div class="hotel-cell"><div class="av">${esc(initials(b.hotel || b.name || '?'))}</div><div><b>${esc(b.hotel || '—')}</b><div class="mono">${esc(b.name || '')}${b.email ? ' · ' + esc(b.email) : ''}</div></div></div></td>
+                <td><div class="hotel-cell"><div class="av">${esc(initials(b.hotel || b.name || '?'))}</div><div><b>${esc(b.hotel || '—')}${noteIco}</b><div class="mono">${esc(b.name || '')}${b.email ? ' · ' + esc(b.email) : ''}</div></div></div></td>
                 <td>${esc(cycle)}<div class="sub-end">${esc(orderItemsText(o))}</div></td>
                 <td><b>${fmtMoney(o.priceTRY)}</b></td>
                 <td><span class="pill ${st.cls}">${st.label}</span></td>
                 <td style="text-align:right;">${action}</td>
             </tr>`;
         }).join('');
+
+        if (drawerOrderId) refreshOrderDrawer();
+    }
+
+    // ---------- order detail drawer ----------
+    function openOrderDrawer(id) {
+        if (!orders.find(o => o.id === id)) return;
+        drawerOrderId = id;
+        refreshOrderDrawer();
+        $('orderDrawer').classList.add('show');
+        $('orderDrawerBackdrop').classList.add('show');
+    }
+    function closeOrderDrawer() {
+        drawerOrderId = null;
+        $('orderDrawer').classList.remove('show');
+        $('orderDrawerBackdrop').classList.remove('show');
+    }
+    function refreshOrderDrawer() {
+        const o = orders.find(x => x.id === drawerOrderId);
+        if (!o) { closeOrderDrawer(); return; }
+        const b = o.buyer || {};
+        const st = ORDER_STATUS[o.status] || { label: o.status || '—', cls: 'pill-gray' };
+        const created = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : null;
+        const paid = o.paidAt && o.paidAt.toDate ? o.paidAt.toDate() : null;
+        const tn = orderTenant(o);
+
+        $('odAvatar').textContent = initials(b.hotel || b.name || '?');
+        $('odName').textContent = b.hotel || '—';
+        $('odSub').textContent = o.id + (o.archived ? ' · arşivli' : '');
+        $('odStatus').innerHTML = `<span class="pill ${st.cls}">${st.label}</span>`;
+        $('odPrice').textContent = fmtMoney(o.priceTRY);
+        $('odCycle').textContent = o.cycle === 'annual' ? 'Yıllık' : 'Aylık';
+
+        // Detail rows
+        const rowsHtml = [
+            ['Yetkili', esc(b.name || '—')],
+            ['E-posta', b.email ? `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>` : '—'],
+            ['Telefon', b.phone ? `<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : '—'],
+            ['Kalemler', esc(orderItemsText(o))],
+            ['Oluşturma', fmtDate(created)],
+            ['Ödeme', paid ? fmtDate(paid) : '—'],
+            ['Sipariş No', `<span class="mono">${esc(o.id)}</span>`]
+        ];
+        if (o.status === 'error' && o.error) rowsHtml.push(['Hata', esc(o.error)]);
+        $('odDetail').innerHTML = rowsHtml.map(([k, v]) => `<div class="o-row"><span>${k}</span><div>${v}</div></div>`).join('');
+
+        // Actions
+        const acts = [];
+        if (tn) {
+            acts.push(`<a class="btn-ghost btn-sm" href="https://${esc(tn.id)}.stayos.org" target="_blank" rel="noopener">Oteli Aç ↗</a>`);
+        } else if (o.status === 'success' && !o.archived) {
+            acts.push(`<button class="btn-primary btn-sm" data-oact="provision">Otel Aç</button>`);
+        }
+        acts.push(`<button class="btn-ghost btn-sm" data-oact="archive">${o.archived ? 'Arşivden Çıkar' : 'Arşivle'}</button>`);
+        acts.push(`<button class="btn-ghost btn-sm btn-danger-ghost" data-oact="delete">Sil</button>`);
+        $('odActions').innerHTML = acts.join('');
+
+        // Note
+        $('odNote').value = o.note || '';
+        $('odNoteHint').textContent = '';
+    }
+
+    async function saveOrderNote() {
+        const o = orders.find(x => x.id === drawerOrderId); if (!o) return;
+        const note = $('odNote').value.trim();
+        const btn = $('odNoteSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor…';
+        try {
+            await db.collection('checkoutOrders').doc(o.id).update({ note });
+            $('odNoteHint').textContent = 'Kaydedildi ✓';
+            toast('Not kaydedildi');
+        } catch (e) { $('odNoteHint').textContent = 'Hata: ' + e.message; toast('Hata: ' + e.message, true); }
+        finally { btn.disabled = false; btn.textContent = 'Notu Kaydet'; }
+    }
+
+    async function toggleOrderArchive() {
+        const o = orders.find(x => x.id === drawerOrderId); if (!o) return;
+        const next = !o.archived;
+        try {
+            await db.collection('checkoutOrders').doc(o.id).update({
+                archived: next,
+                archivedAt: next ? firebase.firestore.FieldValue.serverTimestamp() : null
+            });
+            toast(next ? 'Sipariş arşivlendi' : 'Sipariş arşivden çıkarıldı');
+        } catch (e) { toast('Hata: ' + e.message, true); }
+    }
+
+    async function deleteOrder() {
+        const o = orders.find(x => x.id === drawerOrderId); if (!o) return;
+        const label = (o.buyer && o.buyer.hotel) || o.id;
+        if (!confirm(`"${label}" siparişi kalıcı olarak silinsin mi?\n\nPayTR/muhasebe kaydı kaybolur. Geri alınamaz. Gereksiz değilse "Arşivle" tercih edin.`)) return;
+        try {
+            await db.collection('checkoutOrders').doc(o.id).delete();
+            closeOrderDrawer();
+            toast('Sipariş silindi');
+        } catch (e) { toast('Hata: ' + e.message, true); }
     }
 
     function renderKpis() {
@@ -698,9 +819,35 @@
     });
     $('ordersBody').addEventListener('click', (e) => {
         const btn = e.target.closest('[data-act="provision"]');
+        if (btn) {
+            const order = orders.find(o => o.id === btn.dataset.id);
+            if (order) openHotelModal(order);
+            return;
+        }
+        const row = e.target.closest('tr[data-order]');
+        if (row) openOrderDrawer(row.dataset.order);
+    });
+    $('orderFilters').addEventListener('click', (e) => {
+        const tab = e.target.closest('.o-tab');
+        if (!tab) return;
+        orderFilter = tab.dataset.filter;
+        $('orderFilters').querySelectorAll('.o-tab').forEach(t => t.classList.toggle('active', t === tab));
+        renderOrders();
+    });
+    $('orderSearch').addEventListener('input', (e) => {
+        orderSearch = e.target.value.trim().toLowerCase();
+        renderOrders();
+    });
+    $('orderDrawerClose').addEventListener('click', closeOrderDrawer);
+    $('orderDrawerBackdrop').addEventListener('click', closeOrderDrawer);
+    $('odNoteSave').addEventListener('click', saveOrderNote);
+    $('odActions').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-oact]');
         if (!btn) return;
-        const order = orders.find(o => o.id === btn.dataset.id);
-        if (order) openHotelModal(order);
+        const o = orders.find(x => x.id === drawerOrderId); if (!o) return;
+        if (btn.dataset.oact === 'provision') { closeOrderDrawer(); openHotelModal(o); }
+        else if (btn.dataset.oact === 'archive') toggleOrderArchive();
+        else if (btn.dataset.oact === 'delete') deleteOrder();
     });
     $('newHotelBtn').addEventListener('click', () => openHotelModal());
     $('nhCreate').addEventListener('click', createHotel);
