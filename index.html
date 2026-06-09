@@ -151,59 +151,57 @@
         @media(max-width:640px){.pricing-cta-card{padding:26px 22px}.pcc-right{width:100%}.pricing-open{width:100%}}
 
         /* pricing modal */
-        .pm-backdrop{position:fixed;inset:0;background:rgba(5,8,18,.7);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+        .pm-backdrop{position:fixed;inset:0;background:rgba(5,8,18,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;z-index:200;padding:18px}
         .pm-backdrop.show{display:flex}
-        .pm{background:#0f1626;border:1px solid var(--border);border-radius:22px;width:100%;max-width:920px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 40px 100px rgba(0,0,0,.6)}
-        .pm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:22px 26px;border-bottom:1px solid var(--border)}
-        .pm-head h3{font-size:20px;font-weight:800}
-        .pm-head p{color:var(--muted);font-size:13px;margin-top:4px}
-        .pm-close{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);width:38px;height:38px;border-radius:10px;font-size:22px;line-height:1;cursor:pointer;flex-shrink:0}
-        .pm-close:hover{background:rgba(255,255,255,.12)}
-        .pm-body{display:grid;grid-template-columns:1.3fr 1fr;overflow:hidden;min-height:0}
-        @media(max-width:780px){.pm-body{grid-template-columns:1fr;overflow-y:auto}}
-        .pm-left{padding:22px 26px;overflow-y:auto}
-        .pm-toggle{display:inline-flex;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:20px}
-        .pm-tg{border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:8px}
+        .pm{background:#0f1626;border:1px solid var(--border);border-radius:20px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.6)}
+        .pm-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 14px}
+        .pm-head h3{font-size:18px;font-weight:800;letter-spacing:-.3px}
+        .pm-close{background:none;border:none;color:var(--muted);font-size:25px;line-height:1;cursor:pointer;padding:0 2px}
+        .pm-close:hover{color:var(--text)}
+        .pm-scroll{padding:0 24px 20px;overflow-y:auto}
+        .pm-toggle{display:flex;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:11px;padding:4px;margin-bottom:20px}
+        .pm-tg{flex:1;border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13.5px;font-weight:600;padding:9px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
         .pm-tg.active{background:var(--accent);color:#fff}
-        .pm-save{font-size:11px;font-weight:700;background:rgba(52,211,153,.2);color:#34d399;padding:2px 7px;border-radius:6px}
-        .pm-tg.active .pm-save{background:rgba(255,255,255,.22);color:#fff}
-        .pm-core{background:linear-gradient(180deg,rgba(99,102,241,.1),rgba(255,255,255,.02));border:1px solid rgba(99,102,241,.3);border-radius:16px;padding:18px 20px;margin-bottom:22px}
-        .pm-core-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
-        .pm-core-name{font-size:16px;font-weight:800}
-        .pm-core-price{font-size:15px;font-weight:800;color:#a5b4fc}
-        .pm-core-list{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:7px}
-        .pm-core-list li{font-size:12.5px;color:#cbd5e1}
-        @media(max-width:480px){.pm-core-list{grid-template-columns:1fr}}
-        .pm-ex-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);margin-bottom:12px}
-        .pm-row{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px;margin-bottom:10px}
+        .pm-save{font-size:11px;font-weight:700;opacity:.9}
+        .pm-core{display:flex;align-items:center;justify-content:space-between;gap:14px;background:linear-gradient(120deg,rgba(99,102,241,.12),rgba(255,255,255,.02));border:1px solid rgba(99,102,241,.3);border-radius:14px;padding:15px 18px;margin-bottom:8px}
+        .pm-core-name{font-size:15px;font-weight:800}
+        .pm-core-desc{font-size:12px;color:var(--muted);margin-top:3px;max-width:270px;line-height:1.45}
+        .pm-core-price{font-size:21px;font-weight:800;letter-spacing:-.5px;white-space:nowrap}
+        .pm-core-price small{font-size:12px;font-weight:500;color:var(--muted)}
+        .pm-ex-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);margin:22px 0 4px}
+        .pm-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.06)}
+        .pm-row:last-child{border-bottom:none}
         .pm-row-info b{font-size:14px;font-weight:600;display:block}
-        .pm-row-info span{font-size:12px;color:var(--muted)}
-        .pm-check{cursor:pointer}
-        .pm-check input{width:20px;height:20px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+        .pm-row-info span{font-size:12.5px;color:var(--muted)}
         .pm-stepper{display:flex;align-items:center;flex-shrink:0;border:1px solid var(--border);border-radius:9px;overflow:hidden}
-        .pm-stepper button{width:34px;height:34px;background:rgba(255,255,255,.05);border:none;color:var(--text);font-size:18px;cursor:pointer}
+        .pm-stepper button{width:32px;height:32px;background:rgba(255,255,255,.05);border:none;color:var(--text);font-size:17px;cursor:pointer}
         .pm-stepper button:hover{background:rgba(255,255,255,.12)}
-        .pm-stepper span{min-width:36px;text-align:center;font-weight:700;font-size:14px}
-        .pm-invoice{background:#0b1120;border-left:1px solid var(--border);padding:22px 24px;display:flex;flex-direction:column;overflow-y:auto}
-        @media(max-width:780px){.pm-invoice{border-left:none;border-top:1px solid var(--border)}}
-        .pm-invoice h4{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);margin-bottom:16px}
-        .pm-lines{display:flex;flex-direction:column;gap:9px;margin-bottom:12px}
-        .pm-line{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;color:#cbd5e1}
-        .pm-line.muted{color:var(--muted);font-size:12.5px}
-        .pm-line.disc{color:#34d399}
-        .pm-cycle-note{font-size:12px;color:var(--muted);margin-bottom:12px}
-        .pm-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--border);padding-top:16px}
-        .pm-total span{font-size:14px;color:var(--muted)}
-        .pm-total b{font-size:28px;font-weight:800;letter-spacing:-1px}
-        .pm-total-sub{font-size:12.5px;color:var(--muted);margin-top:4px;min-height:16px}
-        .pm-kdv{font-size:11.5px;color:var(--faint);margin:14px 0 16px}
-        .pm-cta{justify-content:center;width:100%}
-        .pm-startup{font-size:12px;color:var(--faint);margin-top:14px;text-align:center;line-height:1.5}
+        .pm-stepper span{min-width:30px;text-align:center;font-weight:700;font-size:14px}
+        .pm-switch{position:relative;width:42px;height:24px;flex-shrink:0;cursor:pointer}
+        .pm-switch input{opacity:0;width:0;height:0;position:absolute}
+        .pm-switch .sl{position:absolute;inset:0;background:rgba(255,255,255,.14);border-radius:999px;transition:.2s}
+        .pm-switch .sl::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+        .pm-switch input:checked + .sl{background:var(--accent)}
+        .pm-switch input:checked + .sl::before{transform:translateX(18px)}
+        .pm-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 24px;border-top:1px solid var(--border);background:rgba(255,255,255,.025)}
+        .pm-bar-total span{display:block;font-size:11.5px;color:var(--muted);margin-bottom:2px}
+        .pm-bar-total b{font-size:23px;font-weight:800;letter-spacing:-.5px}
+        .pm-bar .btn{padding:13px 24px;font-size:14px;white-space:nowrap}
 
         /* footer */
-        footer{border-top:1px solid var(--border);padding:40px 0;margin-top:40px}
-        .foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
-        .foot small{color:var(--faint);font-size:13px}
+        footer{border-top:1px solid var(--border);padding:56px 0 30px;margin-top:40px}
+        .foot-top{display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap;margin-bottom:34px}
+        .foot-brand{max-width:300px}
+        .foot-brand .brand{margin-bottom:12px}
+        .foot-brand p{color:var(--muted);font-size:14px}
+        .foot-cols{display:flex;gap:64px;flex-wrap:wrap}
+        .foot-col{display:flex;flex-direction:column;gap:11px}
+        .foot-col h4{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px}
+        .foot-col a{font-size:13.5px;color:var(--muted);transition:color .15s}
+        .foot-col a:hover{color:var(--text)}
+        .foot-bottom{border-top:1px solid var(--border);padding-top:22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+        .foot-bottom small{color:var(--faint);font-size:13px}
+        @media(max-width:560px){.foot-cols{gap:40px}}
     </style>
 </head>
 <body>
@@ -381,70 +379,77 @@
     </section>
 
     <footer>
-        <div class="wrap foot">
-            <div class="brand"><img src="logo.png" alt="StayOS"><span>StayOS</span></div>
-            <small>© <span id="year"></span> StayOS · Otel Yönetim Platformu</small>
+        <div class="wrap">
+            <div class="foot-top">
+                <div class="foot-brand">
+                    <div class="brand"><img src="logo.png" alt="StayOS"><span>StayOS</span></div>
+                    <p>Oteller için modern, çok otelli yönetim platformu. Rezervasyon, concierge ve misafir operasyonu tek panelde.</p>
+                </div>
+                <div class="foot-cols">
+                    <div class="foot-col">
+                        <h4>Ürün</h4>
+                        <a href="#ozellikler">Özellikler</a>
+                        <a href="#moduller">Modüller</a>
+                        <a href="#nasil">Nasıl Çalışır</a>
+                        <a href="#fiyatlar">Paketler</a>
+                    </div>
+                    <div class="foot-col">
+                        <h4>Yasal</h4>
+                        <a href="legal/gizlilik-kvkk.pdf" target="_blank" rel="noopener">Gizlilik Politikası &amp; KVKK</a>
+                        <a href="legal/kullanim-kosullari.pdf" target="_blank" rel="noopener">Kullanım Koşulları</a>
+                        <a href="legal/iptal-iade.pdf" target="_blank" rel="noopener">İptal &amp; İade Politikası</a>
+                    </div>
+                </div>
+            </div>
+            <div class="foot-bottom">
+                <small>© <span id="year"></span> StayOS · Tüm hakları saklıdır.</small>
+                <small>Otel Yönetim Platformu</small>
+            </div>
         </div>
     </footer>
 
     <!-- ── PRICING MODAL ── -->
     <div class="pm-backdrop" id="pricingModal" aria-hidden="true">
-        <div class="pm" role="dialog" aria-modal="true" aria-label="Fiyatlandırma ve Paketler">
+        <div class="pm" role="dialog" aria-modal="true" aria-label="Fiyatlandırma">
             <div class="pm-head">
-                <div>
-                    <h3>Fiyatlandırma ve Paketler</h3>
-                    <p>Core paketi seç, ihtiyacın olan modülleri ekle — toplam anında hesaplansın.</p>
-                </div>
+                <h3>Fiyatlandırma</h3>
                 <button class="pm-close" id="closePricing" aria-label="Kapat">×</button>
             </div>
-            <div class="pm-body">
-                <div class="pm-left">
-                    <div class="pm-toggle">
-                        <button class="pm-tg active" data-cycle="monthly">Aylık</button>
-                        <button class="pm-tg" data-cycle="annual">Yıllık <span class="pm-save">%18 indirim</span></button>
-                    </div>
-
-                    <div class="pm-core">
-                        <div class="pm-core-top"><span class="pm-core-name">Core Paket</span><span class="pm-core-price">10.000 ₺ / ay</span></div>
-                        <ul class="pm-core-list">
-                            <li>✓ 1 Otel Paneli</li>
-                            <li>✓ Tam Rezervasyon Yönetimi</li>
-                            <li>✓ CRM &amp; Konuk İlişkileri</li>
-                            <li>✓ Concierge / Hizmet Yönetimi</li>
-                            <li>✓ Şikayet / Guest Issue Takibi</li>
-                            <li>✓ 5 kullanıcı dahil</li>
-                        </ul>
-                    </div>
-
-                    <div class="pm-ex-title">Ekstra Modüller</div>
-                    <div class="pm-row">
-                        <div class="pm-row-info"><b>Ekstra Otel Paneli</b><span>Her ek otel için ayrı panel · 5.000 ₺/ay</span></div>
-                        <div class="pm-stepper"><button data-step="hotels" data-d="-1" aria-label="azalt">−</button><span id="qtyHotels">0</span><button data-step="hotels" data-d="1" aria-label="artır">+</button></div>
-                    </div>
-                    <div class="pm-row">
-                        <div class="pm-row-info"><b>Ek Kullanıcı Paketi</b><span>Her +5 kullanıcı · 2.000 ₺/ay</span></div>
-                        <div class="pm-stepper"><button data-step="users" data-d="-1" aria-label="azalt">−</button><span id="qtyUsers">0</span><button data-step="users" data-d="1" aria-label="artır">+</button></div>
-                    </div>
-                    <label class="pm-row pm-check">
-                        <div class="pm-row-info"><b>Tam PMS Entegrasyonu</b><span>Opera, Elektra, Fidelio vb. API · 4.000 ₺/ay</span></div>
-                        <input type="checkbox" data-opt="pms">
-                    </label>
-                    <label class="pm-row pm-check">
-                        <div class="pm-row-info"><b>Otomatik Abonelik Yenileme</b><span>Tek tık yenileme + gelişmiş ödeme · 1.000 ₺/ay</span></div>
-                        <input type="checkbox" data-opt="autoRenew">
-                    </label>
+            <div class="pm-scroll">
+                <div class="pm-toggle">
+                    <button class="pm-tg active" data-cycle="monthly">Aylık</button>
+                    <button class="pm-tg" data-cycle="annual">Yıllık <span class="pm-save">−%18</span></button>
                 </div>
 
-                <aside class="pm-invoice">
-                    <h4>Fatura Önizlemesi</h4>
-                    <div class="pm-lines" id="pmLines"></div>
-                    <div class="pm-cycle-note" id="pmCycleNote"></div>
-                    <div class="pm-total"><span>Toplam</span><b id="pmTotal">10.000 ₺</b></div>
-                    <div class="pm-total-sub" id="pmTotalSub"></div>
-                    <div class="pm-kdv">Fiyatlara KDV dahil değildir.</div>
-                    <a class="btn btn-primary pm-cta" id="pmCta" href="#">Teklif Al / Özel Paket Talebi</a>
-                    <p class="pm-startup">Yeni bir girişim olarak ilk müşterilerimize özel esnek seçenekler sunuyoruz. Sana en uygun paketi birlikte kuralım.</p>
-                </aside>
+                <div class="pm-core">
+                    <div>
+                        <div class="pm-core-name">Core Paket</div>
+                        <div class="pm-core-desc">Rezervasyon, CRM, Concierge ve şikayet yönetimi · 5 kullanıcı dahil</div>
+                    </div>
+                    <div class="pm-core-price">10.000<small> ₺/ay</small></div>
+                </div>
+
+                <div class="pm-ex-title">Ek modüller</div>
+                <div class="pm-row">
+                    <div class="pm-row-info"><b>Ekstra Otel Paneli</b><span>5.000 ₺/ay · her ek otel</span></div>
+                    <div class="pm-stepper"><button data-step="hotels" data-d="-1" aria-label="azalt">−</button><span id="qtyHotels">0</span><button data-step="hotels" data-d="1" aria-label="artır">+</button></div>
+                </div>
+                <div class="pm-row">
+                    <div class="pm-row-info"><b>Ek Kullanıcı Paketi</b><span>2.000 ₺/ay · +5 kullanıcı</span></div>
+                    <div class="pm-stepper"><button data-step="users" data-d="-1" aria-label="azalt">−</button><span id="qtyUsers">0</span><button data-step="users" data-d="1" aria-label="artır">+</button></div>
+                </div>
+                <div class="pm-row">
+                    <div class="pm-row-info"><b>PMS Entegrasyonu</b><span>4.000 ₺/ay · Opera, Elektra, Fidelio</span></div>
+                    <label class="pm-switch"><input type="checkbox" data-opt="pms"><span class="sl"></span></label>
+                </div>
+                <div class="pm-row">
+                    <div class="pm-row-info"><b>Otomatik Yenileme</b><span>1.000 ₺/ay · tek tık yenileme</span></div>
+                    <label class="pm-switch"><input type="checkbox" data-opt="autoRenew"><span class="sl"></span></label>
+                </div>
+            </div>
+            <div class="pm-bar">
+                <div class="pm-bar-total"><span id="pmTotalSub">Aylık toplam · KDV hariç</span><b id="pmTotal">10.000 ₺</b></div>
+                <a class="btn btn-primary" id="pmCta" href="#">Teklif Al</a>
             </div>
         </div>
     </div>
@@ -562,37 +567,29 @@
         function render() {
             const lines = [['Core Paket', PRICES.core]];
             if (state.hotels > 0) lines.push(['Ekstra Otel Paneli ×' + state.hotels, PRICES.hotel * state.hotels]);
-            if (state.users > 0) lines.push(['Ek Kullanıcı Paketi ×' + state.users + ' (+' + (state.users * 5) + ' kullanıcı)', PRICES.userPack * state.users]);
-            if (state.pms) lines.push(['Tam PMS Entegrasyonu', PRICES.pms]);
-            if (state.autoRenew) lines.push(['Otomatik Abonelik Yenileme', PRICES.autoRenew]);
+            if (state.users > 0) lines.push(['Ek Kullanıcı Paketi ×' + state.users, PRICES.userPack * state.users]);
+            if (state.pms) lines.push(['PMS Entegrasyonu', PRICES.pms]);
+            if (state.autoRenew) lines.push(['Otomatik Yenileme', PRICES.autoRenew]);
             const monthly = lines.reduce((a, l) => a + l[1], 0);
 
-            let html = lines.map(l => '<div class="pm-line"><span>' + l[0] + '</span><span>' + fmt(l[1]) + '</span></div>').join('');
-            const note = document.getElementById('pmCycleNote');
             const totalEl = document.getElementById('pmTotal');
             const subEl = document.getElementById('pmTotalSub');
-
+            let displayTotal;
             if (state.cycle === 'annual') {
-                const annualBefore = monthly * 12;
-                const disc = Math.round(annualBefore * ANNUAL_DISCOUNT);
-                const annual = annualBefore - disc;
-                html += '<div class="pm-line muted"><span>Aylık ara toplam</span><span>' + fmt(monthly) + '</span></div>';
-                html += '<div class="pm-line muted"><span>Yıllık (×12)</span><span>' + fmt(annualBefore) + '</span></div>';
-                html += '<div class="pm-line disc"><span>Yıllık indirim (%18)</span><span>−' + fmt(disc) + '</span></div>';
-                note.textContent = 'Yıllık ödeme · 12 ay';
+                const annual = Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT));
                 totalEl.textContent = fmt(annual);
-                subEl.textContent = '≈ ' + fmt(Math.round(annual / 12)) + ' / ay';
+                subEl.textContent = 'Yıllık · ≈ ' + fmt(Math.round(annual / 12)) + '/ay · KDV hariç';
+                displayTotal = fmt(annual) + ' / yıl';
             } else {
-                note.textContent = 'Aylık ödeme';
                 totalEl.textContent = fmt(monthly);
-                subEl.textContent = 'Yıllık ödemede %18 indirim';
+                subEl.textContent = 'Aylık toplam · KDV hariç';
+                displayTotal = fmt(monthly) + ' / ay';
             }
-            document.getElementById('pmLines').innerHTML = html;
 
-            const cycleTxt = state.cycle === 'annual' ? 'Yıllık' : 'Aylık';
             const body = 'Merhaba,\n\nAşağıdaki paketle ilgileniyorum:\n\n'
-                + lines.map(l => '• ' + l[0] + ': ' + fmt(l[1])).join('\n')
-                + '\n\nÖdeme dönemi: ' + cycleTxt + '\nToplam: ' + totalEl.textContent + '\n\nTeşekkürler.';
+                + lines.map(l => '• ' + l[0] + ': ' + fmt(l[1]) + '/ay').join('\n')
+                + '\n\nÖdeme dönemi: ' + (state.cycle === 'annual' ? 'Yıllık' : 'Aylık')
+                + '\nToplam: ' + displayTotal + '\n\nTeşekkürler.';
             document.getElementById('pmCta').href = 'mailto:info@stayos.org?subject='
                 + encodeURIComponent('StayOS Paket Talebi') + '&body=' + encodeURIComponent(body);
         }
