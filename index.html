@@ -479,10 +479,6 @@
                         <div class="pm-row-info"><b>PMS Entegrasyonu</b><span>4.000 ₺/ay · Opera, Elektra, Fidelio</span></div>
                         <label class="pm-switch"><input type="checkbox" data-opt="pms"><span class="sl"></span></label>
                     </div>
-                    <div class="pm-row">
-                        <div class="pm-row-info"><b>Otomatik Yenileme</b><span>1.000 ₺/ay · tek tık yenileme</span></div>
-                        <label class="pm-switch"><input type="checkbox" data-opt="autoRenew"><span class="sl"></span></label>
-                    </div>
                 </div>
                 <div class="pm-bar">
                     <div class="pm-bar-total"><span id="pmTotalSub">Aylık toplam · KDV hariç</span><b id="pmTotal">10.000 ₺</b></div>
@@ -607,10 +603,10 @@
     <script>
     // ── Pricing modal + public checkout (PayTR) ──
     (function () {
-        const PRICES = { core: 10000, hotel: 5000, userPack: 2000, pms: 4000, autoRenew: 1000 };
+        const PRICES = { core: 10000, hotel: 5000, userPack: 2000, pms: 4000 };
         const ANNUAL_DISCOUNT = 0.18;
         const CHECKOUT_URL = 'https://us-central1-panel-d25c9.cloudfunctions.net/createCheckout';
-        const state = { cycle: 'monthly', hotels: 0, users: 0, pms: false, autoRenew: false };
+        const state = { cycle: 'monthly', hotels: 0, users: 0, pms: false };
         let method = 'PayTR';
         const modal = document.getElementById('pricingModal');
         if (!modal) return;
@@ -622,7 +618,6 @@
             if (state.hotels > 0) l.push(['Ekstra Otel Paneli ×' + state.hotels, PRICES.hotel * state.hotels]);
             if (state.users > 0) l.push(['Ek Kullanıcı Paketi ×' + state.users, PRICES.userPack * state.users]);
             if (state.pms) l.push(['PMS Entegrasyonu', PRICES.pms]);
-            if (state.autoRenew) l.push(['Otomatik Yenileme', PRICES.autoRenew]);
             return l;
         }
         const monthlyTotal = () => lineItems().reduce((a, l) => a + l[1], 0);
@@ -717,7 +712,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        items: { hotels: state.hotels, users: state.users, pms: state.pms, autoRenew: state.autoRenew },
+                        items: { hotels: state.hotels, users: state.users, pms: state.pms },
                         cycle: state.cycle, buyer
                     })
                 });

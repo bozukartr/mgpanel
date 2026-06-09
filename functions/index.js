@@ -29,7 +29,7 @@ const MERCHANT_SALT = defineSecret('PAYTR_MERCHANT_SALT');
 const PLAN_PRICE = { starter: 7500, pro: 15000, enterprise: 30000 };
 
 // Public website pricing (Core + extra modules), in TRY. Server-authoritative.
-const CHECKOUT_PRICES = { core: 10000, hotel: 5000, userPack: 2000, pms: 4000, autoRenew: 1000 };
+const CHECKOUT_PRICES = { core: 10000, hotel: 5000, userPack: 2000, pms: 4000 };
 const ANNUAL_DISCOUNT = 0.18;
 
 // '1' uses PayTR test cards (no real charge). Switch to '0' when going live.
@@ -145,13 +145,11 @@ exports.createCheckout = onRequest(
       const hotels = Math.max(0, Math.min(20, parseInt(items.hotels, 10) || 0));
       const users = Math.max(0, Math.min(20, parseInt(items.users, 10) || 0));
       const pms = !!items.pms;
-      const autoRenew = !!items.autoRenew;
 
       const monthly = CHECKOUT_PRICES.core
         + hotels * CHECKOUT_PRICES.hotel
         + users * CHECKOUT_PRICES.userPack
-        + (pms ? CHECKOUT_PRICES.pms : 0)
-        + (autoRenew ? CHECKOUT_PRICES.autoRenew : 0);
+        + (pms ? CHECKOUT_PRICES.pms : 0);
       const priceTRY = cycle === 'annual' ? Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT)) : monthly;
       const amount = priceTRY * 100; // kuruş
 
@@ -170,7 +168,7 @@ exports.createCheckout = onRequest(
 
       await db.collection('checkoutOrders').doc(oid).set({
         oid, status: 'pending', cycle, priceTRY,
-        items: { hotels, users, pms, autoRenew },
+        items: { hotels, users, pms },
         buyer: { name, email, phone, hotel },
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
