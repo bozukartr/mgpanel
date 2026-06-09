@@ -10,8 +10,10 @@
     const consoleEl    = $('console');
 
     let tenants = [];          // [{ id, ...data }]
+    let orders = [];           // [{ id, ...data }] checkoutOrders
     let userCountByTenant = {}; // { tenantId: n }
     let currentSubTenant = null;
+    let currentOrderId = null;  // set when the new-hotel modal is opened from an order
     let drawerTenantId = null;
 
     // ---------- helpers ----------
@@ -97,6 +99,21 @@
         });
     }
 
+    function subscribeOrders() {
+        db.collection('checkoutOrders').orderBy('createdAt', 'desc').onSnapshot(snap => {
+            orders = [];
+            snap.forEach(doc => orders.push(Object.assign({ id: doc.id }, doc.data())));
+            renderOrders();
+        }, err => {
+            // orderBy may fail before any order carries createdAt; fall back to unordered.
+            db.collection('checkoutOrders').onSnapshot(s2 => {
+                orders = [];
+                s2.forEach(doc => orders.push(Object.assign({ id: doc.id }, doc.data())));
+                renderOrders();
+            });
+        });
+    }
+
     // Ensure the founding hotel (mgallery) has a tenant document so it appears
     // in the console. Tenant writes are superadmin-only, so this can't be done
     // by the migration tool; the operator console self-heals it once.
@@ -126,7 +143,72 @@
         renderKpis();
         renderRenewals();
         renderHotels();
+        renderOrders();
         if (drawerTenantId) refreshDrawerStats();
+    }
+
+    // ---------- orders (public checkout) ----------
+    // Status of a checkout order. Provisioned = a tenant already links back to it.
+    const ORDER_STATUS = {
+        success: { label: 'Ödendi',  cls: 'pill-green' },
+        pending: { label: 'Bekliyor', cls: 'pill-amber' },
+        error:   { label: 'Hatalı',  cls: 'pill-red' }
+    };
+    function orderTenant(o) { return tenants.find(t => t.sourceOrderId === o.id) || null; }
+    function fmtMoney(n) {
+        const v = Number(n) || 0;
+        return v.toLocaleString('tr-TR') + ' ₺';
+    }
+    function orderItemsText(o) {
+        const it = o.items || {};
+        const parts = [];
+        if (it.hotels) parts.push('+' + it.hotels + ' otel');
+        if (it.users) parts.push('+' + it.users + ' kullanıcı');
+        if (it.pms) parts.push('PMS');
+        return parts.length ? parts.join(', ') : 'Core';
+    }
+
+    function renderOrders() {
+        // Badge: paid orders not yet turned into a hotel.
+        const actionable = orders.filter(o => o.status === 'success' && !orderTenant(o)).length;
+        const badge = $('ordersBadge');
+        if (badge) { badge.textContent = actionable; badge.hidden = actionable === 0; }
+
+        const countEl = $('ordersCount');
+        if (countEl) countEl.textContent = orders.length + ' sipariş · ' + actionable + ' açılmayı bekliyor';
+
+        const body = $('ordersBody');
+        if (!body) return;
+        if (!orders.length) {
+            body.innerHTML = `<tr><td colspan="6"><div class="empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                <div>Henüz sipariş yok. Tanıtım sitesinden gelen ödemeler burada listelenir.</div></div></td></tr>`;
+            return;
+        }
+        body.innerHTML = orders.map(o => {
+            const st = ORDER_STATUS[o.status] || { label: o.status || '—', cls: 'pill-gray' };
+            const b = o.buyer || {};
+            const created = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : null;
+            const cycle = o.cycle === 'annual' ? 'Yıllık' : 'Aylık';
+            const tn = orderTenant(o);
+            let action;
+            if (tn) {
+                action = `<a class="order-open" href="https://${esc(tn.id)}.stayos.org" target="_blank" rel="noopener">Açıldı · ${esc(tn.id)} ↗</a>`;
+            } else if (o.status === 'success') {
+                action = `<button class="btn-primary btn-sm" data-act="provision" data-id="${esc(o.id)}">Otel Aç</button>`;
+            } else {
+                action = `<span class="muted-sm">—</span>`;
+            }
+            return `
+            <tr>
+                <td><div class="mono">${fmtDate(created)}</div></td>
+                <td><div class="hotel-cell"><div class="av">${esc(initials(b.hotel || b.name || '?'))}</div><div><b>${esc(b.hotel || '—')}</b><div class="mono">${esc(b.name || '')}${b.email ? ' · ' + esc(b.email) : ''}</div></div></div></td>
+                <td>${esc(cycle)}<div class="sub-end">${esc(orderItemsText(o))}</div></td>
+                <td><b>${fmtMoney(o.priceTRY)}</b></td>
+                <td><span class="pill ${st.cls}">${st.label}</span></td>
+                <td style="text-align:right;">${action}</td>
+            </tr>`;
+        }).join('');
     }
 
     function renderKpis() {
@@ -224,15 +306,36 @@
         render();
     }
 
-    // New hotel
-    function openHotelModal() {
+    // New hotel. When `order` is supplied, prefill from a paid checkout order and
+    // remember it so the created tenant links back (marking the order provisioned).
+    function openHotelModal(order) {
         ['nhName', 'nhSlug', 'nhUser', 'nhPass'].forEach(id => $(id).value = '');
         $('nhSlug').dataset.touched = '';
         $('nhUser').value = 'admin';
-        const d = new Date(); d.setMonth(d.getMonth() + 1);
-        $('nhSubEnd').value = d.toISOString().slice(0, 10);
+        const sub = new Date();
         $('nhPlan').value = 'pro';
         applyPlanToForm($('nhPlan'), $('nhMaxUsers'), $('nhModules'));
+
+        const banner = $('nhOrderBanner');
+        if (order) {
+            currentOrderId = order.id;
+            const b = order.buyer || {};
+            $('nhName').value = b.hotel || '';
+            $('nhSlug').value = (b.hotel || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24);
+            // Annual orders cover a year; monthly cover a month.
+            sub.setMonth(sub.getMonth() + (order.cycle === 'annual' ? 12 : 1));
+            banner.innerHTML = 'Sipariş kaynaklı · <b>' + esc(b.name || '') + '</b>'
+                + (b.email ? ' · ' + esc(b.email) : '')
+                + (b.phone ? ' · ' + esc(b.phone) : '')
+                + ' · ' + (order.cycle === 'annual' ? 'Yıllık' : 'Aylık');
+            banner.hidden = false;
+        } else {
+            currentOrderId = null;
+            sub.setMonth(sub.getMonth() + 1);
+            banner.hidden = true;
+            banner.innerHTML = '';
+        }
+        $('nhSubEnd').value = sub.toISOString().slice(0, 10);
         $('nhErr').textContent = '';
         $('hotelModal').classList.add('show');
     }
@@ -270,7 +373,7 @@
             const endDate = new Date(subEnd + 'T23:59:59');
 
             // 1) Tenant document
-            await db.collection('tenants').doc(slug).set({
+            const tenantDoc = {
                 id: slug,
                 name: name,
                 emailDomain: tenantEmailDomain(slug),
@@ -280,7 +383,17 @@
                 maxUsers: maxUsersVal,
                 modules: mods,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            };
+            // Link back to the originating checkout order (marks it provisioned).
+            if (currentOrderId) {
+                const order = orders.find(o => o.id === currentOrderId);
+                tenantDoc.sourceOrderId = currentOrderId;
+                if (order && order.buyer) {
+                    if (order.buyer.email) tenantDoc.billingEmail = order.buyer.email;
+                    if (order.buyer.phone) tenantDoc.billingPhone = order.buyer.phone;
+                }
+            }
+            await db.collection('tenants').doc(slug).set(tenantDoc);
 
             // 2) First admin auth account — created on a secondary app so the
             //    operator's own session is not disturbed.
@@ -305,6 +418,7 @@
             });
 
             $('hotelModal').classList.remove('show');
+            currentOrderId = null;
             toast(name + ' oluşturuldu · ' + slug + '.stayos.org');
             await refresh();
         } catch (e) {
@@ -582,7 +696,13 @@
             } catch (e2) { toast('Hata: ' + e2.message, true); }
         }
     });
-    $('newHotelBtn').addEventListener('click', openHotelModal);
+    $('ordersBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-act="provision"]');
+        if (!btn) return;
+        const order = orders.find(o => o.id === btn.dataset.id);
+        if (order) openHotelModal(order);
+    });
+    $('newHotelBtn').addEventListener('click', () => openHotelModal());
     $('nhCreate').addEventListener('click', createHotel);
     $('nhPlan').addEventListener('change', () => applyPlanToForm($('nhPlan'), $('nhMaxUsers'), $('nhModules')));
     $('pkgPlan').addEventListener('change', () => applyPlanToForm($('pkgPlan'), $('pkgMaxUsers'), $('pkgModules')));
@@ -602,7 +722,7 @@
         const view = link.dataset.view;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         $('view-' + view).classList.add('active');
-        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'] };
+        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'] };
         $('pageTitle').textContent = titles[view][0];
         $('pageSub').textContent = titles[view][1];
         $('sidebar').classList.remove('open');
@@ -660,6 +780,7 @@
         show('console');
         await ensureDefaultTenant();
         subscribeTenants();
+        subscribeOrders();
         await refresh();
     });
 })();
