@@ -28,6 +28,10 @@ const MERCHANT_SALT = defineSecret('PAYTR_MERCHANT_SALT');
 // Monthly price per plan, in TRY (server-authoritative — clients can't tamper).
 const PLAN_PRICE = { starter: 7500, pro: 15000, enterprise: 30000 };
 
+// Public website pricing (Core + extra modules), in TRY. Server-authoritative.
+const CHECKOUT_PRICES = { core: 10000, hotel: 5000, userPack: 2000, pms: 4000, autoRenew: 1000 };
+const ANNUAL_DISCOUNT = 0.18;
+
 // '1' uses PayTR test cards (no real charge). Switch to '0' when going live.
 const TEST_MODE = '1';
 
@@ -114,6 +118,87 @@ exports.createPayment = onCall(
   }
 );
 
+// Public checkout from the marketing site (no auth). Computes the amount
+// server-side from the cart, records an order, and returns a PayTR iframe URL.
+exports.createCheckout = onRequest(
+  { secrets: [MERCHANT_ID, MERCHANT_KEY, MERCHANT_SALT], region: REGION },
+  async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).json({ error: 'method' }); return; }
+
+    try {
+      const b = req.body || {};
+      const items = b.items || {};
+      const cycle = b.cycle === 'annual' ? 'annual' : 'monthly';
+      const buyer = b.buyer || {};
+      const name = String(buyer.name || '').trim();
+      const email = String(buyer.email || '').trim();
+      const phone = String(buyer.phone || '').trim();
+      const hotel = String(buyer.hotel || '').trim();
+
+      if (!hotel || !name) { res.status(400).json({ error: 'Otel adı ve yetkili adı gerekli.' }); return; }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { res.status(400).json({ error: 'Geçerli bir e-posta girin.' }); return; }
+
+      const hotels = Math.max(0, Math.min(20, parseInt(items.hotels, 10) || 0));
+      const users = Math.max(0, Math.min(20, parseInt(items.users, 10) || 0));
+      const pms = !!items.pms;
+      const autoRenew = !!items.autoRenew;
+
+      const monthly = CHECKOUT_PRICES.core
+        + hotels * CHECKOUT_PRICES.hotel
+        + users * CHECKOUT_PRICES.userPack
+        + (pms ? CHECKOUT_PRICES.pms : 0)
+        + (autoRenew ? CHECKOUT_PRICES.autoRenew : 0);
+      const priceTRY = cycle === 'annual' ? Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT)) : monthly;
+      const amount = priceTRY * 100; // kuruş
+
+      const oid = 'CHK' + Date.now() + Math.floor(Math.random() * 1000);
+      const basket = Buffer.from(JSON.stringify([
+        ['StayOS ' + (cycle === 'annual' ? 'Yıllık' : 'Aylık') + ' Paket', priceTRY.toFixed(2), 1]
+      ])).toString('base64');
+      const userIp = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.ip || '127.0.0.1';
+      const noInstallment = '1', maxInstallment = '0', currency = 'TL';
+
+      const mid = MERCHANT_ID.value();
+      const key = MERCHANT_KEY.value();
+      const salt = MERCHANT_SALT.value();
+      const hashStr = mid + userIp + oid + email + amount + basket + noInstallment + maxInstallment + currency + TEST_MODE;
+      const paytrToken = crypto.createHmac('sha256', key).update(hashStr + salt).digest('base64');
+
+      await db.collection('checkoutOrders').doc(oid).set({
+        oid, status: 'pending', cycle, priceTRY,
+        items: { hotels, users, pms, autoRenew },
+        buyer: { name, email, phone, hotel },
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      const params = new URLSearchParams({
+        merchant_id: mid, user_ip: userIp, merchant_oid: oid, email,
+        payment_amount: String(amount), paytr_token: paytrToken, user_basket: basket,
+        debug_on: '1', no_installment: noInstallment, max_installment: maxInstallment,
+        user_name: name, user_address: hotel, user_phone: phone || '05000000000',
+        merchant_ok_url: BASE_URL + '/payment-result.html?status=ok',
+        merchant_fail_url: BASE_URL + '/payment-result.html?status=fail',
+        timeout_limit: '30', currency, test_mode: TEST_MODE
+      });
+
+      const resp = await fetch('https://www.paytr.com/odeme/api/get-token', { method: 'POST', body: params });
+      const data = await resp.json();
+      if (data.status !== 'success') {
+        await db.collection('checkoutOrders').doc(oid).update({ status: 'error', error: data.reason || 'token' });
+        res.status(502).json({ error: 'PayTR: ' + (data.reason || 'token alınamadı') });
+        return;
+      }
+      res.json({ iframeUrl: 'https://www.paytr.com/odeme/guest/' + data.token + '/', oid, priceTRY, cycle });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
+
 exports.paytrCallback = onRequest(
   { secrets: [MERCHANT_KEY, MERCHANT_SALT], region: REGION },
   async (req, res) => {
@@ -129,32 +214,44 @@ exports.paytrCallback = onRequest(
         return;
       }
 
-      const ref = db.collection('payments').doc(p.merchant_oid);
+      // Checkout orders (public website) are prefixed CHK; everything else is a
+      // tenant subscription payment.
+      const isCheckout = String(p.merchant_oid).startsWith('CHK');
+      const ref = db.collection(isCheckout ? 'checkoutOrders' : 'payments').doc(p.merchant_oid);
       const snap = await ref.get();
 
       // Idempotent: only act once per order.
       if (snap.exists && snap.data().status !== 'success') {
         if (p.status === 'success') {
-          const pay = snap.data();
-          const tRef = db.collection('tenants').doc(pay.tenantId);
-          const tSnap = await tRef.get();
-          const now = new Date();
-          let base = now;
-          if (tSnap.exists && tSnap.data().subscriptionEnd) {
-            const cur = tSnap.data().subscriptionEnd.toDate();
-            if (cur > now) base = cur;
+          if (isCheckout) {
+            // Public order paid — record it; the operator provisions the hotel.
+            await ref.update({
+              status: 'success',
+              paidAt: admin.firestore.FieldValue.serverTimestamp(),
+              totalAmount: Number(p.total_amount)
+            });
+          } else {
+            const pay = snap.data();
+            const tRef = db.collection('tenants').doc(pay.tenantId);
+            const tSnap = await tRef.get();
+            const now = new Date();
+            let base = now;
+            if (tSnap.exists && tSnap.data().subscriptionEnd) {
+              const cur = tSnap.data().subscriptionEnd.toDate();
+              if (cur > now) base = cur;
+            }
+            const newEnd = new Date(base);
+            newEnd.setMonth(newEnd.getMonth() + 1);
+            await tRef.set({
+              subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd),
+              suspended: false
+            }, { merge: true });
+            await ref.update({
+              status: 'success',
+              paidAt: admin.firestore.FieldValue.serverTimestamp(),
+              totalAmount: Number(p.total_amount)
+            });
           }
-          const newEnd = new Date(base);
-          newEnd.setMonth(newEnd.getMonth() + 1);
-          await tRef.set({
-            subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd),
-            suspended: false
-          }, { merge: true });
-          await ref.update({
-            status: 'success',
-            paidAt: admin.firestore.FieldValue.serverTimestamp(),
-            totalAmount: Number(p.total_amount)
-          });
         } else {
           await ref.update({ status: 'failed', failReason: p.failed_reason_msg || '' });
         }
