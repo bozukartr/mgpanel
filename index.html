@@ -3,6 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+    // On a hotel subdomain (e.g. mgallery.stayos.org) send visitors straight to
+    // login; the marketing page is only for the apex (stayos.org).
+    (function () {
+        try {
+            var h = (location.hostname || '').toLowerCase();
+            var p = h.split('.');
+            if (h.indexOf('stayos.org') !== -1 && p.length >= 3 && p[0] !== 'www') {
+                location.replace('/login.html');
+            }
+        } catch (e) {}
+    })();
+    </script>
     <title>StayOS — Modern Otel Yönetim Platformu</title>
     <meta name="description" content="StayOS; rezervasyon, concierge, misafir ilişkileri (CRM) ve günlük operasyonu tek modern panelde toplayan, çok otelli otel yönetim platformudur.">
     <meta property="og:title" content="StayOS — Otel Yönetim Platformu">
