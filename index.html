@@ -187,6 +187,18 @@
         .pm-bar-total span{display:block;font-size:11.5px;color:var(--muted);margin-bottom:2px}
         .pm-bar-total b{font-size:23px;font-weight:800;letter-spacing:-.5px}
         .pm-bar .btn{padding:13px 24px;font-size:14px;white-space:nowrap}
+        .pm-methods{padding:14px 24px 4px;border-top:1px solid var(--border)}
+        .pm-methods-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);margin-bottom:10px}
+        .pm-method-row{display:flex;gap:10px}
+        .pm-method{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:13px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);font-family:inherit;font-size:14px;font-weight:700;border-radius:11px;cursor:pointer;transition:.15s}
+        .pm-method small{font-size:11px;font-weight:500;color:var(--muted)}
+        .pm-method:hover{border-color:var(--accent);background:rgba(99,102,241,.1)}
+        .pm-method.active{border-color:var(--accent);background:rgba(99,102,241,.16)}
+        .pm-method-note{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:15px}
+        .pcc-list{list-style:none;margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:10px 22px}
+        .pcc-list li{position:relative;padding-left:24px;font-size:13.5px;color:#cbd5e1}
+        .pcc-list li::before{content:"✓";position:absolute;left:0;color:#34d399;font-weight:800}
+        @media(max-width:560px){.pcc-list{grid-template-columns:1fr}}
 
         /* footer */
         footer{border-top:1px solid var(--border);padding:56px 0 30px;margin-top:40px}
@@ -366,8 +378,14 @@
                 <div class="pcc-left">
                     <span class="pcc-badge">Core Paket</span>
                     <div class="pcc-price">10.000 ₺<small> / ay</small></div>
-                    <p class="pcc-sub">1 otel paneli · Rezervasyon, CRM, Concierge ve Şikayet takibinin tamamı · 5 kullanıcı dahil.</p>
-                    <p class="pcc-startup">🚀 Yeni bir girişim olarak ilk müşterilerimize özel esnek seçenekler sunuyoruz — paketini birlikte şekillendirelim.</p>
+                    <ul class="pcc-list">
+                        <li>1 otel paneli</li>
+                        <li>Tam rezervasyon yönetimi</li>
+                        <li>CRM &amp; konuk ilişkileri</li>
+                        <li>Concierge &amp; hizmet yönetimi</li>
+                        <li>Şikayet / talep takibi</li>
+                        <li>5 kullanıcıya kadar erişim</li>
+                    </ul>
                 </div>
                 <div class="pcc-right">
                     <button class="btn btn-primary pricing-open" id="openPricing">Fiyatlandırma ve Paketler</button>
@@ -447,9 +465,17 @@
                     <label class="pm-switch"><input type="checkbox" data-opt="autoRenew"><span class="sl"></span></label>
                 </div>
             </div>
+            <div class="pm-methods" id="pmMethods" hidden>
+                <div class="pm-methods-title">Ödeme yöntemi</div>
+                <div class="pm-method-row">
+                    <button class="pm-method" data-method="PayTR">PayTR <small>Kredi / banka kartı</small></button>
+                    <button class="pm-method" data-method="iyzico">iyzico <small>Kredi / banka kartı</small></button>
+                </div>
+                <div class="pm-method-note" id="pmMethodNote"></div>
+            </div>
             <div class="pm-bar">
                 <div class="pm-bar-total"><span id="pmTotalSub">Aylık toplam · KDV hariç</span><b id="pmTotal">10.000 ₺</b></div>
-                <a class="btn btn-primary" id="pmCta" href="#">Teklif Al</a>
+                <button class="btn btn-primary" id="pmPayBtn">Ödeme Yap</button>
             </div>
         </div>
     </div>
@@ -586,13 +612,26 @@
                 displayTotal = fmt(monthly) + ' / ay';
             }
 
-            const body = 'Merhaba,\n\nAşağıdaki paketle ilgileniyorum:\n\n'
-                + lines.map(l => '• ' + l[0] + ': ' + fmt(l[1]) + '/ay').join('\n')
-                + '\n\nÖdeme dönemi: ' + (state.cycle === 'annual' ? 'Yıllık' : 'Aylık')
-                + '\nToplam: ' + displayTotal + '\n\nTeşekkürler.';
-            document.getElementById('pmCta').href = 'mailto:info@stayos.org?subject='
-                + encodeURIComponent('StayOS Paket Talebi') + '&body=' + encodeURIComponent(body);
+            void displayTotal;
+            resetMethods();
         }
+
+        const pmMethods = document.getElementById('pmMethods');
+        const pmMethodNote = document.getElementById('pmMethodNote');
+        function resetMethods() {
+            if (!pmMethods) return;
+            pmMethods.hidden = true;
+            modal.querySelectorAll('.pm-method').forEach(m => m.classList.remove('active'));
+            pmMethodNote.textContent = '';
+        }
+        document.getElementById('pmPayBtn').addEventListener('click', () => {
+            pmMethods.hidden = false;
+            pmMethods.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+        modal.querySelectorAll('.pm-method').forEach(m => m.addEventListener('click', () => {
+            modal.querySelectorAll('.pm-method').forEach(x => x.classList.toggle('active', x === m));
+            pmMethodNote.textContent = m.dataset.method + ' ile güvenli ödeme altyapısı kısa sürede aktif olacak. Bilgi: info@stayos.org';
+        }));
         render();
     })();
     </script>
