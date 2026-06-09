@@ -3,7 +3,7 @@
    Admin access during maintenance is granted only via the unlock on maintenance.html,
    which leads to the admin panel (admin.html has no guard). */
 (function () {
-    if (/maintenance\.html$/i.test(window.location.pathname)) return;
+    if (/maintenance(\.html)?$/i.test(window.location.pathname)) return;
     try {
         db.collection('maintenance').doc(guardTenant()).onSnapshot((doc) => {
             if (!doc.exists) return;

@@ -21,8 +21,9 @@
     ];
 
     // 1) Guard the current page — redirect to the first enabled module.
-    const path = (window.location.pathname || '').toLowerCase();
-    const current = MAP.find(x => path.endsWith('/' + x.page) || path.endsWith(x.page));
+    //    Extension-agnostic so it works with cleanUrls (/concierge) too.
+    const base = (window.location.pathname || '').toLowerCase().replace(/\/$/, '').split('/').pop().replace(/\.html$/, '');
+    const current = MAP.find(x => base === x.page.replace(/\.html$/, ''));
     if (current && !enabled(current.key)) {
         const dest = MAP.find(x => enabled(x.key));
         window.location.replace(dest ? dest.page : 'login.html');
