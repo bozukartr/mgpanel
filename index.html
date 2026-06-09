@@ -195,6 +195,23 @@
         .pm-method:hover{border-color:var(--accent);background:rgba(99,102,241,.1)}
         .pm-method.active{border-color:var(--accent);background:rgba(99,102,241,.16)}
         .pm-method-note{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:15px}
+        .pm-step{display:flex;flex-direction:column;flex:1;min-height:0}
+        .pm-step[hidden]{display:none}
+        .pm-step>.pm-scroll{flex:1}
+        .pm-back{background:none;border:none;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;padding:0 8px 0 0}
+        .pm-back:hover{color:var(--text)}
+        .pm-input{width:100%;padding:12px 14px;margin-bottom:10px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.04);color:var(--text);font-family:inherit;font-size:14px}
+        .pm-input:focus{outline:none;border-color:var(--accent);background:rgba(255,255,255,.06)}
+        .pm-input::placeholder{color:var(--faint)}
+        .pm-cart{display:flex;flex-direction:column;gap:9px}
+        .pm-cart-row{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;color:#cbd5e1}
+        .pm-cart-row.disc{color:#34d399}
+        .pm-cart-row .muted{color:var(--muted);font-size:12.5px}
+        .pm-cart-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--border);margin-top:12px;padding-top:12px;font-size:14px;color:var(--muted)}
+        .pm-cart-total b{font-size:19px;font-weight:800;color:var(--text)}
+        .pm-pay-frame{flex:1;overflow:auto;background:#fff;position:relative;min-height:560px}
+        .pm-pay-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;color:#64748b;font-size:14px;z-index:1;padding:20px;text-align:center}
+        #pmPayIframe{width:100%;min-height:600px;border:0;display:block}
         .pcc-list{list-style:none;margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:10px 22px}
         .pcc-list li{position:relative;padding-left:24px;font-size:13.5px;color:#cbd5e1}
         .pcc-list li::before{content:"✓";position:absolute;left:0;color:#34d399;font-weight:800}
@@ -430,52 +447,81 @@
     <div class="pm-backdrop" id="pricingModal" aria-hidden="true">
         <div class="pm" role="dialog" aria-modal="true" aria-label="Fiyatlandırma">
             <div class="pm-head">
-                <h3>Fiyatlandırma</h3>
+                <button class="pm-back" id="pmBack" hidden aria-label="Geri">‹</button>
+                <h3 id="pmTitle">Fiyatlandırma</h3>
                 <button class="pm-close" id="closePricing" aria-label="Kapat">×</button>
             </div>
-            <div class="pm-scroll">
-                <div class="pm-toggle">
-                    <button class="pm-tg active" data-cycle="monthly">Aylık</button>
-                    <button class="pm-tg" data-cycle="annual">Yıllık <span class="pm-save">−%18</span></button>
-                </div>
 
-                <div class="pm-core">
-                    <div>
-                        <div class="pm-core-name">Core Paket</div>
-                        <div class="pm-core-desc">Rezervasyon, CRM, Concierge ve şikayet yönetimi · 5 kullanıcı dahil</div>
+            <!-- STEP 1 — yapılandırma -->
+            <div class="pm-step" id="pmStep1">
+                <div class="pm-scroll">
+                    <div class="pm-toggle">
+                        <button class="pm-tg active" data-cycle="monthly">Aylık</button>
+                        <button class="pm-tg" data-cycle="annual">Yıllık <span class="pm-save">−%18</span></button>
                     </div>
-                    <div class="pm-core-price">10.000<small> ₺/ay</small></div>
+                    <div class="pm-core">
+                        <div>
+                            <div class="pm-core-name">Core Paket</div>
+                            <div class="pm-core-desc">Rezervasyon, CRM, Concierge ve şikayet yönetimi · 5 kullanıcı dahil</div>
+                        </div>
+                        <div class="pm-core-price">10.000<small> ₺/ay</small></div>
+                    </div>
+                    <div class="pm-ex-title">Ek modüller</div>
+                    <div class="pm-row">
+                        <div class="pm-row-info"><b>Ekstra Otel Paneli</b><span>5.000 ₺/ay · her ek otel</span></div>
+                        <div class="pm-stepper"><button data-step="hotels" data-d="-1" aria-label="azalt">−</button><span id="qtyHotels">0</span><button data-step="hotels" data-d="1" aria-label="artır">+</button></div>
+                    </div>
+                    <div class="pm-row">
+                        <div class="pm-row-info"><b>Ek Kullanıcı Paketi</b><span>2.000 ₺/ay · +5 kullanıcı</span></div>
+                        <div class="pm-stepper"><button data-step="users" data-d="-1" aria-label="azalt">−</button><span id="qtyUsers">0</span><button data-step="users" data-d="1" aria-label="artır">+</button></div>
+                    </div>
+                    <div class="pm-row">
+                        <div class="pm-row-info"><b>PMS Entegrasyonu</b><span>4.000 ₺/ay · Opera, Elektra, Fidelio</span></div>
+                        <label class="pm-switch"><input type="checkbox" data-opt="pms"><span class="sl"></span></label>
+                    </div>
+                    <div class="pm-row">
+                        <div class="pm-row-info"><b>Otomatik Yenileme</b><span>1.000 ₺/ay · tek tık yenileme</span></div>
+                        <label class="pm-switch"><input type="checkbox" data-opt="autoRenew"><span class="sl"></span></label>
+                    </div>
                 </div>
+                <div class="pm-bar">
+                    <div class="pm-bar-total"><span id="pmTotalSub">Aylık toplam · KDV hariç</span><b id="pmTotal">10.000 ₺</b></div>
+                    <button class="btn btn-primary" id="pmToCheckout">Ödeme Yap</button>
+                </div>
+            </div>
 
-                <div class="pm-ex-title">Ek modüller</div>
-                <div class="pm-row">
-                    <div class="pm-row-info"><b>Ekstra Otel Paneli</b><span>5.000 ₺/ay · her ek otel</span></div>
-                    <div class="pm-stepper"><button data-step="hotels" data-d="-1" aria-label="azalt">−</button><span id="qtyHotels">0</span><button data-step="hotels" data-d="1" aria-label="artır">+</button></div>
+            <!-- STEP 2 — sepet, iletişim, ödeme yöntemi -->
+            <div class="pm-step" id="pmStep2" hidden>
+                <div class="pm-scroll">
+                    <div class="pm-ex-title">Sepet</div>
+                    <div class="pm-cart" id="pmCart"></div>
+                    <div class="pm-cart-total"><span>Toplam</span><b id="pmCartTotal">—</b></div>
+
+                    <div class="pm-ex-title" style="margin-top:22px;">İletişim Bilgileri</div>
+                    <input class="pm-input" id="coHotel" placeholder="Otel adı" autocomplete="organization">
+                    <input class="pm-input" id="coName" placeholder="Yetkili ad soyad" autocomplete="name">
+                    <input class="pm-input" id="coEmail" type="email" placeholder="E-posta" autocomplete="email">
+                    <input class="pm-input" id="coPhone" placeholder="Telefon (opsiyonel)" autocomplete="tel">
+
+                    <div class="pm-ex-title" style="margin-top:22px;">Ödeme Yöntemi</div>
+                    <div class="pm-method-row">
+                        <button class="pm-method active" data-method="PayTR">PayTR <small>Kredi / banka kartı</small></button>
+                        <button class="pm-method" data-method="iyzico">iyzico <small>Yakında</small></button>
+                    </div>
+                    <div class="pm-method-note" id="coNote"></div>
                 </div>
-                <div class="pm-row">
-                    <div class="pm-row-info"><b>Ek Kullanıcı Paketi</b><span>2.000 ₺/ay · +5 kullanıcı</span></div>
-                    <div class="pm-stepper"><button data-step="users" data-d="-1" aria-label="azalt">−</button><span id="qtyUsers">0</span><button data-step="users" data-d="1" aria-label="artır">+</button></div>
-                </div>
-                <div class="pm-row">
-                    <div class="pm-row-info"><b>PMS Entegrasyonu</b><span>4.000 ₺/ay · Opera, Elektra, Fidelio</span></div>
-                    <label class="pm-switch"><input type="checkbox" data-opt="pms"><span class="sl"></span></label>
-                </div>
-                <div class="pm-row">
-                    <div class="pm-row-info"><b>Otomatik Yenileme</b><span>1.000 ₺/ay · tek tık yenileme</span></div>
-                    <label class="pm-switch"><input type="checkbox" data-opt="autoRenew"><span class="sl"></span></label>
+                <div class="pm-bar">
+                    <div class="pm-bar-total"><span>Ödenecek</span><b id="pmPayTotal">—</b></div>
+                    <button class="btn btn-primary" id="pmComplete">Ödemeyi Tamamla</button>
                 </div>
             </div>
-            <div class="pm-methods" id="pmMethods" hidden>
-                <div class="pm-methods-title">Ödeme yöntemi</div>
-                <div class="pm-method-row">
-                    <button class="pm-method" data-method="PayTR">PayTR <small>Kredi / banka kartı</small></button>
-                    <button class="pm-method" data-method="iyzico">iyzico <small>Kredi / banka kartı</small></button>
+
+            <!-- STEP 3 — PayTR ödeme -->
+            <div class="pm-step" id="pmStep3" hidden>
+                <div class="pm-pay-frame">
+                    <div class="pm-pay-loading" id="pmPayLoading">PayTR güvenli ödeme hazırlanıyor…</div>
+                    <iframe id="pmPayIframe" src="" frameborder="0" scrolling="no"></iframe>
                 </div>
-                <div class="pm-method-note" id="pmMethodNote"></div>
-            </div>
-            <div class="pm-bar">
-                <div class="pm-bar-total"><span id="pmTotalSub">Aylık toplam · KDV hariç</span><b id="pmTotal">10.000 ₺</b></div>
-                <button class="btn btn-primary" id="pmPayBtn">Ödeme Yap</button>
             </div>
         </div>
     </div>
@@ -559,80 +605,137 @@
     })();
     </script>
     <script>
-    // ── Pricing modal (interactive calculator, no payment redirect) ──
+    // ── Pricing modal + public checkout (PayTR) ──
     (function () {
         const PRICES = { core: 10000, hotel: 5000, userPack: 2000, pms: 4000, autoRenew: 1000 };
         const ANNUAL_DISCOUNT = 0.18;
+        const CHECKOUT_URL = 'https://us-central1-panel-d25c9.cloudfunctions.net/createCheckout';
         const state = { cycle: 'monthly', hotels: 0, users: 0, pms: false, autoRenew: false };
+        let method = 'PayTR';
         const modal = document.getElementById('pricingModal');
         if (!modal) return;
+        const $ = (id) => document.getElementById(id);
         const fmt = (n) => n.toLocaleString('tr-TR') + ' ₺';
 
-        function open() { modal.classList.add('show'); document.body.style.overflow = 'hidden'; render(); }
-        function close() { modal.classList.remove('show'); document.body.style.overflow = ''; }
-        document.getElementById('openPricing').addEventListener('click', open);
-        document.getElementById('closePricing').addEventListener('click', close);
+        function lineItems() {
+            const l = [['Core Paket', PRICES.core]];
+            if (state.hotels > 0) l.push(['Ekstra Otel Paneli ×' + state.hotels, PRICES.hotel * state.hotels]);
+            if (state.users > 0) l.push(['Ek Kullanıcı Paketi ×' + state.users, PRICES.userPack * state.users]);
+            if (state.pms) l.push(['PMS Entegrasyonu', PRICES.pms]);
+            if (state.autoRenew) l.push(['Otomatik Yenileme', PRICES.autoRenew]);
+            return l;
+        }
+        const monthlyTotal = () => lineItems().reduce((a, l) => a + l[1], 0);
+
+        function renderConfig() {
+            const m = monthlyTotal();
+            if (state.cycle === 'annual') {
+                const annual = Math.round(m * 12 * (1 - ANNUAL_DISCOUNT));
+                $('pmTotal').textContent = fmt(annual);
+                $('pmTotalSub').textContent = 'Yıllık · ≈ ' + fmt(Math.round(annual / 12)) + '/ay · KDV hariç';
+            } else {
+                $('pmTotal').textContent = fmt(m);
+                $('pmTotalSub').textContent = 'Aylık toplam · KDV hariç';
+            }
+        }
+
+        function renderCart() {
+            const l = lineItems();
+            const m = monthlyTotal();
+            let html = l.map(x => '<div class="pm-cart-row"><span>' + x[0] + '</span><span>' + fmt(x[1]) + '/ay</span></div>').join('');
+            let total;
+            if (state.cycle === 'annual') {
+                const annualBefore = m * 12;
+                const annual = Math.round(annualBefore * (1 - ANNUAL_DISCOUNT));
+                html += '<div class="pm-cart-row"><span class="muted">Yıllık (×12)</span><span class="muted">' + fmt(annualBefore) + '</span></div>';
+                html += '<div class="pm-cart-row disc"><span>Yıllık indirim (%18)</span><span>−' + fmt(annualBefore - annual) + '</span></div>';
+                total = annual;
+                $('pmCartTotal').textContent = fmt(annual) + ' / yıl';
+            } else {
+                total = m;
+                $('pmCartTotal').textContent = fmt(m) + ' / ay';
+            }
+            $('pmCart').innerHTML = html;
+            $('pmPayTotal').textContent = fmt(total);
+        }
+
+        function goStep(n) {
+            $('pmStep1').hidden = n !== 1;
+            $('pmStep2').hidden = n !== 2;
+            $('pmStep3').hidden = n !== 3;
+            $('pmBack').hidden = n === 1;
+            $('pmTitle').textContent = n === 1 ? 'Fiyatlandırma' : (n === 2 ? 'Sepet & Ödeme' : 'Güvenli Ödeme');
+            if (n === 2) renderCart();
+        }
+
+        function open() { goStep(1); renderConfig(); modal.classList.add('show'); document.body.style.overflow = 'hidden'; }
+        function close() { modal.classList.remove('show'); document.body.style.overflow = ''; $('pmPayIframe').src = ''; }
+        $('openPricing').addEventListener('click', open);
+        $('closePricing').addEventListener('click', close);
         modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('show')) close(); });
+        $('pmBack').addEventListener('click', () => goStep($('pmStep3').hidden ? 1 : 2));
 
         modal.querySelectorAll('.pm-tg').forEach(b => b.addEventListener('click', () => {
             state.cycle = b.dataset.cycle;
             modal.querySelectorAll('.pm-tg').forEach(x => x.classList.toggle('active', x === b));
-            render();
+            renderConfig();
         }));
         modal.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
             const k = b.dataset.step, d = parseInt(b.dataset.d, 10);
             state[k] = Math.max(0, Math.min(20, state[k] + d));
-            document.getElementById(k === 'hotels' ? 'qtyHotels' : 'qtyUsers').textContent = state[k];
-            render();
+            $(k === 'hotels' ? 'qtyHotels' : 'qtyUsers').textContent = state[k];
+            renderConfig();
         }));
         modal.querySelectorAll('[data-opt]').forEach(c => c.addEventListener('change', () => {
-            state[c.dataset.opt] = c.checked; render();
+            state[c.dataset.opt] = c.checked; renderConfig();
         }));
 
-        function render() {
-            const lines = [['Core Paket', PRICES.core]];
-            if (state.hotels > 0) lines.push(['Ekstra Otel Paneli ×' + state.hotels, PRICES.hotel * state.hotels]);
-            if (state.users > 0) lines.push(['Ek Kullanıcı Paketi ×' + state.users, PRICES.userPack * state.users]);
-            if (state.pms) lines.push(['PMS Entegrasyonu', PRICES.pms]);
-            if (state.autoRenew) lines.push(['Otomatik Yenileme', PRICES.autoRenew]);
-            const monthly = lines.reduce((a, l) => a + l[1], 0);
+        $('pmToCheckout').addEventListener('click', () => goStep(2));
 
-            const totalEl = document.getElementById('pmTotal');
-            const subEl = document.getElementById('pmTotalSub');
-            let displayTotal;
-            if (state.cycle === 'annual') {
-                const annual = Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT));
-                totalEl.textContent = fmt(annual);
-                subEl.textContent = 'Yıllık · ≈ ' + fmt(Math.round(annual / 12)) + '/ay · KDV hariç';
-                displayTotal = fmt(annual) + ' / yıl';
-            } else {
-                totalEl.textContent = fmt(monthly);
-                subEl.textContent = 'Aylık toplam · KDV hariç';
-                displayTotal = fmt(monthly) + ' / ay';
+        modal.querySelectorAll('.pm-method').forEach(b => b.addEventListener('click', () => {
+            method = b.dataset.method;
+            modal.querySelectorAll('.pm-method').forEach(x => x.classList.toggle('active', x === b));
+            $('coNote').textContent = method === 'iyzico' ? 'iyzico yöntemi yakında. Şimdilik PayTR ile devam edebilirsiniz.' : '';
+        }));
+
+        $('pmComplete').addEventListener('click', async () => {
+            const note = $('coNote');
+            const buyer = {
+                hotel: $('coHotel').value.trim(),
+                name: $('coName').value.trim(),
+                email: $('coEmail').value.trim(),
+                phone: $('coPhone').value.trim()
+            };
+            if (!buyer.hotel || !buyer.name) { note.textContent = 'Lütfen otel adı ve yetkili adını girin.'; return; }
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyer.email)) { note.textContent = 'Lütfen geçerli bir e-posta girin.'; return; }
+            if (method === 'iyzico') { note.textContent = 'iyzico yakında. Lütfen PayTR ile devam edin.'; return; }
+
+            const btn = $('pmComplete'); btn.disabled = true; btn.textContent = 'Hazırlanıyor…'; note.textContent = '';
+            try {
+                const resp = await fetch(CHECKOUT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        items: { hotels: state.hotels, users: state.users, pms: state.pms, autoRenew: state.autoRenew },
+                        cycle: state.cycle, buyer
+                    })
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || !data.iframeUrl) { note.textContent = data.error || 'Ödeme başlatılamadı. Lütfen tekrar deneyin.'; return; }
+                goStep(3);
+                const iframe = $('pmPayIframe'), loading = $('pmPayLoading');
+                loading.style.display = 'flex';
+                iframe.onload = () => { loading.style.display = 'none'; };
+                iframe.src = data.iframeUrl;
+            } catch (e) {
+                note.textContent = 'Bağlantı hatası. Lütfen tekrar deneyin.';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Ödemeyi Tamamla';
             }
-
-            void displayTotal;
-            resetMethods();
-        }
-
-        const pmMethods = document.getElementById('pmMethods');
-        const pmMethodNote = document.getElementById('pmMethodNote');
-        function resetMethods() {
-            if (!pmMethods) return;
-            pmMethods.hidden = true;
-            modal.querySelectorAll('.pm-method').forEach(m => m.classList.remove('active'));
-            pmMethodNote.textContent = '';
-        }
-        document.getElementById('pmPayBtn').addEventListener('click', () => {
-            pmMethods.hidden = false;
-            pmMethods.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
-        modal.querySelectorAll('.pm-method').forEach(m => m.addEventListener('click', () => {
-            modal.querySelectorAll('.pm-method').forEach(x => x.classList.toggle('active', x === m));
-            pmMethodNote.textContent = m.dataset.method + ' ile güvenli ödeme altyapısı kısa sürede aktif olacak. Bilgi: info@stayos.org';
-        }));
-        render();
+
+        renderConfig();
     })();
     </script>
 </body>

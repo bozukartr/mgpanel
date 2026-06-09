@@ -132,6 +132,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // --- Public checkout orders (from the marketing site). Written only by the
+    //     Cloud Function; readable by the platform operator. ---
+    match /checkoutOrders/{oid} {
+      allow read:  if isSuperAdmin();
+      allow write: if false;
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;
