@@ -21,8 +21,8 @@
     ];
 
     // 1) Guard the current page — redirect to the first enabled module.
-    //    Extension-agnostic so it works with cleanUrls (/concierge) too.
-    const base = (window.location.pathname || '').toLowerCase().replace(/\/$/, '').split('/').pop().replace(/\.html$/, '');
+    //    Extension-agnostic (cleanUrls) and treats panel-mobile as panel.
+    const base = (window.location.pathname || '').toLowerCase().replace(/\/$/, '').split('/').pop().replace(/\.html$/, '').replace(/-mobile$/, '');
     const current = MAP.find(x => base === x.page.replace(/\.html$/, ''));
     if (current && !enabled(current.key)) {
         const dest = MAP.find(x => enabled(x.key));
@@ -35,6 +35,7 @@
         MAP.forEach(x => {
             if (!enabled(x.key)) {
                 document.querySelectorAll(x.sel).forEach(a => { a.style.display = 'none'; });
+                document.querySelectorAll('[data-module="' + x.key + '"]').forEach(a => { a.style.display = 'none'; });
             }
         });
     }
