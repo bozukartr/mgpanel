@@ -25,6 +25,7 @@
         <header class="app-header">
             <div class="app-header-left">
                 <img src="logo.png" alt="Logo" class="app-logo">
+                <span class="app-brand">StayOS</span>
             </div>
             <div class="app-header-right">
                 <span class="app-username" id="mob-displayUsername"></span>
@@ -41,19 +42,19 @@
         <div class="stats-strip">
             <div class="stat-pill">
                 <span class="stat-pill-val" id="m-statTotal">0</span>
-                <span class="stat-pill-label">Total</span>
+                <span class="stat-pill-label">Toplam</span>
             </div>
             <div class="stat-pill following">
                 <span class="stat-pill-val" id="m-statFollowing">0</span>
-                <span class="stat-pill-label">Following</span>
+                <span class="stat-pill-label">Açık</span>
             </div>
             <div class="stat-pill solved">
                 <span class="stat-pill-val" id="m-statSolved">0</span>
-                <span class="stat-pill-label">Solved</span>
+                <span class="stat-pill-label">Tamamlandı</span>
             </div>
             <div class="stat-pill overdue">
                 <span class="stat-pill-val" id="m-statOverdue">0</span>
-                <span class="stat-pill-label">Overdue</span>
+                <span class="stat-pill-label">Geciken</span>
             </div>
         </div>
 
@@ -182,11 +183,15 @@
             <div class="status-toggle-row">
                 <button class="status-toggle-btn" id="d-setFollowing" data-status="Following">
                     <span class="stb-dot"></span>
-                    Following
+                    Bekliyor
+                </button>
+                <button class="status-toggle-btn" id="d-setInProgress" data-status="InProgress">
+                    <span class="stb-dot"></span>
+                    İşi Üstlen
                 </button>
                 <button class="status-toggle-btn" id="d-setSolved" data-status="Solved">
                     <span class="stb-dot"></span>
-                    Solved
+                    Tamamlandı
                 </button>
             </div>
             <!-- Info Grid -->

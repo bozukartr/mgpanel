@@ -1113,3 +1113,20 @@ body {
     font-weight: 400;
     color: var(--text-muted);
 }
+/* Brand text next to the logo in mobile headers */
+.app-header-left { display: flex; align-items: center; gap: 10px; }
+.app-brand { font-weight: 700; font-size: 14px; letter-spacing: 1px; color: var(--text-main, #1e293b); }
+
+/* Status chips on mobile issue cards (previously unstyled) + workflow states */
+.status-pill {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    display: inline-block;
+}
+.status-pill.following  { background: #fff0d9; color: var(--following, #ff9800); }
+.status-pill.inprogress { background: #eef2ff; color: #4f46e5; }
+.status-pill.solved     { background: #dff3e3; color: var(--solved, #2e7d32); }
+.status-pill.overdue    { background: #ffebee; color: #d32f2f; }
+.status-badge.inprogress { background: #eef2ff; color: #4f46e5; }

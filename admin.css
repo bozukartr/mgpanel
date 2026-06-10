@@ -242,3 +242,6 @@
 #tdThread { max-height: 260px; overflow-y: auto; margin-bottom: 4px; }
 .action-btn.secondary { background: #f1f5f9; color: #334155; }
 .action-btn.secondary:hover { background: #e2e8f0; }
+
+/* Brand logo in admin header (replaces the old glyph mark) */
+.brand-logo { height: 40px; width: auto; }
