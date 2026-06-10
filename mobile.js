@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
     const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     if (!loggedUsername) { window.location.href = 'login.html'; return; }
+
+    // Department workflow status labels (stored values stay English).
+    const STATUS_LABELS_TR = { Following: 'Bekliyor', InProgress: 'İşlemde', Solved: 'Tamamlandı' };
     auth.onAuthStateChanged(u => { if (!u) window.location.href = 'login.html'; });
 
     document.querySelectorAll('.app-username').forEach(el => el.textContent = loggedUsername);
@@ -130,15 +133,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'issue-card' + (overdueFlag ? ' overdue-card' : '');
             const gStatus = getGuestStatus(r.guestName);
-            const gStatusLabel = gStatus === 'in_house' ? 'IN HOUSE' : 'CHECKED OUT';
+            const gStatusLabel = gStatus === 'in_house' ? 'OTELDE' : 'ÇIKIŞ YAPTI';
             const gStatusClass = gStatus === 'in_house' ? 'in-house-badge' : 'checked-out-badge';
 
             card.innerHTML = `
                 <div class="card-header">
                     <div class="header-left">
                         <span class="room-no">#${esc(r.room)}</span>
-                        <span class="status-pill ${esc(status.toLowerCase())}">${esc(status)}</span>
-                        ${overdueFlag ? '<span class="status-pill overdue">LATE</span>' : ''}
+                        <span class="status-pill ${esc(status.toLowerCase())}">${STATUS_LABELS_TR[status] || esc(status)}</span>
+                        ${overdueFlag ? '<span class="status-pill overdue">GEÇ</span>' : ''}
                     </div>
                     <span class="card-date">${fmtDate(r.date)}</span>
                 </div>
@@ -458,21 +461,39 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { showToast('Error', true); }
     };
 
-    // ── STATUS UPDATE ──────────────────────────────────────────
+    // ── STATUS UPDATE (department workflow) ────────────────────
+    // Taking the job stamps acknowledgedAt (timer starts); completing stamps
+    // completedAt so durations can be reported later.
     const updateStatus = async (newStatus) => {
-        if (!getSelected()) return;
+        const r = getSelected();
+        if (!r) return;
         try {
-            await db.collection('guestLogs').doc(getSelected().id).update({ status: newStatus });
-            
+            const TS = firebase.firestore.FieldValue.serverTimestamp();
+            const payload = { status: newStatus };
+            if (newStatus === 'InProgress' && !r.acknowledgedAt) {
+                payload.acknowledgedAt = TS;
+                payload.acknowledgedBy = loggedUsername;
+            }
+            if (newStatus === 'Solved') {
+                payload.completedAt = TS;
+                payload.completedBy = loggedUsername;
+            }
+            if (newStatus === 'Following') {
+                payload.completedAt = null;
+                payload.completedBy = null;
+            }
+            await db.collection('guestLogs').doc(r.id).update(payload);
+
             // UI Update
             document.querySelectorAll('.status-toggle-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.status === newStatus);
             });
 
-            showToast('Status → ' + newStatus);
-        } catch (e) { showToast('Error', true); }
+            showToast('Durum: ' + (STATUS_LABELS_TR[newStatus] || newStatus));
+        } catch (e) { showToast('Hata', true); }
     };
     document.getElementById('d-setFollowing')?.addEventListener('click', () => updateStatus('Following'));
+    document.getElementById('d-setInProgress')?.addEventListener('click', () => updateStatus('InProgress'));
     document.getElementById('d-setSolved')?.addEventListener('click',    () => updateStatus('Solved'));
 
     // ── EMAIL DRAFT ────────────────────────────────────────────

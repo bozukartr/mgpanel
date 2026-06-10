@@ -41,6 +41,38 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
+    // ── Department workflow: status model & duration helpers ──
+    // Stored values stay English (legacy data + reports); only labels are Turkish.
+    // Lifecycle: Following (waiting) → InProgress (taken) → Solved (completed).
+    const STATUS_LABELS = { Following: 'Bekliyor', InProgress: 'İşlemde', Solved: 'Tamamlandı' };
+    const statusLabelOf = (s) => STATUS_LABELS[s] || STATUS_LABELS.Following;
+
+    function tsToDate(v) {
+        if (!v) return null;
+        if (v.toDate) return v.toDate();
+        const d = new Date(v);
+        return isNaN(d) ? null : d;
+    }
+    function fmtDuration(ms) {
+        if (ms == null || ms < 0) return '—';
+        const mins = Math.round(ms / 60000);
+        if (mins < 1) return '<1 dk';
+        if (mins < 60) return mins + ' dk';
+        const h = Math.floor(mins / 60), m = mins % 60;
+        if (h < 24) return m ? `${h} sa ${m} dk` : `${h} sa`;
+        const d = Math.floor(h / 24), hr = h % 24;
+        return hr ? `${d} g ${hr} sa` : `${d} g`;
+    }
+    function fmtClock(d) {
+        return d ? d.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }) + ' ' +
+            d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '—';
+    }
+    // Minutes between two firestore/date values; '' when either is missing.
+    function minutesBetween(a, b) {
+        const da = tsToDate(a), dbb = tsToDate(b);
+        return (da && dbb) ? Math.max(0, Math.round((dbb - da) / 60000)) : '';
+    }
+
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', () => {
@@ -638,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'summary' || type === 'byDate' || type === 'department') {
             specificDateCont.style.display = 'block';
             if (type === 'department') deptCont.style.display = 'block';
-        } else if (type === 'dateRange' || type === 'historicalStatus' || type === 'deptHistorical' || type === 'status') {
+        } else if (type === 'dateRange' || type === 'historicalStatus' || type === 'deptHistorical' || type === 'status' || type === 'deptPerformance' || type === 'taskDurations') {
             rangeGroup.style.display = 'flex';
             if (type === 'deptHistorical') deptCont.style.display = 'block';
         } else if (type === 'guest') {
@@ -949,6 +981,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 `Issues_${date}`);
         }
 
+        // ── Department performance: how fast each department responds,
+        //    handles and completes its requests. Range optional (default all).
+        else if (type === 'deptPerformance') {
+            const data = (from || to) ? filterByRange(records, from, to) : records;
+            const byDept = {};
+            data.forEach(r => {
+                const dept = r.department || 'Diğer';
+                const d = byDept[dept] = byDept[dept] || { total: 0, done: 0, open: 0, resp: [], hand: [], tot: [] };
+                d.total++;
+                if (r.status === 'Solved') d.done++; else d.open++;
+                const c = tsToDate(r.createdAt), a = tsToDate(r.acknowledgedAt), f = tsToDate(r.completedAt);
+                if (c && a) d.resp.push((a - c) / 60000);
+                if (a && f) d.hand.push((f - a) / 60000);
+                if (c && f) d.tot.push((f - c) / 60000);
+            });
+            const avg = arr => arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : '';
+            const rows = Object.entries(byDept).map(([dept, d]) => ({
+                'Departman': dept,
+                'Talep': d.total,
+                'Tamamlanan': d.done,
+                'Açık': d.open,
+                'Ort. Yanıt (dk)': avg(d.resp),
+                'Ort. İşlem (dk)': avg(d.hand),
+                'Ort. Toplam (dk)': avg(d.tot)
+            })).sort((a, b) => b['Talep'] - a['Talep']);
+            const sub = (from && to) ? `${from} → ${to}` : 'Tüm zamanlar';
+            if (format === 'excel') exportExcel(rows, `Departman_Performans_${from || 'tum'}_${to || 'zamanlar'}`, 'Performans');
+            else exportPDF('Departman Performansı (Süreler)', ['Departman', 'Talep', 'Tamamlanan', 'Açık', 'Ort. Yanıt (dk)', 'Ort. İşlem (dk)', 'Ort. Toplam (dk)'],
+                rows.map(r => Object.values(r)), 'Departman_Performans', sub);
+        }
+
+        // ── Per-request duration breakdown: every request with its
+        //    created/taken/completed timestamps and computed durations.
+        else if (type === 'taskDurations') {
+            const data = (from || to) ? filterByRange(records, from, to) : records;
+            const rows = data.map(r => {
+                const c = tsToDate(r.createdAt), a = tsToDate(r.acknowledgedAt), f = tsToDate(r.completedAt);
+                return {
+                    'Tarih': r.date || '',
+                    'Oda': r.room || '',
+                    'Misafir': r.guestName || '',
+                    'Departman': r.department || '',
+                    'Durum': statusLabelOf(r.status),
+                    'Oluşturma': fmtClock(c),
+                    'İşleme Alınma': fmtClock(a),
+                    'Tamamlanma': fmtClock(f),
+                    'Yanıt (dk)': minutesBetween(r.createdAt, r.acknowledgedAt),
+                    'İşlem (dk)': minutesBetween(r.acknowledgedAt, r.completedAt),
+                    'Toplam (dk)': minutesBetween(r.createdAt, r.completedAt),
+                    'Üstlenen': r.acknowledgedBy || '',
+                    'Tamamlayan': r.completedBy || ''
+                };
+            });
+            const sub = (from && to) ? `${from} → ${to}` : 'Tüm zamanlar';
+            if (format === 'excel') exportExcel(rows, `Gorev_Sureleri_${from || 'tum'}_${to || 'zamanlar'}`, 'Süreler');
+            else exportPDF('Görev Süreleri Dökümü',
+                ['Tarih', 'Oda', 'Misafir', 'Departman', 'Durum', 'Yanıt (dk)', 'İşlem (dk)', 'Toplam (dk)'],
+                data.map(r => [r.date || '', r.room || '', r.guestName || '', r.department || '', statusLabelOf(r.status),
+                    String(minutesBetween(r.createdAt, r.acknowledgedAt)), String(minutesBetween(r.acknowledgedAt, r.completedAt)), String(minutesBetween(r.createdAt, r.completedAt))]),
+                'Gorev_Sureleri', sub);
+        }
+
         else if (type === 'dateRange') {
             if (!from || !to) return showToast('Başlangıç ve bitiş tarihlerini seçin.', true);
             const data = filterByRange(records, from, to);
@@ -1104,8 +1198,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     document.getElementById('filterTotal').addEventListener('click', () => { activeStatusFilter = null; setActivePill('filterTotal'); triggerSearch(); });
     document.getElementById('filterFollowing').addEventListener('click', () => { activeStatusFilter = 'Following'; setActivePill('filterFollowing'); triggerSearch(); });
+    document.getElementById('filterInProgress')?.addEventListener('click', () => { activeStatusFilter = 'InProgress'; setActivePill('filterInProgress'); triggerSearch(); });
     document.getElementById('filterSolved').addEventListener('click', () => { activeStatusFilter = 'Solved'; setActivePill('filterSolved'); triggerSearch(); });
     document.getElementById('filterOverdue').addEventListener('click', () => { activeStatusFilter = 'Overdue'; setActivePill('filterOverdue'); triggerSearch(); });
+
+    // Refresh elapsed-time chips and overdue states every minute while visible.
+    setInterval(() => { if (!document.hidden) triggerSearch(); }, 60000);
 
     // "Tüm Zamanlar": clear the date filter so every record is listed.
     document.getElementById('allTimeBtn')?.addEventListener('click', () => {
@@ -1239,7 +1337,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateView(textFilter = '', dateFilter = '') {
         recordsTableBody.innerHTML = '';
         const lowerText = textFilter.toLowerCase();
-        let stats = { total: 0, following: 0, solved: 0, overdue: 0 };
+        let stats = { total: 0, following: 0, inprogress: 0, solved: 0, overdue: 0 };
 
         const tableTitle = document.getElementById('tableTitle');
         if (tableTitle) {
@@ -1263,7 +1361,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const status = record.status || 'Following';
             if (status === 'Solved') stats.solved++;
             else {
-                stats.following++;
+                if (status === 'InProgress') stats.inprogress++;
+                else stats.following++;
                 if (isOverdue(record)) stats.overdue++;
             }
         });
@@ -1271,14 +1370,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const finalFiltered = filtered.filter(r => {
             if (!activeStatusFilter) return true;
             if (activeStatusFilter === 'Overdue') return r.status !== 'Solved' && isOverdue(r);
-            return r.status === activeStatusFilter;
+            return (r.status || 'Following') === activeStatusFilter;
         });
 
         lastRenderedRows = finalFiltered;
 
         if (!finalFiltered.length) {
             recordsTableBody.innerHTML = `
-                <tr class="gi-empty-row"><td colspan="6">
+                <tr class="gi-empty-row"><td colspan="7">
                     <div class="gi-empty">
                         <span class="gi-empty-ico">🛎️</span>
                         <span>Kayıt bulunamadı</span>
@@ -1286,10 +1385,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td></tr>`;
         }
 
+        const now = Date.now();
         finalFiltered.forEach(record => {
             const status = record.status || 'Following';
             const statusClass = status.toLowerCase();
-            const statusLabel = status === 'Solved' ? 'Çözüldü' : 'Takipte';
+            const statusLabel = statusLabelOf(status);
             const noteCount = record.updates ? record.updates.length : 0;
             const noteIndicator = noteCount > 0 ? `<span class="note-indicator" title="${noteCount} güncelleme">💬 ${noteCount}</span>` : '';
             const lateBadgeStatus = status !== 'Solved' && isOverdue(record);
@@ -1298,6 +1398,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const gStatus = getGuestStatus(record.guestName);
             const gStatusLabel = gStatus === 'in_house' ? 'OTELDE' : 'ÇIKIŞ YAPTI';
             const gStatusClass = gStatus === 'in_house' ? 'in-house-badge' : 'checked-out-badge';
+
+            // Duration cell: final total for completed work, live elapsed otherwise.
+            const created = tsToDate(record.createdAt);
+            const acked = tsToDate(record.acknowledgedAt);
+            const done = tsToDate(record.completedAt);
+            let durHtml = '<span class="dur-chip dur-none">—</span>';
+            if (status === 'Solved') {
+                if (created && done) durHtml = `<span class="dur-chip dur-done" title="Oluşturmadan tamamlanmaya toplam süre">✓ ${fmtDuration(done - created)}</span>`;
+            } else if (status === 'InProgress' && acked) {
+                durHtml = `<span class="dur-chip dur-active" title="İş üstlenileli geçen süre">⏱ ${fmtDuration(now - acked)}</span>`;
+            } else if (created) {
+                durHtml = `<span class="dur-chip dur-wait" title="Talep oluşturulalı geçen süre">⌛ ${fmtDuration(now - created)}</span>`;
+            }
 
             const row = document.createElement('tr');
             if (lateBadgeStatus) row.classList.add('urgent-row');
@@ -1315,6 +1428,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><span class="dept-badge">${esc(record.department)}</span></td>
                 <td class="staff-cell">${esc(record.staffInitial)}</td>
                 <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                <td class="dur-cell">${durHtml}</td>
             `;
             row.onclick = () => openModal(record);
             recordsTableBody.appendChild(row);
@@ -1323,6 +1437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update Stats Dashboard UI
         if (document.getElementById('statTotal')) document.getElementById('statTotal').textContent = stats.total;
         if (document.getElementById('statFollowing')) document.getElementById('statFollowing').textContent = stats.following;
+        if (document.getElementById('statInProgress')) document.getElementById('statInProgress').textContent = stats.inprogress;
         if (document.getElementById('statSolved')) document.getElementById('statSolved').textContent = stats.solved;
         if (document.getElementById('statOverdue')) document.getElementById('statOverdue').textContent = stats.overdue;
 
@@ -1338,14 +1453,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateStatusBadge(record.status || 'Following');
         renderTimeline(record);
+        renderWorkflow(record);
 
         modalViewMode.style.display = 'block';
         modalEditForm.style.display = 'none';
         modal.style.display = 'flex';
 
-        // Bind Status Update Buttons
-        document.getElementById('setFollowingBtn').onclick = () => updateRecordStatus('Following');
-        document.getElementById('setSolvedBtn').onclick = () => updateRecordStatus('Solved');
+        // Bind workflow transition buttons
+        document.getElementById('wfTakeBtn').onclick = () => transitionRecord('take');
+        document.getElementById('wfCompleteBtn').onclick = () => transitionRecord('complete');
+        document.getElementById('wfReopenBtn').onclick = () => transitionRecord('reopen');
 
         document.getElementById('emailModalBtn').onclick = () => draftEmail(record);
         document.getElementById('editModalBtn').onclick = () => startModalEdit(record);
@@ -1360,16 +1477,122 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateStatusBadge(status) {
-        modalStatusBadge.textContent = status === 'Solved' ? 'Çözüldü' : 'Takipte';
-        modalStatusBadge.className = 'status-badge ' + status.toLowerCase();
+        modalStatusBadge.textContent = statusLabelOf(status);
+        modalStatusBadge.className = 'status-badge ' + (status || 'Following').toLowerCase();
     }
 
-    async function updateRecordStatus(newStatus) {
+    // ── Workflow rendering & transitions ───────────────────────
+    // Shows the request lifecycle with timestamps and computed durations,
+    // and exposes only the actions valid for the current state.
+    function renderWorkflow(record) {
+        const status = record.status || 'Following';
+        const created = tsToDate(record.createdAt);
+        const acked = tsToDate(record.acknowledgedAt);
+        const done = tsToDate(record.completedAt);
+
+        const steps = [];
+        steps.push({
+            cls: 'done', label: 'Talep oluşturuldu',
+            meta: fmtClock(created) + (record.staffInitial ? ' · ' + esc(record.staffInitial) : '')
+        });
+        if (acked) {
+            steps.push({
+                cls: 'done', label: 'İşleme alındı',
+                meta: fmtClock(acked) + (record.acknowledgedBy ? ' · ' + esc(record.acknowledgedBy) : '')
+                    + (created ? ` · yanıt: ${fmtDuration(acked - created)}` : '')
+            });
+        } else {
+            steps.push({
+                cls: status === 'Solved' ? 'skipped' : 'pending',
+                label: status === 'Solved' ? 'İşleme alınmadan tamamlandı' : 'Departman bekleniyor',
+                meta: status === 'Solved' ? '' : (created ? `${fmtDuration(Date.now() - created)} oldu` : '')
+            });
+        }
+        if (done) {
+            const parts = [];
+            if (acked) parts.push(`işlem: ${fmtDuration(done - acked)}`);
+            if (created) parts.push(`toplam: ${fmtDuration(done - created)}`);
+            steps.push({
+                cls: 'done', label: 'Tamamlandı',
+                meta: fmtClock(done) + (record.completedBy ? ' · ' + esc(record.completedBy) : '')
+                    + (parts.length ? ' · ' + parts.join(' · ') : '')
+            });
+        } else {
+            steps.push({
+                cls: 'pending', label: 'Tamamlanacak',
+                meta: (status === 'InProgress' && acked) ? `${fmtDuration(Date.now() - acked)}dir işlemde` : ''
+            });
+        }
+
+        document.getElementById('wfSteps').innerHTML = steps.map(s => `
+            <div class="wf-step ${s.cls}">
+                <span class="wf-dot"></span>
+                <div class="wf-step-text"><b>${s.label}</b>${s.meta ? `<span>${s.meta}</span>` : ''}</div>
+            </div>`).join('');
+
+        document.getElementById('wfTakeBtn').style.display = (status === 'Following') ? 'inline-flex' : 'none';
+        document.getElementById('wfCompleteBtn').style.display = (status !== 'Solved') ? 'inline-flex' : 'none';
+        document.getElementById('wfReopenBtn').style.display = (status === 'Solved') ? 'inline-flex' : 'none';
+    }
+
+    // Appends an entry to the record's timeline (same shape as manual notes).
+    function workflowNote(text) {
+        return {
+            user: loggedUsername,
+            text: text,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: Date.now(),
+            isEdited: false,
+            isSystem: true
+        };
+    }
+
+    async function transitionRecord(action) {
+        if (!selectedRecord) return;
+        const r = selectedRecord;
+        const TS = firebase.firestore.FieldValue.serverTimestamp();
+        const nowDate = new Date();
+        const payload = {};
+        let note, toastMsg;
+
+        if (action === 'take') {
+            payload.status = 'InProgress';
+            payload.acknowledgedAt = TS;
+            payload.acknowledgedBy = loggedUsername;
+            note = workflowNote('🔧 İşi üstlendi — süre başladı');
+            toastMsg = 'İş üstlenildi, süre başladı';
+        } else if (action === 'complete') {
+            payload.status = 'Solved';
+            payload.completedAt = TS;
+            payload.completedBy = loggedUsername;
+            const acked = tsToDate(r.acknowledgedAt), created = tsToDate(r.createdAt);
+            const durText = acked ? fmtDuration(nowDate - acked) : (created ? fmtDuration(nowDate - created) + ' (toplam)' : '');
+            note = workflowNote('✅ Tamamlandı' + (durText ? ` — ${durText}` : ''));
+            toastMsg = 'Talep tamamlandı' + (durText ? ` · ${durText}` : '');
+        } else if (action === 'reopen') {
+            payload.status = 'Following';
+            payload.completedAt = null;
+            payload.completedBy = null;
+            note = workflowNote('↩️ Talep yeniden açıldı');
+            toastMsg = 'Talep yeniden açıldı';
+        } else return;
+
+        payload.updates = [...(r.updates || []), note];
+
         try {
-            await db.collection('guestLogs').doc(editingId).update({ status: newStatus });
-            updateStatusBadge(newStatus); // Immediate UI update
-            showToast(newStatus === 'Solved' ? 'Durum: Çözüldü' : 'Durum: Takipte');
-        } catch (e) { showToast('Güncelleme başarısız', true); }
+            await db.collection('guestLogs').doc(editingId).update(payload);
+            // Optimistic local update so the modal reflects the change instantly
+            // (the snapshot listener will reconcile with server timestamps).
+            r.status = payload.status;
+            if (action === 'take') { r.acknowledgedAt = nowDate; r.acknowledgedBy = loggedUsername; }
+            if (action === 'complete') { r.completedAt = nowDate; r.completedBy = loggedUsername; }
+            if (action === 'reopen') { r.completedAt = null; r.completedBy = null; }
+            r.updates = payload.updates;
+            updateStatusBadge(r.status);
+            renderWorkflow(r);
+            renderTimeline(r);
+            showToast(toastMsg);
+        } catch (e) { showToast('Güncelleme başarısız: ' + e.message, true); }
     }
 
     // Timeline Logic
@@ -1378,9 +1601,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const updates = record.updates || [];
         updates.forEach((note, index) => {
             const item = document.createElement('div');
-            item.className = 'timeline-item';
+            item.className = 'timeline-item' + (note.isSystem ? ' system' : '');
             item.id = `note-${index}`;
-            const isOwner = note.user === loggedUsername;
+            // System (workflow) entries are an audit trail — not editable.
+            const isOwner = note.user === loggedUsername && !note.isSystem;
 
             item.innerHTML = `
                 <div class="timeline-header">

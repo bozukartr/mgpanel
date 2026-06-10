@@ -53,9 +53,22 @@ body {
     z-index: 100;
 }
 
+.logo-small {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 .logo-small img {
     height: 32px;
     width: auto;
+}
+
+.logo-small span {
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 1px;
+    color: var(--text);
 }
 
 .panel-nav {
@@ -1589,3 +1602,63 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
 @media (max-width: 640px) {
     .gi-pills { grid-template-columns: 1fr 1fr; }
 }
+
+/* ═══ Department workflow (request lifecycle) ═══════════════ */
+.gi-pill.inprogress { background: #eef2ff; color: #4f46e5; }
+.gi-pill.inprogress.active { border-color: #4f46e5; background: #fff; }
+.gi-pill.wide { grid-column: 1 / -1; flex-direction: row; justify-content: center; gap: 10px; padding: 9px 8px; }
+.gi-pill.wide .gi-pill-val { font-size: 16px; }
+
+.status-badge.inprogress { background: #eef2ff; color: #4f46e5; }
+
+/* Duration chips in the records table */
+.dur-cell { white-space: nowrap; }
+.dur-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+}
+.dur-done   { background: #e8f5e9; color: #2e7d32; }
+.dur-active { background: #eef2ff; color: #4f46e5; }
+.dur-wait   { background: #fff8e1; color: #b45309; }
+.dur-none   { color: #cbd5e1; }
+
+/* Workflow box in the detail modal */
+.wf-box {
+    background: #f8fafc; border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; margin-bottom: 20px;
+}
+.wf-steps { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+.wf-step { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; position: relative; }
+.wf-step:not(:last-child)::before {
+    content: ""; position: absolute; left: 5px; top: 18px; bottom: -8px;
+    width: 2px; background: var(--border);
+}
+.wf-dot {
+    width: 12px; height: 12px; border-radius: 50%; margin-top: 3px; flex-shrink: 0;
+    border: 2px solid #cbd5e1; background: #fff; z-index: 1;
+}
+.wf-step.done .wf-dot { background: var(--primary); border-color: var(--primary); }
+.wf-step.pending .wf-dot { border-style: dashed; }
+.wf-step.skipped .wf-dot { background: #e2e8f0; border-color: #e2e8f0; }
+.wf-step-text { display: flex; flex-direction: column; }
+.wf-step-text b { font-size: 13px; font-weight: 600; color: var(--text); }
+.wf-step.pending .wf-step-text b { color: var(--text-muted); font-weight: 500; }
+.wf-step.skipped .wf-step-text b { color: #94a3b8; font-weight: 500; }
+.wf-step-text span { font-size: 11.5px; color: var(--text-muted); margin-top: 1px; }
+
+.wf-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.wf-btn {
+    display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px;
+    border-radius: 9px; border: none; font-family: inherit; font-size: 12.5px;
+    font-weight: 600; cursor: pointer; transition: all .2s;
+}
+.wf-btn.take { background: var(--primary); color: #fff; box-shadow: 0 4px 10px rgba(99,102,241,0.25); }
+.wf-btn.take:hover { background: var(--primary-dark); }
+.wf-btn.complete { background: #16a34a; color: #fff; box-shadow: 0 4px 10px rgba(22,163,74,0.22); }
+.wf-btn.complete:hover { background: #15803d; }
+.wf-btn.reopen { background: #fff; color: var(--text-muted); border: 1px solid var(--border); }
+.wf-btn.reopen:hover { background: #f8fafc; color: var(--text); }
+
+/* System (workflow audit) entries in the timeline */
+.timeline-item.system { border-left-color: #c7d2fe; background: #fafbff; }
+.timeline-item.system .timeline-text { color: #4f46e5; font-weight: 500; }
