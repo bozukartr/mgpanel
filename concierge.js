@@ -187,11 +187,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         logCount++;
                     });
                 } else {
-                    throw new Error('Unsupported backup format');
+                    throw new Error('Desteklenmeyen yedek formatı');
                 }
 
                 await batch.commit();
-                showToast(`Import Success: ${logCount} logs, ${resCount} res, ${dirCount} CRM profiles.`);
+                showToast(`İçe aktarma başarılı: ${logCount} kayıt, ${resCount} rezervasyon, ${dirCount} CRM profili.`);
                 e.target.value = '';
                 setTimeout(() => window.location.reload(), 1500);
             } catch (err) { showToast('İçe aktarma başarısız: ' + err.message, true); }
@@ -228,6 +228,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openSheet = (s, b) => { s.classList.add('open'); b.classList.add('open'); };
     const closeSheet = (s, b) => { s.classList.remove('open'); b.classList.remove('open'); };
+
+    // ESC closes whichever sheet is open (top-most/all), matching modern app UX.
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const open = document.querySelectorAll('.sheet.open, .sheet-backdrop.open');
+        if (open.length) open.forEach(el => el.classList.remove('open'));
+    });
 
     // ── PASSIVE INLINE COLLISION WARNING SYSTEM ──
     // Passively scans cached reservations in real-time as inputs mutate. Does NOT block save.
@@ -646,9 +653,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const empty = document.getElementById('c-emptyState');
         const today = new Date().toISOString().split('T')[0];
 
-        // Update Stats & Active states
+        // Update Stats & Active states. "Bugün" lights up when viewing today's
+        // agenda and "Tüm Zamanlar" when no date is set — so the active view is
+        // always visible, not just the status pills.
         document.getElementById('c-pillPending')?.classList.toggle('active', statusFilter === 'Pending');
         document.getElementById('c-pillConfirmed')?.classList.toggle('active', statusFilter === 'Confirmed');
+        document.getElementById('c-pillToday')?.classList.toggle('active', !statusFilter && !search && dateVal === today);
+        document.getElementById('c-pillAllTime')?.classList.toggle('active', !statusFilter && !search && !dateVal);
 
         let todayCount = 0, pending = 0, confirmed = 0;
         reservations.forEach(r => {
@@ -1057,7 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 await db.collection('reservations').doc(r.id).update({ status: st });
-                showToast('Durum: ' + st);
+                showToast('Durum: ' + ({ Pending: 'Bekleyen', Confirmed: 'Onaylı', Cancelled: 'İptal' }[st] || st));
             } catch (e) { showToast('Hata', true); }
         };
     });

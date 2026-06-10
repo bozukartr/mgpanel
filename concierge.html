@@ -71,19 +71,19 @@
                         <input type="text" id="c-search" placeholder="Rezervasyon ara..." autocomplete="off" style="width: 100%; padding: 10px 10px 10px 36px; border: 1px solid #e5e7eb; border-radius: 8px; font-family: inherit; font-size: 13px;">
                     </div>
                     <input type="date" id="c-dateFilter" class="date-input" style="padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-family: inherit; font-size: 13px; color: #4b5563; width: 100%;">
-                    <button id="c-pillAllTime" style="font-size:11px; padding:6px 12px; border:1px solid #e5e7eb; border-radius:6px; background:white; cursor:pointer; color:#6b7280; width:100%; margin-top:-4px;">Tüm Zamanlar</button>
+                    <button id="c-pillAllTime" title="Tarih filtresini kaldır, tüm rezervasyonları göster" style="font-size:11px; padding:6px 12px; border:1px solid #e5e7eb; border-radius:6px; background:white; cursor:pointer; color:#6b7280; width:100%; margin-top:-4px;">Tüm Zamanlar</button>
                 </div>
 
                 <div class="stats-strip centered" style="display: flex; gap: 8px; margin: 0; padding: 0; background: transparent; border: none;">
-                    <div class="stat-pill primary" id="c-pillToday" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
+                    <div class="stat-pill primary" id="c-pillToday" title="Bugünün rezervasyonları" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
                         <span class="stat-pill-val" id="c-statToday" style="font-size: 20px; font-weight: 700;">0</span>
                         <span class="stat-pill-label" style="font-size: 10px; font-weight: 600; opacity: 0.8; text-transform: uppercase;">Bugün</span>
                     </div>
-                    <div class="stat-pill following" id="c-pillPending" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
+                    <div class="stat-pill following" id="c-pillPending" title="Tüm bekleyen rezervasyonlar" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
                         <span class="stat-pill-val" id="c-statPending" style="font-size: 20px; font-weight: 700;">0</span>
                         <span class="stat-pill-label" style="font-size: 10px; font-weight: 600; opacity: 0.8; text-transform: uppercase;">Bekleyen</span>
                     </div>
-                    <div class="stat-pill solved" id="c-pillConfirmed" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
+                    <div class="stat-pill solved" id="c-pillConfirmed" title="Seçili günün onaylı rezervasyonları" style="flex: 1; text-align: center; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; padding: 12px 8px; min-width: 0 !important; max-width: 100%; border: 2px solid transparent;">
                         <span class="stat-pill-val" id="c-statConfirmed" style="font-size: 20px; font-weight: 700;">0</span>
                         <span class="stat-pill-label" style="font-size: 10px; font-weight: 600; opacity: 0.8; text-transform: uppercase;">Onaylı</span>
                     </div>
@@ -520,7 +520,6 @@
                 <!-- Dynamically filled -->
             </div>
             <button class="primary-btn w-100" id="sel-confirm-btn">Onayla & PDF Oluştur</button>
-        </div>
         </div>
     </div>
 
