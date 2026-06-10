@@ -1493,3 +1493,99 @@ tr:hover td {
 }
 
 
+
+/* ═══ Concierge-style layout (Guest Issues) ═══════════════════ */
+#guest-log { padding: 0; overflow: hidden; }
+.gi-layout { display: flex; height: 100%; align-items: stretch; }
+
+/* Left sidebar — mirrors the Concierge console sidebar */
+.gi-sidebar {
+    width: 380px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 24px; display: flex; flex-direction: column; gap: 24px; overflow-y: auto;
+}
+.gi-new-btn {
+    width: 100%; padding: 14px; font-size: 15px; font-weight: 600; font-family: inherit;
+    background: var(--primary); color: #fff; border: none; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 4px 12px rgba(99,102,241,0.28); transition: background .2s, transform .15s;
+}
+.gi-new-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+.gi-filters { display: flex; flex-direction: column; gap: 12px; }
+.gi-search-wrap { position: relative; }
+.gi-search-wrap svg { position: absolute; left: 12px; top: 12px; color: #9ca3af; pointer-events: none; }
+.gi-search-wrap input {
+    width: 100%; padding: 10px 10px 10px 36px; border: 1px solid #e5e7eb; border-radius: 8px;
+    font-family: inherit; font-size: 13px; outline: none; background: #fff; transition: border-color .2s;
+}
+.gi-search-wrap input:focus { border-color: var(--primary); }
+.gi-date {
+    padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-family: inherit;
+    font-size: 13px; color: #4b5563; width: 100%; outline: none; background: #fff;
+}
+.gi-date:focus { border-color: var(--primary); }
+.gi-filter-row { display: flex; gap: 8px; margin-top: -4px; }
+.gi-alltime {
+    flex: 1; font-size: 11px; padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 6px;
+    background: #fff; cursor: pointer; color: #6b7280; font-family: inherit; font-weight: 600;
+    transition: all .2s;
+}
+.gi-alltime:hover { border-color: #c7d2fe; color: var(--primary); }
+
+/* Stat pills — same look & behavior as Concierge stat pills */
+.gi-pills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.gi-pill {
+    border-radius: 12px; cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; padding: 12px 8px; border: 2px solid transparent;
+    transition: all .2s cubic-bezier(.4,0,.2,1); text-align: center;
+}
+.gi-pill-val { font-size: 20px; font-weight: 700; }
+.gi-pill-label { font-size: 10px; font-weight: 600; opacity: .8; text-transform: uppercase; }
+.gi-pill.total     { background: var(--primary-soft); color: var(--primary); }
+.gi-pill.following { background: #fff8e1; color: #ffa000; }
+.gi-pill.solved    { background: #e8f5e9; color: #2e7d32; }
+.gi-pill.overdue   { background: #ffebee; color: #d32f2f; }
+.gi-pill.active { background: #fff; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.1); }
+.gi-pill.total.active     { border-color: var(--primary); }
+.gi-pill.following.active { border-color: #ffa000; }
+.gi-pill.solved.active    { border-color: #2e7d32; }
+.gi-pill.overdue.active   { border-color: #d32f2f; }
+
+.gi-side-foot {
+    margin-top: auto; display: flex; flex-direction: column; gap: 8px;
+    padding-top: 16px; border-top: 1px solid var(--border);
+}
+.gi-side-btn {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px;
+    border: 1px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text-muted); transition: all .2s;
+}
+.gi-side-btn:hover { background: var(--primary-soft); border-color: #c7d2fe; color: var(--primary-dark); }
+
+/* Main pane — light canvas like the Concierge feed */
+.gi-main { flex: 1; overflow-y: auto; background: #f8fafc; padding: 32px; }
+.gi-main .data-view { max-width: 1100px; margin: 0 auto; }
+
+/* Empty state */
+.gi-empty {
+    text-align: center; padding: 60px 0; display: flex; flex-direction: column;
+    gap: 8px; color: #6b7280; font-size: 15px; font-weight: 500;
+}
+.gi-empty-ico { font-size: 40px; }
+.gi-empty-row td { background: transparent !important; border: none !important; box-shadow: none !important; }
+tr.gi-empty-row:hover td { transform: none; cursor: default; }
+
+/* New issue modal sizing */
+#newIssueModal .modal-content { max-height: 92vh; overflow-y: auto; }
+
+@media (max-width: 1024px) {
+    #guest-log { overflow-y: auto; }
+    .gi-layout { flex-direction: column; height: auto; }
+    .gi-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    .gi-side-foot { margin-top: 0; }
+    .gi-pills { grid-template-columns: repeat(4, 1fr); }
+    .gi-main { padding: 20px; }
+}
+@media (max-width: 640px) {
+    .gi-pills { grid-template-columns: 1fr 1fr; }
+}

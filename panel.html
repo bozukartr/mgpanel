@@ -18,8 +18,8 @@
             </div>
             <nav class="panel-nav">
                 <button class="nav-btn" onclick="window.location.href='concierge.html'">Concierge</button>
-                <button class="nav-btn active" data-tab="guest-log">Guest Issues Log</button>
-                <button class="nav-btn" onclick="window.location.href='crm.html'">CRM Center</button>
+                <button class="nav-btn active" data-tab="guest-log">Misafir Kayıtları</button>
+                <button class="nav-btn" onclick="window.location.href='crm.html'">CRM Merkezi</button>
                 <button class="nav-btn admin-only" id="adminNavLink" style="display: none;"
                     onclick="window.location.href='admin.html'">Admin</button>
             </nav>
@@ -28,163 +28,182 @@
                 <!-- Backup Dropdown -->
                 <div class="backup-dropdown">
                     <button id="backupToggleBtn" class="backup-btn">
-                        <span class="icon">📁</span> Backup
+                        <span class="icon">📁</span> Yedek
                     </button>
                     <div class="backup-menu" id="backupMenu">
                         <div class="menu-item" id="exportDataBtn">
-                            <span class="m-icon">📥</span> Export (JSON)
+                            <span class="m-icon">📥</span> Dışa Aktar (JSON)
                         </div>
                         <div class="menu-item" id="importDataBtn">
-                            <span class="m-icon">📤</span> Import (JSON)
+                            <span class="m-icon">📤</span> İçe Aktar (JSON)
                             <input type="file" id="importFileInput" accept=".json" style="display:none">
                         </div>
                     </div>
                 </div>
                 <button id="logoutBtn" class="logout-btn">
-                    <span class="icon">⏻</span> Logout
+                    <span class="icon">⏻</span> Çıkış
                 </button>
             </div>
         </header>
 
         <!-- Main Content Area -->
         <main class="panel-main">
-            <!-- CONCIERGE TAB -->
-            <section id="concierge" class="tab-content">
-                <div class="welcome-banner">
-                    <h1>Concierge Dashboard</h1>
-                    <p>Welcome to the premium concierge management system.</p>
-                </div>
-                <!-- Concierge content will go here in next updates -->
-            </section>
-
-            <!-- GUEST ISSUES LOG TAB -->
+            <!-- GUEST ISSUES LOG -->
             <section id="guest-log" class="tab-content active">
-                <div class="dashboard-layout">
-                    <!-- LEFT SIDEBAR: Input Form (Web) -->
-                    <aside class="sidebar-form">
-                        <h3>New Issue Log</h3>
-                        <form id="guestIssueForm">
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Date</label>
-                                    <input type="date" id="date" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>Room No</label>
-                                    <input type="text" id="room" placeholder="No" required>
-                                </div>
-                            </div>
+                <div class="gi-layout">
+                    <!-- LEFT SIDEBAR: actions + filters (Concierge-style) -->
+                    <aside class="gi-sidebar">
+                        <button class="gi-new-btn" id="newIssueBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Yeni Kayıt
+                        </button>
 
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Guest Name</label>
-                                    <input type="text" id="guestName" placeholder="Full name" list="guest-list"
-                                        required>
-                                    <datalist id="guest-list"></datalist>
-                                </div>
-                                <div class="form-group">
-                                    <label>Department</label>
-                                    <select id="department">
-                                        <option value="Housekeeping">Housekeeping</option>
-                                        <option value="Front Desk">Front Desk</option>
-                                        <option value="Concierge">Concierge</option>
-                                        <option value="Engineering">Engineering</option>
-                                        <option value="Food & Beverage">Food & Beverage</option>
-                                        <option value="Reservations">Reservations</option>
-                                        <option value="Sales & Marketing">Sales & Marketing</option>
-                                        <option value="Spa">Spa</option>
-                                        <option value="Watersports">Watersports</option>
-                                        <option value="Security">Security</option>
-                                        <option value="Noise">Noise</option>
-                                        <option value="Transfer">Transfer</option>
-                                    </select>
-                                </div>
+                        <div class="gi-filters">
+                            <div class="gi-search-wrap">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input type="text" id="globalSearch" placeholder="İsim, oda, departman ara..." autocomplete="off">
                             </div>
-                            <div class="form-group">
-                                <label>Complaint</label>
-                                <textarea id="complaint" rows="3" placeholder="Describe the issue"></textarea>
+                            <input type="date" id="dateSearch" class="gi-date">
+                            <div class="gi-filter-row">
+                                <button id="allTimeBtn" class="gi-alltime">Tüm Zamanlar</button>
+                                <button id="resetFilters" class="gi-alltime">Bugün</button>
                             </div>
-                            <div class="form-group">
-                                <label>Solution</label>
-                                <textarea id="solution" rows="3" placeholder="Action taken"></textarea>
+                        </div>
+
+                        <div class="gi-pills">
+                            <div class="gi-pill total active" id="filterTotal" title="Tüm kayıtlar">
+                                <span class="gi-pill-val" id="statTotal">0</span>
+                                <span class="gi-pill-label">Toplam</span>
                             </div>
-                            <div class="form-group">
-                                <label>Staff Initial</label>
-                                <input type="text" id="staffInitial" placeholder="e.g. JD" required>
+                            <div class="gi-pill following" id="filterFollowing" title="Takipteki kayıtlar">
+                                <span class="gi-pill-val" id="statFollowing">0</span>
+                                <span class="gi-pill-label">Takipte</span>
                             </div>
-                            <div id="gi-conflict-alert" style="display:none; margin-bottom:15px; padding:12px; border-radius:8px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
-                            <button type="submit" class="submit-btn" id="submitBtn">Save Record</button>
-                        </form>
+                            <div class="gi-pill solved" id="filterSolved" title="Çözülen kayıtlar">
+                                <span class="gi-pill-val" id="statSolved">0</span>
+                                <span class="gi-pill-label">Çözüldü</span>
+                            </div>
+                            <div class="gi-pill overdue" id="filterOverdue" title="15 dakikadan uzun süredir bekleyen kayıtlar">
+                                <span class="gi-pill-val" id="statOverdue">0</span>
+                                <span class="gi-pill-label">Geciken</span>
+                            </div>
+                        </div>
+
+                        <div class="gi-side-foot">
+                            <button id="openReportsBtn" class="gi-side-btn">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                                Raporlar
+                            </button>
+                            <button id="guestProfilesBtn" class="gi-side-btn">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                Misafir Kayıt Defteri
+                            </button>
+                            <button class="gi-side-btn" onclick="window.location.href='crm.html'">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                CRM Merkezi
+                            </button>
+                        </div>
                     </aside>
 
-                    <!-- RIGHT SIDE: Data View -->
-                    <div class="data-view">
-                        <!-- Stats Dashboard -->
-                        <div class="dashboard-stats">
-                            <div class="stat-card" id="filterTotal" style="cursor: pointer;"
-                                title="Show all logs for selected date">
-                                <span class="stat-label">Total Logs</span>
-                                <span class="stat-value" id="statTotal">0</span>
-                            </div>
-                            <div class="stat-card" id="filterFollowing" style="cursor: pointer;"
-                                title="Show following logs">
-                                <span class="stat-label">Following</span>
-                                <span class="stat-value text-orange" id="statFollowing">0</span>
-                            </div>
-                            <div class="stat-card" id="filterSolved" style="cursor: pointer;" title="Show solved logs">
-                                <span class="stat-label">Solved</span>
-                                <span class="stat-value text-green" id="statSolved">0</span>
-                            </div>
-                            <div class="stat-card danger" id="filterOverdue" style="cursor: pointer;"
-                                title="Show overdue logs">
-                                <span class="stat-label">Alert (Pending > 15m)</span>
-                                <span class="stat-value text-red" id="statOverdue">0</span>
-                            </div>
-                        </div>
-
-                        <div class="data-header">
-                            <div class="header-left">
-                                <h2 id="tableTitle">Today's Logs</h2>
-                                <div class="data-stats">Total: <span id="recordCount">0</span></div>
-                                <div class="export-actions">
-                                    <button id="guestProfilesBtn" class="export-btn"
-                                        style="background: #1e293b; color: #fff; border-color: #1e293b;"
-                                        onclick="window.location.href='crm.html'">CRM Center</button>
-                                    <button id="openReportsBtn" class="export-btn" style="background: #6366f1; color: #fff; border-color: #6366f1;">📊 Reports</button>
+                    <!-- MAIN: records table -->
+                    <section class="gi-main">
+                        <div class="data-view">
+                            <div class="data-header">
+                                <div class="header-left">
+                                    <h2 id="tableTitle">Bugünün Kayıtları</h2>
+                                    <div class="data-stats">Toplam: <span id="recordCount">0</span></div>
                                 </div>
                             </div>
-                            <div class="search-area">
-                                <div class="date-filter">
-                                    <input type="date" id="dateSearch">
-                                </div>
-                                <div class="search-box">
-                                    <input type="text" id="globalSearch" placeholder="Search name, room, dept...">
-                                </div>
-                                <button id="resetFilters" class="reset-btn">Reset</button>
+                            <div class="table-wrapper">
+                                <table id="recordsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Tarih</th>
+                                            <th>Oda</th>
+                                            <th>Misafir</th>
+                                            <th>Departman</th>
+                                            <th>Personel</th>
+                                            <th>Durum</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Dynamic rows will appear here -->
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                        <div class="table-wrapper">
-                            <table id="recordsTable">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Room</th>
-                                        <th>Guest</th>
-                                        <th>Department</th>
-                                        <th>Staff</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <!-- Dynamic rows will appear here -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
+                    </section>
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- New Issue Modal (Concierge-style creation flow) -->
+    <div id="newIssueModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header compact">
+                <div class="header-main">
+                    <h3>Yeni Misafir Kaydı</h3>
+                </div>
+                <div class="header-actions">
+                    <button class="close-modal" id="closeNewIssue">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <form id="guestIssueForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tarih</label>
+                            <input type="date" id="date" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Oda No</label>
+                            <input type="text" id="room" placeholder="No" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Misafir Adı</label>
+                            <input type="text" id="guestName" placeholder="Ad soyad" list="guest-list"
+                                required>
+                            <datalist id="guest-list"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>Departman</label>
+                            <select id="department">
+                                <option value="Housekeeping">Housekeeping</option>
+                                <option value="Front Desk">Front Desk</option>
+                                <option value="Concierge">Concierge</option>
+                                <option value="Engineering">Engineering</option>
+                                <option value="Food & Beverage">Food & Beverage</option>
+                                <option value="Reservations">Reservations</option>
+                                <option value="Sales & Marketing">Sales & Marketing</option>
+                                <option value="Spa">Spa</option>
+                                <option value="Watersports">Watersports</option>
+                                <option value="Security">Security</option>
+                                <option value="Noise">Noise</option>
+                                <option value="Transfer">Transfer</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Şikayet / Talep</label>
+                        <textarea id="complaint" rows="3" placeholder="Sorunu açıklayın"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Çözüm</label>
+                        <textarea id="solution" rows="3" placeholder="Yapılan işlem"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Personel</label>
+                        <input type="text" id="staffInitial" placeholder="örn. JD" required>
+                    </div>
+                    <div id="gi-conflict-alert" style="display:none; margin-bottom:15px; padding:12px; border-radius:8px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
+                    <button type="submit" class="submit-btn" id="submitBtn">Kaydı Oluştur</button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- Details/Edit Modal -->
@@ -192,13 +211,13 @@
         <div class="modal-content">
             <div class="modal-header compact">
                 <div class="header-main">
-                    <span id="modalStatusBadge" class="status-badge">Following</span>
-                    <h3>Issue Details</h3>
+                    <span id="modalStatusBadge" class="status-badge">Takipte</span>
+                    <h3>Kayıt Detayı</h3>
                 </div>
                 <div class="header-actions">
-                    <button class="icon-btn" id="emailModalBtn" title="Draft Email">✉</button>
-                    <button class="icon-btn" id="editModalBtn" title="Edit">✎</button>
-                    <button class="icon-btn delete" id="deleteModalBtn" title="Delete">🗑</button>
+                    <button class="icon-btn" id="emailModalBtn" title="E-posta Taslağı">✉</button>
+                    <button class="icon-btn" id="editModalBtn" title="Düzenle">✎</button>
+                    <button class="icon-btn delete" id="deleteModalBtn" title="Sil">🗑</button>
                     <button class="close-modal" id="closeModal">&times;</button>
                 </div>
             </div>
@@ -207,34 +226,34 @@
                 <div id="modalViewMode">
                     <div class="compact-grid">
                         <div class="field-view">
-                            <label>Guest & Room</label>
+                            <label>Misafir & Oda</label>
                             <p id="modalGuestRoom">-</p>
                         </div>
                         <div class="field-view">
-                            <label>Department</label>
+                            <label>Departman</label>
                             <p id="modalDept">-</p>
                         </div>
                     </div>
 
                     <div class="field-view full-width">
-                        <label>Description</label>
+                        <label>Açıklama</label>
                         <p id="modalDesc">-</p>
                     </div>
 
                     <div class="compact-status-row">
-                        <span>Change Status:</span>
+                        <span>Durum Değiştir:</span>
                         <div class="status-controls">
-                            <button class="status-btn" id="setFollowingBtn">Follow</button>
-                            <button class="status-btn" id="setSolvedBtn">Solve</button>
+                            <button class="status-btn" id="setFollowingBtn">Takibe Al</button>
+                            <button class="status-btn" id="setSolvedBtn">Çözüldü</button>
                         </div>
                     </div>
 
                     <div class="timeline-section compact">
-                        <h4>Timeline Updates</h4>
+                        <h4>Zaman Akışı</h4>
                         <div id="timelineFeed" class="timeline-feed"></div>
                         <div class="timeline-input compact">
-                            <textarea id="noteInput" rows="1" placeholder="Type a note..."></textarea>
-                            <button id="postNoteBtn" class="post-btn">Post</button>
+                            <textarea id="noteInput" rows="1" placeholder="Not yazın..."></textarea>
+                            <button id="postNoteBtn" class="post-btn">Gönder</button>
                         </div>
                     </div>
                 </div>
@@ -243,21 +262,21 @@
                 <form id="modalEditForm" style="display: none;">
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Date</label>
+                            <label>Tarih</label>
                             <input type="date" id="editDate" required>
                         </div>
                         <div class="form-group">
-                            <label>Room No</label>
+                            <label>Oda No</label>
                             <input type="text" id="editRoom" required>
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Guest Name</label>
+                            <label>Misafir Adı</label>
                             <input type="text" id="editGuestName" required>
                         </div>
                         <div class="form-group">
-                            <label>Department</label>
+                            <label>Departman</label>
                             <select id="editDepartment">
                                 <option value="Housekeeping">Housekeeping</option>
                                 <option value="Front Desk">Front Desk</option>
@@ -275,29 +294,29 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Complaint</label>
+                        <label>Şikayet / Talep</label>
                         <textarea id="editComplaint" rows="2"></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Solution</label>
+                        <label>Çözüm</label>
                         <textarea id="editSolution" rows="2"></textarea>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Staff Initial</label>
+                            <label>Personel</label>
                             <input type="text" id="editStaffInitial" required>
                         </div>
                         <div class="form-group">
-                            <label>Status</label>
+                            <label>Durum</label>
                             <select id="editStatus">
-                                <option value="Following">Following</option>
-                                <option value="Solved">Solved</option>
+                                <option value="Following">Takipte</option>
+                                <option value="Solved">Çözüldü</option>
                             </select>
                         </div>
                     </div>
                     <div class="modal-actions">
-                        <button type="submit" class="action-btn save-btn">Save Changes</button>
-                        <button type="button" class="action-btn cancel-btn" id="cancelEditBtn">Cancel</button>
+                        <button type="submit" class="action-btn save-btn">Kaydet</button>
+                        <button type="button" class="action-btn cancel-btn" id="cancelEditBtn">Vazgeç</button>
                     </div>
                 </form>
             </div>
@@ -309,11 +328,11 @@
         <div class="modal-content success-content">
             <div class="modal-body text-center">
                 <div class="success-icon">✓</div>
-                <h3>Record Saved!</h3>
-                <p>Would you like to draft an email for this record now?</p>
+                <h3>Kayıt Oluşturuldu!</h3>
+                <p>Bu kayıt için şimdi bir e-posta taslağı hazırlamak ister misiniz?</p>
                 <div class="modal-actions vertical">
-                    <button class="action-btn email-action-btn" id="successEmailBtn">Draft as Email</button>
-                    <button class="action-btn skip-action-btn" id="successSkipBtn">No, skip this</button>
+                    <button class="action-btn email-action-btn" id="successEmailBtn">E-posta Taslağı Oluştur</button>
+                    <button class="action-btn skip-action-btn" id="successSkipBtn">Hayır, geç</button>
                 </div>
             </div>
         </div>
@@ -323,11 +342,11 @@
         <div class="modal-content small-modal">
             <div class="modal-body text-center">
                 <div class="warning-icon">!</div>
-                <h3>Confirm Deletion</h3>
-                <p>This record will be permanently removed from the system. This action is irreversible.</p>
+                <h3>Silme Onayı</h3>
+                <p>Bu kayıt sistemden kalıcı olarak kaldırılacak. Bu işlem geri alınamaz.</p>
                 <div class="modal-actions vertical">
-                    <button class="action-btn delete-confirm-btn" id="confirmDeleteBtn">Delete Forever</button>
-                    <button class="action-btn" id="cancelDeleteBtn">Cancel</button>
+                    <button class="action-btn delete-confirm-btn" id="confirmDeleteBtn">Kalıcı Olarak Sil</button>
+                    <button class="action-btn" id="cancelDeleteBtn">Vazgeç</button>
                 </div>
             </div>
         </div>
@@ -357,19 +376,19 @@
         <div class="modal-content profile-modal" style="max-width: 550px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white;">
                 <div>
-                    <h2 style="color: white; margin: 0; font-size: 18px;">👥 Guest Registry & Status</h2>
-                    <p style="color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 12px;">Manage In-House / Checked-Out statuses</p>
+                    <h2 style="color: white; margin: 0; font-size: 18px;">👥 Misafir Kayıt Defteri</h2>
+                    <p style="color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 12px;">Otelde / Çıkış Yaptı durumlarını yönetin</p>
                 </div>
                 <span class="close-modal" id="closeProfileModal" style="color: white;">&times;</span>
             </div>
             <div class="modal-body" style="padding: 20px;">
                 <div class="profile-search-wrap" style="margin-bottom: 20px;">
-                    <input type="text" id="profileSearchInput" placeholder="Search guests or room numbers..." 
+                    <input type="text" id="profileSearchInput" placeholder="Misafir veya oda numarası ara..."
                            style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 12px; font-family: 'Outfit', sans-serif;">
                     <div class="filter-pills" style="display: flex; gap: 8px;">
-                        <button class="status-pill active" data-filter="all" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600;">ALL</button>
-                        <button class="status-pill" data-filter="in_house" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #27ae60;">IN HOUSE</button>
-                        <button class="status-pill" data-filter="checked_out" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #7f8c8d;">CHECKED OUT</button>
+                        <button class="status-pill active" data-filter="all" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600;">TÜMÜ</button>
+                        <button class="status-pill" data-filter="in_house" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #27ae60;">OTELDE</button>
+                        <button class="status-pill" data-filter="checked_out" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #7f8c8d;">ÇIKIŞ YAPTI</button>
                     </div>
                 </div>
                 <div class="guest-profile-list" id="guestProfileList" style="max-height: 400px; overflow-y: auto; border: 1px solid #f0f0f0; border-radius: 8px;">
@@ -385,8 +404,8 @@
         <div class="modal-content" style="max-width: 500px; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border-radius: 12px 12px 0 0; padding: 20px 24px;">
                 <div>
-                    <h2 style="color: white; margin: 0; font-size: 20px;">📊 Reports Center</h2>
-                    <p style="color: rgba(255,255,255,0.75); margin: 4px 0 0; font-size: 13px;">Generate professional reports in Excel or PDF format</p>
+                    <h2 style="color: white; margin: 0; font-size: 20px;">📊 Rapor Merkezi</h2>
+                    <p style="color: rgba(255,255,255,0.75); margin: 4px 0 0; font-size: 13px;">Excel veya PDF formatında profesyonel raporlar oluşturun</p>
                 </div>
                 <span class="close-modal" id="closeReportsModal" style="color: white; font-size: 28px;">&times;</span>
             </div>
@@ -394,19 +413,19 @@
                 
                 <!-- Report Type Selection -->
                 <div style="margin-bottom: 20px;">
-                    <label style="font-size: 13px; color: #666; display: block; margin-bottom: 8px; font-weight: 600;">SELECT REPORT TYPE</label>
+                    <label style="font-size: 13px; color: #666; display: block; margin-bottom: 8px; font-weight: 600;">RAPOR TÜRÜ</label>
                     <select id="reportTypeSelect" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif; font-size: 14px; background-color: #fff;">
-                        <option value="summary">General Summary (Daily)</option>
-                        <option value="inHouseIssues">In-House Issues (Current Guests)</option>
-                        <option value="department">By Department</option>
-                        <option value="byDate">By Specific Date</option>
-                        <option value="dateRange">Date Range Report</option>
-                        <option value="guest">By Guest Profile</option>
-                        <option value="status">By Status Breakdown</option>
-                        <option value="historicalStatus">Historical + Status Trend</option>
-                        <option value="deptHistorical">Department × Historical Matrix</option>
-                        <option value="currentView">Current Filtered View</option>
-                        <option value="fullArchive">Full Archive (All Records)</option>
+                        <option value="summary">Genel Özet (Günlük)</option>
+                        <option value="inHouseIssues">Oteldeki Misafir Kayıtları</option>
+                        <option value="department">Departmana Göre</option>
+                        <option value="byDate">Belirli Tarihe Göre</option>
+                        <option value="dateRange">Tarih Aralığı Raporu</option>
+                        <option value="guest">Misafir Profiline Göre</option>
+                        <option value="status">Durum Dağılımı</option>
+                        <option value="historicalStatus">Geçmiş + Durum Trendi</option>
+                        <option value="deptHistorical">Departman × Geçmiş Matrisi</option>
+                        <option value="currentView">Mevcut Filtrelenmiş Görünüm</option>
+                        <option value="fullArchive">Tüm Arşiv (Bütün Kayıtlar)</option>
                     </select>
                 </div>
 
@@ -416,16 +435,16 @@
                     <!-- Date Group (Shared) -->
                     <div id="rpt-dateGroup" style="display: flex; gap: 15px; flex-wrap: wrap;">
                         <div id="rpt-specificDateContainer" style="flex: 1; min-width: 140px;">
-                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">DATE</label>
+                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">TARİH</label>
                             <input type="date" id="rpt-specificDate" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
                         </div>
                         <div id="rpt-rangeGroup" style="display: none; gap: 15px; flex: 2; min-width: 300px;">
                             <div style="flex: 1;">
-                                <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">FROM DATE</label>
+                                <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">BAŞLANGIÇ</label>
                                 <input type="date" id="rpt-dateFrom" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
                             </div>
                             <div style="flex: 1;">
-                                <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">TO DATE</label>
+                                <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">BİTİŞ</label>
                                 <input type="date" id="rpt-dateTo" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
                             </div>
                         </div>
@@ -433,9 +452,9 @@
 
                     <!-- Department Selector (Dynamic) -->
                     <div id="rpt-deptContainer" style="display: none; margin-top: 15px;">
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">SELECT DEPARTMENT</label>
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">DEPARTMAN SEÇİN</label>
                         <select id="rpt-departmentSelect" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                            <option value="All">All Departments</option>
+                            <option value="All">Tüm Departmanlar</option>
                             <option value="Housekeeping">Housekeeping</option>
                             <option value="Front Desk">Front Desk</option>
                             <option value="Engineering">Engineering</option>
@@ -449,8 +468,8 @@
 
                     <!-- Guest Search (Dynamic) -->
                     <div id="rpt-guestContainer" style="display: none; margin-top: 15px;">
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">GUEST NAME</label>
-                        <input type="text" id="rpt-guestSearch" list="guestNamesList" placeholder="Start typing guest name..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">MİSAFİR ADI</label>
+                        <input type="text" id="rpt-guestSearch" list="guestNamesList" placeholder="Misafir adı yazmaya başlayın..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
                         <datalist id="guestNamesList"></datalist>
                     </div>
                 </div>
@@ -458,13 +477,12 @@
                 <!-- Export Buttons -->
                 <div style="display: flex; gap: 15px;">
                     <button class="action-btn" onclick="generateReportFromUI('excel')" style="flex: 1; background: #2e7d32; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px;">
-                        <span style="font-size: 18px;">📄</span> Export to Excel
+                        <span style="font-size: 18px;">📄</span> Excel'e Aktar
                     </button>
                     <button class="action-btn" onclick="generateReportFromUI('pdf')" style="flex: 1; background: #c62828; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px;">
-                        <span style="font-size: 18px;">📕</span> Export to PDF
+                        <span style="font-size: 18px;">📕</span> PDF'e Aktar
                     </button>
                 </div>
-            </div>
             </div>
         </div>
     </div>
@@ -478,29 +496,29 @@
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     </div>
                     <div>
-                        <h3 style="color: white; margin: 0; font-size: 18px; letter-spacing: 0.5px;">Security Check</h3>
-                        <p style="color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 12px;">Sudo Mode Active</p>
+                        <h3 style="color: white; margin: 0; font-size: 18px; letter-spacing: 0.5px;">Güvenlik Kontrolü</h3>
+                        <p style="color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 12px;">Hassas İşlem Onayı</p>
                     </div>
                 </div>
                 <button class="close-modal" id="authClose" style="color: white; opacity: 0.8;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 30px;">
                 <p style="font-size: 14px; color: #444; margin-bottom: 20px; line-height: 1.5;">
-                    This is a sensitive action. Please confirm your identity by entering your account password.
+                    Bu hassas bir işlemdir. Lütfen hesap şifrenizi girerek kimliğinizi doğrulayın.
                 </p>
                 <div class="form-group" style="margin-bottom: 25px;">
-                    <label style="font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; margin-bottom: 8px; display: block;">Verification Password</label>
+                    <label style="font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; margin-bottom: 8px; display: block;">Doğrulama Şifresi</label>
                     <div style="position: relative;">
                         <input type="password" id="auth-password" class="form-input" 
                                style="width: 100%; padding: 14px 14px 14px 40px; border-radius: 10px; border: 2px solid #eee; font-family: 'Outfit', sans-serif; transition: all 0.3s;" 
-                               placeholder="Enter your password">
+                               placeholder="Şifrenizi girin">
                         <svg style="position: absolute; left: 14px; top: 14px; color: #ccc;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     </div>
                 </div>
                 <button class="primary-btn" id="auth-verify-btn" 
                         style="width: 100%; padding: 15px; border-radius: 12px; background: #c62828; color: white; font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; border: none; cursor: pointer; transition: transform 0.2s, background 0.3s;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                    Confirm & Delete Record
+                    Onayla ve Kaydı Sil
                 </button>
             </div>
         </div>

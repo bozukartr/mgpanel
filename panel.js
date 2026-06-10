@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await batch.commit();
             renderGuestProfileList();
             updateGuestMap();
-            showToast(`${guestsToAdd.length} legacy guests added to registry.`);
+            showToast(`${guestsToAdd.length} eski misafir kayıt defterine eklendi.`);
         } catch (e) { console.error("Backfill failed", e); }
     }
 
@@ -237,8 +237,8 @@ document.addEventListener('DOMContentLoaded', () => {
             a.download = `Full_System_Backup_${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
-            showToast('Full system backup exported.');
-        } catch (e) { showToast('Export failed', true); }
+            showToast('Sistem yedeği dışa aktarıldı.');
+        } catch (e) { showToast('Dışa aktarma başarısız', true); }
     });
 
     // IMPORT: JSON (Full System Restore)
@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     importDataBtn?.addEventListener('click', () => {
         if (!isAdminUser) {
-            return showToast('Only Admin can import backups.', true);
+            return showToast('Yedek içe aktarmayı yalnızca Admin yapabilir.', true);
         }
         importFileInput.click();
     });
@@ -293,9 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 await batch.commit();
-                showToast(`Import Success: ${logCount} logs, ${resCount} reservations.`);
+                showToast(`İçe aktarma başarılı: ${logCount} kayıt, ${resCount} rezervasyon.`);
                 e.target.value = '';
-            } catch (err) { showToast('Import failed: ' + err.message, true); }
+            } catch (err) { showToast('İçe aktarma başarısız: ' + err.message, true); }
         };
         reader.readAsText(file);
     });
@@ -357,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const solution = document.getElementById('mob-solution')?.value?.trim();
 
         if (!date || !room || !guestName) {
-            showToast('Date, Room and Guest Name are required.', true);
+            showToast('Tarih, Oda ve Misafir Adı zorunludur.', true);
             return;
         }
 
@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (el) el.value = '';
             });
             closeMobSheet();
-            showToast('Issue logged successfully.');
+            showToast('Kayıt başarıyla oluşturuldu.');
         } catch (err) {
             showToast('Error: ' + err.message, true);
         }
@@ -563,9 +563,32 @@ document.addEventListener('DOMContentLoaded', () => {
             issueForm.reset();
             staffInitialInput.value = loggedUsername;
             document.getElementById('date').valueAsDate = new Date();
+            const niModal = document.getElementById('newIssueModal');
+            if (niModal) niModal.style.display = 'none';
             document.getElementById('successModal').style.display = 'flex';
         } catch (err) {
-            showToast('Error: ' + err.message, true);
+            showToast('Hata: ' + err.message, true);
+        }
+    });
+
+    // ── New Issue modal (Concierge-style creation flow) ────────
+    const newIssueModal = document.getElementById('newIssueModal');
+    document.getElementById('newIssueBtn')?.addEventListener('click', () => {
+        const dateInput = document.getElementById('date');
+        if (dateInput && !dateInput.value) dateInput.valueAsDate = new Date();
+        if (staffInitialInput && !staffInitialInput.value) staffInitialInput.value = loggedUsername;
+        newIssueModal.style.display = 'flex';
+        document.getElementById('guestName')?.focus();
+    });
+    document.getElementById('closeNewIssue')?.addEventListener('click', () => {
+        newIssueModal.style.display = 'none';
+    });
+    newIssueModal?.addEventListener('click', (e) => {
+        if (e.target === newIssueModal) newIssueModal.style.display = 'none';
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && newIssueModal && newIssueModal.style.display === 'flex') {
+            newIssueModal.style.display = 'none';
         }
     });
 
@@ -667,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── Excel Helpers ──────────────────────────────────────────
 
     function exportExcel(rows, filename, sheetName = 'Report', summaryData = null) {
-        if (!rows || rows.length === 0) return showToast('No data for this report.', true);
+        if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
 
         const keys = Object.keys(rows[0]);
 
@@ -760,7 +783,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        showToast('Styled Excel report downloaded.');
+        showToast('Excel raporu indirildi.');
     }
 
     function fixTurkishChars(str) {
@@ -776,7 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── PDF export ─────────────────────────────────────────────
     function exportPDF(title, headers, rows, filename, subtitle = '') {
-        if (!rows || rows.length === 0) return showToast('No data for this report.', true);
+        if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: rows[0].length > 6 ? 'landscape' : 'portrait' });
 
@@ -813,7 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
             doc.text(`Page ${i} of ${pageCount} — Guest Issues Management System`, 14, doc.internal.pageSize.getHeight() - 8);
         }
         doc.save(`${filename}_${getLocalDate()}.pdf`);
-        showToast('PDF report downloaded.');
+        showToast('PDF raporu indirildi.');
     }
 
     // ── Report Engine ──────────────────────────────────────────
@@ -848,7 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
                 XLSX.utils.book_append_sheet(wb, wsDet, 'Detail');
                 XLSX.writeFile(wb, `General_Summary_${date}.xlsx`);
-                showToast('Excel report downloaded.');
+                showToast('Excel raporu indirildi.');
             } else {
                 exportPDF(`General Summary — ${date}`,
                     ['Date', 'Room', 'Guest Name', 'Department', 'Complaint', 'Solution', 'Staff', 'Status'],
@@ -908,7 +931,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     XLSX.utils.book_append_sheet(wb, wsDept, sheetName);
                 });
                 XLSX.writeFile(wb, `By_Department_${dept}_${getLocalDate()}.xlsx`);
-                showToast('Excel report downloaded.');
+                showToast('Excel raporu indirildi.');
             } else {
                 const rows = Object.entries(grouped).flatMap(([d, arr]) =>
                     arr.map(r => [d, r.date, r.room, r.guestName, r.complaint?.substring(0, 40), r.status || 'Following'])
@@ -927,7 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         else if (type === 'dateRange') {
-            if (!from || !to) return showToast('Please set From and To dates.', true);
+            if (!from || !to) return showToast('Başlangıç ve bitiş tarihlerini seçin.', true);
             const data = filterByRange(records, from, to);
             if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${from}_to_${to}`, 'Date Range');
             else exportPDF(`Issues: ${from} → ${to}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'],
@@ -958,7 +981,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 XLSX.utils.book_append_sheet(wb, wsSum, 'Guest Summary');
                 XLSX.utils.book_append_sheet(wb, wsAll, 'All Records');
                 XLSX.writeFile(wb, `By_Guest_${guest || 'All'}_${getLocalDate()}.xlsx`);
-                showToast('Excel report downloaded.');
+                showToast('Excel raporu indirildi.');
             } else {
                 const rows = Object.entries(grouped).flatMap(([name, arr]) =>
                     arr.map(r => [name, r.room, r.date, r.department, r.complaint?.substring(0, 35), r.status || 'Following'])
@@ -980,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 XLSX.utils.book_append_sheet(wb, wsFollow, 'Following');
                 XLSX.utils.book_append_sheet(wb, wsSolved, 'Solved');
                 XLSX.writeFile(wb, `By_Status_${getLocalDate()}.xlsx`);
-                showToast('Excel report downloaded.');
+                showToast('Excel raporu indirildi.');
             } else {
                 const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.status || 'Following']);
                 exportPDF('Issues by Status', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Status'], rows, 'By_Status',
@@ -989,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         else if (type === 'historicalStatus') {
-            if (!from || !to) return showToast('Please set From and To dates.', true);
+            if (!from || !to) return showToast('Başlangıç ve bitiş tarihlerini seçin.', true);
             const data = filterByRange(records, from, to);
             // Group by date + status
             const dailyMap = {};
@@ -1012,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 XLSX.utils.book_append_sheet(wb, wsSum, 'Daily Summary');
                 XLSX.utils.book_append_sheet(wb, wsDet, 'Detail');
                 XLSX.writeFile(wb, `Historical_Status_${from}_${to}.xlsx`);
-                showToast('Excel report downloaded.');
+                showToast('Excel raporu indirildi.');
             } else {
                 const rows = dailyRows.map(d => [d.date, d.total, d.solved, d.following, d.overdue]);
                 exportPDF(`Historical + Status: ${from} → ${to}`, ['Date', 'Total', 'Solved', 'Following', 'Overdue'], rows,
@@ -1047,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         else if (type === 'currentView') {
-            if (lastRenderedRows.length === 0) return showToast('No visible records to export.', true);
+            if (lastRenderedRows.length === 0) return showToast('Dışa aktarılacak görünür kayıt yok.', true);
             if (format === 'excel') exportExcel(lastRenderedRows.map(rowBase), 'Current_View', 'Filtered');
             else {
                 const rows = lastRenderedRows.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, r.status || 'Following']);
@@ -1076,15 +1099,25 @@ document.addEventListener('DOMContentLoaded', () => {
     dateSearch.addEventListener('change', triggerSearch);
 
     let activeStatusFilter = null;
-    document.getElementById('filterTotal').addEventListener('click', () => { activeStatusFilter = null; triggerSearch(); });
-    document.getElementById('filterFollowing').addEventListener('click', () => { activeStatusFilter = 'Following'; triggerSearch(); });
-    document.getElementById('filterSolved').addEventListener('click', () => { activeStatusFilter = 'Solved'; triggerSearch(); });
-    document.getElementById('filterOverdue').addEventListener('click', () => { activeStatusFilter = 'Overdue'; triggerSearch(); });
+    function setActivePill(id) {
+        document.querySelectorAll('.gi-pill').forEach(p => p.classList.toggle('active', p.id === id));
+    }
+    document.getElementById('filterTotal').addEventListener('click', () => { activeStatusFilter = null; setActivePill('filterTotal'); triggerSearch(); });
+    document.getElementById('filterFollowing').addEventListener('click', () => { activeStatusFilter = 'Following'; setActivePill('filterFollowing'); triggerSearch(); });
+    document.getElementById('filterSolved').addEventListener('click', () => { activeStatusFilter = 'Solved'; setActivePill('filterSolved'); triggerSearch(); });
+    document.getElementById('filterOverdue').addEventListener('click', () => { activeStatusFilter = 'Overdue'; setActivePill('filterOverdue'); triggerSearch(); });
+
+    // "Tüm Zamanlar": clear the date filter so every record is listed.
+    document.getElementById('allTimeBtn')?.addEventListener('click', () => {
+        dateSearch.value = '';
+        triggerSearch();
+    });
 
     resetFilters.addEventListener('click', () => {
         globalSearch.value = '';
         dateSearch.value = getLocalDate();
         activeStatusFilter = null;
+        document.querySelectorAll('.gi-pill').forEach(p => p.classList.toggle('active', p.id === 'filterTotal'));
         updateView(globalSearch.value, dateSearch.value);
     });
 
@@ -1132,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         guestProfileList.innerHTML = '';
         if (filtered.length === 0) {
-            guestProfileList.innerHTML = '<p style="padding:20px; text-align:center; color:#888;">No guests found.</p>';
+            guestProfileList.innerHTML = '<p style="padding:20px; text-align:center; color:#888;">Misafir bulunamadı.</p>';
             return;
         }
 
@@ -1149,12 +1182,12 @@ document.addEventListener('DOMContentLoaded', () => {
             item.innerHTML = `
                 <div style="flex: 1;">
                     <div style="font-weight: 600; color: #333;">${esc(guest.name)}</div>
-                    <div style="font-size: 12px; color: #888;">Room: ${esc(guest.room || 'N/A')} • <span style="color:${isInHouse ? '#27ae60' : '#7f8c8d'}; font-weight:700;">${esc(guest.status.replace('_', ' ').toUpperCase())}</span></div>
+                    <div style="font-size: 12px; color: #888;">Oda: ${esc(guest.room || '—')} • <span style="color:${isInHouse ? '#27ae60' : '#7f8c8d'}; font-weight:700;">${isInHouse ? 'OTELDE' : 'ÇIKIŞ YAPTI'}</span></div>
                 </div>
                 <button onclick="toggleGuestStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')"
                         style="padding: 6px 12px; border-radius: 4px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; 
                                background: ${isInHouse ? '#fef2f2' : '#f0fdf4'}; color: ${isInHouse ? '#991b1b' : '#166534'};">
-                    ${isInHouse ? 'CHECK OUT' : 'SET IN-HOUSE'}
+                    ${isInHouse ? 'ÇIKIŞ VER' : 'OTELDE İŞARETLE'}
                 </button>
             `;
             guestProfileList.appendChild(item);
@@ -1172,8 +1205,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (idx !== -1) guestDirectory[idx].status = newStatus;
             renderGuestProfileList();
             updateView(globalSearch.value, dateSearch.value); // Refresh table badges
-            showToast(`Guest marked as ${newStatus.replace('_', ' ')}`);
-        } catch (e) { showToast('Update failed', true); }
+            showToast('Misafir durumu güncellendi');
+        } catch (e) { showToast('Güncelleme başarısız', true); }
     };
 
     profileSearchInput?.addEventListener('input', renderGuestProfileList);
@@ -1212,9 +1245,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tableTitle) {
             if (dateFilter) {
                 const today = getLocalDate();
-                tableTitle.textContent = (dateFilter === today) ? "Today's Logs" : "Logs for " + formatDateShort(dateFilter);
+                tableTitle.textContent = (dateFilter === today) ? 'Bugünün Kayıtları' : formatDateShort(dateFilter) + ' Kayıtları';
             } else {
-                tableTitle.textContent = "All Logs";
+                tableTitle.textContent = 'Tüm Kayıtlar';
             }
         }
 
@@ -1243,16 +1276,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         lastRenderedRows = finalFiltered;
 
+        if (!finalFiltered.length) {
+            recordsTableBody.innerHTML = `
+                <tr class="gi-empty-row"><td colspan="6">
+                    <div class="gi-empty">
+                        <span class="gi-empty-ico">🛎️</span>
+                        <span>Kayıt bulunamadı</span>
+                    </div>
+                </td></tr>`;
+        }
+
         finalFiltered.forEach(record => {
             const status = record.status || 'Following';
             const statusClass = status.toLowerCase();
+            const statusLabel = status === 'Solved' ? 'Çözüldü' : 'Takipte';
             const noteCount = record.updates ? record.updates.length : 0;
-            const noteIndicator = noteCount > 0 ? `<span class="note-indicator" title="${noteCount} updates">💬 ${noteCount}</span>` : '';
+            const noteIndicator = noteCount > 0 ? `<span class="note-indicator" title="${noteCount} güncelleme">💬 ${noteCount}</span>` : '';
             const lateBadgeStatus = status !== 'Solved' && isOverdue(record);
-            const lateBadge = lateBadgeStatus ? '<span class="late-warning" title="Pending more than 15 minutes">⚠️ Late</span>' : '';
+            const lateBadge = lateBadgeStatus ? '<span class="late-warning" title="15 dakikadan uzun süredir bekliyor">⚠️ Gecikti</span>' : '';
 
             const gStatus = getGuestStatus(record.guestName);
-            const gStatusLabel = gStatus === 'in_house' ? 'IN HOUSE' : 'CHECKED OUT';
+            const gStatusLabel = gStatus === 'in_house' ? 'OTELDE' : 'ÇIKIŞ YAPTI';
             const gStatusClass = gStatus === 'in_house' ? 'in-house-badge' : 'checked-out-badge';
 
             const row = document.createElement('tr');
@@ -1270,7 +1314,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td><span class="dept-badge">${esc(record.department)}</span></td>
                 <td class="staff-cell">${esc(record.staffInitial)}</td>
-                <td><span class="status-badge ${statusClass}">${esc(status)}</span></td>
+                <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             `;
             row.onclick = () => openModal(record);
             recordsTableBody.appendChild(row);
@@ -1307,7 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('editModalBtn').onclick = () => startModalEdit(record);
         document.getElementById('deleteModalBtn').onclick = () => {
             if (record.staffInitial !== loggedUsername) {
-                showToast('Only the creator can delete this log!', true);
+                showToast('Bu kaydı yalnızca oluşturan kişi silebilir!', true);
                 return;
             }
             recordToDelete = record.id;
@@ -1316,7 +1360,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateStatusBadge(status) {
-        modalStatusBadge.textContent = status;
+        modalStatusBadge.textContent = status === 'Solved' ? 'Çözüldü' : 'Takipte';
         modalStatusBadge.className = 'status-badge ' + status.toLowerCase();
     }
 
@@ -1324,8 +1368,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await db.collection('guestLogs').doc(editingId).update({ status: newStatus });
             updateStatusBadge(newStatus); // Immediate UI update
-            showToast(`Status updated to ${newStatus}`);
-        } catch (e) { showToast('Update failed', true); }
+            showToast(newStatus === 'Solved' ? 'Durum: Çözüldü' : 'Durum: Takipte');
+        } catch (e) { showToast('Güncelleme başarısız', true); }
     }
 
     // Timeline Logic
@@ -1340,7 +1384,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             item.innerHTML = `
                 <div class="timeline-header">
-                    <span class="timeline-author">${esc(note.user)} ${note.isEdited ? '<span class="edited-tag">(edited)</span>' : ''}</span>
+                    <span class="timeline-author">${esc(note.user)} ${note.isEdited ? '<span class="edited-tag">(düzenlendi)</span>' : ''}</span>
                     <span class="timeline-time">${esc(note.time)}</span>
                 </div>
                 <div class="timeline-body">
@@ -1348,8 +1392,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 ${isOwner ? `
                 <div class="timeline-actions">
-                    <button class="timeline-edit-btn" onclick="startInlineEdit(${index})">Edit</button>
-                    <button class="timeline-delete-btn" onclick="deleteNote(${index})">Delete</button>
+                    <button class="timeline-edit-btn" onclick="startInlineEdit(${index})">Düzenle</button>
+                    <button class="timeline-delete-btn" onclick="deleteNote(${index})">Sil</button>
                 </div>` : ''}
             `;
             timelineFeed.appendChild(item);
@@ -1362,9 +1406,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const actions = item.querySelector('.timeline-actions');
 
         actions.innerHTML = `
-            <span class="confirm-msg">Delete?</span>
-            <button class="timeline-confirm-btn" onclick="confirmDeleteNote(${index})">Yes</button>
-            <button class="timeline-cancel-btn" onclick="renderTimeline(selectedRecord)">No</button>
+            <span class="confirm-msg">Silinsin mi?</span>
+            <button class="timeline-confirm-btn" onclick="confirmDeleteNote(${index})">Evet</button>
+            <button class="timeline-cancel-btn" onclick="renderTimeline(selectedRecord)">Hayır</button>
         `;
     };
 
@@ -1384,8 +1428,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="inline-edit-area">
                 <textarea id="edit-note-input-${index}" class="inline-textarea">${esc(originalText)}</textarea>
                 <div class="inline-actions">
-                    <button class="inline-save-btn" onclick="saveInlineEdit(${index})">Save</button>
-                    <button class="inline-cancel-btn" onclick="cancelInlineEdit(${index})">Cancel</button>
+                    <button class="inline-save-btn" onclick="saveInlineEdit(${index})">Kaydet</button>
+                    <button class="inline-cancel-btn" onclick="cancelInlineEdit(${index})">Vazgeç</button>
                 </div>
             </div>
         `;
