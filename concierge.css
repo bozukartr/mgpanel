@@ -708,3 +708,10 @@
 .m-icon {
     font-size: 16px;
 }
+
+/* Active-state for the "Tüm Zamanlar" filter button (mirrors stat-pill feedback) */
+#c-pillAllTime.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
