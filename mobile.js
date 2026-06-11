@@ -75,6 +75,26 @@ document.addEventListener('DOMContentLoaded', () => {
         return (Date.now() - t) / 60000 > 15;
     };
 
+    // Recurring issue: same room + department, 2+ within 7 days.
+    const RECUR_WINDOW_DAYS = 7;
+    const parseDateStr = (s) => {
+        if (!s) return null;
+        const p = String(s).split('-');
+        const d = p.length === 3 ? new Date(+p[0], +p[1] - 1, +p[2]) : new Date(s);
+        return isNaN(d) ? null : d;
+    };
+    const recurringCount = (r) => {
+        const rd = parseDateStr(r.date);
+        if (!r.room || !rd) return 0;
+        const room = String(r.room).trim().toLowerCase();
+        const dept = (r.department || '').toLowerCase();
+        return records.filter(o => o.id !== r.id
+            && String(o.room || '').trim().toLowerCase() === room
+            && (o.department || '').toLowerCase() === dept
+            && (() => { const od = parseDateStr(o.date); return od && Math.abs((rd - od) / 86400000) <= RECUR_WINDOW_DAYS; })()
+        ).length;
+    };
+
     // ── DATA ───────────────────────────────────────────────────
     let records = [];
     let guestDirectory = [];
@@ -160,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${r.type === 'request' ? '<span class="req-type-badge">TALEP</span>' : ''}
                         <span class="status-pill ${esc(status.toLowerCase())}">${STATUS_LABELS_TR[status] || esc(status)}</span>
                         ${overdueFlag ? '<span class="status-pill overdue">GEÇ</span>' : ''}
+                        ${recurringCount(r) >= 1 ? '<span class="status-pill recurring" title="Bu odada son 7 günde tekrarlayan kayıt">🔁</span>' : ''}
                     </div>
                     <span class="card-date">${fmtDate(r.date)}</span>
                 </div>
