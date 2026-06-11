@@ -286,3 +286,14 @@ body {
     gap: 10px;
     width: 100%;
 }
+
+/* ── App HUD revision: bottom nav clearance, indigo badge ── */
+.adm-tab {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+}
+.adm-badge {
+    color: var(--accent-dark, #4f46e5);
+    background: var(--accent-soft, #eef2ff);
+}
+.adm-header-left .app-logo { height: 28px; }
+.adm-segment .seg-btn { height: 40px; font-size: 13.5px; }

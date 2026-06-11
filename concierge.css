@@ -594,13 +594,32 @@
 .flatpickr-day { position: relative; }
 .fp-dot { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; background-color: #f97316; border-radius: 50%; }
 
-/* ── RESPONSIVE MOBILE VIEW ── */
+/* ── RESPONSIVE MOBILE VIEW (app HUD) ── */
 @media (max-width: 768px) {
     .crm-nav { display: none !important; }
     #userNameDisplay, #c-logoutBtn { display: none !important; }
+    .crm-header { padding: 0 14px !important; height: 56px !important; }
     .crm-main { flex-direction: column !important; overflow-y: auto !important; }
-    .guest-sidebar { width: 100% !important; border-right: none !important; border-bottom: 1px solid var(--border) !important; padding: 16px !important; }
-    #c-scroller { height: auto !important; padding: 16px 16px calc(140px + env(safe-area-inset-bottom, 0px)) 16px !important; overflow: visible !important; }
+
+    /* Compact control deck: full-width search, then date + all-time side by
+       side, then the stat pills — instead of a tall stacked sidebar. */
+    .guest-sidebar {
+        width: 100% !important; border-right: none !important;
+        border-bottom: 1px solid var(--border) !important;
+        padding: 12px 14px !important; gap: 10px !important;
+    }
+    .guest-sidebar .search-bar { flex-direction: row !important; flex-wrap: wrap; gap: 8px !important; }
+    .guest-sidebar .search-input-wrap { flex: 1 1 100%; }
+    .guest-sidebar .search-input-wrap input { height: 44px; border-radius: 12px !important; }
+    #c-dateFilter { flex: 1 1 0 !important; width: auto !important; height: 44px; border-radius: 12px !important; }
+    #c-pillAllTime {
+        flex: 1 1 0 !important; width: auto !important; margin-top: 0 !important;
+        height: 44px; border-radius: 12px !important; font-size: 12px !important; font-weight: 700;
+    }
+    .stats-strip.centered .stat-pill { padding: 10px 6px !important; border-radius: 14px !important; }
+    .stats-strip.centered .stat-pill-val { font-size: 18px !important; }
+
+    #c-scroller { height: auto !important; padding: 14px 14px calc(140px + env(safe-area-inset-bottom, 0px)) 14px !important; overflow: visible !important; }
     #c-fab { display: none !important; }
     .sheet { 
         top: auto !important; 

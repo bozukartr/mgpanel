@@ -1212,3 +1212,11 @@ body {
 
 /* Status chips on cards: inprogress uses brand indigo */
 .status-pill.inprogress { background: var(--accent-soft); color: var(--accent-dark); }
+
+/* Stat pills double as feed filters; the active one gets a brand ring */
+.stat-pill[data-filter] { cursor: pointer; border: 2px solid transparent; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.stat-pill[data-filter]:active { transform: scale(.96); }
+.stat-pill[data-filter].active { border-color: var(--accent); box-shadow: 0 4px 14px rgba(99,102,241,.16); }
+.stat-pill.following[data-filter].active { border-color: var(--following); }
+.stat-pill.solved[data-filter].active { border-color: var(--solved); }
+.stat-pill.overdue[data-filter].active { border-color: var(--overdue); }

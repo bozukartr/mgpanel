@@ -56,26 +56,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openAddUser = () => {
         currentEditingId = null;
-        document.getElementById('sheetTitle').textContent = 'New User';
+        document.getElementById('sheetTitle').textContent = 'Yeni Kullanıcı';
         document.getElementById('su-username').value = '';
         document.getElementById('su-password').value = '';
         document.getElementById('su-role').value = 'Staff';
         document.getElementById('su-dept').value = 'Housekeeping';
         document.getElementById('su-passwordGroup').style.display = 'flex';
         document.getElementById('su-password').disabled = false;
-        document.getElementById('su-submit').textContent = 'Create User';
+        document.getElementById('su-submit').textContent = 'Kullanıcı Oluştur';
         openSheet(userSheet, userBackdrop);
     };
 
     const openEditUser = (id, data) => {
         currentEditingId = id;
-        document.getElementById('sheetTitle').textContent = 'Edit User';
+        document.getElementById('sheetTitle').textContent = 'Kullanıcıyı Düzenle';
         document.getElementById('su-username').value = data.username;
         document.getElementById('su-password').value = '••••••••';
         document.getElementById('su-password').disabled = true;
         document.getElementById('su-role').value = data.role;
         document.getElementById('su-dept').value = data.department;
-        document.getElementById('su-submit').textContent = 'Save Changes';
+        document.getElementById('su-submit').textContent = 'Kaydet';
         openSheet(userSheet, userBackdrop);
     };
 
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dept     = document.getElementById('su-dept').value;
         const password = document.getElementById('su-password').value;
 
-        if (!username) { showToast('Username is required.', true); return; }
+        if (!username) { showToast('Kullanıcı adı gerekli.', true); return; }
 
         try {
             if (currentEditingId) {
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     username, role, department: dept,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                showToast('Updated: ' + username);
+                showToast('Güncellendi: ' + username);
             } else {
                 // CREATE
                 const lim = parseInt(localStorage.getItem('hotelMaxUsers') || '0', 10);
@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(`Kullanıcı limitine ulaşıldı (${lim}). Paketinizi yükseltin.`, true); return;
                 }
                 if (!password || password.length < 6) {
-                    showToast('Password must be at least 6 characters.', true); return;
+                    showToast('Şifre en az 6 karakter olmalı.', true); return;
                 }
                 const email = userEmail(username, TENANT_ID);
 
@@ -126,11 +126,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     tenantId: TENANT_ID,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                showToast('User created: ' + username);
+                showToast('Kullanıcı oluşturuldu: ' + username);
             }
             closeSheet(userSheet, userBackdrop);
         } catch (e) {
-            showToast('Error: ' + e.message, true);
+            showToast('Hata: ' + e.message, true);
         }
     });
 
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="user-card-meta">${esc(u.department)}</div>
                 </div>
-                <button class="user-card-delete" data-id="${doc.id}" title="Remove access">
+                <button class="user-card-delete" data-id="${doc.id}" title="Erişimi kaldır">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                 </button>
             `;
@@ -191,10 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pendingDeleteId) return;
         try {
             await db.collection('systemUsers').doc(pendingDeleteId).delete();
-            showToast('User removed.');
+            showToast('Kullanıcı kaldırıldı.');
             closeSheet(delSheet, delBackdrop);
             pendingDeleteId = null;
-        } catch (e) { showToast('Error: ' + e.message, true); }
+        } catch (e) { showToast('Hata: ' + e.message, true); }
     });
 
     // ── ACTIVITY FEED ──────────────────────────────────────────
@@ -212,8 +212,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="activity-dept">${esc(log.department || '')}</span>
                 </div>
                 <div class="activity-desc">
-                    Room <strong>${esc(log.room)}</strong> — ${esc(log.guestName)}
-                    <span style="color: var(--text-muted);">[${esc(log.status || 'Following')}]</span>
+                    Oda <strong>${esc(log.room)}</strong> — ${esc(log.guestName)}
+                    <span style="color: var(--text-muted);">[${({ Following: 'Bekliyor', InProgress: 'İşlemde', Solved: 'Tamamlandı' })[log.status] || 'Bekliyor'}]</span>
                 </div>
                 <div class="activity-date">${esc(log.date || '')}</div>
             `;
@@ -225,14 +225,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const ejectMobileBtn = document.getElementById('adminEjectMobileBtn');
     if (ejectMobileBtn) {
         ejectMobileBtn.addEventListener('click', async () => {
-            if (!confirm("⚠️ DANGER: This will permanently WIPE all system data (Reservations, Guests, Logs, Staff accounts)!\n\nA backup file will be generated and downloaded before the deletion.\n\nAre you sure you want to proceed?")) {
+            if (!confirm("⚠️ DİKKAT: Tüm sistem verileri (rezervasyonlar, misafirler, kayıtlar, personel hesapları) KALICI olarak silinecek!\n\nSilmeden önce bir yedek dosyası indirilecek.\n\nDevam etmek istediğinize emin misiniz?")) {
                 return;
             }
-            if (!confirm("⚠️ FINAL WARNING: This action cannot be undone. Are you absolutely certain?")) {
+            if (!confirm("⚠️ SON UYARI: Bu işlem geri alınamaz. Kesinlikle emin misiniz?")) {
                 return;
             }
 
-            showToast("Generating system backup...", false);
+            showToast("Sistem yedeği oluşturuluyor...", false);
 
             try {
                 // Fetch all operational data
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
 
-                showToast("Backup downloaded! Initiating database wipe...", false);
+                showToast("Yedek indirildi! Veriler siliniyor...", false);
 
                 const batch = db.batch();
 
@@ -287,14 +287,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 await batch.commit();
 
-                showToast("System Ejected Successfully! All data wiped.", false);
+                showToast("Sistem sıfırlandı! Tüm veriler silindi.", false);
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
 
             } catch (err) {
                 console.error(err);
-                showToast("Eject Failed: " + err.message, true);
+                showToast("Sıfırlama başarısız: " + err.message, true);
             }
         });
     }

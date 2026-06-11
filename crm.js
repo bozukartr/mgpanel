@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isAdminUser) {
             const adminLink = document.getElementById('adminLink');
             if (adminLink) adminLink.style.display = 'inline-block';
+            const adminNavMobile = document.getElementById('crmAdminNavMobile');
+            if (adminNavMobile) adminNavMobile.style.display = 'flex';
         }
     });
 
