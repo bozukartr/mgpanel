@@ -145,6 +145,29 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // --- Presence: who is currently online, per hotel. Each user maintains
+    //     their OWN document (id = uid) via a heartbeat; teammates in the same
+    //     hotel may read the roster to assign live requests. ---
+    match /presence/{uid} {
+      allow read:   if signedIn() && resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    // --- In-app notifications. A teammate creates one addressed to another
+    //     user (toUid) in the same hotel; only the recipient can read it, and
+    //     may only flip it to read. ---
+    match /notifications/{id} {
+      allow read:   if signedIn() && resource.data.toUid == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.get('tenantId', 'mgallery') == callerTenant()
+        && request.resource.data.fromUid == request.auth.uid;
+      allow update: if signedIn() && resource.data.toUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if signedIn() && resource.data.toUid == request.auth.uid;
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;

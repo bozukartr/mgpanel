@@ -140,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="card-header">
                     <div class="header-left">
                         <span class="room-no">#${esc(r.room)}</span>
+                        ${r.type === 'request' ? '<span class="req-type-badge">TALEP</span>' : ''}
                         <span class="status-pill ${esc(status.toLowerCase())}">${STATUS_LABELS_TR[status] || esc(status)}</span>
                         ${overdueFlag ? '<span class="status-pill overdue">GEÇ</span>' : ''}
                     </div>
@@ -152,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="card-meta">
                     <span class="dept-badge">${esc(r.department)}</span>
+                    ${r.type === 'request' && r.assignedToName ? `<span class="assign-badge">↳ ${esc(r.assignedToName)}</span>` : ''}
                     <span class="staff-badge">${esc(r.staffInitial)}</span>
                 </div>
             `;
@@ -192,6 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     setupDynamicAuto('ni-guest', 'guest-list');
 
+    let niOpenHandled = false;
     db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snap => {
         records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         updateGuestMap();
@@ -200,7 +203,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const refreshed = records.find(r => r.id === getSelected().id);
             if (refreshed) { setSelected(refreshed); window.renderTimeline(refreshed); }
         }
+        // Deep-link from a notification (?open=ID).
+        if (!niOpenHandled) {
+            const openId = new URLSearchParams(location.search).get('open');
+            if (openId) {
+                const rec = records.find(r => r.id === openId);
+                if (rec) { niOpenHandled = true; openDetail(rec); }
+            }
+        }
     });
+
+    // Open the referenced record when a notification (bell/toast) is tapped.
+    if (window.RT) {
+        RT.onOpen = (recordId) => {
+            const rec = records.find(r => r.id === recordId);
+            if (rec) openDetail(rec);
+            else showToast('Kayıt bulunamadı.', true);
+        };
+    }
 
     document.getElementById('ni-guest')?.addEventListener('input', (e) => {
         if(guestMap[e.target.value]) {
@@ -219,10 +239,51 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('mob-fab')?.addEventListener('click', () => {
         const di = document.getElementById('ni-date');
         if (di && !di.value) di.valueAsDate = new Date();
+        niSelectedAssignee = null;
+        setNiType('complaint');
         openSheet(newSheet, newBackdrop);
     });
     document.getElementById('newIssueClose')?.addEventListener('click',  () => closeSheet(newSheet, newBackdrop));
     newBackdrop?.addEventListener('click', () => closeSheet(newSheet, newBackdrop));
+
+    // ── Request vs complaint toggle + live assignee picker (mobile) ──
+    let niSelectedAssignee = null;
+    function setNiType(type) {
+        document.getElementById('ni-type').value = type;
+        document.querySelectorAll('#ni-typeToggle .type-opt').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+        const isReq = type === 'request';
+        document.getElementById('ni-solutionGroup').style.display = isReq ? 'none' : 'block';
+        document.getElementById('ni-assigneeGroup').style.display = isReq ? 'block' : 'none';
+        document.getElementById('ni-complaintLabel').textContent = isReq ? 'Talep Detayı' : 'Şikayet Detayı';
+        document.getElementById('ni-complaint').placeholder = isReq ? 'Misafirin talebini yazın…' : 'Sorunu açıklayın…';
+        document.getElementById('ni-sheet-title').textContent = isReq ? 'Yeni Talep' : 'Yeni Şikayet';
+        document.getElementById('ni-submit').textContent = isReq ? 'Talebi Departmana İlet' : 'Şikayeti Kaydet';
+        if (isReq) loadNiAssignees();
+    }
+    document.querySelectorAll('#ni-typeToggle .type-opt').forEach(btn => {
+        btn.addEventListener('click', () => setNiType(btn.dataset.type));
+    });
+    async function loadNiAssignees() {
+        const picker = document.getElementById('ni-assigneePicker');
+        const empty = document.getElementById('ni-assigneeEmpty');
+        picker.innerHTML = '<span style="color:#94a3b8;font-size:12px;">Yükleniyor…</span>';
+        const users = window.RT ? await RT.getActiveUsers(true) : [];
+        if (!users.length) { picker.innerHTML = ''; empty.style.display = 'block'; return; }
+        empty.style.display = 'none';
+        picker.innerHTML = users.map(u => `
+            <button type="button" class="assignee-chip" data-uid="${esc(u.uid)}" data-name="${esc(u.username)}">
+                <span class="av">${esc((u.username || '?').slice(0, 2).toUpperCase())}</span>${esc(u.username)}<span class="live-dot"></span>
+            </button>`).join('');
+        picker.querySelectorAll('.assignee-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const already = chip.classList.contains('selected');
+                picker.querySelectorAll('.assignee-chip').forEach(c => c.classList.remove('selected'));
+                if (already) { niSelectedAssignee = null; return; }
+                chip.classList.add('selected');
+                niSelectedAssignee = { uid: chip.dataset.uid, username: chip.dataset.name };
+            });
+        });
+    }
 
     // ── GUEST DIRECTORY SYNC ──
     async function syncGuestStatus(name, room, status = 'in_house') {
@@ -299,23 +360,43 @@ document.addEventListener('DOMContentLoaded', () => {
         const comp  = document.getElementById('ni-complaint')?.value?.trim();
         const sol   = document.getElementById('ni-solution')?.value?.trim();
 
-        if (!date || !room || !guest) { showToast('Date, Room & Guest are required.', true); return; }
+        if (!date || !room || !guest) { showToast('Tarih, Oda ve Misafir zorunlu.', true); return; }
+        const type = document.getElementById('ni-type')?.value || 'complaint';
+        const isReq = type === 'request';
         try {
             await syncGuestStatus(guest, room);
-            await db.collection('guestLogs').add({
+            const payload = {
                 date, room, guestName: guest, department: dept,
-                complaint: comp || '', solution: sol || '',
+                complaint: comp || '', solution: isReq ? '' : (sol || ''),
                 staffInitial: loggedUsername,
+                type,
                 tenantId: TENANT_ID,
                 status: 'Following', updates: [],
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            };
+            if (isReq && niSelectedAssignee) {
+                payload.assignedTo = niSelectedAssignee.uid;
+                payload.assignedToName = niSelectedAssignee.username;
+            }
+            const ref = await db.collection('guestLogs').add(payload);
+            if (isReq && niSelectedAssignee && window.RT) {
+                RT.sendNotification({
+                    toUid: niSelectedAssignee.uid,
+                    toUsername: niSelectedAssignee.username,
+                    type: 'request',
+                    title: 'Yeni talep: ' + (dept || ''),
+                    body: `Oda ${room || '—'} · ${guest || ''} — ${(comp || '').slice(0, 80)}`,
+                    recordId: ref.id
+                }).catch(() => {});
+            }
+            const wasAssigned = !!(isReq && niSelectedAssignee);
             ['ni-date','ni-room','ni-guest','ni-complaint','ni-solution'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
+            niSelectedAssignee = null;
             closeSheet(newSheet, newBackdrop);
-            showToast('Issue logged.');
-        } catch (e) { showToast('Error: ' + e.message, true); }
+            showToast(isReq ? (wasAssigned ? 'Talep atandı, bildirim gönderildi.' : 'Talep oluşturuldu.') : 'Şikayet kaydedildi.');
+        } catch (e) { showToast('Hata: ' + e.message, true); }
     });
 
     // ── DETAIL SHEET ───────────────────────────────────────────

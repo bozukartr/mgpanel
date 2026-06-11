@@ -1130,3 +1130,26 @@ body {
 .status-pill.solved     { background: #dff3e3; color: var(--solved, #2e7d32); }
 .status-pill.overdue    { background: #ffebee; color: #d32f2f; }
 .status-badge.inprogress { background: #eef2ff; color: #4f46e5; }
+
+/* ═══ Request workflow: type toggle + assignee picker (mobile) ═══ */
+.type-toggle { display: flex; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 16px; }
+.type-opt {
+    flex: 1; padding: 11px; border: none; background: transparent; border-radius: 9px; cursor: pointer;
+    font-family: inherit; font-size: 14px; font-weight: 600; color: #64748b;
+    display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .18s;
+}
+.type-opt .t-emoji { font-size: 15px; }
+.type-opt.active { background: #fff; color: #1e293b; box-shadow: 0 2px 8px rgba(15,23,42,.1); }
+.type-opt.active[data-type="request"] { color: #4f46e5; }
+.assignee-hint { font-weight: 500; color: #6366f1; }
+.assignee-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.assignee-chip {
+    display: inline-flex; align-items: center; gap: 7px; padding: 9px 13px; border-radius: 30px;
+    border: 1.5px solid #e2e8f0; background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: #1e293b;
+}
+.assignee-chip .av { width: 22px; height: 22px; border-radius: 50%; background: #eef2ff; color: #4f46e5; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
+.assignee-chip .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; }
+.assignee-chip.selected { border-color: #6366f1; background: #eef2ff; color: #4f46e5; }
+.assignee-empty { font-size: 12.5px; color: #64748b; background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 10px; padding: 12px; line-height: 1.5; }
+.req-type-badge { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 5px; background: #eef2ff; color: #4f46e5; }
+.assign-badge { font-size: 10px; font-weight: 700; color: #4f46e5; }
