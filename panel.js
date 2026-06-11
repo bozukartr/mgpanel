@@ -1431,6 +1431,31 @@ document.addEventListener('DOMContentLoaded', () => {
         return diffMinutes > 15;
     }
 
+    // ── Recurring-issue detection ──────────────────────────────
+    // Flags repeat problems: same room + same department logged 2+ times
+    // within a 7-day window. Returns the OTHER related records (excl. self),
+    // most recent first.
+    const RECUR_WINDOW_DAYS = 7;
+    function parseDateStr(s) {
+        if (!s) return null;
+        const p = String(s).split('-');
+        if (p.length === 3) { const d = new Date(+p[0], +p[1] - 1, +p[2]); return isNaN(d) ? null : d; }
+        const d = new Date(s); return isNaN(d) ? null : d;
+    }
+    function recurringRelated(record) {
+        if (!record || !record.room) return [];
+        const rd = parseDateStr(record.date);
+        if (!rd) return [];
+        const room = String(record.room).trim().toLowerCase();
+        const dept = (record.department || '').toLowerCase();
+        return records
+            .filter(r => r.id !== record.id
+                && String(r.room || '').trim().toLowerCase() === room
+                && (r.department || '').toLowerCase() === dept)
+            .filter(r => { const od = parseDateStr(r.date); return od && Math.abs((rd - od) / 86400000) <= RECUR_WINDOW_DAYS; })
+            .sort((a, b) => (parseDateStr(b.date) || 0) - (parseDateStr(a.date) || 0));
+    }
+
     function updateView(textFilter = '', dateFilter = '') {
         recordsTableBody.innerHTML = '';
         const lowerText = textFilter.toLowerCase();
@@ -1496,6 +1521,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const gStatusLabel = gStatus === 'in_house' ? 'OTELDE' : 'ÇIKIŞ YAPTI';
             const gStatusClass = gStatus === 'in_house' ? 'in-house-badge' : 'checked-out-badge';
 
+            const recurCount = recurringRelated(record).length;
+            const recurBadge = recurCount >= 1
+                ? `<span class="recurring-badge" title="Bu odada son ${RECUR_WINDOW_DAYS} günde aynı departmanda ${recurCount + 1} kayıt">🔁 Tekrarlayan</span>`
+                : '';
+
             // Duration cell: final total for completed work, live elapsed otherwise.
             const created = tsToDate(record.createdAt);
             const acked = tsToDate(record.acknowledgedAt);
@@ -1521,6 +1551,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="${gStatusClass}" style="font-size:9px; font-weight:800; width:fit-content; margin-top:2px;">${gStatusLabel}</span>
                         ${record.type === 'request' && record.assignedToName ? `<span style="font-size:10px;color:var(--primary);font-weight:600;margin-top:2px;">↳ ${esc(record.assignedToName)}</span>` : ''}
                     </div>
+                    ${recurBadge}
                     ${lateBadge}
                 </td>
                 <td><span class="dept-badge">${esc(record.department)}</span></td>
@@ -1552,6 +1583,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 + (record.assignedToName ? `<br><strong>Atanan:</strong> ${esc(record.assignedToName)}` : '');
         } else {
             modalDesc.innerHTML = `<strong>Şikayet:</strong> ${esc(record.complaint)}<br><strong>Çözüm:</strong> ${esc(record.solution)}`;
+        }
+
+        // Recurring-issue panel: prior records for the same room+department.
+        const related = recurringRelated(record);
+        if (related.length >= 1) {
+            const items = related.slice(0, 6).map(r => {
+                const st = statusLabelOf(r.status);
+                return `<div class="recur-item">
+                    <span class="recur-date">${formatDateShort(r.date)}</span>
+                    <span class="recur-text">${esc((r.complaint || '').slice(0, 60) || '—')}</span>
+                    <span class="recur-status ${(r.status || 'Following').toLowerCase()}">${st}</span>
+                </div>`;
+            }).join('');
+            modalDesc.innerHTML += `
+                <div class="recur-box">
+                    <div class="recur-head">🔁 Tekrarlayan sorun · ${esc(record.room)} · ${esc(record.department)}
+                        <span class="recur-count">son ${RECUR_WINDOW_DAYS} günde ${related.length + 1} kayıt</span></div>
+                    ${items}
+                </div>`;
         }
 
         updateStatusBadge(record.status || 'Following');

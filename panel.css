@@ -1695,3 +1695,29 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
 
 /* Request rows get a subtle accent in the table */
 .req-type-badge { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 5px; background: var(--primary-soft); color: var(--primary-dark); margin-left: 6px; vertical-align: middle; }
+
+/* ═══ Recurring-issue detection ═══════════════════════════════ */
+.recurring-badge {
+    font-size: 10px; font-weight: 800; color: #b45309; background: #fff7ed;
+    border: 1px solid #fed7aa; padding: 2px 8px; border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 3px; margin-top: 4px; width: fit-content;
+}
+.recur-box {
+    margin-top: 14px; background: #fff7ed; border: 1px solid #fed7aa;
+    border-radius: 12px; padding: 12px 14px;
+}
+.recur-head {
+    font-size: 12.5px; font-weight: 700; color: #b45309; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.recur-count { font-size: 11px; font-weight: 600; color: #c2731a; background: #ffedd5; padding: 1px 8px; border-radius: 12px; }
+.recur-item {
+    display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    border-top: 1px solid #fde8cf; font-size: 12.5px;
+}
+.recur-date { color: #92400e; font-weight: 600; white-space: nowrap; min-width: 64px; }
+.recur-text { flex: 1; color: #78350f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recur-status { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+.recur-status.following { background: #fff8e1; color: #ff8f00; }
+.recur-status.inprogress { background: #eef2ff; color: #4f46e5; }
+.recur-status.solved { background: #e8f5e9; color: #2e7d32; }
