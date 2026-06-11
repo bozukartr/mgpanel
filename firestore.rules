@@ -168,6 +168,15 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.toUid == request.auth.uid;
     }
 
+    // --- FCM device tokens for web push. A user registers their OWN device
+    //     tokens (doc id = token); the sender Cloud Function (Admin SDK) reads
+    //     them to deliver pushes. Not readable by other clients. ---
+    match /pushTokens/{token} {
+      allow read:   if signedIn() && resource.data.uid == request.auth.uid;
+      allow create, update: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;

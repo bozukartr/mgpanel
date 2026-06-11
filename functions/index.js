@@ -262,3 +262,56 @@ exports.paytrCallback = onRequest(
     }
   }
 );
+
+// ─── Web Push fan-out ─────────────────────────────────────────────
+// When an in-app notification is written, push it to the recipient's
+// registered devices via FCM. Tokens live in `pushTokens` (doc id = token).
+// Requires a deployed function; until then the in-app bell still works.
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+
+exports.onNotificationCreate = onDocumentCreated(
+  { document: 'notifications/{id}', region: REGION },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const n = snap.data() || {};
+    if (!n.toUid) return;
+
+    const tokensSnap = await db.collection('pushTokens').where('uid', '==', n.toUid).get();
+    const tokens = tokensSnap.docs.map((d) => d.id);
+    if (!tokens.length) return;
+
+    const recordId = n.recordId || '';
+    const message = {
+      notification: { title: n.title || 'StayOS', body: n.body || '' },
+      data: {
+        recordId: recordId,
+        type: n.type || 'request',
+        url: '/panel.html?open=' + encodeURIComponent(recordId)
+      },
+      webpush: {
+        notification: { icon: '/logo.png', badge: '/logo.png' },
+        fcmOptions: { link: '/panel.html?open=' + encodeURIComponent(recordId) }
+      },
+      tokens
+    };
+
+    try {
+      const resp = await admin.messaging().sendEachForMulticast(message);
+      // Prune tokens that are no longer valid so the collection stays clean.
+      const stale = [];
+      resp.responses.forEach((r, i) => {
+        if (!r.success) {
+          const code = r.error && r.error.code;
+          if (code === 'messaging/registration-token-not-registered' ||
+              code === 'messaging/invalid-registration-token') {
+            stale.push(tokens[i]);
+          }
+        }
+      });
+      await Promise.all(stale.map((t) => db.collection('pushTokens').doc(t).delete().catch(() => {})));
+    } catch (e) {
+      console.error('push send failed', e);
+    }
+  }
+);
