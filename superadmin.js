@@ -117,6 +117,69 @@
         });
     }
 
+    // Quote requests from the marketing site's "Teklif Al" form.
+    let quotes = [];
+    function subscribeQuotes() {
+        db.collection('quoteRequests').onSnapshot(snap => {
+            quotes = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+                .sort((a, b) => ((b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0) -
+                                 (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0)));
+            renderQuotes();
+        }, () => { });
+    }
+
+    function renderQuotes() {
+        const body = $('quotesBody');
+        if (!body) return;
+        const newCount = quotes.filter(q => q.status === 'new').length;
+        const countEl = $('quotesCount');
+        if (countEl) countEl.textContent = quotes.length + ' talep · ' + newCount + ' yeni';
+        if (!quotes.length) {
+            body.innerHTML = `<tr><td colspan="6"><div class="empty">Henüz teklif talebi yok. stayos.org'daki "Teklif Al" formu buraya düşer.</div></td></tr>`;
+            return;
+        }
+        body.innerHTML = quotes.map(q => {
+            const created = q.createdAt && q.createdAt.toDate ? q.createdAt.toDate() : null;
+            const isNew = q.status === 'new';
+            const contact = [
+                q.email ? `<a href="mailto:${esc(q.email)}" style="color:var(--accent)">${esc(q.email)}</a>` : '',
+                q.phone ? esc(q.phone) : ''
+            ].filter(Boolean).join('<br>') || '—';
+            const scope = [q.rooms ? esc(q.rooms) + ' oda' : '', q.hotels ? esc(q.hotels) : '']
+                .filter(Boolean).join(' · ') || '—';
+            const msg = q.message ? `<div class="mono" style="margin-top:3px;max-width:340px;white-space:normal;">${esc(q.message.slice(0, 140))}${q.message.length > 140 ? '…' : ''}</div>` : '';
+            return `
+            <tr>
+                <td><div class="mono">${fmtDate(created)}</div></td>
+                <td><div class="hotel-cell"><div class="av">${esc(initials(q.hotel || q.name || '?'))}</div><div><b>${esc(q.hotel || '—')}</b><div class="mono">${esc(q.name || '')}</div>${msg}</div></div></td>
+                <td style="font-size:12.5px;">${contact}</td>
+                <td style="font-size:12.5px;">${scope}</td>
+                <td><span class="pill ${isNew ? 'pill-amber' : 'pill-green'}">${isNew ? 'Yeni' : 'İşlendi'}</span></td>
+                <td style="text-align:right;"><div class="row-actions" style="justify-content:flex-end;">
+                    <button class="btn-ghost" style="padding:6px 12px;font-size:12px;" data-qact="toggle" data-id="${esc(q.id)}">${isNew ? 'İşlendi' : 'Yeni yap'}</button>
+                    <button class="btn-ghost btn-danger-ghost" style="padding:6px 12px;font-size:12px;" data-qact="del" data-id="${esc(q.id)}">Sil</button>
+                </div></td>
+            </tr>`;
+        }).join('');
+    }
+
+    $('quotesBody')?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-qact]');
+        if (!btn) return;
+        const q = quotes.find(x => x.id === btn.dataset.id);
+        if (!q) return;
+        try {
+            if (btn.dataset.qact === 'toggle') {
+                await db.collection('quoteRequests').doc(q.id).update({ status: q.status === 'new' ? 'handled' : 'new' });
+                toast(q.status === 'new' ? 'Talep işlendi olarak işaretlendi' : 'Talep yeniye alındı');
+            } else if (btn.dataset.qact === 'del') {
+                if (!confirm(`"${q.hotel || q.name}" teklif talebi silinsin mi?`)) return;
+                await db.collection('quoteRequests').doc(q.id).delete();
+                toast('Teklif talebi silindi');
+            }
+        } catch (err) { toast('Hata: ' + err.message, true); }
+    });
+
     // Ensure the founding hotel (mgallery) has a tenant document so it appears
     // in the console. Tenant writes are superadmin-only, so this can't be done
     // by the migration tool; the operator console self-heals it once.
@@ -928,6 +991,7 @@
         await ensureDefaultTenant();
         subscribeTenants();
         subscribeOrders();
+        subscribeQuotes();
         await refresh();
     });
 })();

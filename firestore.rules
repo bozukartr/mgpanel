@@ -177,6 +177,24 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
+    // --- Quote requests from the public marketing site (stayos.org). Anyone
+    //     may create one (lead form) but only with the expected fields and
+    //     sane sizes; the platform operator reads, annotates and deletes. ---
+    match /quoteRequests/{id} {
+      allow create: if request.resource.data.keys().hasOnly(
+            ['hotel', 'name', 'email', 'phone', 'rooms', 'hotels', 'message', 'status', 'source', 'createdAt'])
+        && request.resource.data.hotel is string && request.resource.data.hotel.size() > 0 && request.resource.data.hotel.size() <= 120
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string && request.resource.data.email.size() <= 160
+        && request.resource.data.phone is string && request.resource.data.phone.size() <= 40
+        && request.resource.data.message is string && request.resource.data.message.size() <= 1000
+        && request.resource.data.status == 'new';
+      allow read:   if isSuperAdmin();
+      allow update: if isSuperAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note']);
+      allow delete: if isSuperAdmin();
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;
