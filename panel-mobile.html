@@ -29,6 +29,7 @@
             </div>
             <div class="app-header-right">
                 <span class="app-username" id="mob-displayUsername"></span>
+                <div id="rt-bell"></div>
                 <button class="app-icon-btn" id="mob-reportsBtn">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
                 </button>
@@ -106,29 +107,34 @@
     <div class="sheet" id="newIssueSheet">
         <div class="sheet-pill"></div>
         <div class="sheet-top">
-            <h3>New Issue</h3>
+            <h3 id="ni-sheet-title">Yeni Talep</h3>
             <button class="sheet-close-btn" id="newIssueClose">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
         </div>
         <div class="sheet-body">
+            <div class="type-toggle" id="ni-typeToggle">
+                <button type="button" class="type-opt active" data-type="complaint"><span class="t-emoji">⚠️</span> Şikayet</button>
+                <button type="button" class="type-opt" data-type="request"><span class="t-emoji">🛎️</span> Talep</button>
+            </div>
+            <input type="hidden" id="ni-type" value="complaint">
             <div class="field-row">
                 <div class="field-group">
-                    <label>Date</label>
+                    <label>Tarih</label>
                     <input type="date" id="ni-date">
                 </div>
                 <div class="field-group">
-                    <label>Room</label>
-                    <input type="text" id="ni-room" placeholder="e.g. 205" inputmode="numeric">
+                    <label>Oda</label>
+                    <input type="text" id="ni-room" placeholder="örn. 205" inputmode="numeric">
                 </div>
             </div>
             <div class="field-group">
-                <label>Guest Name</label>
-                <input type="text" id="ni-guest" placeholder="Full name" list="guest-list">
+                <label>Misafir Adı</label>
+                <input type="text" id="ni-guest" placeholder="Ad soyad" list="guest-list">
                 <datalist id="guest-list"></datalist>
             </div>
             <div class="field-group">
-                <label>Department</label>
+                <label>Departman</label>
                 <select id="ni-dept">
                     <option value="Housekeeping">Housekeeping</option>
                     <option value="Front Desk">Front Desk</option>
@@ -145,15 +151,20 @@
                 </select>
             </div>
             <div class="field-group">
-                <label>Complaint</label>
-                <textarea id="ni-complaint" placeholder="Describe the issue…" rows="2"></textarea>
+                <label id="ni-complaintLabel">Şikayet Detayı</label>
+                <textarea id="ni-complaint" placeholder="Sorunu açıklayın…" rows="2"></textarea>
             </div>
-            <div class="field-group">
-                <label>Solution</label>
-                <textarea id="ni-solution" placeholder="Action taken…" rows="2"></textarea>
+            <div class="field-group" id="ni-solutionGroup">
+                <label>Çözüm</label>
+                <textarea id="ni-solution" placeholder="Yapılan işlem…" rows="2"></textarea>
+            </div>
+            <div class="field-group" id="ni-assigneeGroup" style="display:none;">
+                <label>Talebi ata — <span class="assignee-hint">çevrimiçi personel</span></label>
+                <div class="assignee-picker" id="ni-assigneePicker"></div>
+                <div class="assignee-empty" id="ni-assigneeEmpty" style="display:none;">Şu an çevrimiçi personel yok. Talep atanmadan oluşturulur.</div>
             </div>
             <div id="mob-conflict-alert" style="display:none; margin-bottom:15px; padding:12px; border-radius:8px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
-            <button class="primary-btn" id="ni-submit">Save Issue</button>
+            <button class="primary-btn" id="ni-submit">Şikayeti Kaydet</button>
         </div>
     </div>
 
@@ -356,6 +367,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="firebase-config.js"></script>
+    <script src="realtime.js"></script>
+    <script src="pwa.js"></script>
     <script src="maintenance-guard.js"></script>
     <script src="modules.js"></script>
     <script src="mobile.js"></script>

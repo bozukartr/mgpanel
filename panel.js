@@ -560,8 +560,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderTimeline(refreshed);  // Refresh UI
                 }
             }
+
+            // Deep-link from a notification: ?open=<recordId> opens it once.
+            if (!openHandled) {
+                const openId = new URLSearchParams(location.search).get('open');
+                if (openId) {
+                    const rec = records.find(r => r.id === openId);
+                    if (rec) { openHandled = true; openModal(rec); }
+                }
+            }
         });
     };
+    let openHandled = false;
     fetchRecords();
 
     // Guest auto-fill logic
@@ -577,31 +587,107 @@ document.addEventListener('DOMContentLoaded', () => {
     issueForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
+            const recordType = document.getElementById('recordType').value || 'complaint';
+            const isRequest = recordType === 'request';
             const formData = {
                 date: document.getElementById('date').value,
                 room: document.getElementById('room').value,
                 guestName: document.getElementById('guestName').value,
                 department: document.getElementById('department').value,
                 complaint: document.getElementById('complaint').value,
-                solution: document.getElementById('solution').value,
+                solution: isRequest ? '' : document.getElementById('solution').value,
                 staffInitial: document.getElementById('staffInitial').value,
+                type: recordType,
                 status: 'Following',
                 updates: [],
                 tenantId: TENANT_ID,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
+            // For requests, capture the picked online teammate (if any).
+            if (isRequest && selectedAssignee) {
+                formData.assignedTo = selectedAssignee.uid;
+                formData.assignedToName = selectedAssignee.username;
+            }
             await syncGuestStatus(formData.guestName, formData.room);
-            await db.collection('guestLogs').add(formData);
+            const ref = await db.collection('guestLogs').add(formData);
+
+            // Notify the assigned teammate in real time.
+            if (isRequest && selectedAssignee && window.RT) {
+                RT.sendNotification({
+                    toUid: selectedAssignee.uid,
+                    toUsername: selectedAssignee.username,
+                    type: 'request',
+                    title: 'Yeni talep: ' + (formData.department || ''),
+                    body: `Oda ${formData.room || '—'} · ${formData.guestName || ''} — ${(formData.complaint || '').slice(0, 80)}`,
+                    recordId: ref.id
+                }).catch(() => {});
+            }
+
+            const assignedName = formData.assignedToName || '';
             issueForm.reset();
+            selectedAssignee = null;
             staffInitialInput.value = loggedUsername;
             document.getElementById('date').valueAsDate = new Date();
             const niModal = document.getElementById('newIssueModal');
             if (niModal) niModal.style.display = 'none';
+            const successTitle = document.querySelector('#successModal h3');
+            const successText = document.querySelector('#successModal p');
+            if (successTitle) successTitle.textContent = isRequest ? 'Talep İletildi!' : 'Şikayet Kaydedildi!';
+            if (successText) successText.textContent = isRequest
+                ? 'Talep ' + (assignedName ? assignedName + ' personeline atandı ve bildirim gönderildi.' : 'departman kuyruğuna eklendi.') + ' E-posta taslağı hazırlamak ister misiniz?'
+                : 'Bu kayıt için şimdi bir e-posta taslağı hazırlamak ister misiniz?';
             document.getElementById('successModal').style.display = 'flex';
         } catch (err) {
             showToast('Hata: ' + err.message, true);
         }
     });
+
+    // ── Request vs complaint toggle + live assignee picker ─────
+    let selectedAssignee = null;
+    const reqTypeToggle = document.getElementById('reqTypeToggle');
+
+    function setRecordType(type) {
+        document.getElementById('recordType').value = type;
+        reqTypeToggle.querySelectorAll('.type-opt').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+        const isReq = type === 'request';
+        document.getElementById('solutionGroup').style.display = isReq ? 'none' : 'block';
+        document.getElementById('assigneeGroup').style.display = isReq ? 'block' : 'none';
+        document.getElementById('complaintLabel').textContent = isReq ? 'Talep Detayı' : 'Şikayet Detayı';
+        document.getElementById('complaint').placeholder = isReq ? 'Misafirin talebini yazın' : 'Sorunu açıklayın';
+        document.querySelector('#submitBtn').textContent = isReq ? 'Talebi Departmana İlet' : 'Şikayeti Kaydet';
+        if (isReq) loadAssignees();
+    }
+    reqTypeToggle?.querySelectorAll('.type-opt').forEach(btn => {
+        btn.addEventListener('click', () => setRecordType(btn.dataset.type));
+    });
+
+    async function loadAssignees() {
+        const picker = document.getElementById('assigneePicker');
+        const empty = document.getElementById('assigneeEmpty');
+        picker.innerHTML = '<span class="muted-sm" style="color:#94a3b8;font-size:12px;">Yükleniyor…</span>';
+        const users = window.RT ? await RT.getActiveUsers(true) : [];
+        if (!users.length) {
+            picker.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+        picker.innerHTML = users.map(u => `
+            <button type="button" class="assignee-chip" data-uid="${esc(u.uid)}" data-name="${esc(u.username)}">
+                <span class="av">${esc((u.username || '?').slice(0, 2).toUpperCase())}</span>
+                ${esc(u.username)}
+                <span class="live-dot" title="Çevrimiçi"></span>
+            </button>`).join('');
+        picker.querySelectorAll('.assignee-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const already = chip.classList.contains('selected');
+                picker.querySelectorAll('.assignee-chip').forEach(c => c.classList.remove('selected'));
+                if (already) { selectedAssignee = null; return; }
+                chip.classList.add('selected');
+                selectedAssignee = { uid: chip.dataset.uid, username: chip.dataset.name };
+            });
+        });
+    }
 
     // ── New Issue modal (Concierge-style creation flow) ────────
     const newIssueModal = document.getElementById('newIssueModal');
@@ -609,9 +695,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const dateInput = document.getElementById('date');
         if (dateInput && !dateInput.value) dateInput.valueAsDate = new Date();
         if (staffInitialInput && !staffInitialInput.value) staffInitialInput.value = loggedUsername;
+        selectedAssignee = null;
+        setRecordType('complaint');
         newIssueModal.style.display = 'flex';
         document.getElementById('guestName')?.focus();
     });
+
+    // Open a record straight from a notification (bell/toast click).
+    if (window.RT) {
+        RT.onOpen = (recordId) => {
+            const rec = records.find(r => r.id === recordId);
+            if (rec) openModal(rec);
+            else showToast('Kayıt bulunamadı (silinmiş olabilir).', true);
+        };
+    }
     document.getElementById('closeNewIssue')?.addEventListener('click', () => {
         newIssueModal.style.display = 'none';
     });
@@ -1420,8 +1517,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="room-cell"><span>${esc(record.room)}</span></td>
                 <td class="guest-cell">
                     <div style="display:flex; flex-direction:column;">
-                        <strong>${esc(record.guestName)} ${noteIndicator}</strong>
+                        <strong>${esc(record.guestName)}${record.type === 'request' ? '<span class="req-type-badge">TALEP</span>' : ''} ${noteIndicator}</strong>
                         <span class="${gStatusClass}" style="font-size:9px; font-weight:800; width:fit-content; margin-top:2px;">${gStatusLabel}</span>
+                        ${record.type === 'request' && record.assignedToName ? `<span style="font-size:10px;color:var(--primary);font-weight:600;margin-top:2px;">↳ ${esc(record.assignedToName)}</span>` : ''}
                     </div>
                     ${lateBadge}
                 </td>
@@ -1447,9 +1545,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function openModal(record) {
         selectedRecord = record;
         editingId = record.id;
-        modalGuestRoom.textContent = `${record.guestName} - Room ${record.room}`;
+        modalGuestRoom.textContent = `${record.guestName} - Oda ${record.room}`;
         modalDept.textContent = record.department;
-        modalDesc.innerHTML = `<strong>Complaint:</strong> ${esc(record.complaint)}<br><strong>Solution:</strong> ${esc(record.solution)}`;
+        if (record.type === 'request') {
+            modalDesc.innerHTML = `<strong>Talep:</strong> ${esc(record.complaint)}`
+                + (record.assignedToName ? `<br><strong>Atanan:</strong> ${esc(record.assignedToName)}` : '');
+        } else {
+            modalDesc.innerHTML = `<strong>Şikayet:</strong> ${esc(record.complaint)}<br><strong>Çözüm:</strong> ${esc(record.solution)}`;
+        }
 
         updateStatusBadge(record.status || 'Following');
         renderTimeline(record);

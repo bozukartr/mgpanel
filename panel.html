@@ -26,6 +26,7 @@
             </nav>
             <div class="user-profile">
                 <span id="displayUsername">Admin</span>
+                <div id="rt-bell"></div>
                 <!-- Backup Dropdown -->
                 <div class="backup-dropdown">
                     <button id="backupToggleBtn" class="backup-btn">
@@ -149,6 +150,15 @@
             </div>
             <div class="modal-body">
                 <form id="guestIssueForm">
+                    <div class="type-toggle" id="reqTypeToggle">
+                        <button type="button" class="type-opt active" data-type="complaint">
+                            <span class="t-emoji">⚠️</span> Şikayet
+                        </button>
+                        <button type="button" class="type-opt" data-type="request">
+                            <span class="t-emoji">🛎️</span> Talep
+                        </button>
+                    </div>
+                    <input type="hidden" id="recordType" value="complaint">
                     <div class="form-row">
                         <div class="form-group">
                             <label>Tarih</label>
@@ -186,12 +196,17 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Şikayet / Talep</label>
+                        <label id="complaintLabel">Şikayet Detayı</label>
                         <textarea id="complaint" rows="3" placeholder="Sorunu açıklayın"></textarea>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" id="solutionGroup">
                         <label>Çözüm</label>
                         <textarea id="solution" rows="3" placeholder="Yapılan işlem"></textarea>
+                    </div>
+                    <div class="form-group assignee-group" id="assigneeGroup" style="display:none;">
+                        <label>Talebi ata — <span class="assignee-hint">çevrimiçi personel</span></label>
+                        <div class="assignee-picker" id="assigneePicker"></div>
+                        <div class="assignee-empty" id="assigneeEmpty" style="display:none;">Şu an çevrimiçi personel yok. Talep atanmadan oluşturulur; personel açtığında görür.</div>
                     </div>
                     <div class="form-group">
                         <label>Personel</label>
@@ -369,6 +384,8 @@
     <script src="firebase-config.js"></script>
     <script src="maintenance-guard.js"></script>
     <script src="modules.js"></script>
+    <script src="realtime.js"></script>
+    <script src="pwa.js"></script>
 
     <!-- Scripts for Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
