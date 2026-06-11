@@ -199,6 +199,31 @@
             
             <div id="rs-conflict-alert" style="display:none; margin-bottom:15px; padding:12px; border-radius:8px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
 
+            <!-- Repeat / package: create the same reservation across several days -->
+            <div class="rs-repeat" id="rs-repeatBox">
+                <label class="rs-repeat-toggle">
+                    <input type="checkbox" id="rs-repeatOn">
+                    <span>🔁 Tekrarla / Paket</span>
+                </label>
+                <div class="rs-repeat-opts" id="rs-repeatOpts" style="display:none;">
+                    <div class="field-row">
+                        <div class="field-group">
+                            <label>Tekrar Sayısı</label>
+                            <input type="number" id="rs-repeatCount" min="2" max="30" value="3" inputmode="numeric">
+                        </div>
+                        <div class="field-group">
+                            <label>Aralık</label>
+                            <select id="rs-repeatInterval">
+                                <option value="1">Her gün</option>
+                                <option value="2">2 günde bir</option>
+                                <option value="7">Haftalık</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="rs-repeat-hint" id="rs-repeatHint"></div>
+                </div>
+            </div>
+
             <button class="primary-btn" id="rs-submit">Rezervasyonu Kaydet</button>
         </div>
     </div>

@@ -830,12 +830,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isVirtual = r.isNextDayVirtual;
         const nextDayBadge = isVirtual ? ' <span style="font-size:9px; background:#f97316; color:white; padding:1px 4px; border-radius:3px; font-weight:700; margin-left:4px;">+1 DAY</span>' : '';
+        const seriesBadge = (r.seriesId && r.seriesTotal) ? ` <span class="series-badge" title="Tekrarlayan rezervasyon serisi">🔁 ${r.seriesIndex}/${r.seriesTotal}</span>` : '';
 
         card.innerHTML = `
             <div class="res-card-icon">${SERVICE_ICONS[r.type] || '✨'}</div>
             <div class="res-card-info">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="res-card-guest">${esc(r.guestName)}${nextDayBadge}</span>
+                    <span class="res-card-guest">${esc(r.guestName)}${nextDayBadge}${seriesBadge}</span>
                     <span style="font-size:9px; color:var(--text-muted);">${fmtDate(r.date)}</span>
                 </div>
                 <span class="res-card-room">Room ${esc(r.room)} ${r.time ? '• ' + esc(r.time) : ''}</span>
@@ -931,8 +932,52 @@ document.addEventListener('DOMContentLoaded', () => {
         typeSelect.value = 'Restaurant';
         updateFormFields();
         document.getElementById('rs-date').value = fmtDate(new Date());
+        // Reset repeat/package controls for a fresh reservation.
+        setRepeatVisible(true);
+        document.getElementById('rs-repeatOn').checked = false;
+        document.getElementById('rs-repeatOpts').style.display = 'none';
+        document.getElementById('rs-repeatCount').value = 3;
+        document.getElementById('rs-repeatInterval').value = '1';
         openSheet(resSheet, resBackdrop);
     };
+
+    // ── Repeat / package helpers ───────────────────────────────
+    function setRepeatVisible(show) {
+        const box = document.getElementById('rs-repeatBox');
+        if (box) box.style.display = show ? 'block' : 'none';
+    }
+    function addDaysIso(iso, n) {
+        const p = String(iso).split('-');
+        if (p.length !== 3) return iso;
+        const d = new Date(+p[0], +p[1] - 1, +p[2]);
+        d.setDate(d.getDate() + n);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function repeatDates() {
+        const on = document.getElementById('rs-repeatOn').checked;
+        const baseIso = toIsoDate(smartExpandDate(document.getElementById('rs-date').value));
+        if (!on || !baseIso) return baseIso ? [baseIso] : [];
+        const count = Math.max(2, Math.min(30, parseInt(document.getElementById('rs-repeatCount').value, 10) || 2));
+        const step = parseInt(document.getElementById('rs-repeatInterval').value, 10) || 1;
+        const out = [];
+        for (let i = 0; i < count; i++) out.push(addDaysIso(baseIso, i * step));
+        return out;
+    }
+    function renderRepeatHint() {
+        const hint = document.getElementById('rs-repeatHint');
+        const dates = repeatDates();
+        if (!document.getElementById('rs-repeatOn').checked || dates.length < 2) { hint.textContent = ''; return; }
+        const shown = dates.slice(0, 4).map(d => fmtDate(new Date(d.replace(/-/g, '/')))).join(', ');
+        hint.textContent = `${dates.length} rezervasyon: ${shown}${dates.length > 4 ? ' …' : ''}`;
+    }
+    document.getElementById('rs-repeatOn').addEventListener('change', (e) => {
+        document.getElementById('rs-repeatOpts').style.display = e.target.checked ? 'block' : 'none';
+        renderRepeatHint();
+    });
+    ['rs-repeatCount', 'rs-repeatInterval', 'rs-date'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', renderRepeatHint);
+        document.getElementById(id)?.addEventListener('change', renderRepeatHint);
+    });
 
     const fabDesktop = document.getElementById('c-fab');
     const fabMobile = document.getElementById('c-fab-mobile');
@@ -982,14 +1027,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 await db.collection('reservations').doc(editResId).update(data);
                 showToast('Rezervasyon güncellendi');
             } else {
-                // Create new
+                // Create new — one per repeat date (single doc when repeat is off).
                 data.status = 'Pending';
                 data.staffInitial = loggedUsername;
                 data.tenantId = TENANT_ID;
-                data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-                await db.collection('reservations').add(data);
+                const dates = repeatDates();
+                const isSeries = dates.length > 1;
+                const seriesId = isSeries ? ('seq' + Date.now() + Math.floor(Math.random() * 1000)) : null;
+                const batch = db.batch();
+                dates.forEach((d, i) => {
+                    const ref = db.collection('reservations').doc();
+                    batch.set(ref, Object.assign({}, data, {
+                        date: d,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        seriesId: seriesId || null,
+                        seriesIndex: isSeries ? i + 1 : null,
+                        seriesTotal: isSeries ? dates.length : null
+                    }));
+                });
+                await batch.commit();
                 await syncGuestStatus(guestName, isPreArrival ? '' : room, isPreArrival, checkIn, checkOut); // Sync with directory
-                showToast('Rezervasyon kaydedildi');
+                showToast(isSeries ? (dates.length + ' rezervasyon oluşturuldu') : 'Rezervasyon kaydedildi');
             }
             
             resetConflictAlert(); // Clear transient alerts
@@ -1140,6 +1198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resetConflictAlert(); // Clear logic caches
         document.querySelector('#resSheet h3').textContent = 'Edit Reservation';
         document.getElementById('rs-submit').textContent = 'Save Changes';
+        setRepeatVisible(false);
 
         typeSelect.value = r.type;
         updateFormFields();
