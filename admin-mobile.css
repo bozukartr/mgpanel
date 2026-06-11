@@ -297,3 +297,7 @@ body {
 }
 .adm-header-left .app-logo { height: 28px; }
 .adm-segment .seg-btn { height: 40px; font-size: 13.5px; }
+
+/* Same stacking-context fix as .app-header: keep the bell dropdown above
+   the segment tabs and lists below. */
+.adm-header { position: relative; z-index: 150; }
