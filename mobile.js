@@ -95,6 +95,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const getSelected = () => window.selectedRecord;
     const setSelected = (val) => { window.selectedRecord = val; return val; };
 
+    // Tapping a stat pill filters the feed (all / open / solved / overdue).
+    let statusFilter = 'all';
+    document.querySelectorAll('.stats-strip .stat-pill[data-filter]').forEach(pill => {
+        pill.addEventListener('click', () => {
+            statusFilter = pill.dataset.filter;
+            document.querySelectorAll('.stats-strip .stat-pill[data-filter]').forEach(p =>
+                p.classList.toggle('active', p === pill));
+            renderFeed();
+        });
+    });
+
     const renderFeed = () => {
         const search  = (document.getElementById('mob-search')?.value || '').toLowerCase();
         const dateVal = document.getElementById('mob-dateFilter')?.value || '';
@@ -104,7 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const filtered = records.filter(r => {
             const matchText = !search || [r.guestName, r.room, r.department, r.staffInitial, r.status]
                 .some(f => f && f.toLowerCase().includes(search));
-            return matchText && (!dateVal || r.date === dateVal);
+            const st = r.status || 'Following';
+            const matchStatus =
+                statusFilter === 'all' ? true :
+                statusFilter === 'open' ? st !== 'Solved' :
+                statusFilter === 'solved' ? st === 'Solved' :
+                /* overdue */ (st !== 'Solved' && isOverdue(r));
+            return matchText && matchStatus && (!dateVal || r.date === dateVal);
         });
 
         // Stats (always from full records)

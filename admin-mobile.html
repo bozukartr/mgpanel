@@ -1,38 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Admin Console</title>
+    <title>Admin · StayOS</title>
     <link rel="stylesheet" href="mobile.css">
     <link rel="stylesheet" href="admin-mobile.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <!-- ── HEADER ──────────────────────────────────────────── -->
+    <!-- ── HEADER (app HUD) ─────────────────────────────────── -->
     <header class="adm-header">
         <div class="adm-header-left">
-            <button class="adm-back-btn" onclick="window.location.href='concierge.html'">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
+            <img src="logo.png" alt="Logo" class="app-logo">
             <div>
-                <span class="adm-badge">Root</span>
-                <h1 class="adm-title">Admin Console</h1>
+                <span class="adm-badge">Admin</span>
+                <h1 class="adm-title">StayOS</h1>
             </div>
         </div>
-        <button class="adm-add-btn" id="openAddUser">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add User
-        </button>
+        <div class="app-header-right">
+            <div id="rt-bell"></div>
+        </div>
     </header>
 
     <!-- ── SEGMENT TABS ─────────────────────────────────────── -->
     <div class="adm-segment">
-        <button class="seg-btn active" data-tab="adm-users">Users</button>
-        <button class="seg-btn" data-tab="adm-activity">Activity</button>
-        <button class="seg-btn" data-tab="adm-system">System</button>
+        <button class="seg-btn active" data-tab="adm-users">Kullanıcılar</button>
+        <button class="seg-btn" data-tab="adm-activity">Aktivite</button>
+        <button class="seg-btn" data-tab="adm-system">Sistem</button>
     </div>
 
     <!-- ── TAB: USERS ──────────────────────────────────────── -->
@@ -42,7 +39,7 @@
         </div>
         <div class="adm-empty" id="userEmpty" style="display:none">
             <span>👤</span>
-            <p>No users yet</p>
+            <p>Henüz kullanıcı yok</p>
         </div>
     </div>
 
@@ -69,12 +66,12 @@
         <div style="padding: 20px;">
             <div style="background: rgba(220,38,38,0.05); border: 1px dashed rgba(220,38,38,0.2); padding: 32px 20px; border-radius: 24px; text-align: center; box-sizing: border-box;">
                 <span style="font-size: 40px; display: block; margin-bottom: 12px;">💥</span>
-                <h3 style="font-size: 18px; font-weight: 700; color: #dc2626; margin: 0 0 8px 0;">Eject Database</h3>
+                <h3 style="font-size: 18px; font-weight: 700; color: #dc2626; margin: 0 0 8px 0;">Veritabanını Sıfırla</h3>
                 <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6; margin: 0 0 24px 0;">
-                    This action will permanently delete all reservations, guest directories, activity logs, and staff accounts. A backup JSON file will be generated and downloaded automatically before the wipe.
+                    Bu işlem tüm rezervasyonları, misafir kayıt defterini, aktivite kayıtlarını ve personel hesaplarını kalıcı olarak siler. Silmeden önce otomatik bir JSON yedek dosyası indirilir.
                 </p>
                 <button class="danger-btn" id="adminEjectMobileBtn" style="background: #dc2626; color: white; width: 100%; font-weight: 600; padding: 14px; border-radius: 12px; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-size: 14px;">
-                    EJECT SYSTEM (BACKUP & WIPE)
+                    SİSTEMİ SIFIRLA (YEDEKLE &amp; SİL)
                 </button>
             </div>
         </div>
@@ -87,31 +84,31 @@
     <div class="sheet" id="userSheet">
         <div class="sheet-pill"></div>
         <div class="sheet-top">
-            <h3 id="sheetTitle">New User</h3>
+            <h3 id="sheetTitle">Yeni Kullanıcı</h3>
             <button class="sheet-close-btn" id="closeUserSheet">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
         </div>
         <div class="sheet-body">
             <div class="field-group">
-                <label>Username</label>
-                <input type="text" id="su-username" placeholder="e.g. john_doe" autocapitalize="none">
+                <label>Kullanıcı Adı</label>
+                <input type="text" id="su-username" placeholder="örn. ahmet_y" autocapitalize="none">
             </div>
             <div class="field-group" id="su-passwordGroup">
-                <label>Password</label>
-                <input type="password" id="su-password" placeholder="Min 6 characters">
+                <label>Şifre</label>
+                <input type="password" id="su-password" placeholder="En az 6 karakter">
             </div>
             <div class="field-row">
                 <div class="field-group">
-                    <label>Role</label>
+                    <label>Rol</label>
                     <select id="su-role">
-                        <option value="Staff">Staff</option>
-                        <option value="Manager">Manager</option>
+                        <option value="Staff">Personel</option>
+                        <option value="Manager">Müdür</option>
                         <option value="Admin">Admin</option>
                     </select>
                 </div>
                 <div class="field-group">
-                    <label>Department</label>
+                    <label>Departman</label>
                     <select id="su-dept">
                         <option value="Housekeeping">Housekeeping</option>
                         <option value="Front Desk">Front Desk</option>
@@ -124,7 +121,7 @@
                     </select>
                 </div>
             </div>
-            <button class="primary-btn" id="su-submit">Save User</button>
+            <button class="primary-btn" id="su-submit">Kaydet</button>
         </div>
     </div>
 
@@ -133,12 +130,37 @@
     <div class="sheet confirm-sheet" id="delSheet">
         <div class="sheet-pill"></div>
         <div class="sheet-body confirm-body">
-            <p class="confirm-title">Remove this user?</p>
-            <p class="confirm-desc">They will lose all system access.</p>
-            <button class="danger-btn" id="delConfirmYes">Yes, Remove</button>
-            <button class="secondary-btn" id="delConfirmNo">Cancel</button>
+            <p class="confirm-title">Bu kullanıcı kaldırılsın mı?</p>
+            <p class="confirm-desc">Sistem erişimini tamamen kaybedecek.</p>
+            <button class="danger-btn" id="delConfirmYes">Evet, Kaldır</button>
+            <button class="secondary-btn" id="delConfirmNo">Vazgeç</button>
         </div>
     </div>
+
+    <!-- ── BOTTOM NAV (app HUD) ─────────────────────────────── -->
+    <nav class="bottom-nav">
+        <button class="bnav-btn" onclick="window.location.href='concierge.html'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            <span>Concierge</span>
+        </button>
+        <button class="bnav-btn" onclick="window.location.href='panel-mobile.html'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Kayıtlar</span>
+        </button>
+        <button class="bnav-btn" onclick="window.location.href='crm.html'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>CRM</span>
+        </button>
+        <button class="bnav-btn active">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+            <span>Admin</span>
+        </button>
+    </nav>
+
+    <!-- ── FAB: add user (Kullanıcılar sekmesinin ana eylemi) ── -->
+    <button class="fab" id="openAddUser" title="Yeni Kullanıcı">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
 
     <!-- ── TOAST ────────────────────────────────────────────── -->
     <div class="app-toast" id="adm-toast"></div>

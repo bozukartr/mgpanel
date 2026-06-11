@@ -5,6 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Misafir Kayıtları · StayOS</title>
+    <script>
+        // Phones get the dedicated app UI (deep links like ?open= are preserved).
+        if (window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+            window.location.replace('panel-mobile.html' + window.location.search);
+        }
+    </script>
     <link rel="stylesheet" href="panel.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
