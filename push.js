@@ -8,7 +8,7 @@
  * Requires firebase-messaging.js (compat) to be loaded before this script, and
  * firebase-messaging-sw.js to exist at the site root.
  */
-const PUSH_VAPID_KEY = ''; // ← paste your VAPID public key here
+const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHaewjMx_niwjFT1WxCU3yAe_-a-YgKh__o'; // Firebase Web Push certificate (public key)
 
 (function () {
     'use strict';
