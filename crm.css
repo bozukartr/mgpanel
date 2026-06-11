@@ -41,7 +41,10 @@ body {
     align-items: center;
     padding: 0 24px;
     justify-content: space-between;
-    z-index: 10;
+    /* Above the sidebar/feed (the bell dropdown lives here) but below
+       sheets and their backdrops. */
+    position: relative;
+    z-index: 150;
 }
 
 .logo {
@@ -395,7 +398,7 @@ body {
     margin-bottom: 32px;
 }
 
-/* ¦¦ RESPONSIVE MOBILE VIEW ¦¦ */
+/* ï¿½ï¿½ RESPONSIVE MOBILE VIEW ï¿½ï¿½ */
 @media (max-width: 768px) {
     .crm-nav { display: none !important; }
     .user-info { display: none !important; }

@@ -1220,3 +1220,9 @@ body {
 .stat-pill.following[data-filter].active { border-color: var(--following); }
 .stat-pill.solved[data-filter].active { border-color: var(--solved); }
 .stat-pill.overdue[data-filter].active { border-color: var(--overdue); }
+
+/* The header hosts the notification dropdown; its backdrop-filter creates a
+   stacking context, so without a z-index the open panel paints UNDER the
+   stat pills / feed that follow in the DOM. Lift the header above content
+   (100/110 = nav/fab) but below sheets and their backdrop (200/210). */
+.app-header { position: relative; z-index: 150; }
