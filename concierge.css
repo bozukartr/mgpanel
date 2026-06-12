@@ -949,3 +949,44 @@
     .cz-center .feed { border: none; background: transparent; }
     .cz-center .slot-time, .cz-center .slot-content { background: transparent; }
 }
+
+/* ═══ New Reservation: wide, centered 2-column modal on desktop ═══
+   Mobile keeps the bottom-sheet behaviour untouched (≤768 overrides
+   later in this file already reposition all sheets). */
+@media (min-width: 769px) {
+    #resSheet {
+        left: 50%; right: auto; bottom: auto; top: 50%;
+        width: 780px; max-width: 94vw; max-height: 90vh;
+        border-radius: 20px;
+        padding-bottom: 24px;
+        transform: translate(-50%, -50%) scale(.96);
+        opacity: 0; pointer-events: none;
+        transition: transform .25s cubic-bezier(.2,.9,.3,1.1), opacity .2s;
+        box-shadow: 0 40px 100px rgba(15,23,42,.28);
+    }
+    #resSheet.open {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1; pointer-events: auto;
+    }
+    #resSheet .sheet-pill { display: none; }
+    #resSheet .sheet-top { padding-top: 22px; }
+
+    /* Two-column form: short fields pair up, wide blocks span both. */
+    #resSheet .sheet-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 24px;
+        align-items: start;
+    }
+    #resSheet .sheet-body > * { grid-column: 1 / -1; }
+    /* Hizmet Türü ←→ Misafir/Oda */
+    #resSheet .sheet-body > .field-group:first-of-type { grid-column: 1; }
+    #resSheet .sheet-body > .field-row:nth-of-type(2)  { grid-column: 2; }
+    /* Tarih/Saat ←→ Fiyat/Kapora */
+    #resSheet .sheet-body > .field-row:nth-of-type(4)  { grid-column: 1; }
+    #resSheet .sheet-body > #rs-finance-group          { grid-column: 2; }
+    /* Voucher ←→ Notlar */
+    #resSheet .sheet-body > #rs-voucher-group               { grid-column: 1; }
+    #resSheet .sheet-body > #rs-voucher-group + .field-group{ grid-column: 2; }
+    #resSheet .sheet-body > #rs-voucher-group + .field-group textarea { min-height: 46px; }
+}

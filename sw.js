@@ -5,7 +5,7 @@
  * Web Push (FCM) hooks are stubbed below and will be wired once the sender
  * Cloud Function can be deployed.
  */
-const CACHE = 'stayos-shell-v1';
+const CACHE = 'stayos-shell-v2';
 const SHELL = ['logo.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -24,9 +24,11 @@ self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.method !== 'GET') return;
     const url = new URL(req.url);
-    // Only handle same-origin static assets; never intercept Firestore/Auth.
+    // Only handle same-origin static IMAGES; never intercept HTML/JS/CSS so a
+    // plain refresh always picks up new deploys (CSS used to be cache-first
+    // here, which served stale styles after releases).
     if (url.origin !== self.location.origin) return;
-    if (/\.(png|jpg|jpeg|svg|ico|webmanifest|css)$/i.test(url.pathname)) {
+    if (/\.(png|jpg|jpeg|svg|ico|webmanifest)$/i.test(url.pathname)) {
         event.respondWith(
             caches.match(req).then(hit => hit || fetch(req).then(res => {
                 const copy = res.clone();
