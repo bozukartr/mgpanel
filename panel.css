@@ -25,12 +25,6 @@ body {
     background-color: var(--bg);
     color: var(--text);
     min-height: 100vh;
-    animation: pageFadeIn 0.8s ease-out;
-}
-
-@keyframes pageFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
 }
 
 .panel-container {
