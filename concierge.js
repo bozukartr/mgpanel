@@ -576,25 +576,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('c-search').oninput = renderReservations;
 
     const todayStr = new Date().toISOString().split('T')[0];
+    // The date filter is a plain native input on every device — the sidebar's
+    // own month calendar replaced the old inline flatpickr (which rendered a
+    // second, duplicate calendar on desktop).
     let dateFilterFp = null;
+    document.getElementById('c-dateFilter').value = todayStr;
+    document.getElementById('c-dateFilter').onchange = renderReservations;
 
     if (window.flatpickr) {
-        dateFilterFp = flatpickr("#c-dateFilter", {
-            inline: true,
-            defaultDate: todayStr,
-            onChange: function(selectedDates, dateStr, instance) {
-                renderReservations();
-            },
-            onDayCreate: function(dObj, dStr, fp, dayElem) {
-                const dateStr = fp.formatDate(dayElem.dateObj, "Y-m-d");
-                const hasRes = reservations.some(r => r.date === dateStr);
-                if (hasRes) {
-                    dayElem.innerHTML += '<span class="fp-dot"></span>';
-                }
-            }
-        });
-
-        // 1. Instant Manual-Typing Date & Time Enhancers
+        // Instant Manual-Typing Date & Time Enhancers (reservation form only)
         flatpickr("#rs-date", {
             dateFormat: "d/m/Y",
             allowInput: true,
@@ -608,7 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allowInput: true
         });
 
-        // 2. Bind Proactive Interactive Mechanisms
+        // Bind Proactive Interactive Mechanisms
         const dateEl = document.getElementById('rs-date');
         if (dateEl) {
             // Expand shorthand input instantly when the user steps out of the field
@@ -617,9 +607,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         initMask('rs-time', 'time');
-    } else {
-        document.getElementById('c-dateFilter').value = todayStr;
-        document.getElementById('c-dateFilter').onchange = renderReservations;
     }
 
     document.getElementById('c-pillPending').onclick = () => {
