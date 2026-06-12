@@ -17,7 +17,7 @@
 
 <body>
     <div class="panel-container">
-        <!-- Header / Navigation -->
+        <!-- Header (shared app top bar) -->
         <header class="panel-header">
             <div class="logo-small">
                 <img src="logo.png" alt="Logo">
@@ -27,16 +27,18 @@
                 <button class="nav-btn" onclick="window.location.href='concierge.html'">Concierge</button>
                 <button class="nav-btn active" data-tab="guest-log">Misafir Kayıtları</button>
                 <button class="nav-btn" onclick="window.location.href='crm.html'">CRM Merkezi</button>
+                <button class="nav-btn" onclick="document.getElementById('openReportsBtn')?.click()">Raporlar</button>
                 <button class="nav-btn admin-only" id="adminNavLink" style="display: none;"
-                    onclick="window.location.href='admin.html'">Admin</button>
+                    onclick="window.location.href='admin.html'">Ayarlar</button>
             </nav>
             <div class="user-profile">
-                <span id="displayUsername">Admin</span>
-                <div id="rt-bell"></div>
+                <button class="hd-icon-btn" id="hdSearchBtn" title="Ara">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
                 <!-- Backup Dropdown -->
                 <div class="backup-dropdown">
-                    <button id="backupToggleBtn" class="backup-btn">
-                        <span class="icon">📁</span> Yedek
+                    <button id="backupToggleBtn" class="hd-icon-btn" title="Yedek">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     </button>
                     <div class="backup-menu" id="backupMenu">
                         <div class="menu-item" id="exportDataBtn">
@@ -48,8 +50,13 @@
                         </div>
                     </div>
                 </div>
-                <button id="logoutBtn" class="logout-btn">
-                    <span class="icon">⏻</span> Çıkış
+                <div id="rt-bell"></div>
+                <div class="user-chip">
+                    <div class="uc-av" id="userAvatar">··</div>
+                    <div class="uc-meta"><b id="displayUsername">Admin</b><span id="roleLabel">—</span></div>
+                </div>
+                <button id="logoutBtn" class="hd-icon-btn logout" title="Çıkış">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                 </button>
             </div>
         </header>

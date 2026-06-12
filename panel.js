@@ -27,6 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (staffInitialInput) staffInitialInput.value = loggedUsername;
     if (displayUsername) displayUsername.textContent = loggedUsername;
 
+    // Top bar identity chip + quick search focus (shared app header).
+    const userAvatar = document.getElementById('userAvatar');
+    if (userAvatar) userAvatar.textContent = loggedUsername.slice(0, 2).toUpperCase();
+    const roleLabel = document.getElementById('roleLabel');
+    if (roleLabel) roleLabel.textContent = loggedRole === 'admin' ? 'Yönetici' : (loggedRole === 'manager' ? 'Müdür' : 'Personel');
+    document.getElementById('hdSearchBtn')?.addEventListener('click', () => {
+        document.getElementById('globalSearch')?.focus();
+    });
+
     // Show Admin Link if user is admin
     const adminNavLink = document.getElementById('adminNavLink');
     const mobAdminBtn = document.getElementById('mobAdminBtn');
