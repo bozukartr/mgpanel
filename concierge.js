@@ -646,6 +646,229 @@ document.addEventListener('DOMContentLoaded', () => {
         renderReservations();
     });
 
+    // ═══ Console redesign: calendar, day title, views, summary ═══
+    let viewMode = 'day'; // 'day' | 'week' | 'month'
+    let calCursor = null; // Date for the month shown in the sidebar calendar
+
+    function setFilterDate(iso) {
+        if (dateFilterFp) dateFilterFp.setDate(iso, false);
+        else document.getElementById('c-dateFilter').value = iso;
+        renderReservations();
+    }
+    function isoAddDays(iso, n) {
+        const p = iso.split('-');
+        const d = new Date(+p[0], +p[1] - 1, +p[2]);
+        d.setDate(d.getDate() + n);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function isoToDate(iso) { const p = iso.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+    function dateToIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+    function updateDayTitle(dateVal) {
+        const el = document.getElementById('c-dayTitle');
+        if (!el) return;
+        if (!dateVal) { el.textContent = 'Tüm Rezervasyonlar'; return; }
+        const d = isoToDate(dateVal);
+        el.textContent = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' })
+            .replace(' ' + d.toLocaleDateString('tr-TR', { weekday: 'long' }), ', ' + d.toLocaleDateString('tr-TR', { weekday: 'long' }));
+    }
+
+    function renderSummary(dateVal) {
+        const ref = dateVal || todayStr;
+        let total = 0, conf = 0, pend = 0, canc = 0;
+        reservations.forEach(r => {
+            if (r.date !== ref) return;
+            total++;
+            if (r.status === 'Confirmed') conf++;
+            else if (r.status === 'Cancelled') canc++;
+            else pend++;
+        });
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+        set('sumTotal', total); set('sumConfirmed', conf); set('sumPending', pend); set('sumCancelled', canc);
+    }
+
+    function renderUpcoming() {
+        const box = document.getElementById('c-upcoming');
+        if (!box) return;
+        const nowHM = new Date().toTimeString().slice(0, 5);
+        const ups = reservations
+            .filter(r => r.status !== 'Cancelled' && r.date && (r.date > todayStr || (r.date === todayStr && (r.time || '23:59') >= nowHM)))
+            .sort((a, b) => a.date !== b.date ? a.date.localeCompare(b.date) : (a.time || '00:00').localeCompare(b.time || '00:00'))
+            .slice(0, 3);
+        if (!ups.length) { box.innerHTML = '<div class="cz-up-empty">Yaklaşan rezervasyon yok.</div>'; return; }
+        box.innerHTML = ups.map(r => `
+            <div class="cz-up-item" onclick="openDetailById('${r.id}')">
+                <div class="cz-up-time">${esc(r.time || '—')}${r.date !== todayStr ? ' · ' + fmtDate(isoToDate(r.date)) : ''}</div>
+                <b>${esc(r.guestName)}</b>
+                <div class="cz-up-meta"><span>Oda ${esc(r.room)}</span>
+                    <span class="cz-up-badge ${esc(r.status)}">${({ Pending: 'Bekleyen', Confirmed: 'Onaylı' })[r.status] || esc(r.status)}</span></div>
+            </div>`).join('');
+    }
+
+    function renderCalendar() {
+        const grid = document.getElementById('calGrid');
+        const title = document.getElementById('calTitle');
+        if (!grid || !title) return;
+        const selIso = document.getElementById('c-dateFilter').value;
+        if (!calCursor) calCursor = selIso ? isoToDate(selIso) : new Date();
+        const y = calCursor.getFullYear(), m = calCursor.getMonth();
+        title.textContent = calCursor.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+
+        // Days with reservations this month (excluding cancelled) get a dot.
+        const marked = new Set();
+        reservations.forEach(r => { if (r.date && r.status !== 'Cancelled') marked.add(r.date); });
+
+        const first = new Date(y, m, 1);
+        let startOffset = (first.getDay() + 6) % 7; // Monday-first
+        const cells = [];
+        const start = new Date(y, m, 1 - startOffset);
+        for (let i = 0; i < 42; i++) {
+            const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+            cells.push(d);
+        }
+        // Trim trailing full week of next month
+        const rows = cells.slice(35).every(d => d.getMonth() !== m) ? cells.slice(0, 35) : cells;
+
+        grid.innerHTML = rows.map(d => {
+            const iso = dateToIso(d);
+            const cls = ['cz-day'];
+            if (d.getMonth() !== m) cls.push('dim');
+            if (iso === todayStr) cls.push('today');
+            if (iso === selIso) cls.push('sel');
+            return `<button class="${cls.join(' ')}" data-iso="${iso}">${d.getDate()}${marked.has(iso) ? '<span class="dot"></span>' : ''}</button>`;
+        }).join('');
+    }
+    document.getElementById('calGrid')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.cz-day');
+        if (!btn) return;
+        calCursor = isoToDate(btn.dataset.iso);
+        statusFilter = null;
+        setFilterDate(btn.dataset.iso);
+    });
+    document.getElementById('calPrev')?.addEventListener('click', () => {
+        calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1);
+        renderCalendar();
+    });
+    document.getElementById('calNext')?.addEventListener('click', () => {
+        calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
+        renderCalendar();
+    });
+    function goToday() {
+        calCursor = new Date();
+        statusFilter = null;
+        viewMode = 'day';
+        syncViewButtons();
+        setFilterDate(todayStr);
+    }
+    document.getElementById('c-goToday')?.addEventListener('click', goToday);
+    document.getElementById('c-goTodaySide')?.addEventListener('click', goToday);
+
+    function syncViewButtons() {
+        [['vDay', 'day'], ['vWeek', 'week'], ['vMonth', 'month']].forEach(([id, mode]) => {
+            document.getElementById(id)?.classList.toggle('active', viewMode === mode);
+        });
+    }
+    [['vDay', 'day'], ['vWeek', 'week'], ['vMonth', 'month']].forEach(([id, mode]) => {
+        document.getElementById(id)?.addEventListener('click', () => {
+            viewMode = mode;
+            syncViewButtons();
+            renderReservations();
+        });
+    });
+
+    // Week view: Monday–Sunday of the selected date, grouped per day.
+    function renderWeekView(refIso, feed, empty) {
+        feed.classList.remove('cz-month-wrap');
+        const ref = isoToDate(refIso);
+        const monday = new Date(ref);
+        monday.setDate(ref.getDate() - ((ref.getDay() + 6) % 7));
+        feed.innerHTML = '';
+        empty.style.display = 'none';
+        const weekItems = [];
+        for (let i = 0; i < 7; i++) {
+            const iso = dateToIso(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
+            const d = isoToDate(iso);
+            const items = reservations.filter(r => r.date === iso)
+                .sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
+            weekItems.push(...items);
+            const sec = document.createElement('div');
+            sec.className = 'cz-week-day';
+            const head = d.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
+            sec.innerHTML = `<div class="cz-week-day-head ${iso === todayStr ? 'is-today' : ''}">
+                    <span>${head}</span>${items.length ? `<span class="cnt">${items.length} rezervasyon</span>` : ''}
+                </div><div class="cz-week-day-body"></div>`;
+            const body = sec.querySelector('.cz-week-day-body');
+            if (!items.length) body.innerHTML = '<div class="none">Müsait</div>';
+            else items.forEach(r => body.appendChild(createResCard(r)));
+            feed.appendChild(sec);
+        }
+        filteredReservations = weekItems;
+        const t = document.getElementById('c-dayTitle');
+        if (t) {
+            const sun = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+            t.textContent = monday.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + ' – ' +
+                sun.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+        }
+    }
+
+    // Month view: 7-column grid of day cells with counts; click → day view.
+    function renderMonthView(refIso, feed, empty) {
+        const ref = isoToDate(refIso);
+        const y = ref.getFullYear(), m = ref.getMonth();
+        empty.style.display = 'none';
+        feed.classList.add('cz-month-wrap');
+        const counts = {};
+        reservations.forEach(r => { if (r.date && r.status !== 'Cancelled') counts[r.date] = (counts[r.date] || 0) + 1; });
+        const first = new Date(y, m, 1);
+        const startOffset = (first.getDay() + 6) % 7;
+        const start = new Date(y, m, 1 - startOffset);
+        let html = '<div class="cz-month-dow"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div><div class="cz-month-grid">';
+        for (let i = 0; i < 42; i++) {
+            const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+            const iso = dateToIso(d);
+            const dim = d.getMonth() !== m ? ' dim' : '';
+            const tod = iso === todayStr ? ' today' : '';
+            const n = counts[iso] || 0;
+            html += `<button class="cz-mday${dim}${tod}" data-iso="${iso}"><b>${d.getDate()}</b>${n ? `<span class="cnt">${n} rez.</span>` : ''}</button>`;
+        }
+        html += '</div>';
+        feed.innerHTML = html;
+        feed.querySelectorAll('.cz-mday').forEach(btn => btn.addEventListener('click', () => {
+            viewMode = 'day';
+            syncViewButtons();
+            calCursor = isoToDate(btn.dataset.iso);
+            setFilterDate(btn.dataset.iso);
+        }));
+        filteredReservations = reservations.filter(r => {
+            if (!r.date) return false;
+            const d = isoToDate(r.date);
+            return d.getFullYear() === y && d.getMonth() === m;
+        });
+        const t = document.getElementById('c-dayTitle');
+        if (t) t.textContent = ref.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+    }
+
+    // Topbar wiring: search focus, reports tab, identity chip.
+    document.getElementById('c-searchBtn')?.addEventListener('click', () => {
+        document.getElementById('c-search')?.focus();
+        document.getElementById('c-search')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    document.getElementById('c-navReports')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('c-openReport')?.click();
+    });
+    document.getElementById('c-allTimeMobile')?.addEventListener('click', () => {
+        document.getElementById('c-pillAllTime')?.click();
+    });
+    (function fillIdentity() {
+        const name = localStorage.getItem('hotelUsername') || 'Admin';
+        const role = (localStorage.getItem('hotelRole') || '').toLowerCase();
+        const av = document.getElementById('c-avatar');
+        const rl = document.getElementById('c-roleLabel');
+        if (av) av.textContent = name.slice(0, 2).toUpperCase();
+        if (rl) rl.textContent = role === 'admin' ? 'Yönetici' : (role === 'manager' ? 'Müdür' : 'Personel');
+    })();
+
     function renderReservations() {
         const search = document.getElementById('c-search').value.toLowerCase();
         const dateVal = document.getElementById('c-dateFilter').value;
@@ -660,6 +883,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('c-pillConfirmed')?.classList.toggle('active', statusFilter === 'Confirmed');
         document.getElementById('c-pillToday')?.classList.toggle('active', !statusFilter && !search && dateVal === today);
         document.getElementById('c-pillAllTime')?.classList.toggle('active', !statusFilter && !search && !dateVal);
+
+        // Console chrome: date title, day summary, upcoming list, calendar dots.
+        updateDayTitle(dateVal);
+        renderSummary(dateVal);
+        renderUpcoming();
+        renderCalendar();
+        feed.classList.remove('cz-month-wrap');
 
         let todayCount = 0, pending = 0, confirmed = 0;
         reservations.forEach(r => {
@@ -704,6 +934,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // ── WEEK / MONTH VIEWS ────────────────────────────
+        if (viewMode === 'week') { renderWeekView(dateVal || today, feed, empty); return; }
+        if (viewMode === 'month') { renderMonthView(dateVal || today, feed, empty); return; }
+
         // ── AGENDA MODE (Default) ─────────────────────────
         // All Time mode: no date selected, show flat list of all
     if (!dateVal) {
@@ -741,7 +975,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         filteredReservations = filtered;
-        if (filtered.length === 0) { empty.style.display = 'flex'; return; }
+        // An empty day still renders the full hour grid (every slot "Müsait"),
+        // matching the console design — no separate empty state here.
         empty.style.display = 'none';
 
         // Dynamic Slots: Start with core 08-23
@@ -815,7 +1050,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             slotEl.innerHTML = `
                 <div class="slot-time">${displayTime}</div>
-                <div class="slot-content">${itemsHtml || '<div class="empty-slot-msg">No entries</div>'}</div>
+                <div class="slot-content">${itemsHtml || '<div class="empty-slot-msg">Müsait</div>'}</div>
             `;
             feed.appendChild(slotEl);
         });
