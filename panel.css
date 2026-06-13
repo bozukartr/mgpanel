@@ -1748,3 +1748,101 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
 .uc-meta span { font-size: 11px; color: var(--text-muted); }
 /* The old pill style no longer applies to the name inside the chip */
 #displayUsername { background: none; padding: 0; border-radius: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Misafir Kayıtları → Concierge-matching 3-column console.
+   Reuses the same cz-* chrome so both screens feel identical.
+═══════════════════════════════════════════════════════════════ */
+#guest-log { padding: 0; overflow: hidden; }
+.gi-console { display: flex; height: 100%; align-items: stretch; }
+
+/* Left sidebar (narrower, matches Concierge cz-side) */
+.cz-side.gi-side {
+    width: 300px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto;
+}
+.cz-side.gi-side::-webkit-scrollbar { width: 0; }
+.cz-new {
+    width: 100%; padding: 14px; font-size: 15px; font-weight: 700; font-family: inherit;
+    background: var(--primary-dark); color: #fff; border: none; border-radius: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 8px 20px rgba(79,70,229,.28); transition: background .15s, transform .15s;
+}
+.cz-new:hover { background: #4338ca; transform: translateY(-1px); }
+
+/* Month calendar */
+.cz-cal { border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+.cz-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cz-cal-head b { font-size: 14px; font-weight: 700; color: var(--text); }
+.cz-cal-head button {
+    width: 28px; height: 28px; border: 1px solid var(--border); background: #fff; border-radius: 8px;
+    font-size: 16px; color: var(--text-muted); cursor: pointer; line-height: 1;
+}
+.cz-cal-head button:hover { background: #f8fafc; color: var(--text); }
+.cz-cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+.cz-cal-dow span { text-align: center; font-size: 10.5px; font-weight: 700; color: #b3bdcc; padding: 4px 0; }
+.cz-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cz-day {
+    position: relative; aspect-ratio: 1; border: none; background: none; border-radius: 50%;
+    font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--text);
+    cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .12s;
+}
+.cz-day:hover { background: var(--primary-soft); }
+.cz-day.dim { color: #c4ccd9; font-weight: 500; }
+.cz-day.today { box-shadow: inset 0 0 0 1.5px #c7d2fe; }
+.cz-day.sel { background: var(--primary-dark); color: #fff; box-shadow: 0 6px 14px rgba(79,70,229,.35); }
+.cz-day .dot { position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; border-radius: 50%; background: #f59e0b; }
+.cz-day.sel .dot { background: #fff; }
+.cz-cal-today {
+    width: 100%; margin-top: 10px; padding: 9px; border: 1px solid var(--border); border-radius: 9px;
+    background: #fff; font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--primary-dark); cursor: pointer;
+}
+.cz-cal-today:hover { background: var(--primary-soft); }
+
+/* Center column */
+.cz-center.gi-center { flex: 1; min-width: 0; padding: 26px 30px; overflow-y: auto; background: #f6f8fb; }
+.cz-main-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.cz-main-head h2 { font-size: 21px; font-weight: 800; letter-spacing: -.3px; color: var(--text); }
+.cz-head-right { display: flex; align-items: center; gap: 12px; }
+.cz-head-right .data-stats { font-size: 13px; font-weight: 600; color: var(--text-muted); background: #fff; border: 1px solid var(--border); padding: 7px 14px; border-radius: 20px; }
+.cz-todayBtn {
+    display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: #fff;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text);
+    padding: 9px 15px; border-radius: 10px; cursor: pointer;
+}
+.cz-todayBtn:hover { background: #f8fafc; }
+.gi-table-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 8px 4px; }
+.gi-table-card .table-wrapper { padding: 0 16px 8px; }
+
+/* Right column */
+.cz-right { width: 280px; flex-shrink: 0; background: #f6f8fb; border-left: 1px solid var(--border); padding: 26px 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+.cz-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+.cz-card h4 { font-size: 14px; font-weight: 800; color: var(--text); margin: 0 0 12px; }
+.cz-sum-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 9px 11px; border: 1px solid #f1f4f9; border-radius: 9px; margin-bottom: 7px;
+    font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+}
+.cz-sum-row b { font-size: 13px; font-weight: 800; color: var(--text); }
+.cz-sum-row.ok span, .cz-sum-row.ok b { color: #16a34a; }
+.cz-sum-row.warn span, .cz-sum-row.warn b { color: #d97706; }
+.cz-sum-row.prog span, .cz-sum-row.prog b { color: #4f46e5; }
+.cz-sum-row.bad span, .cz-sum-row.bad b { color: #dc2626; }
+.gi-od-item { padding: 9px 2px; border-bottom: 1px solid #f1f4f9; cursor: pointer; }
+.gi-od-item:last-child { border-bottom: none; }
+.gi-od-item:hover b { color: var(--primary-dark); }
+.gi-od-item b { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
+.gi-od-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.gi-od-meta span { font-size: 11.5px; color: var(--text-muted); }
+.gi-od-dur { font-size: 10px; font-weight: 800; color: #d32f2f; background: #ffebee; padding: 2px 8px; border-radius: 8px; white-space: nowrap; }
+.gi-od-empty { font-size: 12px; color: #94a3b8; padding: 6px 2px; }
+
+/* Responsive: drop right panel, then calendar (phones already redirect) */
+@media (max-width: 1180px) { #guest-log .cz-right { display: none; } }
+@media (max-width: 980px)  { #guest-log .cz-cal { display: none; } }
+@media (max-width: 768px) {
+    #guest-log .desk-only { display: none !important; }
+    .cz-side.gi-side { width: 100% !important; }
+    .cz-center.gi-center { padding: 16px; }
+    .gi-table-card { border: none; background: transparent; padding: 0; }
+}
