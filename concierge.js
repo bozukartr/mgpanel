@@ -489,6 +489,24 @@ document.addEventListener('DOMContentLoaded', () => {
     setupDynamicAutolist('iti-guest-search', 'iti-guest-list');
     setupDynamicAutolist('rpt-guestSearch', 'guestNamesList', 'reports');
 
+    // PMS live lookup: while typing a guest/room in the reservation sheet,
+    // pull matches from the hotel's PMS (if integrated) and fill name/room/dates.
+    if (window.PMS) {
+        PMS.attach({
+            nameInput: document.getElementById('rs-guest'),
+            roomInput: document.getElementById('rs-room'),
+            checkInInput: document.getElementById('rs-checkIn'),
+            checkOutInput: document.getElementById('rs-checkOut'),
+            onPick: function (g) {
+                // If the PMS gave stay dates, surface the pre-arrival date row.
+                if (g.checkIn || g.checkOut) {
+                    const w = document.getElementById('rs-dates-wrapper');
+                    if (w) w.style.display = 'flex';
+                }
+            }
+        });
+    }
+
     // Instantly analyze and project passive conflict warnings as fields evolve
     ['rs-guest', 'rs-date', 'rs-time'].forEach(id => {
         const target = document.getElementById(id);

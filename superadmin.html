@@ -295,6 +295,7 @@
             <button class="btn-ghost" id="dEdit">Düzenle</button>
             <button class="btn-ghost" id="dSubBtn">Abonelik</button>
             <button class="btn-ghost" id="dPkgBtn">Paket</button>
+            <button class="btn-ghost" id="dPmsBtn">PMS</button>
             <button class="btn-ghost" id="dToggle">Askıya Al</button>
             <button class="btn-ghost btn-danger-ghost" id="dDelete">Sil</button>
         </div>
@@ -394,11 +395,86 @@
     </div>
 </div>
 
+<!-- ===== MODAL: PMS Integration ===== -->
+<div class="modal-backdrop" id="pmsModal">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-head"><h3>PMS Entegrasyonu</h3><p id="pmsHotel">—</p></div>
+        <div class="modal-body">
+            <label class="pms-switch-row">
+                <span><b>Entegrasyonu Etkinleştir</b><small>Açıkken Concierge ve Misafir Kayıtları, misafir/oda yazarken bu otelin PMS'inden veri çeker.</small></span>
+                <input type="checkbox" id="pmsEnabledChk">
+            </label>
+
+            <label>Sağlayıcı</label>
+            <select id="pmsProvider" class="m-select">
+                <option value="mock">Demo (Mock) — test için hazır veri</option>
+                <option value="generic">Generic REST API — otelin kendi API'si</option>
+            </select>
+
+            <div id="pmsGenericFields">
+                <label>API Adresi (Base URL)</label>
+                <input id="pmsBaseUrl" placeholder="https://pms.otel.com/api">
+                <div class="field-row">
+                    <div>
+                        <label>Arama Yolu (Search Path)</label>
+                        <input id="pmsSearchPath" placeholder="/guests?query={q}">
+                        <div class="hint">{q} aranan metinle değiştirilir.</div>
+                    </div>
+                    <div>
+                        <label>Sonuç Yolu (Results Path)</label>
+                        <input id="pmsResultsPath" placeholder="data.guests (boş = kök dizi)">
+                    </div>
+                </div>
+                <label>API Anahtarı</label>
+                <input id="pmsApiKey" placeholder="Otelin verdiği anahtar / token">
+                <div class="field-row">
+                    <div>
+                        <label>Auth Header</label>
+                        <input id="pmsAuthHeader" placeholder="Authorization">
+                    </div>
+                    <div>
+                        <label>Auth Öneki</label>
+                        <input id="pmsAuthPrefix" placeholder="Bearer ">
+                    </div>
+                </div>
+                <label>Alan Eşlemesi (yanıttaki alan yolları)</label>
+                <div class="field-row">
+                    <div><label class="sub">İsim</label><input id="pmsMapName" placeholder="name"></div>
+                    <div><label class="sub">Oda</label><input id="pmsMapRoom" placeholder="room"></div>
+                </div>
+                <div class="field-row">
+                    <div><label class="sub">Giriş</label><input id="pmsMapCheckIn" placeholder="arrival"></div>
+                    <div><label class="sub">Çıkış</label><input id="pmsMapCheckOut" placeholder="departure"></div>
+                </div>
+                <div class="field-row">
+                    <div><label class="sub">Telefon</label><input id="pmsMapPhone" placeholder="phone"></div>
+                    <div><label class="sub">E-posta</label><input id="pmsMapEmail" placeholder="email"></div>
+                </div>
+            </div>
+
+            <div class="pms-test">
+                <div class="field-row" style="align-items:flex-end;">
+                    <div style="flex:1;"><label>Test Sorgusu</label><input id="pmsTestQuery" placeholder="örn. ahmet veya 204" value="a"></div>
+                    <button class="btn-ghost" id="pmsTestBtn" style="white-space:nowrap;">Bağlantıyı Test Et</button>
+                </div>
+                <div class="pms-test-out" id="pmsTestOut"></div>
+            </div>
+
+            <div class="modal-err" id="pmsErr"></div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-ghost" data-close>Vazgeç</button>
+            <button class="btn-primary" id="pmsSave">Kaydet</button>
+        </div>
+    </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js"></script>
 <script src="firebase-config.js"></script>
 <script src="superadmin.js"></script>
 </body>

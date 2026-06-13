@@ -232,6 +232,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     setupDynamicAuto('ni-guest', 'guest-list');
 
+    // PMS live lookup on the mobile new-request guest/room fields.
+    if (window.PMS) {
+        PMS.attach({
+            nameInput: document.getElementById('ni-guest'),
+            roomInput: document.getElementById('ni-room')
+        });
+    }
+
     let niOpenHandled = false;
     db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snap => {
         records = snap.docs.map(d => ({ id: d.id, ...d.data() }));

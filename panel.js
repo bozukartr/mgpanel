@@ -593,6 +593,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (g && g.room) document.getElementById('mob-room').value = g.room;
     });
 
+    // PMS live lookup on the new-request guest/room fields.
+    if (window.PMS) {
+        PMS.attach({
+            nameInput: document.getElementById('guestName'),
+            roomInput: document.getElementById('room')
+        });
+    }
+
     issueForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
