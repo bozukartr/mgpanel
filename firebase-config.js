@@ -84,6 +84,13 @@ function applyTenantConfig(tenant) {
     localStorage.setItem('hotelModules', JSON.stringify(modules));
     localStorage.setItem('hotelMaxUsers', String((tenant && tenant.maxUsers) || 0));
     localStorage.setItem('hotelPlan', (tenant && tenant.plan) || '');
+    // Cheap client gate: only attempt PMS lookups when the hotel has it on.
+    localStorage.setItem('hotelPmsEnabled', (tenant && tenant.pmsEnabled) ? '1' : '0');
+}
+
+// Is PMS integration enabled for the signed-in hotel?
+function pmsEnabled() {
+    return localStorage.getItem('hotelPmsEnabled') === '1';
 }
 
 // Read the cached module flags. A module counts as enabled unless explicitly

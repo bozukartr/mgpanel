@@ -195,6 +195,14 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // --- PMS integration config (per hotel). Holds the hotel's API key, so
+    //     ONLY the platform operator can read/write it from a client; hotel
+    //     staff never touch it. The pmsLookup Cloud Function reads it with the
+    //     Admin SDK (bypasses rules) to proxy guest lookups. ---
+    match /pmsConfig/{tid} {
+      allow read, write: if isSuperAdmin();
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;

@@ -315,3 +315,115 @@ exports.onNotificationCreate = onDocumentCreated(
     }
   }
 );
+
+// ═══════════════════════════════════════════════════════════════════
+// PMS INTEGRATION
+// Per-hotel PMS config lives in pmsConfig/{tenantId} (superadmin-only via
+// rules; the function reads it with the Admin SDK). Guest lookups are
+// proxied here so the hotel's API key never reaches the browser and CORS
+// is never an issue. Two providers: 'mock' (demo, always works) and
+// 'generic' (configurable REST adapter for whatever API the hotel gives us).
+// ═══════════════════════════════════════════════════════════════════
+
+// Demo guests for the 'mock' provider — lets the whole flow work end-to-end
+// before a real PMS is connected.
+const PMS_MOCK_GUESTS = [
+  { name: 'Ahmet Yılmaz',  room: '204', checkIn: '2026-06-12', checkOut: '2026-06-15', vip: true,  phone: '+90 532 111 2233', email: 'ahmet.yilmaz@example.com' },
+  { name: 'Elif Demir',    room: '305', checkIn: '2026-06-11', checkOut: '2026-06-14', vip: false, phone: '+90 533 222 3344', email: 'elif.demir@example.com' },
+  { name: 'Mehmet Kaya',   room: '118', checkIn: '2026-06-10', checkOut: '2026-06-16', vip: false, phone: '+90 534 333 4455', email: 'mehmet.kaya@example.com' },
+  { name: 'Sema Doğan',    room: '410', checkIn: '2026-06-09', checkOut: '2026-06-20', vip: true,  phone: '+90 535 444 5566', email: 'sema.dogan@example.com' },
+  { name: 'John Carter',   room: '512', checkIn: '2026-06-13', checkOut: '2026-06-18', vip: false, phone: '+1 202 555 0142',  email: 'j.carter@example.com' },
+  { name: 'Ayşe Çelik',    room: '207', checkIn: '2026-06-12', checkOut: '2026-06-13', vip: false, phone: '+90 536 555 6677', email: 'ayse.celik@example.com' }
+];
+
+// Read a dotted path (supports array indices) out of a nested object.
+function pmsDig(obj, path) {
+  if (!path) return obj;
+  return String(path).split('.').reduce((acc, key) => {
+    if (acc == null) return undefined;
+    return acc[key];
+  }, obj);
+}
+
+function pmsNormalize(item, map) {
+  map = map || {};
+  const g = {
+    name: pmsDig(item, map.name) ?? item.name ?? item.guestName ?? '',
+    room: pmsDig(item, map.room) ?? item.room ?? item.roomNo ?? item.roomNumber ?? '',
+    checkIn: pmsDig(item, map.checkIn) ?? item.checkIn ?? item.arrival ?? '',
+    checkOut: pmsDig(item, map.checkOut) ?? item.checkOut ?? item.departure ?? '',
+    vip: !!(pmsDig(item, map.vip) ?? item.vip ?? false),
+    phone: pmsDig(item, map.phone) ?? item.phone ?? '',
+    email: pmsDig(item, map.email) ?? item.email ?? ''
+  };
+  Object.keys(g).forEach(k => { if (g[k] == null) g[k] = (k === 'vip' ? false : ''); else if (k !== 'vip') g[k] = String(g[k]); });
+  return g;
+}
+
+// Run a lookup against a given config (used by both pmsLookup and the
+// superadmin test). Returns a normalized array of guests.
+async function pmsRunLookup(cfg, query) {
+  const q = String(query || '').trim();
+  if (!cfg || cfg.enabled === false) return { enabled: false, results: [] };
+  if (q.length < 2) return { enabled: true, results: [] };
+
+  const provider = cfg.provider || 'mock';
+
+  if (provider === 'mock') {
+    const ql = q.toLowerCase();
+    const results = PMS_MOCK_GUESTS.filter(g =>
+      g.name.toLowerCase().includes(ql) || String(g.room).includes(q)).slice(0, 8);
+    return { enabled: true, results, source: 'mock' };
+  }
+
+  // generic REST adapter
+  if (provider === 'generic') {
+    if (!cfg.baseUrl) throw new HttpsError('failed-precondition', 'PMS baseUrl tanımlı değil.');
+    const path = (cfg.searchPath || '?q={q}').replace(/\{q\}/g, encodeURIComponent(q));
+    const url = cfg.baseUrl.replace(/\/+$/, '') + (path.startsWith('/') || path.startsWith('?') ? path : '/' + path);
+    const headers = { 'Accept': 'application/json' };
+    if (cfg.apiKey) headers[cfg.authHeader || 'Authorization'] = (cfg.authPrefix || '') + cfg.apiKey;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 7000);
+    let data;
+    try {
+      const resp = await fetch(url, { headers, signal: ctrl.signal });
+      if (!resp.ok) throw new HttpsError('unavailable', 'PMS yanıtı: HTTP ' + resp.status);
+      data = await resp.json();
+    } catch (e) {
+      if (e instanceof HttpsError) throw e;
+      throw new HttpsError('unavailable', 'PMS bağlantısı başarısız: ' + (e.message || e.name));
+    } finally { clearTimeout(timer); }
+
+    let arr = pmsDig(data, cfg.resultsPath);
+    if (!Array.isArray(arr)) arr = Array.isArray(data) ? data : [];
+    const results = arr.slice(0, 12).map(it => pmsNormalize(it, cfg.map)).filter(g => g.name || g.room);
+    return { enabled: true, results, source: 'generic' };
+  }
+
+  return { enabled: true, results: [] };
+}
+
+// Hotel users call this while typing a guest name / room number.
+exports.pmsLookup = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const uid = request.auth.uid;
+  const userSnap = await db.collection('systemUsers').doc(uid).get();
+  if (!userSnap.exists) throw new HttpsError('permission-denied', 'Kullanıcı bulunamadı.');
+  const tenantId = userSnap.data().tenantId || 'mgallery';
+
+  const cfgSnap = await db.collection('pmsConfig').doc(tenantId).get();
+  if (!cfgSnap.exists) return { enabled: false, results: [] };
+  return pmsRunLookup(cfgSnap.data(), request.data && request.data.query);
+});
+
+// Superadmin-only: validate a config (before saving) by running a live query.
+exports.pmsTestConfig = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const su = await db.collection('superAdmins').doc(request.auth.uid).get();
+  if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
+  const cfg = (request.data && request.data.config) || {};
+  const query = (request.data && request.data.query) || 'a';
+  return pmsRunLookup(Object.assign({}, cfg, { enabled: true }), query);
+});

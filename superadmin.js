@@ -686,6 +686,104 @@
         }
     }
 
+    // ---------- PMS integration ----------
+    let currentPmsTenant = null;
+    function pmsSetField(id, v) { const e = $(id); if (e) e.value = v || ''; }
+    function togglePmsGeneric() {
+        $('pmsGenericFields').style.display = $('pmsProvider').value === 'generic' ? 'block' : 'none';
+    }
+    async function openPmsModal(id) {
+        const t = tenants.find(x => x.id === id); if (!t) return;
+        currentPmsTenant = id;
+        $('pmsHotel').textContent = (t.name || id) + ' · ' + id;
+        $('pmsErr').textContent = ''; $('pmsTestOut').innerHTML = '';
+        // Defaults
+        $('pmsEnabledChk').checked = false;
+        $('pmsProvider').value = 'mock';
+        ['pmsBaseUrl', 'pmsSearchPath', 'pmsResultsPath', 'pmsApiKey', 'pmsAuthHeader', 'pmsAuthPrefix',
+            'pmsMapName', 'pmsMapRoom', 'pmsMapCheckIn', 'pmsMapCheckOut', 'pmsMapPhone', 'pmsMapEmail'].forEach(x => pmsSetField(x, ''));
+        try {
+            const snap = await db.collection('pmsConfig').doc(id).get();
+            if (snap.exists) {
+                const c = snap.data();
+                $('pmsEnabledChk').checked = !!c.enabled;
+                $('pmsProvider').value = c.provider || 'mock';
+                pmsSetField('pmsBaseUrl', c.baseUrl); pmsSetField('pmsSearchPath', c.searchPath);
+                pmsSetField('pmsResultsPath', c.resultsPath); pmsSetField('pmsApiKey', c.apiKey);
+                pmsSetField('pmsAuthHeader', c.authHeader); pmsSetField('pmsAuthPrefix', c.authPrefix);
+                const m = c.map || {};
+                pmsSetField('pmsMapName', m.name); pmsSetField('pmsMapRoom', m.room);
+                pmsSetField('pmsMapCheckIn', m.checkIn); pmsSetField('pmsMapCheckOut', m.checkOut);
+                pmsSetField('pmsMapPhone', m.phone); pmsSetField('pmsMapEmail', m.email);
+            }
+        } catch (e) { $('pmsErr').textContent = 'Yapılandırma okunamadı: ' + e.message; }
+        togglePmsGeneric();
+        $('pmsModal').classList.add('show');
+    }
+    function readPmsConfig() {
+        return {
+            enabled: $('pmsEnabledChk').checked,
+            provider: $('pmsProvider').value,
+            baseUrl: $('pmsBaseUrl').value.trim(),
+            searchPath: $('pmsSearchPath').value.trim(),
+            resultsPath: $('pmsResultsPath').value.trim(),
+            apiKey: $('pmsApiKey').value.trim(),
+            authHeader: $('pmsAuthHeader').value.trim() || 'Authorization',
+            authPrefix: $('pmsAuthPrefix').value,
+            map: {
+                name: $('pmsMapName').value.trim(), room: $('pmsMapRoom').value.trim(),
+                checkIn: $('pmsMapCheckIn').value.trim(), checkOut: $('pmsMapCheckOut').value.trim(),
+                phone: $('pmsMapPhone').value.trim(), email: $('pmsMapEmail').value.trim()
+            }
+        };
+    }
+    function renderPmsResults(data) {
+        const out = $('pmsTestOut');
+        if (!data || !data.results || !data.results.length) {
+            out.innerHTML = '<div class="pms-test-msg ok">Bağlantı başarılı — sonuç bulunamadı (sorguyu değiştirin).</div>';
+            return;
+        }
+        out.innerHTML = '<div class="pms-test-msg ok">' + data.results.length + ' sonuç (' + (data.source || '') + '):</div>' +
+            data.results.slice(0, 6).map(g => `
+            <div class="pms-guest">
+                <span><b>${esc(g.name || '—')}</b>${g.vip ? '<span class="vip">VIP</span>' : ''}</span>
+                <span>Oda ${esc(g.room || '—')}${g.checkIn ? ' · ' + esc(g.checkIn) + '→' + esc(g.checkOut || '') : ''}</span>
+            </div>`).join('');
+    }
+    async function testPms() {
+        const btn = $('pmsTestBtn'); const out = $('pmsTestOut');
+        btn.disabled = true; btn.textContent = 'Test ediliyor…'; out.innerHTML = '';
+        try {
+            const call = firebase.app().functions('us-central1').httpsCallable('pmsTestConfig');
+            const res = await call({ config: readPmsConfig(), query: $('pmsTestQuery').value.trim() || 'a' });
+            renderPmsResults(res.data);
+        } catch (e) {
+            out.innerHTML = '<div class="pms-test-msg err">Test başarısız: ' + esc(e.message || 'hata') + '</div>';
+        } finally { btn.disabled = false; btn.textContent = 'Bağlantıyı Test Et'; }
+    }
+    async function savePms() {
+        const cfg = readPmsConfig();
+        const err = $('pmsErr'); err.textContent = '';
+        if (cfg.enabled && cfg.provider === 'generic' && !cfg.baseUrl) {
+            return err.textContent = 'Generic sağlayıcı için API adresi gerekli.';
+        }
+        const btn = $('pmsSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+        try {
+            await db.collection('pmsConfig').doc(currentPmsTenant).set(Object.assign({}, cfg, {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }), { merge: true });
+            // Cheap client gate lives on the tenant doc (hotel users can read it).
+            await db.collection('tenants').doc(currentPmsTenant).update({ pmsEnabled: cfg.enabled });
+            $('pmsModal').classList.remove('show');
+            toast('PMS ayarları kaydedildi');
+        } catch (e) {
+            err.textContent = 'Hata: ' + e.message;
+        } finally { btn.disabled = false; btn.textContent = 'Kaydet'; }
+    }
+    $('pmsProvider').addEventListener('change', togglePmsGeneric);
+    $('pmsTestBtn').addEventListener('click', testPms);
+    $('pmsSave').addEventListener('click', savePms);
+
     // ---------- hotel detail drawer ----------
     function openHotelDrawer(id) {
         if (!tenants.find(x => x.id === id)) return;
@@ -854,6 +952,7 @@
     $('dEdit').addEventListener('click', openEditModal);
     $('dSubBtn').addEventListener('click', () => openSubModal(drawerTenantId));
     $('dPkgBtn').addEventListener('click', () => openPkgModal(drawerTenantId));
+    $('dPmsBtn').addEventListener('click', () => openPmsModal(drawerTenantId));
     $('dToggle').addEventListener('click', () => { const t = tenants.find(x => x.id === drawerTenantId); if (t) toggleSuspend(t.id, t.suspended === true); });
     $('dDelete').addEventListener('click', openDeleteModal);
     $('dAddUser').addEventListener('click', openAddUserModal);
