@@ -67,10 +67,10 @@
         <main class="panel-main">
             <!-- GUEST ISSUES LOG -->
             <section id="guest-log" class="tab-content active">
-                <div class="gi-layout">
-                    <!-- LEFT SIDEBAR: actions + filters (Concierge-style) -->
-                    <aside class="gi-sidebar">
-                        <button class="gi-new-btn" id="newIssueBtn">
+                <div class="gi-console">
+                    <!-- LEFT SIDEBAR: actions, filters, calendar, tiles -->
+                    <aside class="cz-side gi-side">
+                        <button class="cz-new" id="newIssueBtn">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                             Yeni Talep
                         </button>
@@ -85,6 +85,18 @@
                                 <button id="allTimeBtn" class="gi-alltime">Tüm Zamanlar</button>
                                 <button id="resetFilters" class="gi-alltime">Bugün</button>
                             </div>
+                        </div>
+
+                        <!-- Month calendar (desktop) -->
+                        <div class="cz-cal desk-only" id="gi-cal">
+                            <div class="cz-cal-head">
+                                <button id="giCalPrev" aria-label="Önceki ay">‹</button>
+                                <b id="giCalTitle">—</b>
+                                <button id="giCalNext" aria-label="Sonraki ay">›</button>
+                            </div>
+                            <div class="cz-cal-dow"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div>
+                            <div class="cz-cal-grid" id="giCalGrid"></div>
+                            <button class="cz-cal-today" id="giGoTodaySide">Bugüne Dön</button>
                         </div>
 
                         <div class="gi-pills">
@@ -118,15 +130,19 @@
                         </div>
                     </aside>
 
-                    <!-- MAIN: records table -->
-                    <section class="gi-main">
-                        <div class="data-view">
-                            <div class="data-header">
-                                <div class="header-left">
-                                    <h2 id="tableTitle">Bugünün Kayıtları</h2>
-                                    <div class="data-stats">Toplam: <span id="recordCount">0</span></div>
-                                </div>
+                    <!-- CENTER: title + records table card -->
+                    <section class="cz-center gi-center">
+                        <div class="cz-main-head desk-only">
+                            <h2 id="tableTitle">Bugünün Kayıtları</h2>
+                            <div class="cz-head-right">
+                                <div class="data-stats">Toplam: <span id="recordCount">0</span></div>
+                                <button class="cz-todayBtn" id="giGoToday">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                                    Bugün
+                                </button>
                             </div>
+                        </div>
+                        <div class="gi-table-card">
                             <div class="table-wrapper">
                                 <table id="recordsTable">
                                     <thead>
@@ -147,6 +163,22 @@
                             </div>
                         </div>
                     </section>
+
+                    <!-- RIGHT: day summary + overdue list -->
+                    <aside class="cz-right desk-only">
+                        <div class="cz-card">
+                            <h4>Günün Özeti</h4>
+                            <div class="cz-sum-row"><span>Toplam Talep</span><b id="sumTotal">0</b></div>
+                            <div class="cz-sum-row warn"><span>Bekliyor</span><b id="sumPending">0</b></div>
+                            <div class="cz-sum-row prog"><span>İşlemde</span><b id="sumProg">0</b></div>
+                            <div class="cz-sum-row ok"><span>Tamamlandı</span><b id="sumSolved">0</b></div>
+                            <div class="cz-sum-row bad"><span>Geciken</span><b id="sumOverdue">0</b></div>
+                        </div>
+                        <div class="cz-card">
+                            <h4>Geciken İşler</h4>
+                            <div id="giOverdueList"></div>
+                        </div>
+                    </aside>
                 </div>
             </section>
         </main>

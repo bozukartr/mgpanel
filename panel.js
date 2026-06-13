@@ -1325,6 +1325,93 @@ document.addEventListener('DOMContentLoaded', () => {
         updateView(globalSearch.value, dateSearch.value);
     });
 
+    // ═══ Console: month calendar (left) + "Bugün" header button ═══
+    let giCalCursor = null; // Date of the month currently shown in the sidebar
+    const giIsoToDate = (iso) => { const p = iso.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };
+    const giDateToIso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+    function giRenderCalendar() {
+        const grid = document.getElementById('giCalGrid');
+        const title = document.getElementById('giCalTitle');
+        if (!grid || !title) return;
+        const todayIso = getLocalDate();
+        const selIso = dateSearch.value;
+        if (!giCalCursor) giCalCursor = selIso ? giIsoToDate(selIso) : new Date();
+        const y = giCalCursor.getFullYear(), m = giCalCursor.getMonth();
+        title.textContent = giCalCursor.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+
+        const marked = new Set();
+        records.forEach(r => { if (r.date) marked.add(r.date); });
+
+        const first = new Date(y, m, 1);
+        const startOffset = (first.getDay() + 6) % 7; // Monday-first
+        const start = new Date(y, m, 1 - startOffset);
+        const cells = [];
+        for (let i = 0; i < 42; i++) cells.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+        const rows = cells.slice(35).every(d => d.getMonth() !== m) ? cells.slice(0, 35) : cells;
+
+        grid.innerHTML = rows.map(d => {
+            const iso = giDateToIso(d);
+            const cls = ['cz-day'];
+            if (d.getMonth() !== m) cls.push('dim');
+            if (iso === todayIso) cls.push('today');
+            if (iso === selIso) cls.push('sel');
+            return `<button class="${cls.join(' ')}" data-iso="${iso}">${d.getDate()}${marked.has(iso) ? '<span class="dot"></span>' : ''}</button>`;
+        }).join('');
+    }
+    document.getElementById('giCalGrid')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.cz-day');
+        if (!btn) return;
+        giCalCursor = giIsoToDate(btn.dataset.iso);
+        dateSearch.value = btn.dataset.iso;
+        triggerSearch();
+    });
+    document.getElementById('giCalPrev')?.addEventListener('click', () => {
+        giCalCursor = new Date(giCalCursor.getFullYear(), giCalCursor.getMonth() - 1, 1);
+        giRenderCalendar();
+    });
+    document.getElementById('giCalNext')?.addEventListener('click', () => {
+        giCalCursor = new Date(giCalCursor.getFullYear(), giCalCursor.getMonth() + 1, 1);
+        giRenderCalendar();
+    });
+    function giGoToday() {
+        giCalCursor = new Date();
+        dateSearch.value = getLocalDate();
+        triggerSearch();
+    }
+    document.getElementById('giGoToday')?.addEventListener('click', giGoToday);
+    document.getElementById('giGoTodaySide')?.addEventListener('click', giGoToday);
+
+    // Right panel: per-day summary + global overdue list.
+    function giRenderSummary(stats) {
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+        set('sumTotal', stats.total); set('sumPending', stats.following);
+        set('sumProg', stats.inprogress); set('sumSolved', stats.solved); set('sumOverdue', stats.overdue);
+
+        const box = document.getElementById('giOverdueList');
+        if (!box) return;
+        const od = records
+            .filter(r => (r.status || 'Following') !== 'Solved' && isOverdue(r))
+            .sort((a, b) => {
+                const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
+                const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
+                return ta - tb; // oldest (most overdue) first
+            }).slice(0, 6);
+        if (!od.length) { box.innerHTML = '<div class="gi-od-empty">Geciken iş yok 🎉</div>'; return; }
+        box.innerHTML = od.map(r => {
+            const created = tsToDate(r.createdAt);
+            const dur = created ? fmtDuration(Date.now() - created) : '';
+            return `<div class="gi-od-item" data-id="${esc(r.id)}">
+                <b>${esc(r.guestName)} · Oda ${esc(r.room)}</b>
+                <div class="gi-od-meta"><span>${esc(r.department || '')}</span><span class="gi-od-dur">⌛ ${dur}</span></div>
+            </div>`;
+        }).join('');
+        box.querySelectorAll('.gi-od-item').forEach(it => it.addEventListener('click', () => {
+            const rec = records.find(r => r.id === it.dataset.id);
+            if (rec) openModal(rec);
+        }));
+    }
+
     // Guest Profiles Modal Logic
     const guestProfileModal = document.getElementById('guestProfileModal');
     const closeProfileModal = document.getElementById('closeProfileModal');
@@ -1580,6 +1667,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.getElementById('statOverdue')) document.getElementById('statOverdue').textContent = stats.overdue;
 
         recordCountElement.textContent = finalFiltered.length;
+
+        // Console chrome: sidebar calendar (dots + selected day) and the
+        // right-hand day summary + overdue list.
+        if (typeof giRenderCalendar === 'function') giRenderCalendar();
+        if (typeof giRenderSummary === 'function') giRenderSummary(stats);
     }
 
     function openModal(record) {
