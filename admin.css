@@ -245,3 +245,54 @@
 
 /* Brand logo in admin header (replaces the old glyph mark) */
 .brand-logo { height: 40px; width: auto; }
+
+/* ════════ Compact tabbed admin shell ════════ */
+.admin-wrapper { max-width: 1180px; padding: 0 20px 56px; }
+
+.adm-top {
+    display: flex; align-items: center; gap: 18px; padding: 13px 0;
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(246,247,249,.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.adm-brand { display: flex; align-items: center; gap: 12px; }
+.adm-brand .brand-logo { height: 34px; }
+.adm-brand .brand-text h1 { font-size: 18px; font-weight: 700; line-height: 1.1; }
+.adm-brand .brand-sub { font-size: 11.5px; color: #94a3b8; }
+.adm-apps { display: flex; gap: 4px; margin-left: 8px; }
+.adm-apps a { font-size: 13px; font-weight: 600; color: #64748b; padding: 7px 12px; border-radius: 9px; transition: background .15s, color .15s; }
+.adm-apps a:hover { background: #eef2f7; color: #0f172a; }
+.adm-top-r { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+
+.adm-tabs {
+    display: flex; gap: 2px; position: sticky; top: 60px; z-index: 29;
+    background: #f6f7f9; border-bottom: 1px solid #e6eaf0; margin-bottom: 24px;
+    overflow-x: auto; scrollbar-width: none;
+}
+.adm-tabs::-webkit-scrollbar { display: none; }
+.adm-tab {
+    border: none; background: none; font-family: inherit; font-size: 14px; font-weight: 600;
+    color: #64748b; padding: 13px 16px; cursor: pointer; position: relative; white-space: nowrap;
+    transition: color .15s;
+}
+.adm-tab:hover { color: #0f172a; }
+.adm-tab.active { color: #2563eb; }
+.adm-tab.active::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2.5px;
+    background: #2563eb; border-radius: 3px 3px 0 0;
+}
+
+.adm-view { display: none; }
+.adm-view.active { display: block; animation: admFade .24s ease; }
+@keyframes admFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Tighter, more professional cards inside tabs */
+.adm-view .admin-card { padding: 22px; margin-bottom: 18px; border-radius: 16px; }
+.adm-view .admin-card:last-child { margin-bottom: 0; }
+.danger-card { border-color: #fecaca !important; background: #fffafa; }
+.danger-card .card-title h2 { color: #dc2626; }
+
+@media (max-width: 720px) {
+    .adm-apps { display: none; }
+    .adm-tabs { top: 58px; }
+    .adm-brand .brand-text { display: none; }
+}

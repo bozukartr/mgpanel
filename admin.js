@@ -181,14 +181,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const ejectBtn = document.getElementById('adminEjectBtn');
     if (ejectBtn) {
         ejectBtn.onclick = async () => {
-            if (!confirm("⚠️ DANGER: This will permanently WIPE all system data (Reservations, Guests, Logs, Staff accounts)!\n\nA backup file will be generated and downloaded before the deletion.\n\nAre you sure you want to proceed?")) {
+            if (!confirm("⚠️ DİKKAT: Tüm sistem verileri (rezervasyonlar, misafirler, kayıtlar, personel hesapları) KALICI olarak silinecek!\n\nSilmeden önce bir yedek dosyası indirilecek.\n\nDevam etmek istediğinize emin misiniz?")) {
                 return;
             }
-            if (!confirm("⚠️ FINAL WARNING: This action cannot be undone. Are you absolutely certain you want to wipe the system?")) {
+            if (!confirm("⚠️ SON UYARI: Bu işlem geri alınamaz. Sistemi sıfırlamak istediğinize kesinlikle emin misiniz?")) {
                 return;
             }
 
-            showToast("Generating system backup...", false);
+            showToast("Sistem yedeği oluşturuluyor...", false);
 
             try {
                 // Fetch all operational data
@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
 
-                showToast("Backup downloaded! Initiating database wipe...", false);
+                showToast("Yedek indirildi! Veriler siliniyor...", false);
 
                 const batch = db.batch();
 
@@ -243,14 +243,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 await batch.commit();
 
-                showToast("💥 System Ejected Successfully! All data wiped.", false);
+                showToast("💥 Sistem sıfırlandı! Tüm veriler silindi.", false);
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
 
             } catch (err) {
                 console.error(err);
-                showToast("Eject Failed: " + err.message, true);
+                showToast("Sıfırlama başarısız: " + err.message, true);
             }
         };
     }
@@ -264,17 +264,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const now = new Date();
         if (end && end > now) {
             const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-            subStatus.textContent = `Active — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
+            subStatus.textContent = `Aktif — ${daysLeft} gün kaldı`;
             subStatus.className = 'sub-status active';
-            subExpiry.textContent = `Expires: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+            subExpiry.textContent = `Bitiş: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
         } else if (end) {
-            subStatus.textContent = 'Expired';
+            subStatus.textContent = 'Süresi Doldu';
             subStatus.className = 'sub-status expired';
-            subExpiry.textContent = `Expired: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+            subExpiry.textContent = `Bitti: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
         } else {
             subStatus.textContent = 'Not Set';
             subStatus.className = 'sub-status expired';
-            subExpiry.textContent = 'No subscription set';
+            subExpiry.textContent = 'Abonelik tanımsız';
         }
         if (end && subDateInput) subDateInput.value = end.toISOString().slice(0, 10);
     };
@@ -443,10 +443,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 mtMessage.value = d.message || '';
                 const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
                 const active = d.enabled && ends && ends > new Date();
-                mtStatus.textContent = active ? 'Active' : 'Inactive';
+                mtStatus.textContent = active ? 'Aktif' : 'Pasif';
                 mtStatus.classList.toggle('active', active);
-                mtStatus.title = active && ends ? `Active until ${ends.toLocaleString('tr-TR')}` : '';
-                if (statMaintenance) statMaintenance.textContent = active ? 'On' : 'Off';
+                mtStatus.title = active && ends ? `${ends.toLocaleString('tr-TR')} tarihine kadar aktif` : '';
+                if (statMaintenance) statMaintenance.textContent = active ? 'Açık' : 'Kapalı';
             } else {
                 mtStatus.textContent = 'Inactive';
                 mtStatus.classList.remove('active');
