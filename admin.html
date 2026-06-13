@@ -54,203 +54,231 @@
 </head>
 <body class="admin-body">
     <div class="admin-wrapper">
-        <header class="admin-header">
-            <div class="header-left">
+        <header class="adm-top">
+            <div class="adm-brand">
                 <img src="logo.png" alt="Logo" class="brand-logo">
                 <div class="brand-text">
                     <h1>StayOS</h1>
-                    <span class="brand-sub">Admin Console</span>
+                    <span class="brand-sub">Admin Konsolu</span>
                 </div>
             </div>
-            <div class="header-right">
-                <button onclick="window.location.href='concierge.html'" class="btn btn-ghost">Dashboard</button>
-                <button onclick="window.location.href='panel.html'" class="btn btn-ghost" data-module="guestIssues">Misafir Kayıtları</button>
-                <button onclick="window.location.href='crm.html'" class="btn btn-ghost">CRM Center</button>
+            <nav class="adm-apps">
+                <a href="concierge.html">Concierge</a>
+                <a href="panel.html" data-module="guestIssues">Misafir Kayıtları</a>
+                <a href="crm.html">CRM</a>
+            </nav>
+            <div class="adm-top-r">
                 <div id="rt-bell"></div>
-                <button id="adminEjectBtn" class="btn btn-danger">Eject System</button>
             </div>
         </header>
 
-        <!-- Overview -->
-        <div class="stat-grid">
-            <div class="stat-card">
-                <div class="stat-icon i-users">👥</div>
-                <div class="stat-body">
-                    <span class="stat-label">Team Members</span>
-                    <span class="stat-value" id="statUsers">—</span>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon i-sub">💳</div>
-                <div class="stat-body">
-                    <span class="stat-label">Subscription</span>
-                    <span class="sub-status" id="subStatus">—</span>
-                    <span class="sub-expiry" id="subExpiry"></span>
-                    <button id="payBtn" style="margin-top:8px;align-self:flex-start;background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;">Aboneliği Yenile</button>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon i-tickets">🎫</div>
-                <div class="stat-body">
-                    <span class="stat-label">Open Tickets</span>
-                    <span class="stat-value" id="statTickets">—</span>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon i-maint">🛠️</div>
-                <div class="stat-body">
-                    <span class="stat-label">Maintenance</span>
-                    <span class="stat-value" id="statMaintenance">Off</span>
-                </div>
-            </div>
-        </div>
+        <nav class="adm-tabs" id="admTabs">
+            <button class="adm-tab active" data-view="overview">Genel Bakış</button>
+            <button class="adm-tab" data-view="finance">Finans</button>
+            <button class="adm-tab" data-view="users">Kullanıcılar</button>
+            <button class="adm-tab" data-view="tickets">Destek</button>
+            <button class="adm-tab" data-view="system">Sistem</button>
+        </nav>
 
-        <!-- Finance -->
-        <section class="admin-card" id="financeCard">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Finans</h2>
-                    <p class="card-sub">Gelir, tahsilat, komisyon ve finansal kontroller.</p>
-                </div>
-                <div class="fin-range">
-                    <select id="finRange">
-                        <option value="today">Bugün</option>
-                        <option value="week">Son 7 Gün</option>
-                        <option value="month" selected>Bu Ay</option>
-                        <option value="all">Tüm Zamanlar</option>
-                        <option value="custom">Özel Aralık</option>
-                    </select>
-                    <input type="date" id="finFrom" style="display:none">
-                    <input type="date" id="finTo" style="display:none">
-                </div>
-            </div>
-
-            <div class="fin-kpis" id="finKpis"></div>
-
-            <div class="fin-block">
-                <h3>Kategori Bazlı Döküm</h3>
-                <div class="fin-table-wrap">
-                    <table class="fin-table" id="finCatTable">
-                        <thead><tr>
-                            <th>Kategori</th><th>Adet</th><th>Brüt</th><th>Tahsil</th><th>Bakiye</th><th>Kom. %</th><th>Komisyon</th><th>Net</th>
-                        </tr></thead>
-                        <tbody id="finCatBody"></tbody>
-                        <tfoot id="finCatFoot"></tfoot>
-                    </table>
-                </div>
-            </div>
-
-            <div class="fin-cols">
-                <div class="fin-block">
-                    <h3>Duruma Göre</h3>
-                    <div id="finStatus"></div>
-                </div>
-                <div class="fin-block">
-                    <h3>Personele Göre</h3>
-                    <div id="finStaff"></div>
-                </div>
-            </div>
-
-            <div class="fin-block">
-                <h3>Finansal Kontroller</h3>
-                <div class="fin-checks" id="finChecks"></div>
-            </div>
-        </section>
-
-        <!-- Commission settings -->
-        <section class="admin-card" id="commissionCard">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Komisyon Ayarları</h2>
-                    <p class="card-sub">Kategori bazlı komisyon oranları (%). Finans hesaplamalarında kullanılır.</p>
-                </div>
-                <button class="btn btn-primary" id="commSave">Kaydet</button>
-            </div>
-            <div class="comm-grid" id="commGrid"></div>
-        </section>
-
-        <!-- Payment History -->
-        <section class="admin-card" id="payHistoryCard">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>Ödeme Geçmişi</h2>
-                    <p class="card-sub">Bu otelin abonelik ödemeleri.</p>
-                </div>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead><tr><th>Tarih</th><th>Paket</th><th>Tutar</th><th>Durum</th></tr></thead>
-                    <tbody id="payHistBody"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- User Management -->
-        <section class="admin-card">
-            <div class="card-header">
-                <div class="card-title">
-                    <h2>User Management</h2>
-                    <p class="card-sub">Staff accounts, roles and access control.</p>
-                </div>
-                <button class="btn btn-primary" id="openUserModal">+ Add User</button>
-            </div>
-            <div class="table-container">
-                <table id="usersTable">
-                    <thead>
-                        <tr>
-                            <th>Username</th>
-                            <th>Role</th>
-                            <th>Department</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Users will be listed here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Tickets + Maintenance -->
-        <div class="admin-grid">
-            <section class="admin-card">
-                <div class="card-header">
-                    <div class="card-title">
-                        <h2>Support Tickets</h2>
-                        <p class="card-sub">Requests routed to system administrators.</p>
+        <main class="adm-main">
+            <!-- ═══ GENEL BAKIŞ ═══ -->
+            <section class="adm-view active" id="view-overview">
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon i-users">👥</div>
+                        <div class="stat-body">
+                            <span class="stat-label">Ekip Üyeleri</span>
+                            <span class="stat-value" id="statUsers">—</span>
+                        </div>
                     </div>
-                    <button class="btn btn-primary" id="openTicketModal">+ New Ticket</button>
-                </div>
-                <div id="ticketList" class="ticket-list">
-                    <!-- Tickets render here -->
+                    <div class="stat-card">
+                        <div class="stat-icon i-sub">💳</div>
+                        <div class="stat-body">
+                            <span class="stat-label">Abonelik</span>
+                            <span class="sub-status" id="subStatus">—</span>
+                            <span class="sub-expiry" id="subExpiry"></span>
+                            <button id="payBtn" style="margin-top:8px;align-self:flex-start;background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;">Aboneliği Yenile</button>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon i-tickets">🎫</div>
+                        <div class="stat-body">
+                            <span class="stat-label">Açık Talepler</span>
+                            <span class="stat-value" id="statTickets">—</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon i-maint">🛠️</div>
+                        <div class="stat-body">
+                            <span class="stat-label">Bakım</span>
+                            <span class="stat-value" id="statMaintenance">Kapalı</span>
+                        </div>
+                    </div>
                 </div>
             </section>
 
-            <section class="admin-card">
-                <div class="card-header">
-                    <div class="card-title">
-                        <h2>Maintenance Mode</h2>
-                        <p class="card-sub">Temporarily restrict access for everyone but admins.</p>
+            <!-- ═══ FİNANS ═══ -->
+            <section class="adm-view" id="view-finance">
+                <section class="admin-card" id="financeCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Finans</h2>
+                            <p class="card-sub">Gelir, tahsilat, komisyon ve finansal kontroller.</p>
+                        </div>
+                        <div class="fin-range">
+                            <select id="finRange">
+                                <option value="today">Bugün</option>
+                                <option value="week">Son 7 Gün</option>
+                                <option value="month" selected>Bu Ay</option>
+                                <option value="all">Tüm Zamanlar</option>
+                                <option value="custom">Özel Aralık</option>
+                            </select>
+                            <input type="date" id="finFrom" style="display:none">
+                            <input type="date" id="finTo" style="display:none">
+                        </div>
                     </div>
-                    <span id="mtStatus" class="status-pill">Inactive</span>
-                </div>
-                <div class="settings-body">
-                    <label class="switch-row">
-                        <input type="checkbox" id="mtEnabled">
-                        <span>Enable maintenance mode</span>
-                    </label>
-                    <div class="form-group">
-                        <label>Ends at</label>
-                        <input type="datetime-local" id="mtEndsAt">
+
+                    <div class="fin-kpis" id="finKpis"></div>
+
+                    <div class="fin-block">
+                        <h3>Kategori Bazlı Döküm</h3>
+                        <div class="fin-table-wrap">
+                            <table class="fin-table" id="finCatTable">
+                                <thead><tr>
+                                    <th>Kategori</th><th>Adet</th><th>Brüt</th><th>Tahsil</th><th>Bakiye</th><th>Kom. %</th><th>Komisyon</th><th>Net</th>
+                                </tr></thead>
+                                <tbody id="finCatBody"></tbody>
+                                <tfoot id="finCatFoot"></tfoot>
+                            </table>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Message (optional)</label>
-                        <input type="text" id="mtMessage" placeholder="Sistem bakımda, kısa süre içinde döneceğiz...">
+
+                    <div class="fin-cols">
+                        <div class="fin-block">
+                            <h3>Duruma Göre</h3>
+                            <div id="finStatus"></div>
+                        </div>
+                        <div class="fin-block">
+                            <h3>Personele Göre</h3>
+                            <div id="finStaff"></div>
+                        </div>
                     </div>
-                    <button class="btn btn-primary" id="mtSave" style="align-self:flex-start;">Save Settings</button>
-                </div>
+
+                    <div class="fin-block">
+                        <h3>Finansal Kontroller</h3>
+                        <div class="fin-checks" id="finChecks"></div>
+                    </div>
+                </section>
+
+                <section class="admin-card" id="commissionCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Komisyon Ayarları</h2>
+                            <p class="card-sub">Kategori bazlı komisyon oranları (%). Finans hesaplamalarında kullanılır.</p>
+                        </div>
+                        <button class="btn btn-primary" id="commSave">Kaydet</button>
+                    </div>
+                    <div class="comm-grid" id="commGrid"></div>
+                </section>
+
+                <section class="admin-card" id="payHistoryCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Ödeme Geçmişi</h2>
+                            <p class="card-sub">Bu otelin abonelik ödemeleri.</p>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>Tarih</th><th>Paket</th><th>Tutar</th><th>Durum</th></tr></thead>
+                            <tbody id="payHistBody"></tbody>
+                        </table>
+                    </div>
+                </section>
             </section>
-        </div>
+
+            <!-- ═══ KULLANICILAR ═══ -->
+            <section class="adm-view" id="view-users">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Kullanıcı Yönetimi</h2>
+                            <p class="card-sub">Personel hesapları, roller ve erişim kontrolü.</p>
+                        </div>
+                        <button class="btn btn-primary" id="openUserModal">+ Kullanıcı Ekle</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>Kullanıcı Adı</th>
+                                    <th>Rol</th>
+                                    <th>Departman</th>
+                                    <th>İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Users will be listed here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <!-- ═══ DESTEK ═══ -->
+            <section class="adm-view" id="view-tickets">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Destek Talepleri</h2>
+                            <p class="card-sub">Sistem yöneticilerine iletilen talepler.</p>
+                        </div>
+                        <button class="btn btn-primary" id="openTicketModal">+ Yeni Talep</button>
+                    </div>
+                    <div id="ticketList" class="ticket-list">
+                        <!-- Tickets render here -->
+                    </div>
+                </section>
+            </section>
+
+            <!-- ═══ SİSTEM ═══ -->
+            <section class="adm-view" id="view-system">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Bakım Modu</h2>
+                            <p class="card-sub">Yöneticiler dışında herkesin erişimini geçici olarak kısıtlar.</p>
+                        </div>
+                        <span id="mtStatus" class="status-pill">Pasif</span>
+                    </div>
+                    <div class="settings-body">
+                        <label class="switch-row">
+                            <input type="checkbox" id="mtEnabled">
+                            <span>Bakım modunu etkinleştir</span>
+                        </label>
+                        <div class="form-group">
+                            <label>Bitiş zamanı</label>
+                            <input type="datetime-local" id="mtEndsAt">
+                        </div>
+                        <div class="form-group">
+                            <label>Mesaj (opsiyonel)</label>
+                            <input type="text" id="mtMessage" placeholder="Sistem bakımda, kısa süre içinde döneceğiz...">
+                        </div>
+                        <button class="btn btn-primary" id="mtSave" style="align-self:flex-start;">Kaydet</button>
+                    </div>
+                </section>
+
+                <section class="admin-card danger-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Tehlikeli Bölge</h2>
+                            <p class="card-sub">Tüm rezervasyon, misafir, kayıt ve personel verisini kalıcı olarak siler. Silmeden önce otomatik yedek indirilir.</p>
+                        </div>
+                    </div>
+                    <button id="adminEjectBtn" class="btn btn-danger">Sistemi Sıfırla (Yedekle &amp; Sil)</button>
+                </section>
+            </section>
+        </main>
     </div>
 
     <!-- User Management Modal -->
@@ -384,5 +412,27 @@
     <script src="realtime.js"></script>
     <script src="pwa.js"></script>
     <script src="admin.js"></script>
+    <script>
+        // In-panel tab switching (Finans, Kullanıcılar… behave like tabs).
+        (function () {
+            var tabs = document.getElementById('admTabs');
+            if (!tabs) return;
+            function show(view) {
+                document.querySelectorAll('.adm-view').forEach(function (v) {
+                    v.classList.toggle('active', v.id === 'view-' + view);
+                });
+                tabs.querySelectorAll('.adm-tab').forEach(function (b) {
+                    b.classList.toggle('active', b.dataset.view === view);
+                });
+                try { history.replaceState(null, '', '#' + view); } catch (e) {}
+            }
+            tabs.addEventListener('click', function (e) {
+                var b = e.target.closest('.adm-tab');
+                if (b) show(b.dataset.view);
+            });
+            var initial = (location.hash || '').replace('#', '');
+            if (initial && document.getElementById('view-' + initial)) show(initial);
+        })();
+    </script>
 </body>
 </html>
