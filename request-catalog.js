@@ -102,8 +102,13 @@
         // QR hint
         const hint = $('catalogQrHint');
         if (hint) {
-            const origin = location.origin && location.origin.indexOf('http') === 0 ? location.origin : 'https://panel.stayos.org';
-            hint.innerHTML = `<div class="cat-qr">📱 Misafir QR adresi: <code>${esc(origin)}/guest-order?tenant=${esc(TENANT_ID)}&amp;room=ODA_NO</code> — her oda için <code>ODA_NO</code> yerine oda numarasını yazıp QR oluşturun.</div>`;
+            // Resolve guest-order.html relative to wherever the panel is served
+            // (works on Firebase Hosting, github.io subpaths, etc.).
+            let base;
+            try { base = new URL('guest-order.html', location.href).href; }
+            catch (e) { base = 'guest-order.html'; }
+            const url = `${base}?tenant=${encodeURIComponent(TENANT_ID)}&room=ODA_NO`;
+            hint.innerHTML = `<div class="cat-qr">📱 Misafir QR adresi: <code>${esc(url)}</code> — her oda için <code>ODA_NO</code> yerine oda numarasını yazıp QR oluşturun.</div>`;
         }
         // Category datalist for the modal
         const dl = $('catCatOptions');
