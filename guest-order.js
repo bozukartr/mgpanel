@@ -765,6 +765,13 @@
             else toast('Henüz aktif bir talebiniz yok.');
         };
         $('goGateBtn').onclick = doVerify;
+        // Surname auto-uppercases (Turkish-aware: i→İ, ı→I) and accepts letters only.
+        const su = $('goGateSurname');
+        if (su) su.addEventListener('input', () => {
+            const start = su.selectionStart;
+            su.value = su.value.toLocaleUpperCase('tr-TR').replace(/[^A-ZÇĞİÖŞÜ \-']/g, '');
+            try { su.setSelectionRange(start, start); } catch (e) {}
+        });
         ['goGateSurname', 'goGateRoom'].forEach(id => {
             const el = $(id);
             if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doVerify(); });
