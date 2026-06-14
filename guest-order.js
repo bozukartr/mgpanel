@@ -1,18 +1,15 @@
 /* StayOS — Guest Self-Service ordering (guest-order.html)
  *
- * QR-opened, login-free page: browse an admin-managed catalog, build a cart
- * (qty / note / preferred time), place an order and watch it move through
+ * QR-opened, login-free page with a simple big-button UI: pick one of a few
+ * operational categories, tap large item buttons into a cart (qty / note /
+ * preferred time), place the order and watch it move through
  * Bekliyor → Onaylandı → İşlemde → Tamamlandı live.
  *
- * Isolation: the guest signs in with Firebase Anonymous Auth, so every order is
- * bound to their session uid and the rules let them read ONLY their own orders.
- * Tenant + room come from the QR link (?tenant=…&room=…).
+ * Isolation: the guest signs in with Firebase Anonymous Auth; the rules let
+ * them read ONLY their own orders. Tenant + room come from the QR link.
  *
- * Spam guards (keep operations sane):
- *   1) one pending order at a time, 2) item/qty caps, 3) post-submit cooldown.
- *
- * DEMO mode (?demo): runs fully client-side (no Firebase) for previews.
- * NOTE for live mode: enable Anonymous sign-in in the Firebase Console.
+ * Spam guards: 1) one pending order, 2) item/qty caps, 3) post-submit cooldown.
+ * DEMO mode (?demo): runs fully client-side, no Firebase.
  */
 (function () {
     'use strict';
@@ -27,44 +24,39 @@
     const COOLDOWN_KEY = `go_cd_${TENANT}_${ROOM || 'x'}`;
 
     // ── Anti-spam limits ───────────────────────────────────────
-    const MAX_DISTINCT = 20;   // distinct items per order
-    const MAX_QTY = 10;        // quantity per single item
-    const COOLDOWN_MS = 60 * 1000; // wait after placing an order
+    const MAX_DISTINCT = 20, MAX_QTY = 10, COOLDOWN_MS = 60 * 1000;
 
     const DEMO = params.has('demo');
     let demoTimer = null;
 
-    // Built-in catalog for DEMO mode (mirrors a typical hotel menu).
+    // Built-in DEMO catalog — 4 operational categories only.
     const DEMO_CATALOG = [
-        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', reco: true, department: 'Housekeeping', description: 'Odanızın temizlenmesini isteyin' },
-        { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', reco: true, department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', reco: true, department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', reco: true, department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Banyo Malzemeleri', icon: '🧴', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Ekstra Yastık', icon: '🛏️', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Ekstra Battaniye', icon: '🧣', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Terlik', icon: '🥿', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Bornoz', icon: '🥼', eta: '15 dk', department: 'Housekeeping' },
+        { category: 'Konfor', name: 'Askı', icon: '🧥', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Yiyecek & İçecek', name: 'Su', icon: '💧', eta: '15 dk', department: 'Food & Beverage' },
-        { category: 'Yiyecek & İçecek', name: 'Çay / Kahve', icon: '☕', eta: '15-20 dk', price: 60, reco: true, department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Çay / Kahve', icon: '☕', eta: '15-20 dk', price: 60, department: 'Food & Beverage' },
         { category: 'Yiyecek & İçecek', name: 'Meyve Tabağı', icon: '🍎', eta: '20-30 dk', price: 120, department: 'Food & Beverage' },
         { category: 'Yiyecek & İçecek', name: 'Atıştırmalık', icon: '🍫', eta: '20 dk', price: 80, department: 'Food & Beverage' },
-        { category: 'Minibar', name: 'Su Takviyesi', icon: '💧', eta: '20 dk', price: 40, department: 'Food & Beverage' },
-        { category: 'Minibar', name: 'Meşrubat', icon: '🥤', eta: '20 dk', price: 70, department: 'Food & Beverage' },
-        { category: 'Minibar', name: 'Atıştırmalık Paketi', icon: '🍿', eta: '20 dk', price: 90, department: 'Food & Beverage' },
-        { category: 'Teknik', name: 'Klima Sorunu', icon: '❄️', eta: '30 dk', reco: true, department: 'Engineering' },
+        { category: 'Yiyecek & İçecek', name: 'Meşrubat', icon: '🥤', eta: '20 dk', price: 70, department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Buz', icon: '🧊', eta: '15 dk', department: 'Food & Beverage' },
+        { category: 'Teknik', name: 'Klima Sorunu', icon: '❄️', eta: '30 dk', department: 'Engineering' },
         { category: 'Teknik', name: 'TV Sorunu', icon: '📺', eta: '30 dk', department: 'Engineering' },
         { category: 'Teknik', name: 'Sıcak Su Yok', icon: '🚿', eta: '30 dk', department: 'Engineering' },
         { category: 'Teknik', name: 'Wi-Fi Sorunu', icon: '📶', eta: '20 dk', department: 'Engineering' },
-        { category: 'Teknik', name: 'Ampul Değişimi', icon: '💡', eta: '20 dk', department: 'Engineering' },
-        { category: 'Diğer', name: 'Geç Çıkış Talebi', icon: '🕐', department: 'Front Desk' },
-        { category: 'Diğer', name: 'Uyandırma Servisi', icon: '⏰', department: 'Front Desk' },
-        { category: 'Diğer', name: 'Taksi Çağır', icon: '🚕', eta: '15 dk', department: 'Front Desk' },
-        { category: 'Diğer', name: 'Doktor Çağır', icon: '🩺', department: 'Front Desk' }
+        { category: 'Teknik', name: 'Ampul Değişimi', icon: '💡', eta: '20 dk', department: 'Engineering' }
     ].map((d, i) => Object.assign({ id: 'demo-' + i, active: true, sortOrder: (i + 1) * 10 }, d));
 
-    // Guest-page settings the admin controls (collection `guestConfig/{tenant}`).
-    const DEFAULT_CONFIG = { hotelName: '', showRecommended: true, showPrices: false, currency: '₺' };
-    const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showRecommended: true, showPrices: true, currency: '₺' };
+    // Admin-controlled guest-page settings (collection `guestConfig/{tenant}`).
+    const DEFAULT_CONFIG = { hotelName: '', showPrices: false, currency: '₺' };
+    const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺' };
     let config = Object.assign({}, DEFAULT_CONFIG);
 
     // ── Status metadata ────────────────────────────────────────
@@ -78,14 +70,8 @@
     const FLOW = ['pending', 'confirmed', 'in_progress', 'completed'];
 
     // ── State ──────────────────────────────────────────────────
-    let catalog = [];
-    let cart = [];
-    let activeCat = null;
-    let sessionUid = null;
-    let orderUnsub = null;
-    let currentOrderId = null;
-    let activeOrderStatus = null;   // status of the order currently tracked (spam guard)
-    let searchTerm = '';
+    let catalog = [], cart = [], activeCat = null, sessionUid = null;
+    let orderUnsub = null, currentOrderId = null, activeOrderStatus = null;
 
     // ── Helpers ────────────────────────────────────────────────
     function esc(s) {
@@ -108,14 +94,13 @@
     }
     function cssId(s) { return String(s).replace(/[^a-z0-9]/gi, '_'); }
 
-    // Category → line icon + gradient (keyword based, works for any label).
+    // Category → line icon + gradient (keyword based).
     function catKind(cat) {
         const c = String(cat || '').toLowerCase();
         if (/temiz|housekeep|clean/.test(c)) return 'temiz';
         if (/konfor|comfort|amenit/.test(c)) return 'konfor';
-        if (/yiyecek|içecek|icecek|food|beverage|restoran/.test(c)) return 'food';
-        if (/minibar|içki|bar/.test(c)) return 'minibar';
-        if (/teknik|tech|engineer|ariza|arıza/.test(c)) return 'teknik';
+        if (/yiyecek|içecek|icecek|food|beverage|restoran|minibar/.test(c)) return 'food';
+        if (/teknik|tech|engineer|ariza|arıza|maintenance/.test(c)) return 'teknik';
         if (/resepsiyon|front|concierge/.test(c)) return 'bell';
         return 'other';
     }
@@ -123,7 +108,6 @@
         temiz: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/>',
         konfor: '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>',
         food: '<path d="M3 2v7c0 1.1.9 2 2 2a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
-        minibar: '<path d="M8 22h8"/><path d="M12 11v11"/><path d="m19 3-7 8-7-8Z"/>',
         teknik: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
         bell: '<path d="M3 20h18"/><path d="M6 20a6 6 0 0 1 12 0"/><path d="M12 4v3"/><path d="M10 4h4"/>',
         other: '<rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/>'
@@ -132,7 +116,6 @@
         temiz: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
         konfor: 'linear-gradient(135deg,#0ea5e9,#22d3ee)',
         food: 'linear-gradient(135deg,#f59e0b,#f97316)',
-        minibar: 'linear-gradient(135deg,#ec4899,#f43f5e)',
         teknik: 'linear-gradient(135deg,#10b981,#14b8a6)',
         bell: 'linear-gradient(135deg,#8b5cf6,#6366f1)',
         other: 'linear-gradient(135deg,#64748b,#475569)'
@@ -189,7 +172,7 @@
     function fetchConfig() {
         return db.collection('guestConfig').doc(TENANT).get()
             .then(doc => { if (doc.exists) config = Object.assign({}, DEFAULT_CONFIG, doc.data()); })
-            .catch(() => { /* keep defaults */ });
+            .catch(() => {});
     }
     function fetchCatalog() {
         return db.collection('requestCatalog').where('tenantId', '==', TENANT).get()
@@ -209,11 +192,7 @@
     function priceOf(item) { const p = Number(item && item.price) || 0; return p > 0 ? p : 0; }
     function pricesOn() { return !!config.showPrices; }
     function fmtPrice(n) { return config.currency + Number(n || 0).toLocaleString('tr-TR'); }
-    function priceTag(item, cls) {
-        const p = priceOf(item);
-        if (!pricesOn() || !p) return '';
-        return `<span class="go-price ${cls || ''}">${esc(fmtPrice(p))}</span>`;
-    }
+    function priceTag(item) { const p = priceOf(item); return (pricesOn() && p) ? `<span class="go-price">${esc(fmtPrice(p))}</span>` : ''; }
     function cartTotal() { return cart.reduce((s, l) => s + priceOf(l) * (l.qty || 0), 0); }
 
     function categories() {
@@ -222,147 +201,46 @@
         return seen;
     }
 
-    // ── Render orchestration ───────────────────────────────────
+    // ── Render ─────────────────────────────────────────────────
     function renderAll() {
         if (!catalog.length) {
-            $('goCats').innerHTML = '';
-            $('goHome').classList.add('go-hidden');
-            $('goBody').innerHTML = stateHtml('🛎️', 'Henüz talep tanımlanmamış',
-                'Bu otel için hizmet talepleri henüz hazır değil. Lütfen resepsiyon ile iletişime geçin.');
+            $('goTiles').innerHTML = '';
+            $('goBody').innerHTML = stateHtml('🛎️', 'Henüz hizmet tanımlanmamış',
+                'Bu otel için talepler henüz hazır değil. Lütfen resepsiyon ile iletişime geçin.');
             return;
         }
-        renderCats();
-        const q = searchTerm.trim().toLowerCase();
-        if (q) {
-            $('goHome').classList.add('go-hidden');
-            renderSearch(q);
-        } else {
-            $('goHome').classList.remove('go-hidden');
-            renderHome();
-            renderSections(catalog);
-        }
+        renderTiles();
+        renderItems();
         refreshStepControls();
         renderCartBar();
     }
 
-    function renderCats() {
+    function renderTiles() {
         const cats = categories();
         if (!activeCat || !cats.includes(activeCat)) activeCat = cats[0];
-        $('goCats').innerHTML = cats.map(c =>
-            `<button class="go-cat ${c === activeCat ? 'active' : ''}" data-cat="${esc(c)}">
-                ${catIcon(c)}<span>${esc(c)}</span>
-            </button>`).join('');
-        $('goCats').onclick = (e) => {
-            const pill = e.target.closest('.go-cat');
-            if (!pill) return;
-            setActiveCat(pill.dataset.cat, true);
+        $('goTiles').innerHTML = cats.map(c => {
+            const count = catalog.filter(i => (i.category || 'Diğer') === c).length;
+            return `<button class="go-tile ${c === activeCat ? 'active' : ''}" data-cat="${esc(c)}" style="background:${catGrad(c)}">
+                <span class="go-tile-check">✓</span>
+                <span class="go-tile-ico">${catIcon(c, 32)}</span>
+                <div><div class="go-tile-name">${esc(c)}</div><div class="go-tile-count">${count} hizmet</div></div>
+            </button>`;
+        }).join('');
+        $('goTiles').onclick = (e) => {
+            const t = e.target.closest('.go-tile');
+            if (!t || t.dataset.cat === activeCat) return;
+            activeCat = t.dataset.cat;
+            renderTiles();
+            renderItems();
+            refreshStepControls();
         };
     }
-    function setActiveCat(cat, scroll) {
-        activeCat = cat;
-        document.querySelectorAll('.go-cat').forEach(p => {
-            const on = p.dataset.cat === cat;
-            p.classList.toggle('active', on);
-            if (on) p.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        });
-        if (scroll) {
-            const block = $('cat-' + cssId(cat));
-            if (block) {
-                const y = block.getBoundingClientRect().top + window.scrollY - 64;
-                window.scrollTo({ top: y, behavior: 'smooth' });
-            }
-        }
-    }
 
-    // Home extras: promo banner + (optional) "recommended" row.
-    // Category navigation lives in the sticky strip above, so there is no
-    // duplicate "popular categories" section.
-    function renderHome() {
-        const recoList = catalog.filter(i => i.reco).slice(0, 10);
-        const showReco = config.showRecommended !== false && recoList.length > 0;
-        const cats = categories();
-        $('goHome').innerHTML = `
-            <div class="go-banner-wrap">
-                <div class="go-banner">
-                    <div class="go-banner-txt">
-                        <b id="goBannerB">Hızlı, kolay ve güvenilir hizmet</b>
-                        <p id="goBannerP">Talepleriniz en kısa sürede ekibimize iletilir.</p>
-                        <button class="go-banner-btn" id="goHow">
-                            ${svg('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>', 15)} Nasıl çalışır?
-                        </button>
-                    </div>
-                    <div class="go-banner-bell">🛎️</div>
-                </div>
-                <div class="go-dots" id="goDots">
-                    <span class="go-dot active"></span><span class="go-dot"></span><span class="go-dot"></span>
-                </div>
-            </div>
-            ${showReco ? `<section class="go-sec">
-                <div class="go-sec-head"><h2><span class="go-sec-emoji">✨</span>Sizin için önerilenler</h2><a data-goto="${esc(cats[0] || '')}">Tümünü gör</a></div>
-                <div class="go-hscroll">${recoList.map(recoCard).join('')}</div>
-            </section>` : ''}`;
-
-        startBanner();
-        $('goHow').onclick = () => toast('Talep seç → Sepete ekle → Sipariş ver → Canlı takip et 🎉');
-        $('goHome').querySelectorAll('[data-goto]').forEach(a => a.onclick = () => setActiveCat(a.dataset.goto, true));
-        $('goHome').querySelectorAll('[data-reco-add]').forEach(b => b.onclick = (e) => {
-            e.stopPropagation(); changeQty(b.dataset.recoAdd, +1);
-        });
-    }
-
-    function recoCard(item) {
-        const inCart = cart.find(l => l.catalogId === item.id);
-        const price = priceTag(item);
-        return `<div class="go-reco-card">
-            <div class="go-reco-emoji">${esc(item.icon || '🛎️')}</div>
-            <button class="go-reco-add ${inCart ? 'added' : ''}" data-reco-add="${esc(item.id)}" aria-label="Ekle">${inCart ? '✓' : '+'}</button>
-            <div class="go-reco-name">${esc(item.name)}</div>
-            ${price ? `<div class="go-reco-meta">${price}</div>` : (item.eta ? `<div class="go-reco-meta">${clockSvg}${esc(item.eta)}</div>` : '')}
-        </div>`;
-    }
-
-    let bannerTimer = null, bannerIdx = 0;
-    const BANNER_SLIDES = [
-        { b: 'Hızlı, kolay ve güvenilir hizmet', p: 'Talepleriniz en kısa sürede ekibimize iletilir.' },
-        { b: '7/24 yanınızdayız', p: 'Gece gündüz tek dokunuşla talep oluşturun.' },
-        { b: 'Odanızdan ayrılmadan', p: 'İhtiyacınız olan her şey birkaç saniyede.' }
-    ];
-    function startBanner() {
-        if (bannerTimer) clearInterval(bannerTimer);
-        bannerIdx = 0;
-        bannerTimer = setInterval(() => {
-            bannerIdx = (bannerIdx + 1) % BANNER_SLIDES.length;
-            const s = BANNER_SLIDES[bannerIdx];
-            const b = $('goBannerB'), p = $('goBannerP'), dots = $('goDots');
-            if (!b || !p) { clearInterval(bannerTimer); return; }
-            b.textContent = s.b; p.textContent = s.p;
-            if (dots) dots.querySelectorAll('.go-dot').forEach((d, i) => d.classList.toggle('active', i === bannerIdx));
-        }, 4500);
-    }
-
-    // Full category sections.
-    function renderSections(list) {
-        const cats = [];
-        list.forEach(i => { const c = (i.category || 'Diğer'); if (!cats.includes(c)) cats.push(c); });
-        $('goBody').innerHTML = cats.map(c => {
-            const items = list.filter(i => (i.category || 'Diğer') === c);
-            return `<div class="go-cat-block" id="cat-${cssId(c)}">
-                <h2>${catIcon(c, 19)} ${esc(c)}</h2>
-                <div class="go-grid">${items.map(cardHtml).join('')}</div>
-            </div>`;
-        }).join('');
-        bindBodyEvents();
-    }
-    function renderSearch(q) {
-        const hits = catalog.filter(i =>
-            (i.name || '').toLowerCase().includes(q) ||
-            (i.category || '').toLowerCase().includes(q) ||
-            (i.description || '').toLowerCase().includes(q));
-        if (!hits.length) {
-            $('goBody').innerHTML = stateHtml('🔍', 'Sonuç bulunamadı', `“${q}” için talep bulunamadı.`);
-            return;
-        }
-        $('goBody').innerHTML = `<div class="go-cat-block"><h2>🔍 “${esc(q)}” sonuçları</h2><div class="go-grid">${hits.map(cardHtml).join('')}</div></div>`;
+    function renderItems() {
+        const items = catalog.filter(i => (i.category || 'Diğer') === activeCat);
+        $('goBody').innerHTML = `
+            <div class="go-items-head"><span class="ih-ico" style="background:${catGrad(activeCat)}">${catIcon(activeCat, 20)}</span><h2>${esc(activeCat)}</h2></div>
+            <div class="go-grid">${items.map(cardHtml).join('')}</div>`;
         bindBodyEvents();
     }
 
@@ -387,18 +265,10 @@
             const id = slot.dataset.actionFor;
             const line = cart.find(l => l.catalogId === id);
             if (line && line.qty > 0) {
-                slot.innerHTML = `<div class="go-stepper">
-                    <button data-dec="${esc(id)}">−</button><span class="go-qty">${line.qty}</span><button data-inc="${esc(id)}">+</button>
-                </div>`;
+                slot.innerHTML = `<div class="go-stepper"><button data-dec="${esc(id)}">−</button><span class="go-qty">${line.qty}</span><button data-inc="${esc(id)}">+</button></div>`;
             } else {
                 slot.innerHTML = `<button class="go-add" data-add="${esc(id)}" aria-label="Ekle">+</button>`;
             }
-        });
-        // keep reco "+" badges in sync
-        document.querySelectorAll('[data-reco-add]').forEach(b => {
-            const inCart = cart.find(l => l.catalogId === b.dataset.recoAdd);
-            b.classList.toggle('added', !!inCart);
-            b.textContent = inCart ? '✓' : '+';
         });
     }
 
@@ -482,7 +352,7 @@
                 </div>
                 <div class="go-line-fields">
                     <div class="go-row2">
-                        <div class="go-field"><label>Tercih edilen saat</label><input type="time" data-time="${i}" value="${esc(l.preferredTime || '')}"></div>
+                        <div class="go-field"><label>Tercih edilen saat (opsiyonel)</label><input type="time" data-time="${i}" value="${esc(l.preferredTime || '')}"></div>
                     </div>
                     <div class="go-field"><label>Not (opsiyonel)</label><input type="text" data-note="${i}" maxlength="160" placeholder="Örn. 2 büyük havlu" value="${esc(l.note || '')}"></div>
                 </div>
@@ -714,29 +584,6 @@
             if (currentOrderId) subscribeOrder(currentOrderId);
             else toast('Henüz aktif bir talebiniz yok.');
         };
-        let st;
-        $('goSearch').oninput = (e) => { clearTimeout(st); const v = e.target.value; st = setTimeout(() => { searchTerm = v; renderAll(); }, 180); };
-        // scrollspy: highlight the category currently in view
-        let raf = null;
-        window.addEventListener('scroll', () => {
-            if (raf) return;
-            raf = requestAnimationFrame(() => {
-                raf = null;
-                if (searchTerm || $('goTrackView') && !$('goTrackView').classList.contains('go-hidden')) return;
-                const blocks = document.querySelectorAll('.go-cat-block');
-                let cur = null;
-                blocks.forEach(b => { if (b.getBoundingClientRect().top - 80 <= 0) cur = b; });
-                if (cur) {
-                    const cat = cur.id.replace('cat-', '');
-                    const chip = [...document.querySelectorAll('.go-cat')].find(p => cssId(p.dataset.cat) === cat);
-                    if (chip && !chip.classList.contains('active')) {
-                        document.querySelectorAll('.go-cat').forEach(p => p.classList.toggle('active', p === chip));
-                        activeCat = chip.dataset.cat;
-                        chip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                    }
-                }
-            });
-        }, { passive: true });
     }
 
     // ── Go ─────────────────────────────────────────────────────
