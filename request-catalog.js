@@ -264,6 +264,15 @@
 
     // ── Boot ───────────────────────────────────────────────────
     function boot() {
+        // Feature-gated module: if the hotel's plan doesn't include "Misafir
+        // Talepleri" (superadmin toggle), drop the admin tab entirely.
+        if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) {
+            const tab = document.querySelector('.adm-tab[data-view="catalog"]');
+            if (tab) tab.remove();
+            const view = $('view-catalog');
+            if (view) view.remove();
+            return;
+        }
         injectStyles();
         $('catAddBtn') && ($('catAddBtn').onclick = () => openModal(null));
         $('catSeedBtn') && ($('catSeedBtn').onclick = seedDefaults);
