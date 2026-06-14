@@ -251,6 +251,10 @@
                             <input type="checkbox" id="cfgShowPrices">
                             <span>Fiyatları göster (fiyatı girilen ürünlerde)</span>
                         </label>
+                        <label class="switch-row" style="display:flex; align-items:center; gap:10px;">
+                            <input type="checkbox" id="cfgRequireVerify">
+                            <span>Misafir doğrulaması iste (soyadı + oda) — çıkış yapan oda talep oluşturamaz</span>
+                        </label>
                     </div>
                 </section>
 
@@ -522,6 +526,7 @@
     <script src="pwa.js"></script>
     <script src="admin.js"></script>
     <script src="request-catalog.js"></script>
+    <script src="room-access.js"></script>
     <script>
         // In-panel tab switching (Finans, Kullanıcılar… behave like tabs).
         (function () {

@@ -19,9 +19,17 @@
     const params = new URLSearchParams(window.location.search);
     let ROOM = (params.get('room') || params.get('oda') || '').trim().slice(0, 40);
 
-    const CART_KEY = `go_cart_${TENANT}_${ROOM || 'x'}`;
-    const ORDER_KEY = `go_order_${TENANT}_${ROOM || 'x'}`;
-    const COOLDOWN_KEY = `go_cd_${TENANT}_${ROOM || 'x'}`;
+    // Storage keys depend on the room, which may only be known after the
+    // verification gate — so they're recomputed once the room is set.
+    let CART_KEY, ORDER_KEY, COOLDOWN_KEY, VERIFY_KEY;
+    function recomputeKeys() {
+        const r = ROOM || 'x';
+        CART_KEY = `go_cart_${TENANT}_${r}`;
+        ORDER_KEY = `go_order_${TENANT}_${r}`;
+        COOLDOWN_KEY = `go_cd_${TENANT}_${r}`;
+        VERIFY_KEY = `go_verify_${TENANT}_${r}`;
+    }
+    recomputeKeys();
 
     // ── Anti-spam limits ───────────────────────────────────────
     const MAX_DISTINCT = 20, MAX_QTY = 10, COOLDOWN_MS = 60 * 1000;
@@ -55,8 +63,8 @@
     ].map((d, i) => Object.assign({ id: 'demo-' + i, active: true, sortOrder: (i + 1) * 10 }, d));
 
     // Admin-controlled guest-page settings (collection `guestConfig/{tenant}`).
-    const DEFAULT_CONFIG = { hotelName: '', showPrices: false, currency: '₺' };
-    const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺' };
+    const DEFAULT_CONFIG = { hotelName: '', showPrices: false, currency: '₺', requireVerification: false };
+    const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺', requireVerification: true };
     let config = Object.assign({}, DEFAULT_CONFIG);
 
     // ── Status metadata ────────────────────────────────────────
@@ -94,6 +102,26 @@
         if (isError) { try { navigator.vibrate && navigator.vibrate(80); } catch (e) {} }
     }
     function cssId(s) { return String(s).replace(/[^a-z0-9]/gi, '_'); }
+
+    // Name normalisation + salted hash — MUST stay identical to room-access.js.
+    function norm(s) {
+        return String(s == null ? '' : s).trim().toLocaleLowerCase('tr-TR')
+            .replace(/ı/g, 'i').replace(/ç/g, 'c').replace(/ş/g, 's')
+            .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o')
+            .normalize('NFD').replace(/[̀-ͯ]/g, '');
+    }
+    function nameTokens(name) { return norm(name).split(/\s+/).filter(t => t.length >= 2); }
+    async function sha16(str) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+    }
+    function isVerified() {
+        if (!ROOM) return false;
+        try { return (parseInt(localStorage.getItem(VERIFY_KEY) || '0', 10)) > Date.now(); } catch (e) { return false; }
+    }
+    function setVerified() {
+        try { localStorage.setItem(VERIFY_KEY, String(Date.now() + 12 * 3600 * 1000)); } catch (e) {}
+    }
 
     // Category → line icon + gradient (keyword based).
     function catKind(cat) {
@@ -143,22 +171,34 @@
             sessionUid = 'demo';
             config = Object.assign({}, DEFAULT_CONFIG, DEMO_CONFIG);
             catalog = DEMO_CATALOG.slice();
-            applyHotelName();
-            renderAll();
-            resumeOrder();
+            present();
             return;
         }
 
         applyHotelName();
         let started = false;
         auth.onAuthStateChanged(u => {
-            if (u && !started) { started = true; sessionUid = u.uid; loadData(); resumeOrder(); }
+            if (u && !started) { started = true; sessionUid = u.uid; loadData(); }
         });
         auth.signInAnonymously().catch(err => {
             console.error('Anon sign-in failed', err);
             $('goBody').innerHTML = stateHtml('⚠️', 'Bağlantı kurulamadı',
                 'Anonim giriş kapalı olabilir. Test için bağlantıya ?demo=1 ekleyin.');
         });
+    }
+
+    // Decide what to show once config + catalog are ready: the verification gate
+    // (surname + room) when the hotel requires it, otherwise the catalog.
+    function present() {
+        applyHotelName();
+        let saved = null;
+        try { saved = localStorage.getItem(ORDER_KEY); } catch (e) {}
+        if (config.requireVerification && !isVerified() && !saved && (crypto && crypto.subtle)) {
+            showGateView();
+            return;
+        }
+        renderAll();
+        resumeOrder();
     }
     function prettyTenant(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'StayOS'; }
     function applyHotelName() {
@@ -168,7 +208,7 @@
 
     // ── Data (config + catalog) ────────────────────────────────
     function loadData() {
-        Promise.all([fetchConfig(), fetchCatalog()]).then(() => { applyHotelName(); renderAll(); });
+        Promise.all([fetchConfig(), fetchCatalog()]).then(() => present());
     }
     function fetchConfig() {
         return db.collection('guestConfig').doc(TENANT).get()
@@ -504,6 +544,7 @@
     function trackVisible() { return !$('goTrackView').classList.contains('go-hidden'); }
     function showTrackingView() {
         if (currentOrder) renderTracking(currentOrder);
+        $('goGateView').classList.add('go-hidden');
         $('goCatalogView').classList.add('go-hidden');
         $('goTrackView').classList.remove('go-hidden');
         $('goCartBar').classList.remove('show');
@@ -511,11 +552,61 @@
         window.scrollTo(0, 0);
     }
     function showCatalogView() {
+        $('goGateView').classList.add('go-hidden');
         $('goTrackView').classList.add('go-hidden');
         $('goCatalogView').classList.remove('go-hidden');
         renderCartBar();
         renderMini(currentOrder);
         window.scrollTo(0, 0);
+    }
+
+    // ── Verification gate (surname + room) ─────────────────────
+    function showGateView() {
+        $('goCatalogView').classList.add('go-hidden');
+        $('goTrackView').classList.add('go-hidden');
+        $('goGateView').classList.remove('go-hidden');
+        $('goCartBar').classList.remove('show');
+        $('goMini').classList.remove('show');
+        const roomInput = $('goGateRoom');
+        if (roomInput && ROOM) roomInput.value = ROOM;
+        setTimeout(() => { const s = $('goGateSurname'); if (s) s.focus(); }, 120);
+    }
+    async function doVerify() {
+        const surname = ($('goGateSurname').value || '').trim();
+        const room = ($('goGateRoom').value || '').trim().slice(0, 40);
+        const errEl = $('goGateErr');
+        const setErr = (m) => { errEl.textContent = m || ''; };
+        if (surname.length < 2) { setErr('Lütfen soyadınızı girin.'); return; }
+        if (!room) { setErr('Lütfen oda numaranızı girin.'); return; }
+        setErr('');
+        const btn = $('goGateBtn'), lbl = $('goGateBtnLabel');
+        btn.disabled = true; lbl.textContent = 'Kontrol ediliyor...';
+        const fail = (m) => { btn.disabled = false; lbl.textContent = 'Doğrula & Devam Et'; setErr(m); try { navigator.vibrate && navigator.vibrate(80); } catch (e) {} };
+        const ok = () => {
+            ROOM = room; recomputeKeys(); loadCart(); setVerified();
+            $('goRoomChip').style.display = 'inline-flex'; $('goRoomLabel').textContent = 'Oda ' + ROOM;
+            btn.disabled = false; lbl.textContent = 'Doğrula & Devam Et';
+            renderAll(); showCatalogView(); resumeOrder();
+        };
+        try {
+            if (DEMO) { await new Promise(r => setTimeout(r, 450)); ok(); return; }
+            const doc = await db.collection('roomAccess').doc(TENANT + '__' + room).get();
+            if (!doc.exists || doc.data().open !== true) {
+                fail('Bu oda şu anda talebe kapalı görünüyor. Aktif konaklamanız yoksa lütfen resepsiyona başvurun.');
+                return;
+            }
+            const keys = doc.data().nameKeys || [];
+            let matched = false;
+            for (const t of nameTokens(surname)) {
+                const h = await sha16(TENANT + '|' + room + '|' + t);
+                if (keys.indexOf(h) !== -1) { matched = true; break; }
+            }
+            if (!matched) { fail('Soyadı bu oda ile eşleşmedi. Lütfen rezervasyondaki soyadınızı girin.'); return; }
+            ok();
+        } catch (e) {
+            console.error('verify failed', e);
+            fail('Doğrulama yapılamadı. Lütfen tekrar deneyin.');
+        }
     }
 
     // Toast + haptic feedback when the status advances (so the guest notices
@@ -673,6 +764,11 @@
             if (currentOrder) showTrackingView();
             else toast('Henüz aktif bir talebiniz yok.');
         };
+        $('goGateBtn').onclick = doVerify;
+        ['goGateSurname', 'goGateRoom'].forEach(id => {
+            const el = $(id);
+            if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doVerify(); });
+        });
     }
 
     // ── Go ─────────────────────────────────────────────────────

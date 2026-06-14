@@ -87,6 +87,30 @@
         </div>
     </section>
 
+    <!-- ── Verification gate (surname + room) ── -->
+    <main id="goGateView" class="go-hidden">
+        <div class="go-gate">
+            <div class="go-gate-ico">🔑</div>
+            <h1 class="go-gate-title">Hoş geldiniz</h1>
+            <p class="go-gate-sub">Talep oluşturabilmek için lütfen rezervasyondaki <b>soyadınızı</b> ve <b>oda numaranızı</b> doğrulayın.</p>
+            <div class="go-gate-form">
+                <div class="go-field">
+                    <label for="goGateSurname">Soyadı</label>
+                    <input type="text" id="goGateSurname" maxlength="60" placeholder="Örn. Yılmaz" autocomplete="family-name">
+                </div>
+                <div class="go-field">
+                    <label for="goGateRoom">Oda numarası</label>
+                    <input type="text" id="goGateRoom" maxlength="40" inputmode="numeric" placeholder="Örn. 101">
+                </div>
+                <div class="go-gate-err" id="goGateErr"></div>
+                <button class="go-submit" id="goGateBtn">
+                    <span id="goGateBtnLabel">Doğrula & Devam Et</span>
+                </button>
+                <p class="go-gate-help">Sorun mu yaşıyorsunuz? Lütfen resepsiyon ile iletişime geçin.</p>
+            </div>
+        </div>
+    </main>
+
     <!-- ── Tracking view ── -->
     <main id="goTrackView" class="go-hidden">
         <div class="go-track" id="goTrackBody"></div>
