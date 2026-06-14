@@ -434,6 +434,54 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── EVENT LISTENERS ────────────────────────────────────────
     document.getElementById('mergeSearch')?.addEventListener('input', (e) => populateMergeOptions(e.target.value));
     document.getElementById('guestSearch')?.addEventListener('input', renderGuestList);
+
+    // ── Manual guest add (works without a PMS) ─────────────────
+    const addGuestModal = document.getElementById('addGuestModal');
+    const openAddGuest = () => {
+        ['agName', 'agRoom', 'agCheckIn', 'agCheckOut'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        document.getElementById('agStatus').value = 'in_house';
+        addGuestModal.style.display = 'block';
+        setTimeout(() => document.getElementById('agName')?.focus(), 80);
+    };
+    const closeAddGuest = () => { addGuestModal.style.display = 'none'; };
+    document.getElementById('addGuestBtn')?.addEventListener('click', openAddGuest);
+    document.getElementById('agCancel')?.addEventListener('click', closeAddGuest);
+    addGuestModal?.addEventListener('click', (e) => { if (e.target === addGuestModal) closeAddGuest(); });
+    ['agCheckIn', 'agCheckOut'].forEach(id => {
+        document.getElementById(id)?.addEventListener('blur', (e) => { e.target.value = smartExpandDate(e.target.value.trim()); });
+    });
+    document.getElementById('agSave')?.addEventListener('click', async () => {
+        const name = document.getElementById('agName').value.trim();
+        const status = document.getElementById('agStatus').value;
+        const room = document.getElementById('agRoom').value.trim();
+        const checkIn = toIsoDate(smartExpandDate(document.getElementById('agCheckIn').value.trim()));
+        const checkOut = toIsoDate(smartExpandDate(document.getElementById('agCheckOut').value.trim()));
+        if (!name) return showToast('Lütfen misafir adını girin.', true);
+        if (status === 'in_house' && !room) return showToast('In House için oda numarası gerekli.', true);
+        const dup = guestDirectory.find(g => (g.name || '').toLowerCase() === name.toLowerCase() && g.status !== 'checked_out');
+        if (dup && !confirm(`"${name}" zaten kayıtlı görünüyor. Yine de yeni kayıt eklensin mi?`)) return;
+        const btn = document.getElementById('agSave');
+        btn.textContent = 'Kaydediliyor...'; btn.disabled = true;
+        try {
+            await db.collection('guestDirectory').add({
+                name: name,
+                room: status === 'pre_arrival' ? (room || '') : room,
+                status: status,
+                checkIn: checkIn || '',
+                checkOut: checkOut || '',
+                tenantId: TENANT_ID,
+                lastUpdated: new Date().toISOString()
+            });
+            closeAddGuest();
+            showToast('Misafir eklendi.');
+            await loadAllData();
+        } catch (e) {
+            console.error('add guest failed', e);
+            showToast('Misafir eklenemedi.', true);
+        } finally {
+            btn.textContent = 'Kaydet'; btn.disabled = false;
+        }
+    });
     
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {

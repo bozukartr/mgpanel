@@ -37,6 +37,7 @@
                     <div class="search-wrap">
                         <input type="text" id="guestSearch" placeholder="Search guests, rooms...">
                     </div>
+                    <button id="addGuestBtn" type="button" style="width:100%; margin:8px 0 2px; padding:11px; background:#2563eb; color:#fff; border:none; border-radius:9px; font-family:inherit; font-weight:600; font-size:13.5px; cursor:pointer;">+ Misafir Ekle</button>
                     <div class="filter-group">
                         <button class="filter-btn active" data-filter="arrival">Arrival</button>
                         <button class="filter-btn" data-filter="in_house">In House</button>
@@ -93,6 +94,43 @@
             <div style="display: flex; gap: 10px; justify-content: flex-end;">
                 <button onclick="closeRoomChangeModal()" style="padding: 10px 16px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Cancel</button>
                 <button onclick="submitRoomChange()" style="padding: 10px 16px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Save Details</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Guest Modal (manual entry into the directory) -->
+    <div id="addGuestModal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+        <div class="modal-content" style="background: white; border-radius: 12px; max-width: 420px; width: 90%; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); margin: 10vh auto 0;">
+            <h3 style="margin-top: 0; color: #1e293b;">Misafir Ekle</h3>
+            <p style="font-size: 13px; color: #64748b; margin-top: -6px;">Rezervasyon sistemi (PMS) kullanmıyorsanız misafiri buradan elle ekleyin.</p>
+            <div style="margin-bottom: 12px;">
+                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Ad Soyad</label>
+                <input type="text" id="agName" placeholder="Örn. Ahmet Yılmaz" style="width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:14px; box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Oda No</label>
+                <input type="text" id="agRoom" placeholder="Örn. 101" style="width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:14px; box-sizing:border-box;">
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom: 14px;">
+                <div style="flex:1;">
+                    <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Giriş</label>
+                    <input type="tel" id="agCheckIn" placeholder="GG/AA/YYYY" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:13px; box-sizing:border-box;">
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Çıkış</label>
+                    <input type="tel" id="agCheckOut" placeholder="GG/AA/YYYY" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:13px; box-sizing:border-box;">
+                </div>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Durum</label>
+                <select id="agStatus" style="width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:14px; box-sizing:border-box;">
+                    <option value="in_house">In House (konaklıyor)</option>
+                    <option value="pre_arrival">Arrival (gelecek)</option>
+                </select>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button id="agCancel" type="button" style="padding:10px 16px; background:#e2e8f0; color:#475569; border:none; border-radius:8px; cursor:pointer; font-weight:500;">Vazgeç</button>
+                <button id="agSave" type="button" style="padding:10px 16px; background:#2563eb; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:500;">Kaydet</button>
             </div>
         </div>
     </div>
