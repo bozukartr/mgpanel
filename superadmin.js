@@ -50,17 +50,17 @@
 
     // ---------- plans / modules ----------
     const PLANS = {
-        starter:    { name: 'Başlangıç',   maxUsers: 5,  modules: { concierge: true, crm: false, guestIssues: true } },
-        pro:        { name: 'Profesyonel', maxUsers: 25, modules: { concierge: true, crm: true,  guestIssues: true } },
-        enterprise: { name: 'Kurumsal',    maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true } },
-        custom:     { name: 'Özel',        maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true } }
+        starter:    { name: 'Başlangıç',   maxUsers: 5,  modules: { concierge: true, crm: false, guestIssues: true, guestOrders: true } },
+        pro:        { name: 'Profesyonel', maxUsers: 25, modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } },
+        enterprise: { name: 'Kurumsal',    maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } },
+        custom:     { name: 'Özel',        maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } }
     };
-    const MODULE_KEYS = ['concierge', 'crm', 'guestIssues'];
-    const MODULE_LABELS = { concierge: 'Concierge', crm: 'CRM', guestIssues: 'Kayıtlar' };
+    const MODULE_KEYS = ['concierge', 'crm', 'guestIssues', 'guestOrders'];
+    const MODULE_LABELS = { concierge: 'Concierge', crm: 'CRM', guestIssues: 'Kayıtlar', guestOrders: 'Misafir Talepleri' };
 
     function planKey(t) { return (t && t.plan && PLANS[t.plan]) ? t.plan : 'custom'; }
     function planName(t) { return PLANS[planKey(t)].name; }
-    function modulesOf(t) { return (t && t.modules) ? t.modules : { concierge: true, crm: true, guestIssues: true }; }
+    function modulesOf(t) { return (t && t.modules) ? t.modules : { concierge: true, crm: true, guestIssues: true, guestOrders: true }; }
     function applyPlanToForm(planSel, maxInput, modsContainer) {
         const p = PLANS[planSel.value];
         if (!p || planSel.value === 'custom') return;
@@ -194,7 +194,7 @@
                 emailDomain: tenantEmailDomain(DEFAULT_TENANT),
                 plan: 'enterprise',
                 maxUsers: 0,
-                modules: { concierge: true, crm: true, guestIssues: true },
+                modules: { concierge: true, crm: true, guestIssues: true, guestOrders: true },
                 suspended: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };

@@ -445,6 +445,9 @@
 
     // ── Boot (only for signed-in staff) ────────────────────────
     function boot() {
+        // Feature-gated module: only build the staff surface when the hotel's
+        // plan includes "Misafir Talepleri" (toggled per-tenant in superadmin).
+        if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) return;
         buildUI();
         auth.onAuthStateChanged(u => {
             if (!u || u.isAnonymous) return;
