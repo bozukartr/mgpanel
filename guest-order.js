@@ -24,6 +24,37 @@
     const CART_KEY = `go_cart_${TENANT}_${ROOM || 'x'}`;
     const ORDER_KEY = `go_order_${TENANT}_${ROOM || 'x'}`;
 
+    // Demo mode (?demo or ?demo=1): runs entirely client-side with a built-in
+    // catalog + localStorage orders + a simulated live status flow, so the guest
+    // experience can be tested anywhere (e.g. github.io) with NO Firebase deploy
+    // and NO Anonymous Auth. Staff/admin sides still need the real backend.
+    const DEMO = params.has('demo');
+    let demoTimer = null;
+
+    // Built-in catalog used in demo mode (mirrors the default admin menu).
+    const DEMO_CATALOG = [
+        { category: 'Temizlik', catIcon: '🧹', name: 'Oda Temizliği', icon: '🧹', department: 'Housekeeping', description: 'Odanızın temizlenmesini isteyin' },
+        { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', department: 'Housekeeping' },
+        { category: 'Konfor', catIcon: '🛏️', name: 'Ekstra Yastık', icon: '🛏️', department: 'Housekeeping' },
+        { category: 'Konfor', name: 'Ekstra Battaniye', icon: '🧣', department: 'Housekeeping' },
+        { category: 'Konfor', name: 'Terlik', icon: '🥿', department: 'Housekeeping' },
+        { category: 'Konfor', name: 'Bornoz', icon: '🥼', department: 'Housekeeping' },
+        { category: 'Yiyecek & İçecek', catIcon: '🍽️', name: 'Su', icon: '💧', department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Çay / Kahve', icon: '☕', department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Meyve Tabağı', icon: '🍎', department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Atıştırmalık', icon: '🍫', department: 'Food & Beverage' },
+        { category: 'Teknik Servis', catIcon: '🔧', name: 'Klima Sorunu', icon: '❄️', department: 'Engineering' },
+        { category: 'Teknik Servis', name: 'TV Sorunu', icon: '📺', department: 'Engineering' },
+        { category: 'Teknik Servis', name: 'Sıcak Su Yok', icon: '🚿', department: 'Engineering' },
+        { category: 'Teknik Servis', name: 'Wi-Fi Sorunu', icon: '📶', department: 'Engineering' },
+        { category: 'Teknik Servis', name: 'Ampul Değişimi', icon: '💡', department: 'Engineering' },
+        { category: 'Resepsiyon', catIcon: '🛎️', name: 'Geç Çıkış Talebi', icon: '🕐', department: 'Front Desk' },
+        { category: 'Resepsiyon', name: 'Uyandırma Servisi', icon: '⏰', department: 'Front Desk' },
+        { category: 'Resepsiyon', name: 'Taksi Çağır', icon: '🚕', department: 'Front Desk' }
+    ].map((d, i) => Object.assign({ id: 'demo-' + i, active: true, sortOrder: (i + 1) * 10 }, d));
+
     // ── Status metadata ────────────────────────────────────────
     const STATUS = {
         pending:     { label: 'Bekliyor',       emoji: '⏳' },
@@ -70,7 +101,7 @@
 
     // ── Boot ───────────────────────────────────────────────────
     function boot() {
-        $('goHotelName').textContent = prettyTenant(TENANT);
+        $('goHotelName').textContent = prettyTenant(TENANT) + (DEMO ? ' · DEMO' : '');
         if (ROOM) {
             $('goRoomChip').style.display = 'inline-flex';
             $('goRoomLabel').textContent = 'Oda ' + ROOM;
@@ -78,6 +109,14 @@
         loadCart();
         wireEvents();
         renderCartBar();
+
+        // Demo mode: no backend, no auth — just run.
+        if (DEMO) {
+            sessionUid = 'demo';
+            loadCatalog();
+            resumeOrder();
+            return;
+        }
 
         // Anonymous sign-in → then load data (once).
         let started = false;
@@ -92,7 +131,7 @@
         auth.signInAnonymously().catch(err => {
             console.error('Anon sign-in failed', err);
             $('goBody').innerHTML = stateHtml('⚠️', 'Bağlantı kurulamadı',
-                'Lütfen daha sonra tekrar deneyin veya resepsiyon ile iletişime geçin.');
+                'Anonim giriş kapalı olabilir. Test için bağlantıya ?demo=1 ekleyin.');
         });
     }
 
@@ -103,6 +142,11 @@
 
     // ── Catalog ────────────────────────────────────────────────
     function loadCatalog() {
+        if (DEMO) {
+            catalog = DEMO_CATALOG.slice();
+            renderCatalog();
+            return;
+        }
         db.collection('requestCatalog').where('tenantId', '==', TENANT).get()
             .then(snap => {
                 catalog = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
@@ -343,6 +387,23 @@
             status: 'pending'
         }));
 
+        // Demo: store locally and simulate the live status flow.
+        if (DEMO) {
+            const id = 'demo' + Date.now().toString(36);
+            const order = { id, tenantId: TENANT, room: ROOM, guestName: guestName,
+                sessionUid: 'demo', items: items, itemCount: items.length,
+                createdAtMs: Date.now(), cancelled: false };
+            saveDemoOrder(order);
+            try { localStorage.setItem(ORDER_KEY, id); } catch (e) {}
+            cart = []; saveCart();
+            closeSheet();
+            btn.disabled = false; btn.innerHTML = 'Sipariş Ver';
+            $('goGuestName').value = '';
+            toast('Talebiniz alındı! 🎉 (demo)');
+            subscribeOrder(id);
+            return;
+        }
+
         const payload = {
             tenantId: TENANT,
             room: ROOM,
@@ -385,6 +446,7 @@
 
     function subscribeOrder(orderId, silent) {
         if (orderUnsub) orderUnsub();
+        if (DEMO) { subscribeDemo(orderId, silent); return; }
         currentOrderId = orderId;
         orderUnsub = db.collection('guestOrders').doc(orderId).onSnapshot(doc => {
             if (!doc.exists) { if (!silent) showCatalogView(); return; }
@@ -480,11 +542,58 @@
 
     function cancelOrder(orderId) {
         if (!confirm('Talebinizi iptal etmek istediğinize emin misiniz?')) return;
+        if (DEMO) {
+            const o = loadDemoOrder(orderId);
+            if (o) { o.cancelled = true; saveDemoOrder(o); renderTracking(demoView(o)); }
+            if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+            try { localStorage.removeItem(ORDER_KEY); } catch (e) {}
+            toast('Talep iptal edildi.');
+            return;
+        }
         db.collection('guestOrders').doc(orderId).update({
             status: 'cancelled',
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => toast('Talep iptal edildi.'))
           .catch(err => { console.error(err); toast('İptal edilemedi.', true); });
+    }
+
+    // ── Demo backend (localStorage + simulated status flow) ────
+    // Status timeline after submit: 0s Bekliyor → 4s Onaylandı → 9s İşlemde → 15s Tamamlandı.
+    const DEMO_STEPS = [[0, 'pending'], [4000, 'confirmed'], [9000, 'in_progress'], [15000, 'completed']];
+    function saveDemoOrder(o) { try { localStorage.setItem('go_demo_' + o.id, JSON.stringify(o)); } catch (e) {} }
+    function loadDemoOrder(id) {
+        try { return JSON.parse(localStorage.getItem('go_demo_' + id)); } catch (e) { return null; }
+    }
+    // Build a tracking-ready view (status + per-item status + statusLog) from elapsed time.
+    function demoView(o) {
+        if (o.cancelled) {
+            return Object.assign({}, o, { status: 'cancelled',
+                items: (o.items || []).map(it => Object.assign({}, it, { status: 'cancelled' })) });
+        }
+        const e = Date.now() - (o.createdAtMs || Date.now());
+        let status = 'pending';
+        const log = [];
+        DEMO_STEPS.forEach(([t, s]) => { if (e >= t) { status = s; log.push({ status: s, at: (o.createdAtMs || 0) + t, by: t === 0 ? 'guest' : 'Personel' }); } });
+        return Object.assign({}, o, { status,
+            items: (o.items || []).map(it => Object.assign({}, it, { status })),
+            statusLog: log });
+    }
+    function subscribeDemo(orderId, silent) {
+        if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+        currentOrderId = orderId;
+        const tick = () => {
+            const o = loadDemoOrder(orderId);
+            if (!o) { if (!silent) showCatalogView(); if (demoTimer) clearInterval(demoTimer); return; }
+            const view = demoView(o);
+            renderTracking(view);
+            showTrackingView();
+            if (view.status === 'completed' || view.status === 'cancelled') {
+                if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+                try { localStorage.removeItem(ORDER_KEY); } catch (e) {}
+            }
+        };
+        tick();
+        demoTimer = setInterval(tick, 1000);
     }
 
     // ── Misc UI ────────────────────────────────────────────────
