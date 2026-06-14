@@ -76,6 +76,7 @@
             <button class="adm-tab active" data-view="overview">Genel Bakış</button>
             <button class="adm-tab" data-view="finance">Finans</button>
             <button class="adm-tab" data-view="users">Kullanıcılar</button>
+            <button class="adm-tab" data-view="catalog">Hazır Talepler</button>
             <button class="adm-tab" data-view="tickets">Destek</button>
             <button class="adm-tab" data-view="system">Sistem</button>
         </nav>
@@ -225,6 +226,24 @@
                 </section>
             </section>
 
+            <!-- ═══ HAZIR TALEPLER (Guest self-service catalog) ═══ -->
+            <section class="adm-view" id="view-catalog">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Hazır Talepler</h2>
+                            <p class="card-sub">Misafirlerin QR ile gördüğü self-servis talep menüsü. Kategori, ad ve ikonları buradan yönetin.</p>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn btn-ghost" id="catSeedBtn">Varsayılanları Yükle</button>
+                            <button class="btn btn-primary" id="catAddBtn">+ Talep Ekle</button>
+                        </div>
+                    </div>
+                    <div id="catalogQrHint" class="card-sub" style="margin:0 0 6px;"></div>
+                    <div id="catalogList" class="cat-list"><!-- rendered by request-catalog.js --></div>
+                </section>
+            </section>
+
             <!-- ═══ DESTEK ═══ -->
             <section class="adm-view" id="view-tickets">
                 <section class="admin-card">
@@ -323,6 +342,60 @@
         </div>
     </div>
 
+    <!-- Catalog Item Modal (guest self-service request) -->
+    <div id="catalogModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3 id="catalogModalTitle">Talep Ekle</h3>
+                <button class="close-modal" id="closeCatalogModal">&times;</button>
+            </div>
+            <form id="catalogForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Talep Adı</label>
+                        <input type="text" id="catName" maxlength="120" placeholder="Örn. Ekstra Havlu" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Kategori</label>
+                        <input type="text" id="catCategory" list="catCatOptions" maxlength="60" placeholder="Örn. Konfor" required>
+                        <datalist id="catCatOptions"></datalist>
+                    </div>
+                    <div class="form-group" style="display:grid; grid-template-columns:90px 1fr; gap:10px;">
+                        <div>
+                            <label>İkon</label>
+                            <input type="text" id="catIcon" maxlength="8" placeholder="🛏️" style="text-align:center; font-size:20px;">
+                        </div>
+                        <div>
+                            <label>Departman (personel)</label>
+                            <select id="catDept">
+                                <option value="">Otomatik (kategoriye göre)</option>
+                                <option value="Housekeeping">Housekeeping</option>
+                                <option value="Front Desk">Front Desk</option>
+                                <option value="Engineering">Engineering</option>
+                                <option value="Food & Beverage">Food & Beverage</option>
+                                <option value="Concierge">Concierge</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Açıklama (opsiyonel)</label>
+                        <input type="text" id="catDesc" maxlength="160" placeholder="Misafire gösterilecek kısa açıklama">
+                    </div>
+                    <div class="form-group">
+                        <label class="switch-row" style="display:flex; align-items:center; gap:10px;">
+                            <input type="checkbox" id="catActive" checked>
+                            <span>Aktif (misafirlere göster)</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-actions vertical">
+                    <button type="submit" class="action-btn save-btn">Kaydet</button>
+                    <button type="button" class="action-btn" id="catalogDeleteBtn" style="display:none; background:#fef2f2; color:#dc2626;">Sil</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- New Ticket Modal -->
     <div id="ticketModal" class="modal">
         <div class="modal-content small-modal">
@@ -412,6 +485,7 @@
     <script src="realtime.js"></script>
     <script src="pwa.js"></script>
     <script src="admin.js"></script>
+    <script src="request-catalog.js"></script>
     <script>
         // In-panel tab switching (Finans, Kullanıcılar… behave like tabs).
         (function () {

@@ -23,6 +23,16 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
     }
 
+    // A guest opens the QR self-service page (guest-order.html) signed in with
+    // Anonymous Auth. Staff sign in with username/password. Distinguishing the
+    // two lets us give guests a tightly-scoped, session-bound surface.
+    function isAnon() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+    function isStaff() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
     // The caller's hotel (tenant). Untagged legacy users are treated as the
     // first hotel so nothing is locked out before/while data is migrated.
     function callerTenant() {
@@ -201,6 +211,53 @@ service cloud.firestore {
     //     Admin SDK (bypasses rules) to proxy guest lookups. ---
     match /pmsConfig/{tid} {
       allow read, write: if isSuperAdmin();
+    }
+
+    // --- Guest self-service request catalog (admin-managed "menu"). Any signed-in
+    //     client may READ it — including anonymous guests on the QR page — but
+    //     only the hotel's own admin can add/edit/remove items. The catalog holds
+    //     no guest data, just the list of services the hotel offers. ---
+    match /requestCatalog/{id} {
+      allow read:   if signedIn();
+      allow create: if isStaff() && isAdmin()
+        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow update: if isStaff() && isAdmin()
+        && resource.data.get('tenantId', 'mgallery') == callerTenant()
+        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow delete: if isStaff() && isAdmin()
+        && resource.data.get('tenantId', 'mgallery') == callerTenant();
+    }
+
+    // --- Guest self-service orders. A guest (anonymous session) creates an order
+    //     bound to their own uid and may read ONLY their own orders; they can
+    //     cancel one while it is still pending. The hotel's staff see and manage
+    //     every order in their tenant. Tenant and session owner are immutable. ---
+    match /guestOrders/{id} {
+      allow read: if (isStaff() && resource.data.get('tenantId', 'mgallery') == callerTenant())
+        || (signedIn() && resource.data.get('sessionUid', '') == request.auth.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.sessionUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.tenantId is string
+        && request.resource.data.tenantId.size() > 0 && request.resource.data.tenantId.size() <= 40
+        && request.resource.data.room is string && request.resource.data.room.size() <= 40
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 40;
+
+      // Staff manage status/assignment within their hotel (tenant + owner frozen);
+      // OR the guest cancels their own still-pending order.
+      allow update: if (isStaff()
+            && resource.data.get('tenantId', 'mgallery') == callerTenant()
+            && request.resource.data.get('tenantId', 'mgallery') == resource.data.get('tenantId', 'mgallery')
+            && request.resource.data.get('sessionUid', '') == resource.data.get('sessionUid', ''))
+        || (signedIn()
+            && resource.data.get('sessionUid', '') == request.auth.uid
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
+
+      allow delete: if isStaff() && resource.data.get('tenantId', 'mgallery') == callerTenant();
     }
 
     // --- Deny everything else ---
