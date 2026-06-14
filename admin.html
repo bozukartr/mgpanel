@@ -258,6 +258,26 @@
                     </div>
                 </section>
 
+                <section class="admin-card" id="qrCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Oda QR Kodları</h2>
+                            <p class="card-sub">Her oda için misafir talep sayfasının QR kodunu oluşturun, yazdırıp odaya koyun.</p>
+                        </div>
+                        <button class="btn btn-ghost" id="qrPrintBtn" style="display:none;">🖨️ Yazdır</button>
+                    </div>
+                    <div class="settings-body" style="display:grid; gap:12px;">
+                        <div class="form-group">
+                            <label>Odalar (örn: 101-110, 201, 305)</label>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                <input type="text" id="qrRooms" placeholder="101-110, 201, 305" style="flex:1; min-width:180px;">
+                                <button class="btn btn-primary" id="qrGenBtn">Oluştur</button>
+                            </div>
+                        </div>
+                        <div id="qrGrid" class="qr-grid"></div>
+                    </div>
+                </section>
+
                 <section class="admin-card">
                     <div class="card-header">
                         <div class="card-title">
@@ -525,6 +545,7 @@
     <script src="realtime.js"></script>
     <script src="pwa.js"></script>
     <script src="admin.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="request-catalog.js"></script>
     <script src="room-access.js"></script>
     <script>

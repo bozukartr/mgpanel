@@ -80,7 +80,13 @@
         .cat-empty { text-align: center; color: #94a3b8; padding: 40px 20px; font-size: 14px; }
         .cat-qr { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 12px;
             font-size: 12.5px; color: #475569; }
-        .cat-qr code { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 5px; font-size: 12px; }`;
+        .cat-qr code { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 5px; font-size: 12px; }
+        .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+        .qr-card { border: 1px solid #e8edf2; border-radius: 12px; padding: 12px; text-align: center; background: #fff; }
+        .qr-card .qr-img { width: 100%; max-width: 150px; margin: 0 auto; line-height: 0; }
+        .qr-card .qr-img img, .qr-card .qr-img canvas { width: 100% !important; height: auto !important; border-radius: 6px; }
+        .qr-card .qr-room { font-weight: 800; font-size: 15px; margin-top: 9px; color: #1e293b; }
+        .qr-card .qr-dl { margin-top: 5px; font-size: 12px; color: #2563eb; cursor: pointer; background: none; border: none; font-weight: 600; font-family: inherit; }`;
         const el = document.createElement('style');
         el.id = 'cat-admin-styles';
         el.textContent = css;
@@ -255,6 +261,79 @@
             .catch(err => { console.error(err); toast('Kaydedilemedi.', true); });
     }
 
+    // ── Room QR generator ──────────────────────────────────────
+    function roomUrl(room) {
+        let base;
+        try { base = new URL('guest-order.html', location.href).href; }
+        catch (e) { base = 'guest-order.html'; }
+        return base + '?tenant=' + encodeURIComponent(TENANT_ID) + '&room=' + encodeURIComponent(room);
+    }
+    // "101-110, 201, 305" -> ['101'..'110','201','305'] (deduped, max 200).
+    function parseRooms(str) {
+        const out = [], seen = Object.create(null);
+        String(str || '').split(',').forEach(part => {
+            part = part.trim();
+            if (!part) return;
+            const m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+            if (m) {
+                let a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+                if (a > b) { const t = a; a = b; b = t; }
+                for (let i = a; i <= b && out.length < 200; i++) { const r = String(i); if (!seen[r]) { seen[r] = 1; out.push(r); } }
+            } else if (!seen[part]) { seen[part] = 1; out.push(part); }
+        });
+        return out;
+    }
+    function qrDataUrl(holder) {
+        const c = holder.querySelector('canvas');
+        if (c) { try { return c.toDataURL('image/png'); } catch (e) {} }
+        const img = holder.querySelector('img');
+        return img ? img.src : '';
+    }
+    function genQRs() {
+        const grid = $('qrGrid');
+        if (!grid) return;
+        if (typeof QRCode === 'undefined') { toast('QR kütüphanesi yüklenemedi.', true); return; }
+        const rooms = parseRooms(($('qrRooms') || {}).value);
+        if (!rooms.length) { toast('Lütfen oda numarası girin.', true); return; }
+        grid.innerHTML = '';
+        rooms.forEach(room => {
+            const card = document.createElement('div'); card.className = 'qr-card';
+            const holder = document.createElement('div'); holder.className = 'qr-img'; card.appendChild(holder);
+            const label = document.createElement('div'); label.className = 'qr-room'; label.textContent = 'Oda ' + room; card.appendChild(label);
+            const dl = document.createElement('button'); dl.className = 'qr-dl'; dl.type = 'button'; dl.textContent = 'PNG indir'; card.appendChild(dl);
+            grid.appendChild(card);
+            try { new QRCode(holder, { text: roomUrl(room), width: 300, height: 300, correctLevel: QRCode.CorrectLevel.M }); } catch (e) { console.error(e); }
+            dl.onclick = () => { const u = qrDataUrl(holder); if (!u) return; const a = document.createElement('a'); a.href = u; a.download = 'oda-' + room + '-qr.png'; a.click(); };
+        });
+        const pb = $('qrPrintBtn'); if (pb) pb.style.display = 'inline-flex';
+        toast(rooms.length + ' QR oluşturuldu.');
+    }
+    function printQRs() {
+        const grid = $('qrGrid'); if (!grid) return;
+        const cards = Array.prototype.slice.call(grid.querySelectorAll('.qr-card'));
+        if (!cards.length) return;
+        const hotel = (cfg && cfg.hotelName) ? cfg.hotelName : '';
+        const items = cards.map(c => {
+            const room = c.querySelector('.qr-room').textContent;
+            const url = qrDataUrl(c.querySelector('.qr-img'));
+            return `<div class="p-card"><img src="${url}"><div class="p-room">${esc(room)}</div>${hotel ? `<div class="p-hotel">${esc(hotel)}</div>` : ''}<div class="p-tip">Talep oluşturmak için okutun</div></div>`;
+        }).join('');
+        const w = window.open('', '_blank');
+        if (!w) { toast('Açılır pencere engellendi. Lütfen izin verin.', true); return; }
+        w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Oda QR Kodları</title><style>'
+            + '*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}body{margin:0;padding:14px}'
+            + '.p-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}'
+            + '.p-card{border:1px solid #ddd;border-radius:10px;padding:16px;text-align:center;page-break-inside:avoid}'
+            + '.p-card img{width:100%;max-width:240px;height:auto}'
+            + '.p-room{font-size:22px;font-weight:800;margin-top:10px}'
+            + '.p-hotel{font-size:13px;color:#444;margin-top:2px}'
+            + '.p-tip{font-size:12px;color:#777;margin-top:6px}'
+            + '</style></head><body><div class="p-grid">' + items + '</div>'
+            + '<scr' + 'ipt>window.onload=function(){setTimeout(function(){window.print();},350);}</scr' + 'ipt>'
+            + '</body></html>');
+        w.document.close();
+    }
+
     // ── Listen ─────────────────────────────────────────────────
     function listen() {
         if (unsub) return;
@@ -282,6 +361,9 @@
         $('catalogForm') && ($('catalogForm').onsubmit = save);
         $('catalogDeleteBtn') && ($('catalogDeleteBtn').onclick = remove);
         $('catCfgSave') && ($('catCfgSave').onclick = saveConfig);
+        $('qrGenBtn') && ($('qrGenBtn').onclick = genQRs);
+        $('qrPrintBtn') && ($('qrPrintBtn').onclick = printQRs);
+        $('qrRooms') && $('qrRooms').addEventListener('keydown', e => { if (e.key === 'Enter') genQRs(); });
         const modal = $('catalogModal');
         if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
         auth.onAuthStateChanged(u => { if (u) { listen(); loadConfig(); } });
