@@ -14,7 +14,7 @@
     let items = [];
     let editingId = null;
     let unsub = null;
-    let cfg = { hotelName: '', showPrices: false, currency: '₺' };
+    let cfg = { hotelName: '', showPrices: false, currency: '₺', requireVerification: false };
 
     // Default starter menu — 4 operational categories.
     const DEFAULTS = [
@@ -235,10 +235,11 @@
     function loadConfig() {
         db.collection(CFG).doc(TENANT_ID).get().then(doc => {
             if (doc.exists) cfg = Object.assign(cfg, doc.data());
-            const hn = $('cfgHotelName'), cur = $('cfgCurrency'), sp = $('cfgShowPrices');
+            const hn = $('cfgHotelName'), cur = $('cfgCurrency'), sp = $('cfgShowPrices'), rv = $('cfgRequireVerify');
             if (hn) hn.value = cfg.hotelName || '';
             if (cur) cur.value = cfg.currency || '₺';
             if (sp) sp.checked = !!cfg.showPrices;
+            if (rv) rv.checked = !!cfg.requireVerification;
             render();
         }).catch(err => console.error('config load failed', err));
     }
@@ -246,7 +247,8 @@
         cfg = {
             hotelName: ($('cfgHotelName').value || '').trim().slice(0, 60),
             currency: ($('cfgCurrency').value || '₺').trim().slice(0, 4) || '₺',
-            showPrices: $('cfgShowPrices').checked
+            showPrices: $('cfgShowPrices').checked,
+            requireVerification: $('cfgRequireVerify').checked
         };
         db.collection(CFG).doc(TENANT_ID).set(Object.assign({ tenantId: TENANT_ID, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, cfg), { merge: true })
             .then(() => { toast('Ayarlar kaydedildi.'); render(); })

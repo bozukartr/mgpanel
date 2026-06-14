@@ -33,6 +33,20 @@ service cloud.firestore {
       return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
+    // Per-hotel guest-page setting: does this hotel require a guest to verify
+    // (surname + room) before ordering? Default false (opt-in).
+    function verificationRequired(tid) {
+      return exists(/databases/$(database)/documents/guestConfig/$(tid))
+        && get(/databases/$(database)/documents/guestConfig/$(tid)).data.get('requireVerification', false) == true;
+    }
+    // Is the room currently "open" for guest requests? Maintained from the
+    // hotel's live occupancy (guestDirectory) into a public per-room doc, so a
+    // checked-out room can no longer order even with the same QR.
+    function roomIsOpen(tid, room) {
+      return exists(/databases/$(database)/documents/roomAccess/$(tid + '__' + room))
+        && get(/databases/$(database)/documents/roomAccess/$(tid + '__' + room)).data.get('open', false) == true;
+    }
+
     // The caller's hotel (tenant). Untagged legacy users are treated as the
     // first hotel so nothing is locked out before/while data is migrated.
     function callerTenant() {
@@ -252,7 +266,11 @@ service cloud.firestore {
         && request.resource.data.tenantId.size() > 0 && request.resource.data.tenantId.size() <= 40
         && request.resource.data.room is string && request.resource.data.room.size() <= 40
         && request.resource.data.items is list
-        && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 20;
+        && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 20
+        // If the hotel requires verification, the room must be currently open
+        // (an in-house guest exists) — blocks checked-out rooms reusing the QR.
+        && (!verificationRequired(request.resource.data.tenantId)
+            || roomIsOpen(request.resource.data.tenantId, request.resource.data.room));
 
       // Staff manage status/assignment within their hotel (tenant + owner frozen);
       // OR the guest cancels their own still-pending order.
@@ -267,6 +285,20 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
 
       allow delete: if isStaff() && resource.data.get('tenantId', 'mgallery') == callerTenant();
+    }
+
+    // --- Per-room access state for the guest QR page. Mirrored from the hotel's
+    //     live occupancy by staff clients (room-access.js): holds only whether the
+    //     room currently accepts requests (`open`) and salted HASHES of the
+    //     in-house guests' name tokens (`nameKeys`) — never plaintext names.
+    //     Readable by anyone signed in (incl. anonymous guests) so the QR page can
+    //     verify surname + room; written only by the hotel's own staff. ---
+    match /roomAccess/{id} {
+      allow read:          if signedIn();
+      allow create, update: if isStaff()
+        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow delete:        if isStaff()
+        && resource.data.get('tenantId', 'mgallery') == callerTenant();
     }
 
     // --- Deny everything else ---
