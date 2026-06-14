@@ -45,23 +45,26 @@
         </div>
     </main>
 
-    <!-- ── Floating cart bar ── -->
-    <button class="go-cartbar" id="goCartBar">
-        <div class="go-cb-left">
-            <span class="go-cb-count">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-                <b id="goCbCount">0</b>
-            </span>
-            <div class="go-cb-label">
-                <b>Sepetim</b>
-                <span id="goCbSub">talep eklendi</span>
+    <!-- ── Floating stack: live mini-tracker + cart bar ── -->
+    <div class="go-floats">
+        <button class="go-mini" id="goMini" aria-label="Talep durumu"></button>
+        <button class="go-cartbar" id="goCartBar">
+            <div class="go-cb-left">
+                <span class="go-cb-count">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                    <b id="goCbCount">0</b>
+                </span>
+                <div class="go-cb-label">
+                    <b>Sepetim</b>
+                    <span id="goCbSub">talep eklendi</span>
+                </div>
             </div>
-        </div>
-        <span class="go-cb-go">
-            Devam Et
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </span>
-    </button>
+            <span class="go-cb-go">
+                Devam Et
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </span>
+        </button>
+    </div>
 
     <!-- ── Cart bottom sheet ── -->
     <div class="go-backdrop" id="goBackdrop"></div>

@@ -98,13 +98,36 @@ input, textarea { font-family: inherit; }
 .go-price { display: inline-flex; align-items: center; background: var(--primary-soft); color: var(--primary-dark);
     font-weight: 700; font-size: 12.5px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 
-/* ── Floating cart bar ─────────────────────────────────── */
-.go-cartbar { position: fixed; left: 50%; transform: translateX(-50%) translateY(160%);
-    bottom: calc(14px + var(--safe-bottom)); width: calc(100% - 24px); max-width: 516px;
+/* ── Floating stack (mini-tracker + cart bar) ──────────── */
+.go-floats { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + var(--safe-bottom));
+    width: calc(100% - 24px); max-width: 516px; z-index: 40; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.go-floats > * { pointer-events: auto; }
+@keyframes goRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+/* Live mini-tracker */
+.go-mini { display: none; width: 100%; align-items: center; gap: 12px; text-align: left;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 12px 14px;
+    box-shadow: var(--shadow-lg); color: var(--text); }
+.go-mini.show { display: flex; animation: goRise .3s ease; }
+.go-mini-ico { width: 44px; height: 44px; border-radius: 13px; background: var(--primary-soft); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 23px; }
+.go-mini-ico.pulse { animation: go-pulse 1.8s ease-in-out infinite; }
+.go-mini-body { flex: 1; min-width: 0; }
+.go-mini-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.go-mini-top b { font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.go-mini-eta { font-size: 11.5px; color: var(--text-muted); font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.go-mini-bar { height: 6px; border-radius: 3px; background: var(--primary-soft); margin-top: 9px; overflow: hidden; }
+.go-mini-bar > span { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #6366f1, #818cf8); transition: width .6s cubic-bezier(.2,1,.3,1); }
+.go-mini.is-completed .go-mini-bar > span { background: linear-gradient(90deg, #16a34a, #4ade80); }
+.go-mini-chev { color: #cbd5e1; flex-shrink: 0; }
+.go-mini-x { width: 30px; height: 30px; border-radius: 50%; background: #f1f5f9; color: #64748b; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 15px; }
+
+/* Cart bar (now a child of the floating stack) */
+.go-cartbar { display: none; width: 100%; align-items: center; justify-content: space-between; gap: 12px;
     background: linear-gradient(120deg, #4f46e5, #6366f1); color: #fff; border-radius: 18px; padding: 13px 15px;
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    box-shadow: 0 16px 40px rgba(79, 70, 229, .42); z-index: 40; transition: transform .32s cubic-bezier(.2, 1, .3, 1); }
-.go-cartbar.show { transform: translateX(-50%) translateY(0); }
+    box-shadow: 0 16px 40px rgba(79, 70, 229, .42); }
+.go-cartbar.show { display: flex; animation: goRise .3s ease; }
 .go-cb-left { display: flex; align-items: center; gap: 12px; }
 .go-cb-count { position: relative; width: 44px; height: 44px; border-radius: 13px; background: rgba(255, 255, 255, .18); display: flex; align-items: center; justify-content: center; }
 .go-cb-count svg { width: 22px; height: 22px; }
@@ -160,6 +183,10 @@ input, textarea { font-family: inherit; }
 
 /* ── Tracking ──────────────────────────────────────────── */
 .go-track { padding: 0 16px 60px; }
+.go-back { display: inline-flex; align-items: center; gap: 6px; margin: calc(16px + var(--safe-top)) 0 0;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text); font-size: 14px; font-weight: 700;
+    padding: 9px 15px 9px 12px; border-radius: 999px; box-shadow: var(--shadow); }
+.go-back svg { width: 17px; height: 17px; }
 .go-track-hero { background: var(--surface); border-radius: 22px; padding: 26px 20px; text-align: center; box-shadow: var(--shadow); margin-top: 18px; border: 1px solid var(--border); }
 .go-track-emoji { font-size: 54px; line-height: 1; margin-bottom: 10px; }
 .go-track-hero h2 { font-size: 21px; font-weight: 800; margin: 0 0 4px; }

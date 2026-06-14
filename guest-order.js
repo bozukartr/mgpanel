@@ -72,6 +72,7 @@
     // ── State ──────────────────────────────────────────────────
     let catalog = [], cart = [], activeCat = null, sessionUid = null;
     let orderUnsub = null, currentOrderId = null, activeOrderStatus = null;
+    let currentOrder = null, lastStatus = null, miniDismissed = false;
 
     // ── Helpers ────────────────────────────────────────────────
     function esc(s) {
@@ -422,6 +423,7 @@
 
         const finishOk = (id) => {
             currentOrderId = id;
+            lastStatus = null; miniDismissed = false;
             try { localStorage.setItem(ORDER_KEY, id); } catch (e) {}
             try { localStorage.setItem(COOLDOWN_KEY, String(Date.now() + COOLDOWN_MS)); } catch (e) {}
             cart = []; saveCart();
@@ -429,7 +431,7 @@
             btn.disabled = false; setSubmitLabel('Sipariş Ver');
             $('goGuestName').value = '';
             toast('Talebiniz alındı! 🎉' + (DEMO ? ' (demo)' : ''));
-            subscribeOrder(id);
+            subscribeOrder(id, true);
         };
         const finishErr = (err) => {
             console.error('order submit failed', err);
@@ -455,35 +457,116 @@
     }
 
     // ── Tracking ───────────────────────────────────────────────
+    // On reload, resume an active order quietly: stay on the home screen and
+    // show the floating mini-tracker (don't hijack into the detail view).
     function resumeOrder() {
         let saved = null;
         try { saved = localStorage.getItem(ORDER_KEY); } catch (e) {}
-        if (saved) subscribeOrder(saved, true);
+        if (saved) { lastStatus = null; subscribeOrder(saved, false); }
     }
-    function subscribeOrder(orderId, silent) {
+    // openDetail: open the full detail view on the first update (used right
+    // after the guest places an order); otherwise just power the mini-tracker.
+    function subscribeOrder(orderId, openDetail) {
         if (orderUnsub) { orderUnsub(); orderUnsub = null; }
-        if (DEMO) { subscribeDemo(orderId, silent); return; }
+        miniDismissed = false;
+        if (DEMO) { subscribeDemo(orderId, openDetail); return; }
         currentOrderId = orderId;
+        let first = true;
         orderUnsub = db.collection('guestOrders').doc(orderId).onSnapshot(doc => {
-            if (!doc.exists) { activeOrderStatus = null; if (!silent) showCatalogView(); return; }
+            if (!doc.exists) { clearActive(); return; }
             const order = Object.assign({ id: doc.id }, doc.data());
-            activeOrderStatus = order.status;
-            renderTracking(order);
-            if (order.status === 'completed' || order.status === 'cancelled') { try { localStorage.removeItem(ORDER_KEY); } catch (e) {} }
-            showTrackingView();
-        }, err => { console.error('track failed', err); if (!silent) showCatalogView(); });
+            onOrderUpdate(order, first && openDetail);
+            first = false;
+        }, err => { console.error('track failed', err); });
     }
+
+    // Single entry point for every order change (real or demo).
+    function onOrderUpdate(order, openDetailNow) {
+        const prev = lastStatus;
+        currentOrder = order;
+        currentOrderId = order.id;
+        activeOrderStatus = order.status;
+        if (order.status === 'completed' || order.status === 'cancelled') {
+            try { localStorage.removeItem(ORDER_KEY); } catch (e) {}
+        }
+        if (prev && prev !== order.status) notifyStatus(order.status);
+        lastStatus = order.status;
+        if (openDetailNow) showTrackingView();
+        else if (trackVisible()) renderTracking(order);
+        renderMini(order);
+    }
+    function clearActive() {
+        currentOrder = null; activeOrderStatus = null; lastStatus = null;
+        renderMini(null);
+        if (trackVisible()) showCatalogView();
+    }
+
+    function trackVisible() { return !$('goTrackView').classList.contains('go-hidden'); }
     function showTrackingView() {
+        if (currentOrder) renderTracking(currentOrder);
         $('goCatalogView').classList.add('go-hidden');
         $('goTrackView').classList.remove('go-hidden');
         $('goCartBar').classList.remove('show');
+        renderMini(currentOrder);
         window.scrollTo(0, 0);
     }
     function showCatalogView() {
         $('goTrackView').classList.add('go-hidden');
         $('goCatalogView').classList.remove('go-hidden');
         renderCartBar();
+        renderMini(currentOrder);
         window.scrollTo(0, 0);
+    }
+
+    // Toast + haptic feedback when the status advances (so the guest notices
+    // even while browsing the home screen).
+    function notifyStatus(status) {
+        const map = {
+            confirmed: 'Talebiniz onaylandı ✅',
+            in_progress: 'Ekibimiz talebinizi hazırlıyor 🛎️',
+            completed: 'Talebiniz tamamlandı 🎉',
+            cancelled: 'Talebiniz iptal edildi'
+        };
+        if (map[status]) toast(map[status]);
+        try { navigator.vibrate && navigator.vibrate(status === 'completed' ? [60, 40, 60] : 40); } catch (e) {}
+    }
+
+    // Compact, dynamic floating status pill shown on the home screen.
+    const MINI = {
+        pending:     { t: 'Talebiniz alındı',        w: 12, ico: '⏳' },
+        confirmed:   { t: 'Onaylandı, hazırlanıyor',  w: 45, ico: '✅' },
+        in_progress: { t: 'Ekibimiz hazırlıyor',      w: 78, ico: '🛎️' },
+        completed:   { t: 'Talebiniz tamamlandı 🎉',  w: 100, ico: '🎉' }
+    };
+    function renderMini(order) {
+        const el = $('goMini');
+        const onCatalog = !trackVisible();
+        const visible = !!order && !!MINI[order.status] && order.status !== 'cancelled' && !miniDismissed && onCatalog;
+        el.classList.toggle('show', visible);
+        el.classList.toggle('is-completed', visible && order.status === 'completed');
+        if (!visible) { el.innerHTML = ''; return; }
+        const m = MINI[order.status];
+        const done = order.status === 'completed';
+        // Progress: a continuous creep in demo (so it feels live); step-based otherwise.
+        let width = m.w, eta = '';
+        if (done) { width = 100; eta = 'Hazır'; }
+        else if (DEMO && order.createdAtMs) {
+            const elapsed = Date.now() - order.createdAtMs;
+            width = Math.min(98, Math.max(8, Math.round(elapsed / DEMO_TOTAL * 100)));
+            const left = Math.max(0, DEMO_TOTAL - elapsed);
+            eta = left >= 60000 ? '~' + Math.ceil(left / 60000) + ' dk' : '~' + Math.ceil(left / 1000) + ' sn';
+        } else eta = (STATUS[order.status] || {}).label || '';
+        const n = (order.items || []).length;
+        el.innerHTML = `
+            <span class="go-mini-ico ${done ? '' : 'pulse'}">${esc(m.ico)}</span>
+            <div class="go-mini-body">
+                <div class="go-mini-top"><b>${esc(m.t)}</b><span class="go-mini-eta">${esc(eta)}</span></div>
+                <div class="go-mini-bar"><span style="width:${width}%"></span></div>
+            </div>
+            ${done ? `<span class="go-mini-x" id="goMiniX" aria-label="Kapat">✕</span>`
+                   : `<span class="go-mini-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 18)}</span>`}`;
+        const x = $('goMiniX');
+        if (x) x.onclick = (e) => { e.stopPropagation(); miniDismissed = true; renderMini(currentOrder); };
     }
 
     function renderTracking(order) {
@@ -513,17 +596,21 @@
                 <span class="go-pill ${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>`;
         }).join('');
         const canCancel = order.status === 'pending';
+        const roomTxt = order.room ? 'Oda ' + order.room : '';
         $('goTrackBody').innerHTML = `
+            <button class="go-back" id="goBack">${svg('<polyline points="15 18 9 12 15 6"/>', 17)} Ana sayfa</button>
             <div class="go-track-hero"><div class="go-track-emoji">${esc(st.emoji)}</div><h2>${esc(st.label)}</h2><p>${esc(heroSub)}</p>
+                ${roomTxt ? `<div class="go-track-total">${esc(roomTxt)}</div>` : ''}
                 ${showP ? `<div class="go-track-total">Toplam: <b>${esc(fmtP(order.total))}</b></div>` : ''}</div>
             ${steps}
             <div class="go-track-items"><h3>Talepleriniz (${(order.items || []).length})</h3>${items}</div>
             <div class="go-track-actions">
                 ${canCancel ? `<button class="go-btn-ghost go-btn-danger" id="goCancel">Talebi İptal Et</button>` : ''}
-                <button class="go-btn-ghost" id="goNew">＋ Yeni Talep Oluştur</button>
+                <button class="go-btn-ghost" id="goNew">Ana Sayfaya Dön</button>
             </div>`;
         const cancelBtn = $('goCancel');
         if (cancelBtn) cancelBtn.onclick = () => cancelOrder(order.id);
+        $('goBack').onclick = () => showCatalogView();
         $('goNew').onclick = () => showCatalogView();
     }
     function timeFromMs(ms) {
@@ -535,18 +622,18 @@
         if (!confirm('Talebinizi iptal etmek istediğinize emin misiniz?')) return;
         if (DEMO) {
             const o = loadDemoOrder(orderId);
-            if (o) { o.cancelled = true; saveDemoOrder(o); activeOrderStatus = 'cancelled'; renderTracking(demoView(o)); }
+            if (o) { o.cancelled = true; saveDemoOrder(o); }
             if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
-            try { localStorage.removeItem(ORDER_KEY); } catch (e) {}
-            toast('Talep iptal edildi.');
+            if (o) onOrderUpdate(demoView(o), false);
             return;
         }
         db.collection('guestOrders').doc(orderId).update({ status: 'cancelled', updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
-            .then(() => toast('Talep iptal edildi.')).catch(err => { console.error(err); toast('İptal edilemedi.', true); });
+            .catch(err => { console.error(err); toast('İptal edilemedi.', true); });
     }
 
-    // ── DEMO backend (localStorage + simulated flow) ───────────
-    const DEMO_STEPS = [[0, 'pending'], [4000, 'confirmed'], [9000, 'in_progress'], [15000, 'completed']];
+    // ── DEMO backend (localStorage + simulated flow ≈ 3 min) ───
+    const DEMO_STEPS = [[0, 'pending'], [40000, 'confirmed'], [110000, 'in_progress'], [180000, 'completed']];
+    const DEMO_TOTAL = 180000;
     function saveDemoOrder(o) { try { localStorage.setItem('go_demo_' + o.id, JSON.stringify(o)); } catch (e) {} }
     function loadDemoOrder(id) { try { return JSON.parse(localStorage.getItem('go_demo_' + id)); } catch (e) { return null; } }
     function demoView(o) {
@@ -556,16 +643,17 @@
         DEMO_STEPS.forEach(([t, s]) => { if (e >= t) { status = s; log.push({ status: s, at: (o.createdAtMs || 0) + t, by: t === 0 ? 'guest' : 'Personel' }); } });
         return Object.assign({}, o, { status, items: (o.items || []).map(it => Object.assign({}, it, { status })), statusLog: log });
     }
-    function subscribeDemo(orderId, silent) {
+    function subscribeDemo(orderId, openDetail) {
         if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
         currentOrderId = orderId;
+        let first = true;
         const tick = () => {
             const o = loadDemoOrder(orderId);
-            if (!o) { activeOrderStatus = null; if (!silent) showCatalogView(); if (demoTimer) clearInterval(demoTimer); return; }
+            if (!o) { clearActive(); if (demoTimer) clearInterval(demoTimer); return; }
             const view = demoView(o);
-            activeOrderStatus = view.status;
-            renderTracking(view); showTrackingView();
-            if (view.status === 'completed' || view.status === 'cancelled') { if (demoTimer) { clearInterval(demoTimer); demoTimer = null; } try { localStorage.removeItem(ORDER_KEY); } catch (e) {} }
+            onOrderUpdate(view, first && openDetail);
+            first = false;
+            if (view.status === 'completed' || view.status === 'cancelled') { if (demoTimer) { clearInterval(demoTimer); demoTimer = null; } }
         };
         tick();
         demoTimer = setInterval(tick, 1000);
@@ -580,8 +668,9 @@
         $('goSheetClose').onclick = closeSheet;
         $('goBackdrop').onclick = closeSheet;
         $('goSubmit').onclick = submitOrder;
+        $('goMini').onclick = () => { if (currentOrder) showTrackingView(); };
         $('goTrackIc').onclick = () => {
-            if (currentOrderId) subscribeOrder(currentOrderId);
+            if (currentOrder) showTrackingView();
             else toast('Henüz aktif bir talebiniz yok.');
         };
     }
