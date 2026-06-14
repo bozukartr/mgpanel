@@ -45,12 +45,12 @@
         { category: 'Konfor', name: 'Terlik', icon: '🥿', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Bornoz', icon: '🥼', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Yiyecek & İçecek', name: 'Su', icon: '💧', eta: '15 dk', department: 'Food & Beverage' },
-        { category: 'Yiyecek & İçecek', name: 'Çay / Kahve', icon: '☕', eta: '15-20 dk', reco: true, department: 'Food & Beverage' },
-        { category: 'Yiyecek & İçecek', name: 'Meyve Tabağı', icon: '🍎', eta: '20-30 dk', department: 'Food & Beverage' },
-        { category: 'Yiyecek & İçecek', name: 'Atıştırmalık', icon: '🍫', eta: '20 dk', department: 'Food & Beverage' },
-        { category: 'Minibar', name: 'Su Takviyesi', icon: '💧', eta: '20 dk', department: 'Food & Beverage' },
-        { category: 'Minibar', name: 'Meşrubat', icon: '🥤', eta: '20 dk', department: 'Food & Beverage' },
-        { category: 'Minibar', name: 'Atıştırmalık Paketi', icon: '🍿', eta: '20 dk', department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Çay / Kahve', icon: '☕', eta: '15-20 dk', price: 60, reco: true, department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Meyve Tabağı', icon: '🍎', eta: '20-30 dk', price: 120, department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Atıştırmalık', icon: '🍫', eta: '20 dk', price: 80, department: 'Food & Beverage' },
+        { category: 'Minibar', name: 'Su Takviyesi', icon: '💧', eta: '20 dk', price: 40, department: 'Food & Beverage' },
+        { category: 'Minibar', name: 'Meşrubat', icon: '🥤', eta: '20 dk', price: 70, department: 'Food & Beverage' },
+        { category: 'Minibar', name: 'Atıştırmalık Paketi', icon: '🍿', eta: '20 dk', price: 90, department: 'Food & Beverage' },
         { category: 'Teknik', name: 'Klima Sorunu', icon: '❄️', eta: '30 dk', reco: true, department: 'Engineering' },
         { category: 'Teknik', name: 'TV Sorunu', icon: '📺', eta: '30 dk', department: 'Engineering' },
         { category: 'Teknik', name: 'Sıcak Su Yok', icon: '🚿', eta: '30 dk', department: 'Engineering' },
@@ -61,6 +61,11 @@
         { category: 'Diğer', name: 'Taksi Çağır', icon: '🚕', eta: '15 dk', department: 'Front Desk' },
         { category: 'Diğer', name: 'Doktor Çağır', icon: '🩺', department: 'Front Desk' }
     ].map((d, i) => Object.assign({ id: 'demo-' + i, active: true, sortOrder: (i + 1) * 10 }, d));
+
+    // Guest-page settings the admin controls (collection `guestConfig/{tenant}`).
+    const DEFAULT_CONFIG = { hotelName: '', showRecommended: true, showPrices: false, currency: '₺' };
+    const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showRecommended: true, showPrices: true, currency: '₺' };
+    let config = Object.assign({}, DEFAULT_CONFIG);
 
     // ── Status metadata ────────────────────────────────────────
     const STATUS = {
@@ -145,17 +150,25 @@
 
     // ── Boot ───────────────────────────────────────────────────
     function boot() {
-        $('goHotelName').textContent = prettyTenant(TENANT) + (DEMO ? ' · DEMO' : '');
         if (ROOM) { $('goRoomChip').style.display = 'inline-flex'; $('goRoomLabel').textContent = 'Oda ' + ROOM; }
         loadCart();
         wireEvents();
         renderCartBar();
 
-        if (DEMO) { sessionUid = 'demo'; loadCatalog(); resumeOrder(); return; }
+        if (DEMO) {
+            sessionUid = 'demo';
+            config = Object.assign({}, DEFAULT_CONFIG, DEMO_CONFIG);
+            catalog = DEMO_CATALOG.slice();
+            applyHotelName();
+            renderAll();
+            resumeOrder();
+            return;
+        }
 
+        applyHotelName();
         let started = false;
         auth.onAuthStateChanged(u => {
-            if (u && !started) { started = true; sessionUid = u.uid; loadCatalog(); resumeOrder(); }
+            if (u && !started) { started = true; sessionUid = u.uid; loadData(); resumeOrder(); }
         });
         auth.signInAnonymously().catch(err => {
             console.error('Anon sign-in failed', err);
@@ -164,22 +177,44 @@
         });
     }
     function prettyTenant(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'StayOS'; }
+    function applyHotelName() {
+        const name = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
+        $('goHotelName').textContent = name + (DEMO ? ' · DEMO' : '');
+    }
 
-    // ── Catalog ────────────────────────────────────────────────
-    function loadCatalog() {
-        if (DEMO) { catalog = DEMO_CATALOG.slice(); renderAll(); return; }
-        db.collection('requestCatalog').where('tenantId', '==', TENANT).get()
+    // ── Data (config + catalog) ────────────────────────────────
+    function loadData() {
+        Promise.all([fetchConfig(), fetchCatalog()]).then(() => { applyHotelName(); renderAll(); });
+    }
+    function fetchConfig() {
+        return db.collection('guestConfig').doc(TENANT).get()
+            .then(doc => { if (doc.exists) config = Object.assign({}, DEFAULT_CONFIG, doc.data()); })
+            .catch(() => { /* keep defaults */ });
+    }
+    function fetchCatalog() {
+        return db.collection('requestCatalog').where('tenantId', '==', TENANT).get()
             .then(snap => {
                 catalog = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
                     .filter(i => i.active !== false)
                     .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || (a.name || '').localeCompare(b.name || '', 'tr'));
-                renderAll();
             })
             .catch(err => {
                 console.error('catalog load failed', err);
+                catalog = [];
                 $('goBody').innerHTML = stateHtml('😕', 'Talepler yüklenemedi', 'Sayfayı yenileyip tekrar deneyin.');
             });
     }
+
+    // ── Price helpers ──────────────────────────────────────────
+    function priceOf(item) { const p = Number(item && item.price) || 0; return p > 0 ? p : 0; }
+    function pricesOn() { return !!config.showPrices; }
+    function fmtPrice(n) { return config.currency + Number(n || 0).toLocaleString('tr-TR'); }
+    function priceTag(item, cls) {
+        const p = priceOf(item);
+        if (!pricesOn() || !p) return '';
+        return `<span class="go-price ${cls || ''}">${esc(fmtPrice(p))}</span>`;
+    }
+    function cartTotal() { return cart.reduce((s, l) => s + priceOf(l) * (l.qty || 0), 0); }
 
     function categories() {
         const seen = [];
@@ -239,10 +274,12 @@
         }
     }
 
-    // Home extras: banner + recommended + popular categories.
+    // Home extras: promo banner + (optional) "recommended" row.
+    // Category navigation lives in the sticky strip above, so there is no
+    // duplicate "popular categories" section.
     function renderHome() {
-        const recos = catalog.filter(i => i.reco).slice(0, 8);
-        const recoList = (recos.length ? recos : catalog.slice(0, 6));
+        const recoList = catalog.filter(i => i.reco).slice(0, 10);
+        const showReco = config.showRecommended !== false && recoList.length > 0;
         const cats = categories();
         $('goHome').innerHTML = `
             <div class="go-banner-wrap">
@@ -260,22 +297,14 @@
                     <span class="go-dot active"></span><span class="go-dot"></span><span class="go-dot"></span>
                 </div>
             </div>
-
-            <section class="go-sec">
+            ${showReco ? `<section class="go-sec">
                 <div class="go-sec-head"><h2><span class="go-sec-emoji">✨</span>Sizin için önerilenler</h2><a data-goto="${esc(cats[0] || '')}">Tümünü gör</a></div>
                 <div class="go-hscroll">${recoList.map(recoCard).join('')}</div>
-            </section>
+            </section>` : ''}`;
 
-            <section class="go-sec">
-                <div class="go-sec-head"><h2><span class="go-sec-emoji">🔥</span>Popüler kategoriler</h2></div>
-                <div class="go-hscroll">${cats.map(popCard).join('')}</div>
-            </section>`;
-
-        // banner rotation
         startBanner();
         $('goHow').onclick = () => toast('Talep seç → Sepete ekle → Sipariş ver → Canlı takip et 🎉');
         $('goHome').querySelectorAll('[data-goto]').forEach(a => a.onclick = () => setActiveCat(a.dataset.goto, true));
-        $('goHome').querySelectorAll('[data-pop]').forEach(c => c.onclick = () => setActiveCat(c.dataset.pop, true));
         $('goHome').querySelectorAll('[data-reco-add]').forEach(b => b.onclick = (e) => {
             e.stopPropagation(); changeQty(b.dataset.recoAdd, +1);
         });
@@ -283,21 +312,12 @@
 
     function recoCard(item) {
         const inCart = cart.find(l => l.catalogId === item.id);
+        const price = priceTag(item);
         return `<div class="go-reco-card">
             <div class="go-reco-emoji">${esc(item.icon || '🛎️')}</div>
             <button class="go-reco-add ${inCart ? 'added' : ''}" data-reco-add="${esc(item.id)}" aria-label="Ekle">${inCart ? '✓' : '+'}</button>
             <div class="go-reco-name">${esc(item.name)}</div>
-            ${item.eta ? `<div class="go-reco-meta">${clockSvg}${esc(item.eta)}</div>` : ''}
-        </div>`;
-    }
-    function popCard(cat) {
-        const count = catalog.filter(i => (i.category || 'Diğer') === cat).length;
-        return `<div class="go-pop-card" data-pop="${esc(cat)}" style="background:${catGrad(cat)}">
-            <span class="go-pop-ico">${catIcon(cat, 24)}</span>
-            <div>
-                <div class="go-pop-name">${esc(cat)}</div>
-                <div class="go-pop-count">${count} talep seçeneği</div>
-            </div>
+            ${price ? `<div class="go-reco-meta">${price}</div>` : (item.eta ? `<div class="go-reco-meta">${clockSvg}${esc(item.eta)}</div>` : '')}
         </div>`;
     }
 
@@ -347,12 +367,16 @@
     }
 
     function cardHtml(item) {
+        const price = priceTag(item);
+        const metaBits = [];
+        if (item.eta) metaBits.push(`<span class="go-meta">${clockSvg}${esc(item.eta)}</span>`);
+        if (price) metaBits.push(price);
         return `<div class="go-card" data-id="${esc(item.id)}">
             <div class="go-emoji">${esc(item.icon || '🛎️')}</div>
             <div class="go-info">
                 <div class="go-name">${esc(item.name)}</div>
                 ${item.description ? `<div class="go-desc">${esc(item.description)}</div>` : ''}
-                ${item.eta ? `<div class="go-meta">${clockSvg}${esc(item.eta)}</div>` : ''}
+                ${metaBits.length ? `<div class="go-meta-row">${metaBits.join('')}</div>` : ''}
             </div>
             <div class="go-card-action" data-action-for="${esc(item.id)}"></div>
         </div>`;
@@ -397,7 +421,7 @@
         if (!line && delta > 0) {
             if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
             line = { catalogId, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
-                department: item.department || '', qty: 0, note: '', preferredTime: '' };
+                department: item.department || '', price: priceOf(item), qty: 0, note: '', preferredTime: '' };
             cart.push(line);
         }
         if (!line) return;
@@ -432,18 +456,25 @@
         $('goSheet').classList.remove('show');
         $('goSheet').setAttribute('aria-hidden', 'true');
     }
+    function setSubmitLabel(text) { const el = $('goSubmitLabel'); if (el) el.textContent = text; }
+    function updateSubmitTotal() {
+        const total = cartTotal();
+        setSubmitLabel('Sipariş Ver' + (pricesOn() && total ? ' · ' + fmtPrice(total) : ''));
+    }
     function renderCart() {
         const wrap = $('goCartList');
         if (!cart.length) { wrap.innerHTML = stateHtml('🛒', 'Sepetiniz boş', 'Listeden talep ekleyin.'); $('goSubmit').disabled = true; return; }
         $('goSubmit').disabled = false;
+        updateSubmitTotal();
         wrap.innerHTML = cart.map((l, i) => `
             <div class="go-line" data-i="${i}">
                 <div class="go-line-top">
                     <div class="go-line-emoji">${esc(l.icon || '🛎️')}</div>
                     <div class="go-line-main">
                         <div class="go-line-name">${esc(l.name)}</div>
-                        <div class="go-line-cat">${esc(l.category || '')}</div>
+                        <div class="go-line-cat">${esc(l.category || '')}${(pricesOn() && priceOf(l)) ? ' · ' + esc(fmtPrice(priceOf(l))) : ''}</div>
                     </div>
+                    ${(pricesOn() && priceOf(l)) ? `<div class="go-line-sub">${esc(fmtPrice(priceOf(l) * l.qty))}</div>` : ''}
                     <button class="go-line-del" data-del="${i}" aria-label="Sil">🗑</button>
                 </div>
                 <div class="go-line-controls">
@@ -501,7 +532,7 @@
             ROOM = r; $('goRoomChip').style.display = 'inline-flex'; $('goRoomLabel').textContent = 'Oda ' + ROOM;
         }
         const btn = $('goSubmit');
-        btn.disabled = true; btn.innerHTML = 'Gönderiliyor...';
+        btn.disabled = true; setSubmitLabel('Gönderiliyor...');
 
         const guestName = ($('goGuestName').value || '').trim().slice(0, 60);
         const items = cart.map((l, idx) => ({
@@ -511,11 +542,13 @@
             category: String(l.category || '').slice(0, 60),
             icon: String(l.icon || '🛎️').slice(0, 8),
             department: String(l.department || '').slice(0, 60),
+            price: priceOf(l),
             qty: Math.min(MAX_QTY, Math.max(1, l.qty || 1)),
             note: String(l.note || '').slice(0, 160),
             preferredTime: String(l.preferredTime || '').slice(0, 10),
             status: 'pending'
         }));
+        const total = items.reduce((s, it) => s + (Number(it.price) || 0) * it.qty, 0);
 
         const finishOk = (id) => {
             currentOrderId = id;
@@ -523,20 +556,20 @@
             try { localStorage.setItem(COOLDOWN_KEY, String(Date.now() + COOLDOWN_MS)); } catch (e) {}
             cart = []; saveCart();
             closeSheet();
-            btn.disabled = false; btn.innerHTML = 'Sipariş Ver';
+            btn.disabled = false; setSubmitLabel('Sipariş Ver');
             $('goGuestName').value = '';
             toast('Talebiniz alındı! 🎉' + (DEMO ? ' (demo)' : ''));
             subscribeOrder(id);
         };
         const finishErr = (err) => {
             console.error('order submit failed', err);
-            btn.disabled = false; btn.innerHTML = 'Sipariş Ver';
+            btn.disabled = false; setSubmitLabel('Sipariş Ver');
             toast('Gönderilemedi. Tekrar deneyin.', true);
         };
 
         if (DEMO) {
             const id = 'demo' + Date.now().toString(36);
-            saveDemoOrder({ id, tenantId: TENANT, room: ROOM, guestName, sessionUid: 'demo', items, itemCount: items.length, createdAtMs: Date.now(), cancelled: false });
+            saveDemoOrder({ id, tenantId: TENANT, room: ROOM, guestName, sessionUid: 'demo', items, itemCount: items.length, total, currency: config.currency, showPrices: pricesOn(), createdAtMs: Date.now(), cancelled: false });
             finishOk(id);
             return;
         }
@@ -544,6 +577,7 @@
         db.collection('guestOrders').add({
             tenantId: TENANT, room: ROOM, guestName, sessionUid,
             status: 'pending', items, itemCount: items.length,
+            total: total, currency: config.currency || '₺', showPrices: pricesOn(),
             statusLog: [{ status: 'pending', at: Date.now(), by: 'guest' }],
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -589,6 +623,9 @@
         const heroSub = cancelled ? 'Bu talep iptal edildi.'
             : (order.status === 'completed' ? 'Tüm talepleriniz tamamlandı. Teşekkürler!'
             : 'Talebiniz personelimize iletildi. Durumu buradan canlı takip edebilirsiniz.');
+        const cur = order.currency || '₺';
+        const showP = !!order.showPrices && Number(order.total) > 0;
+        const fmtP = n => cur + Number(n || 0).toLocaleString('tr-TR');
         const steps = cancelled ? '' : `<div class="go-steps">${FLOW.map((s, i) => {
             const cls = i < stepIdx ? 'done' : (i === stepIdx ? 'active' : 'todo');
             const logEntry = (order.statusLog || []).filter(l => l.status === s).pop();
@@ -598,14 +635,17 @@
         }).join('')}</div>`;
         const items = (order.items || []).map(it => {
             const ist = STATUS[it.status] || STATUS.pending;
-            const meta = [it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note].filter(Boolean).join(' · ');
+            const bits = [it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note];
+            if (showP && Number(it.price) > 0) bits.push(fmtP(Number(it.price) * (it.qty || 1)));
+            const meta = bits.filter(Boolean).join(' · ');
             return `<div class="go-titem"><div class="go-emoji">${esc(it.icon || '🛎️')}</div>
                 <div class="go-info"><div class="go-name">${esc(it.name)}</div>${meta ? `<div class="go-meta">${esc(meta)}</div>` : ''}</div>
                 <span class="go-pill ${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>`;
         }).join('');
         const canCancel = order.status === 'pending';
         $('goTrackBody').innerHTML = `
-            <div class="go-track-hero"><div class="go-track-emoji">${esc(st.emoji)}</div><h2>${esc(st.label)}</h2><p>${esc(heroSub)}</p></div>
+            <div class="go-track-hero"><div class="go-track-emoji">${esc(st.emoji)}</div><h2>${esc(st.label)}</h2><p>${esc(heroSub)}</p>
+                ${showP ? `<div class="go-track-total">Toplam: <b>${esc(fmtP(order.total))}</b></div>` : ''}</div>
             ${steps}
             <div class="go-track-items"><h3>Talepleriniz (${(order.items || []).length})</h3>${items}</div>
             <div class="go-track-actions">
