@@ -158,17 +158,10 @@ img { display: block; }
 .go-reco-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
 .go-reco-meta svg { width: 12px; height: 12px; }
 
-/* Popular categories (gradient tiles) */
-.go-pop-card {
-    flex: 0 0 auto; width: 150px; height: 92px; border-radius: 16px; position: relative; overflow: hidden;
-    color: #fff; padding: 12px; display: flex; flex-direction: column; justify-content: space-between;
-    box-shadow: var(--shadow);
-}
-.go-pop-card .go-pop-ico { width: 26px; height: 26px; opacity: .95; }
-.go-pop-card .go-pop-name { font-size: 14px; font-weight: 800; }
-.go-pop-card .go-pop-count { font-size: 11px; opacity: .9; font-weight: 600; }
-.go-pop-card::after { content: ''; position: absolute; right: -20px; top: -20px; width: 80px; height: 80px;
-    background: radial-gradient(circle, rgba(255,255,255,.22), rgba(255,255,255,0) 70%); }
+/* Price chip */
+.go-price { display: inline-flex; align-items: center; background: var(--primary-soft); color: var(--primary-dark);
+    font-weight: 700; font-size: 12px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.go-reco-meta .go-price { margin-top: 0; }
 
 /* Full category sections + product cards */
 .go-body { padding: 4px 16px 0; }
@@ -188,8 +181,12 @@ img { display: block; }
 .go-card .go-info { flex: 1; min-width: 0; }
 .go-card .go-name { font-size: 15px; font-weight: 700; line-height: 1.25; }
 .go-card .go-desc { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
-.go-card .go-meta { font-size: 11px; color: #94a3b8; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; }
+.go-card .go-meta-row { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+.go-card .go-meta { font-size: 11px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px; }
 .go-card .go-meta svg { width: 12px; height: 12px; }
+.go-line-sub { font-weight: 800; font-size: 14px; color: var(--primary-dark); white-space: nowrap; margin-left: 4px; }
+.go-track-total { margin-top: 12px; font-size: 14px; color: var(--text-muted); }
+.go-track-total b { color: var(--text); font-weight: 800; font-size: 16px; }
 
 .go-add {
     flex-shrink: 0; width: 38px; height: 38px; border-radius: 12px; background: var(--primary); color: #fff;

@@ -10,32 +10,37 @@
     if (typeof db === 'undefined' || typeof TENANT_ID === 'undefined') return;
 
     const COL = 'requestCatalog';
+    const CFG = 'guestConfig';
     let items = [];
     let editingId = null;
     let unsub = null;
+    let cfg = { hotelName: '', showRecommended: true, showPrices: false, currency: '₺' };
 
-    // Default starter menu (Temizlik / Konfor / Yiyecek & İçecek / Teknik Servis / Resepsiyon).
+    // Default starter menu (Temizlik / Konfor / Yiyecek & İçecek / Minibar / Teknik / Diğer).
     const DEFAULTS = [
-        { category: 'Temizlik', catIcon: '🧹', name: 'Oda Temizliği', icon: '🧹', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', department: 'Housekeeping' },
-        { category: 'Konfor', catIcon: '🛏️', name: 'Ekstra Yastık', icon: '🛏️', department: 'Housekeeping' },
-        { category: 'Konfor', name: 'Ekstra Battaniye', icon: '🧣', department: 'Housekeeping' },
-        { category: 'Konfor', name: 'Terlik', icon: '🥿', department: 'Housekeeping' },
-        { category: 'Konfor', name: 'Bornoz', icon: '🥼', department: 'Housekeeping' },
-        { category: 'Yiyecek & İçecek', catIcon: '🍽️', name: 'Su', icon: '💧', department: 'Food & Beverage' },
-        { category: 'Yiyecek & İçecek', name: 'Çay / Kahve', icon: '☕', department: 'Food & Beverage' },
-        { category: 'Yiyecek & İçecek', name: 'Meyve Tabağı', icon: '🍎', department: 'Food & Beverage' },
-        { category: 'Yiyecek & İçecek', name: 'Atıştırmalık', icon: '🍫', department: 'Food & Beverage' },
-        { category: 'Teknik Servis', catIcon: '🔧', name: 'Klima Sorunu', icon: '❄️', department: 'Engineering' },
-        { category: 'Teknik Servis', name: 'TV Sorunu', icon: '📺', department: 'Engineering' },
-        { category: 'Teknik Servis', name: 'Sıcak Su Yok', icon: '🚿', department: 'Engineering' },
-        { category: 'Teknik Servis', name: 'Wi-Fi Sorunu', icon: '📶', department: 'Engineering' },
-        { category: 'Teknik Servis', name: 'Ampul Değişimi', icon: '💡', department: 'Engineering' },
-        { category: 'Resepsiyon', catIcon: '🛎️', name: 'Geç Çıkış Talebi', icon: '🕐', department: 'Front Desk' },
-        { category: 'Resepsiyon', name: 'Uyandırma Servisi', icon: '⏰', department: 'Front Desk' },
-        { category: 'Resepsiyon', name: 'Taksi Çağır', icon: '🚕', department: 'Front Desk' }
+        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', reco: true, department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', reco: true, department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', department: 'Housekeeping' },
+        { category: 'Konfor', name: 'Ekstra Yastık', icon: '🛏️', eta: '15 dk', department: 'Housekeeping' },
+        { category: 'Konfor', name: 'Ekstra Battaniye', icon: '🧣', eta: '15 dk', department: 'Housekeeping' },
+        { category: 'Konfor', name: 'Terlik', icon: '🥿', eta: '15 dk', department: 'Housekeeping' },
+        { category: 'Konfor', name: 'Bornoz', icon: '🥼', eta: '15 dk', department: 'Housekeeping' },
+        { category: 'Yiyecek & İçecek', name: 'Su', icon: '💧', eta: '15 dk', department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Çay / Kahve', icon: '☕', eta: '15-20 dk', price: 60, reco: true, department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Meyve Tabağı', icon: '🍎', eta: '20-30 dk', price: 120, department: 'Food & Beverage' },
+        { category: 'Yiyecek & İçecek', name: 'Atıştırmalık', icon: '🍫', eta: '20 dk', price: 80, department: 'Food & Beverage' },
+        { category: 'Minibar', name: 'Su Takviyesi', icon: '💧', eta: '20 dk', price: 40, department: 'Food & Beverage' },
+        { category: 'Minibar', name: 'Meşrubat', icon: '🥤', eta: '20 dk', price: 70, department: 'Food & Beverage' },
+        { category: 'Minibar', name: 'Atıştırmalık Paketi', icon: '🍿', eta: '20 dk', price: 90, department: 'Food & Beverage' },
+        { category: 'Teknik', name: 'Klima Sorunu', icon: '❄️', eta: '30 dk', reco: true, department: 'Engineering' },
+        { category: 'Teknik', name: 'TV Sorunu', icon: '📺', eta: '30 dk', department: 'Engineering' },
+        { category: 'Teknik', name: 'Sıcak Su Yok', icon: '🚿', eta: '30 dk', department: 'Engineering' },
+        { category: 'Teknik', name: 'Wi-Fi Sorunu', icon: '📶', eta: '20 dk', department: 'Engineering' },
+        { category: 'Teknik', name: 'Ampul Değişimi', icon: '💡', eta: '20 dk', department: 'Engineering' },
+        { category: 'Diğer', name: 'Geç Çıkış Talebi', icon: '🕐', department: 'Front Desk' },
+        { category: 'Diğer', name: 'Uyandırma Servisi', icon: '⏰', department: 'Front Desk' },
+        { category: 'Diğer', name: 'Taksi Çağır', icon: '🚕', eta: '15 dk', department: 'Front Desk' }
     ];
 
     function esc(s) {
@@ -69,6 +74,7 @@
             display: flex; align-items: center; justify-content: center; font-size: 21px; }
         .cat-row .cat-body { flex: 1; min-width: 0; }
         .cat-row .cat-name { font-size: 14px; font-weight: 700; color: #1e293b; }
+        .cat-row .cat-reco { color: #f59e0b; font-size: 12px; }
         .cat-row .cat-sub { font-size: 11.5px; color: #94a3b8; }
         .cat-row .cat-flag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
         .cat-row .cat-flag.on { background: #f0fdf4; color: #16a34a; }
@@ -131,11 +137,14 @@
 
     function rowHtml(i) {
         const active = i.active !== false;
+        const cur = (cfg && cfg.currency) || '₺';
+        const priceTxt = i.price ? cur + Number(i.price).toLocaleString('tr-TR') : 'Ücretsiz';
+        const sub = [i.department || '—', priceTxt].join(' · ');
         return `<div class="cat-row ${active ? '' : 'inactive'}" data-edit="${esc(i.id)}">
             <div class="cat-emoji">${esc(i.icon || '🛎️')}</div>
             <div class="cat-body">
-                <div class="cat-name">${esc(i.name)}</div>
-                <div class="cat-sub">${esc(i.department || '—')}</div>
+                <div class="cat-name">${esc(i.name)} ${i.reco ? '<span class="cat-reco">★</span>' : ''}</div>
+                <div class="cat-sub">${esc(sub)}</div>
             </div>
             <span class="cat-flag ${active ? 'on' : 'off'}">${active ? 'Aktif' : 'Pasif'}</span>
         </div>`;
@@ -151,7 +160,10 @@
         $('catIcon').value = it ? (it.icon || '') : '';
         $('catDept').value = it ? (it.department || '') : '';
         $('catDesc').value = it ? (it.description || '') : '';
+        $('catPrice').value = it && it.price ? it.price : '';
+        $('catEta').value = it ? (it.eta || '') : '';
         $('catActive').checked = it ? (it.active !== false) : true;
+        $('catReco').checked = it ? !!it.reco : false;
         $('catalogDeleteBtn').style.display = it ? 'block' : 'none';
         $('catalogModal').style.display = 'flex';
     }
@@ -167,6 +179,7 @@
         if (!name || !category) { toast('Ad ve kategori zorunlu.', true); return; }
         const existing = editingId ? items.find(x => x.id === editingId) : null;
         const maxOrder = items.reduce((m, i) => Math.max(m, i.sortOrder || 0), 0);
+        const price = Math.max(0, parseInt($('catPrice').value, 10) || 0);
         const data = {
             tenantId: TENANT_ID,
             name: name,
@@ -174,6 +187,9 @@
             icon: ($('catIcon').value.trim() || '🛎️').slice(0, 8),
             department: $('catDept').value,
             description: $('catDesc').value.trim(),
+            eta: $('catEta').value.trim().slice(0, 20),
+            price: price,
+            reco: $('catReco').checked,
             active: $('catActive').checked,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -219,6 +235,30 @@
         batch.commit().then(() => toast(n + ' talep eklendi.')).catch(err => { console.error(err); toast('Yüklenemedi.', true); });
     }
 
+    // ── Guest page settings (guestConfig) ──────────────────────
+    function loadConfig() {
+        db.collection(CFG).doc(TENANT_ID).get().then(doc => {
+            if (doc.exists) cfg = Object.assign(cfg, doc.data());
+            const hn = $('cfgHotelName'), cur = $('cfgCurrency'), sp = $('cfgShowPrices'), sr = $('cfgShowReco');
+            if (hn) hn.value = cfg.hotelName || '';
+            if (cur) cur.value = cfg.currency || '₺';
+            if (sp) sp.checked = !!cfg.showPrices;
+            if (sr) sr.checked = cfg.showRecommended !== false;
+            render();
+        }).catch(err => console.error('config load failed', err));
+    }
+    function saveConfig() {
+        cfg = {
+            hotelName: ($('cfgHotelName').value || '').trim().slice(0, 60),
+            currency: ($('cfgCurrency').value || '₺').trim().slice(0, 4) || '₺',
+            showPrices: $('cfgShowPrices').checked,
+            showRecommended: $('cfgShowReco').checked
+        };
+        db.collection(CFG).doc(TENANT_ID).set(Object.assign({ tenantId: TENANT_ID, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, cfg), { merge: true })
+            .then(() => { toast('Ayarlar kaydedildi.'); render(); })
+            .catch(err => { console.error(err); toast('Kaydedilemedi.', true); });
+    }
+
     // ── Listen ─────────────────────────────────────────────────
     function listen() {
         if (unsub) return;
@@ -236,9 +276,10 @@
         $('closeCatalogModal') && ($('closeCatalogModal').onclick = closeModal);
         $('catalogForm') && ($('catalogForm').onsubmit = save);
         $('catalogDeleteBtn') && ($('catalogDeleteBtn').onclick = remove);
+        $('catCfgSave') && ($('catCfgSave').onclick = saveConfig);
         const modal = $('catalogModal');
         if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-        auth.onAuthStateChanged(u => { if (u) listen(); });
+        auth.onAuthStateChanged(u => { if (u) { listen(); loadConfig(); } });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
