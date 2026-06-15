@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loginCard.classList.add('fade-out');
         forcePwCard.classList.add('fade-out');
         setTimeout(() => {
-            window.location.href = 'concierge.html';
+            window.location.href = 'dashboard.html';
         }, 800);
     }
 
