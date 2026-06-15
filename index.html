@@ -693,8 +693,15 @@
                     <div class="foot-col">
                         <h4>Yasal</h4>
                         <a href="legal/gizlilik-kvkk.pdf" target="_blank" rel="noopener">Gizlilik Politikası &amp; KVKK</a>
+                        <a href="legal/kvkk-aydinlatma.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>
+                        <a href="legal/acik-riza.html" target="_blank" rel="noopener">Açık Rıza Metni</a>
+                        <a href="legal/cerez-politikasi.html" target="_blank" rel="noopener">Çerez Politikası</a>
                         <a href="legal/kullanim-kosullari.pdf" target="_blank" rel="noopener">Kullanım Koşulları</a>
+                        <a href="legal/mesafeli-satis.html" target="_blank" rel="noopener">Mesafeli Satış Sözleşmesi</a>
+                        <a href="legal/on-bilgilendirme.html" target="_blank" rel="noopener">Ön Bilgilendirme Formu</a>
                         <a href="legal/iptal-iade.pdf" target="_blank" rel="noopener">İptal &amp; İade Politikası</a>
+                        <a href="legal/veri-isleyen-sozlesmesi.html" target="_blank" rel="noopener">Veri İşleyen Sözleşmesi (DPA)</a>
+                        <a href="legal/ticari-elektronik-ileti.html" target="_blank" rel="noopener">Ticari Elektronik İleti Onayı</a>
                     </div>
                     <div class="foot-col">
                         <h4>Platform</h4>
@@ -702,6 +709,15 @@
                         <a href="#" data-quote>Teklif Al</a>
                     </div>
                 </div>
+            </div>
+            <div class="foot-kunye">
+                <b>Künye:</b>
+                <span data-ph>[Şirket Ünvanı]</span> ·
+                <span data-ph>[Açık Adres]</span> ·
+                MERSİS: <span data-ph>[…]</span> ·
+                Vergi D./No: <span data-ph>[…]</span> ·
+                E-posta: <span data-ph>[iletisim@stayos.org]</span> ·
+                Tel: <span data-ph>[…]</span>
             </div>
             <div class="foot-bottom">
                 <small>© <span id="year"></span> StayOS · Tüm hakları saklıdır.</small>
@@ -1013,6 +1029,50 @@
                 btn.disabled = false; btn.textContent = 'Teklif İste';
             }
         });
+    })();
+    </script>
+
+    <!-- ── Künye + Çerez onayı stilleri ── -->
+    <style>
+        .foot-kunye { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border);
+            font-size: 12.5px; color: var(--faint); line-height: 1.8; }
+        .foot-kunye b { color: var(--text); }
+        .foot-kunye [data-ph] { color: var(--accent-dark); font-weight: 600; }
+        #cookieBar { position: fixed; left: 50%; transform: translateX(-50%) translateY(140%);
+            bottom: 16px; width: calc(100% - 28px); max-width: 720px; z-index: 9000;
+            background: #fff; border: 1px solid var(--border); border-radius: 16px;
+            box-shadow: 0 18px 50px rgba(15,23,42,.18); padding: 16px 18px;
+            display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+            transition: transform .35s cubic-bezier(.2,1,.3,1); }
+        #cookieBar.show { transform: translateX(-50%) translateY(0); }
+        #cookieBar p { margin: 0; flex: 1; min-width: 220px; font-size: 13.5px; color: #475569; line-height: 1.5; }
+        #cookieBar a { color: var(--accent-dark); font-weight: 600; }
+        #cookieBar .cb-actions { display: flex; gap: 9px; }
+        #cookieBar button { border: none; border-radius: 10px; padding: 10px 18px; font-family: inherit;
+            font-weight: 700; font-size: 13.5px; cursor: pointer; }
+        #cookieBar .cb-reject { background: #f1f5f9; color: #475569; }
+        #cookieBar .cb-accept { background: var(--accent, #6366f1); color: #fff; }
+        @media (max-width: 560px) { #cookieBar .cb-actions { width: 100%; } #cookieBar .cb-actions button { flex: 1; } }
+    </style>
+
+    <!-- ── Çerez onay bandı ── -->
+    <div id="cookieBar" role="dialog" aria-label="Çerez onayı">
+        <p>Deneyiminizi iyileştirmek için zorunlu çerezler kullanıyoruz. Analitik/pazarlama çerezleri yalnızca onayınızla çalışır.
+            <a href="legal/cerez-politikasi.html" target="_blank" rel="noopener">Çerez Politikası</a></p>
+        <div class="cb-actions">
+            <button class="cb-reject" id="cbReject">Reddet</button>
+            <button class="cb-accept" id="cbAccept">Kabul Et</button>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var KEY = 'stayos_cookie_consent';
+        var bar = document.getElementById('cookieBar');
+        try { if (localStorage.getItem(KEY)) return; } catch (e) {}
+        setTimeout(function () { bar.classList.add('show'); }, 800);
+        function decide(v) { try { localStorage.setItem(KEY, v); } catch (e) {} bar.classList.remove('show'); }
+        document.getElementById('cbAccept').addEventListener('click', function () { decide('accepted'); });
+        document.getElementById('cbReject').addEventListener('click', function () { decide('rejected'); });
     })();
     </script>
 </body>
