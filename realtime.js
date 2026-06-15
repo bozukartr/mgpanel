@@ -142,7 +142,7 @@
         }
         listEl.innerHTML = notifications.slice(0, 40).map(n => {
             const t = n.createdAt && n.createdAt.toDate ? n.createdAt.toDate().getTime() : null;
-            return `<div class="rt-item ${n.read ? '' : 'unread'}" data-id="${esc(n.id)}" data-record="${esc(n.recordId || '')}">
+            return `<div class="rt-item ${n.read ? '' : 'unread'}" data-id="${esc(n.id)}" data-record="${esc(n.recordId || '')}" data-type="${esc(n.type || '')}">
                 <div class="rt-ico">${n.type === 'complaint' ? '⚠️' : '🔔'}</div>
                 <div class="rt-item-body">
                     <div class="rt-item-title">${esc(n.title || 'Bildirim')}</div>
@@ -153,9 +153,9 @@
         }).join('');
         listEl.querySelectorAll('.rt-item').forEach(it => {
             it.addEventListener('click', () => {
-                const id = it.dataset.id, rec = it.dataset.record;
+                const id = it.dataset.id, rec = it.dataset.record, type = it.dataset.type;
                 RT.markRead(id);
-                if (rec) RT.openRecord(rec);
+                RT.openRecord(rec, type);
                 if (panelEl) panelEl.classList.remove('show');
             });
         });
@@ -171,10 +171,11 @@
             document.body.appendChild(toastEl);
             toastEl.addEventListener('click', () => {
                 toastEl.classList.remove('show');
-                if (toastEl.dataset.record) RT.openRecord(toastEl.dataset.record);
+                RT.openRecord(toastEl.dataset.record, toastEl.dataset.type);
             });
         }
         toastEl.dataset.record = n.recordId || '';
+        toastEl.dataset.type = n.type || '';
         toastEl.innerHTML = `<div class="rt-ico">${n.type === 'complaint' ? '⚠️' : '🔔'}</div>
             <div><b>${esc(n.title || 'Yeni bildirim')}</b><span>${esc(n.body || '')}</span></div>`;
         requestAnimationFrame(() => toastEl.classList.add('show'));
@@ -219,9 +220,22 @@
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     };
-    // Opens the record referenced by a notification. Pages that show requests
-    // (panel/panel-mobile) override RT.onOpen; elsewhere we navigate there.
-    RT.openRecord = function (recordId) {
+    // Per-type openers let a page handle its own notifications inline (e.g. the
+    // Concierge guest-orders drawer) instead of navigating to the panel.
+    RT.openers = RT.openers || {};
+    RT.registerOpener = function (type, fn) { if (type && typeof fn === 'function') RT.openers[type] = fn; };
+
+    // Opens the record referenced by a notification. A registered opener for the
+    // notification's type wins; otherwise pages that show requests
+    // (panel/panel-mobile) override RT.onOpen; otherwise we navigate there.
+    RT.openRecord = function (recordId, type) {
+        if (type && RT.openers[type]) { RT.openers[type](recordId); return; }
+        // Guest-order notifications live in the Concierge drawer; from any other
+        // page, jump there and let it focus the order via ?order=.
+        if (type === 'guestOrder') {
+            if (recordId) window.location.href = 'concierge.html?order=' + encodeURIComponent(recordId);
+            return;
+        }
         if (typeof RT.onOpen === 'function') { RT.onOpen(recordId); return; }
         if (!recordId) return;
         const target = (window.innerWidth > 768 ? 'panel.html' : 'panel-mobile.html') + '?open=' + encodeURIComponent(recordId);

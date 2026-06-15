@@ -39,9 +39,9 @@
 
     // Built-in DEMO catalog — 4 operational categories only.
     const DEMO_CATALOG = [
-        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping' },
         { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping' },
         { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Temizlik', name: 'Banyo Malzemeleri', icon: '🧴', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Ekstra Yastık', icon: '🛏️', eta: '15 dk', department: 'Housekeeping' },
@@ -324,6 +324,10 @@
         };
     }
 
+    // Per-item "aynı anda en fazla adet" cap (admin-set), bounded by the global cap.
+    function lineMax(l) { const m = Number(l && l.maxQty) || 0; return m > 0 ? Math.min(m, MAX_QTY) : MAX_QTY; }
+    function capMsg(l) { return (Number(l && l.maxQty) || 0) > 0 ? `Bu talepten aynı anda en fazla ${l.maxQty} verilebilir.` : `Bir talepten en fazla ${MAX_QTY} adet.`; }
+
     // ── Cart mutations (with caps) ─────────────────────────────
     function changeQty(catalogId, delta) {
         const item = catalog.find(i => i.id === catalogId);
@@ -332,11 +336,11 @@
         if (!line && delta > 0) {
             if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
             line = { catalogId, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
-                department: item.department || '', price: priceOf(item), qty: 0, note: '', preferredTime: '' };
+                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '' };
             cart.push(line);
         }
         if (!line) return;
-        if (delta > 0 && line.qty >= MAX_QTY) { toast(`Bir talepten en fazla ${MAX_QTY} adet.`, true); return; }
+        if (delta > 0 && line.qty >= lineMax(line)) { toast(capMsg(line), true); return; }
         line.qty = Math.max(0, (line.qty || 0) + delta);
         if (line.qty === 0) cart = cart.filter(l => l !== line);
         saveCart();
@@ -406,7 +410,7 @@
     }
     function bumpLine(i, delta) {
         const l = cart[i]; if (!l) return;
-        if (delta > 0 && l.qty >= MAX_QTY) { toast(`Bir talepten en fazla ${MAX_QTY} adet.`, true); return; }
+        if (delta > 0 && l.qty >= lineMax(l)) { toast(capMsg(l), true); return; }
         l.qty = Math.max(0, l.qty + delta);
         if (l.qty === 0) cart.splice(i, 1);
         saveCart(); refreshStepControls(); renderCartBar();
@@ -445,7 +449,9 @@
         const btn = $('goSubmit');
         btn.disabled = true; setSubmitLabel('Gönderiliyor...');
 
-        const guestName = ($('goGuestName').value || '').trim().slice(0, 60);
+        // Guest name is resolved staff-side from the in-house guest for the room
+        // (CRM/PMS), so the guest never types it here.
+        const guestName = '';
         const items = cart.map((l, idx) => ({
             id: 'i' + idx + '_' + Date.now().toString(36),
             catalogId: l.catalogId || '',
@@ -454,7 +460,7 @@
             icon: String(l.icon || '🛎️').slice(0, 8),
             department: String(l.department || '').slice(0, 60),
             price: priceOf(l),
-            qty: Math.min(MAX_QTY, Math.max(1, l.qty || 1)),
+            qty: Math.min(lineMax(l), Math.max(1, l.qty || 1)),
             note: String(l.note || '').slice(0, 160),
             preferredTime: String(l.preferredTime || '').slice(0, 10),
             status: 'pending'
@@ -469,7 +475,6 @@
             cart = []; saveCart();
             closeSheet();
             btn.disabled = false; setSubmitLabel('Sipariş Ver');
-            $('goGuestName').value = '';
             toast('Talebiniz alındı! 🎉' + (DEMO ? ' (demo)' : ''));
             subscribeOrder(id, true);
         };

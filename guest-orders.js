@@ -34,6 +34,15 @@
     let firstLoad = true;
     let activeUsers = [];
     let drawerOpen = false;
+    let directory = {};   // room -> current in-house guest name (from CRM/PMS)
+    let pendingFocus = null;   // order id to focus once data loads (?order= deep-link)
+
+    // The order's guest name comes from the in-house guest for that room
+    // (guestDirectory), not from anything the guest typed.
+    function guestNameForRoom(room, fallback) {
+        const r = String(room == null ? '' : room).trim();
+        return directory[r] || (fallback && String(fallback).trim()) || ('Oda ' + (r || '—'));
+    }
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
@@ -99,6 +108,8 @@
             box-shadow: 0 4px 16px rgba(15,23,42,.05); overflow: hidden; }
         .gos-card.gos-new { animation: gosPop .4s ease; border-color: #fcd34d; }
         @keyframes gosPop { 0% { transform: scale(.96); box-shadow: 0 0 0 4px #fef3c7; } 100% { transform: scale(1); } }
+        .gos-card.gos-flash { animation: gosFlash 1.5s ease; }
+        @keyframes gosFlash { 0%,100% { box-shadow: 0 4px 16px rgba(15,23,42,.05); } 30% { box-shadow: 0 0 0 3px #fcd34d, 0 4px 16px rgba(15,23,42,.05); } }
         .gos-card-top { display: flex; align-items: flex-start; gap: 11px; padding: 14px 14px 10px; }
         .gos-room { width: 46px; height: 46px; border-radius: 12px; background: #eef2ff; color: #4f46e5; flex-shrink: 0;
             display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; line-height: 1; }
@@ -271,7 +282,7 @@
             <div class="gos-card-top">
                 <div class="gos-room"><small>ODA</small><b>${esc(o.room || '—')}</b></div>
                 <div class="gos-meta">
-                    <div class="gos-guest">${esc(o.guestName || 'Misafir')}</div>
+                    <div class="gos-guest">${esc(guestNameForRoom(o.room, o.guestName))}</div>
                     <div class="gos-sub">${(o.items || []).length} kalem · ${esc(timeAgo(created))}</div>
                 </div>
                 <span class="gos-ostat ${o.status}">${esc(LABEL[o.status] || o.status)}</span>
@@ -354,7 +365,7 @@
                 batch.set(logRef, {
                     date: today(),
                     room: order.room || '',
-                    guestName: order.guestName || ('Oda ' + (order.room || '')),
+                    guestName: guestNameForRoom(order.room, order.guestName),
                     department: it.department || DEPT_BY_CAT[it.category] || 'Concierge',
                     complaint: parts.join(' · '),
                     solution: '',
@@ -407,7 +418,7 @@
             .then(() => {
                 if (window.RT && RT.sendNotification && uid) {
                     RT.sendNotification({
-                        toUid: uid, toUsername: uname, type: 'request',
+                        toUid: uid, toUsername: uname, type: 'guestOrder', recordId: orderId,
                         title: 'Misafir talebi atandı',
                         body: `Oda ${o.room || '—'} · ${(o.items || []).length} kalem`
                     }).catch(() => {});
@@ -416,7 +427,7 @@
             .catch(err => { console.error('assign failed', err); alert('Atama yapılamadı.'); });
     }
 
-    // ── Live listener ──────────────────────────────────────────
+    // ── Live listeners ─────────────────────────────────────────
     function listen() {
         db.collection('guestOrders').where('tenantId', '==', TENANT)
             .orderBy('createdAt', 'desc').limit(80)
@@ -424,21 +435,51 @@
                 orders = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
                 if (!firstLoad) {
                     snap.docChanges().forEach(ch => {
-                        if (ch.type === 'added' && (ch.doc.data().status === 'pending')) notifyNew(ch.doc.data());
+                        if (ch.type === 'added' && (ch.doc.data().status === 'pending')) notifyNew(ch.doc.id, ch.doc.data());
                     });
                 }
                 firstLoad = false;
                 renderBadge();
                 if (drawerOpen) render();
+                if (pendingFocus) { const id = pendingFocus; pendingFocus = null; setTimeout(() => focusOrder(id), 200); }
             }, err => console.error('guestOrders listen failed', err));
     }
+    // Mirror current in-house occupants so each order shows the real guest name.
+    function listenDirectory() {
+        db.collection('guestDirectory').where('tenantId', '==', TENANT).onSnapshot(snap => {
+            const map = {};
+            snap.forEach(d => {
+                const g = d.data();
+                if (g.status !== 'in_house') return;
+                const room = String(g.room || '').trim();
+                if (!room || room.toLowerCase() === 'pre-arrival') return;
+                if (!map[room]) map[room] = g.name || '';
+            });
+            directory = map;
+            if (drawerOpen) render();
+        }, () => {});
+    }
 
-    function notifyNew(o) {
+    // Open the drawer focused on a specific order (from a notification click).
+    function focusOrder(orderId) {
+        filterState = 'all';
+        const drawer = document.getElementById('gos-drawer');
+        if (drawer) drawer.querySelectorAll('.gos-fchip').forEach(x => x.classList.toggle('active', x.dataset.f === 'all'));
+        openDrawer();
+        if (!orderId) return;
+        requestAnimationFrame(() => {
+            const sel = (window.CSS && CSS.escape) ? CSS.escape(orderId) : orderId;
+            const card = listEl && listEl.querySelector('[data-card="' + sel + '"]');
+            if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.add('gos-flash'); setTimeout(() => card.classList.remove('gos-flash'), 1600); }
+        });
+    }
+
+    function notifyNew(id, o) {
         try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (e) {}
         const t = document.createElement('div');
         t.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:12px 18px;border-radius:12px;z-index:99999;font-family:Outfit,sans-serif;font-size:13.5px;font-weight:600;box-shadow:0 18px 50px rgba(15,23,42,.35);cursor:pointer';
-        t.textContent = `🛎️ Yeni misafir talebi · Oda ${o.room || '—'}`;
-        t.onclick = () => { openDrawer(); t.remove(); };
+        t.textContent = `🛎️ Yeni misafir talebi · ${guestNameForRoom(o.room)}`;
+        t.onclick = () => { focusOrder(id); t.remove(); };
         document.body.appendChild(t);
         setTimeout(() => t.remove(), 6000);
     }
@@ -449,9 +490,12 @@
         // plan includes "Misafir Talepleri" (toggled per-tenant in superadmin).
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) return;
         buildUI();
+        if (window.RT && RT.registerOpener) RT.registerOpener('guestOrder', focusOrder);
+        try { const oid = new URLSearchParams(location.search).get('order'); if (oid) pendingFocus = oid; } catch (e) {}
         auth.onAuthStateChanged(u => {
             if (!u || u.isAnonymous) return;
             listen();
+            listenDirectory();
         });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
