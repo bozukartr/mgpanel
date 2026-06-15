@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hakkımızda · StayOS</title>
+<meta name="description" content="StayOS — oteller için modern, çok otelli yönetim platformu. Hakkımızda ve künye bilgileri.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="legal/legal.css">
+<style>
+    .ab-hero { background: linear-gradient(180deg, #eef2ff 0%, transparent 100%); border-radius: 0 0 22px 22px; }
+    .kunye-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; margin-top: 8px; box-shadow: 0 6px 24px rgba(15,23,42,.05); }
+    .kunye-card h2 { margin-top: 0; }
+    .kunye-row { display: grid; grid-template-columns: 150px 1fr; gap: 6px 16px; font-size: 14.5px; }
+    .kunye-row dt { color: var(--muted); font-weight: 600; }
+    .kunye-row dd { margin: 0; color: #334155; font-weight: 500; }
+    .kunye-row a { color: var(--primary-dark); }
+    @media (max-width: 540px) { .kunye-row { grid-template-columns: 1fr; gap: 0 0; } .kunye-row dt { margin-top: 10px; } }
+</style>
+</head>
+<body>
+<header class="lg-head">
+    <a class="brand" href="/"><img src="logo.png" alt="StayOS">StayOS</a>
+    <a class="back" href="/">← Siteye dön</a>
+</header>
+<main class="lg-wrap">
+    <h1>Hakkımızda</h1>
+    <p class="lg-updated">StayOS · Otel Yönetim Platformu</p>
+
+    <p>StayOS; oteller için tasarlanmış <b>modern, çok otelli</b> bir yönetim platformudur. Rezervasyon, concierge, misafir ilişkileri (CRM), departman talep akışı, misafir self-servis talepleri ve raporlamayı <b>tek panelde</b> toplar.</p>
+
+    <h2>Ne yapıyoruz?</h2>
+    <p>Otel operasyonunu sadeleştiriyoruz: misafir taleplerini anlık takip, departmanlar arası koordinasyon, concierge ve rezervasyon yönetimi, QR ile misafir self-servis ve canlı bildirimler. Her otelin verisi diğerlerinden tamamen izole; erişim rol bazlı ve KVKK politikalarımız sitede yayında.</p>
+
+    <h2>Değerlerimiz</h2>
+    <ul>
+        <li><b>Sadelik:</b> Her şey bir bakışta anlaşılır.</li>
+        <li><b>Güvenlik:</b> Kiracı (otel) bazlı izolasyon, rol bazlı erişim, şifreli iletişim.</li>
+        <li><b>Hız:</b> Gerçek zamanlı güncellemeler, mobil-uyumlu arayüz.</li>
+    </ul>
+
+    <h2>Künye</h2>
+    <div class="kunye-card">
+        <dl class="kunye-row">
+            <dt>Ünvan</dt><dd>Burak Göl Şahıs Şirketi</dd>
+            <dt>Adres</dt><dd>Örnek Mahallesi 100. Sokak Bina No: 2 İç Kapı No: 3 Edirne/Merkez</dd>
+            <dt>MERSİS No</dt><dd>000000000</dd>
+            <dt>Vergi Dairesi / No</dt><dd>Arda Vergi Dairesi / 1234567890</dd>
+            <dt>E-posta</dt><dd><a href="mailto:bu.gol@outlook.com">bu.gol@outlook.com</a></dd>
+            <dt>Telefon</dt><dd><a href="tel:+905423074620">+90 (542) 307 4620</a></dd>
+        </dl>
+    </div>
+
+    <div class="lg-foot">© <span id="y"></span> StayOS · Tüm hakları saklıdır. — <a href="/">Ana sayfa</a></div>
+</main>
+<script>document.getElementById('y').textContent=new Date().getFullYear();</script>
+</body>
+</html>
