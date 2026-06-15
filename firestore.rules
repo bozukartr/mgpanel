@@ -227,6 +227,14 @@ service cloud.firestore {
       allow read, write: if isSuperAdmin();
     }
 
+    // --- Apex marketing site display mode (Açık / Yakında / Bakımda). Publicly
+    //     readable so index.html can gate itself before auth; written only by the
+    //     platform operator (superadmin). ---
+    match /siteConfig/{id} {
+      allow read:  if true;
+      allow write: if isSuperAdmin();
+    }
+
     // --- Guest self-service page settings (per hotel): display name shown to
     //     guests, whether prices / the "recommended" row appear, currency. Any
     //     signed-in client (incl. anonymous guests) may READ it; only the hotel's

@@ -69,6 +69,10 @@
                 Siparişler
                 <span class="nav-badge" id="ordersBadge" hidden></span>
             </button>
+            <button class="sb-link" data-view="site">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Site
+            </button>
         </nav>
         <div class="sb-foot">
             <div class="sb-user">
@@ -163,6 +167,55 @@
                         <tbody id="ordersBody"></tbody>
                     </table></div>
                 </div>
+            </section>
+
+            <!-- SITE (apex tanıtım sayfası görünümü) -->
+            <section class="view" id="view-site">
+                <div class="card" style="max-width:640px;">
+                    <div class="card-head">
+                        <div>
+                            <h3>Apex Tanıtım Sayfası Durumu</h3>
+                            <div class="sub">stayos.org açılış sayfasında ziyaretçilere ne gösterileceğini belirler.</div>
+                        </div>
+                    </div>
+                    <div style="padding:6px 4px 4px;">
+                        <label class="apex-opt">
+                            <input type="radio" name="apexMode" value="open">
+                            <span class="apex-dot ok"></span>
+                            <span class="apex-txt"><b>Açık</b><small>Normal tanıtım sayfası yayında (şimdiki hâli).</small></span>
+                        </label>
+                        <label class="apex-opt">
+                            <input type="radio" name="apexMode" value="coming_soon">
+                            <span class="apex-dot soon"></span>
+                            <span class="apex-txt"><b>Yakında</b><small>Ziyaretçiler “Çok Yakında” sayfasını görür.</small></span>
+                        </label>
+                        <label class="apex-opt">
+                            <input type="radio" name="apexMode" value="maintenance">
+                            <span class="apex-dot maint"></span>
+                            <span class="apex-txt"><b>Bakımda</b><small>Ziyaretçiler “Bakımdayız” sayfasını görür.</small></span>
+                        </label>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap;">
+                        <button class="btn-primary" id="apexSave">Kaydet</button>
+                        <span id="apexSaved" class="sub" style="display:none; color:#16a34a;">✓ Kaydedildi</span>
+                        <a href="/?preview=1" target="_blank" rel="noopener" class="sub" style="margin-left:auto;">Canlı sayfayı önizle →</a>
+                    </div>
+                    <div class="sub" style="margin-top:14px; line-height:1.6;">
+                        Önizleme bağlantıları:
+                        <a href="apex-yakinda.html" target="_blank" rel="noopener">Yakında</a> ·
+                        <a href="apex-bakim.html" target="_blank" rel="noopener">Bakımda</a>
+                    </div>
+                </div>
+                <style>
+                    .apex-opt { display:flex; align-items:center; gap:12px; padding:13px 14px; border:1px solid #e8edf2;
+                        border-radius:12px; margin-bottom:10px; cursor:pointer; transition:border-color .15s, background .15s; }
+                    .apex-opt:hover { background:#f8fafc; }
+                    .apex-opt input { width:18px; height:18px; accent-color:#6366f1; }
+                    .apex-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+                    .apex-dot.ok { background:#16a34a; } .apex-dot.soon { background:#6366f1; } .apex-dot.maint { background:#f59e0b; }
+                    .apex-txt b { display:block; font-size:14.5px; color:#1e293b; }
+                    .apex-txt small { color:#64748b; font-size:12.5px; }
+                </style>
             </section>
         </div>
     </div>
