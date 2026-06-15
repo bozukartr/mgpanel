@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CRM | Guest Relations Center</title>
+    <title>CRM Merkezi · StayOS</title>
     <link rel="stylesheet" href="crm.css">
+    <link rel="stylesheet" href="crm-theme.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -20,13 +21,13 @@
             <nav class="crm-nav">
                 <a href="concierge.html">Concierge</a>
                 <a href="panel.html">Misafir Kayıtları</a>
-                <a href="crm.html" class="active">CRM Center</a>
-                <a href="admin.html" class="admin-only" id="adminLink" style="display:none;">Admin</a>
+                <a href="crm.html" class="active">CRM Merkezi</a>
+                <a href="admin.html" class="admin-only" id="adminLink" style="display:none;">Ayarlar</a>
             </nav>
             <div class="user-info">
                 <span id="userNameDisplay">Admin</span>
                 <div id="rt-bell"></div>
-                <button id="logoutBtn" class="logout-btn">Logout</button>
+                <button id="logoutBtn" class="logout-btn" title="Çıkış">Çıkış</button>
             </div>
         </header>
 
@@ -35,13 +36,13 @@
             <aside class="guest-sidebar">
                 <div class="sidebar-header">
                     <div class="search-wrap">
-                        <input type="text" id="guestSearch" placeholder="Search guests, rooms...">
+                        <input type="text" id="guestSearch" placeholder="Misafir veya oda ara...">
                     </div>
-                    <button id="addGuestBtn" type="button" style="width:100%; margin:8px 0 2px; padding:11px; background:#2563eb; color:#fff; border:none; border-radius:9px; font-family:inherit; font-weight:600; font-size:13.5px; cursor:pointer;">+ Misafir Ekle</button>
+                    <button id="addGuestBtn" type="button" class="add-guest-btn">+ Misafir Ekle</button>
                     <div class="filter-group">
-                        <button class="filter-btn active" data-filter="arrival">Arrival</button>
-                        <button class="filter-btn" data-filter="in_house">In House</button>
-                        <button class="filter-btn" data-filter="checked_out">Checked Out</button>
+                        <button class="filter-btn active" data-filter="arrival">Bekleyen</button>
+                        <button class="filter-btn" data-filter="in_house">Konaklayan</button>
+                        <button class="filter-btn" data-filter="checked_out">Çıkış yapan</button>
                     </div>
                 </div>
                 <div class="guest-list" id="guestList">
@@ -53,103 +54,85 @@
             <section class="guest-detail" id="guestDetail">
                 <div class="empty-state">
                     <div class="empty-icon">👤</div>
-                    <h2>Guest 360° View</h2>
-                    <p>Select a guest from the list to view their complete history, analytics and manage their current status.</p>
+                    <h2>Misafir 360° Görünümü</h2>
+                    <p>Geçmişini, analizlerini görmek ve durumunu yönetmek için soldan bir misafir seçin.</p>
                 </div>
             </section>
         </main>
     </div>
 
     <!-- Edit Stay Details Modal -->
-    <div id="roomChangeModal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-        <div class="modal-content" style="background: white; border-radius: 12px; max-width: 400px; width: 90%; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-            <h3 style="margin-top: 0; color: #1e293b;">Edit Stay Details</h3>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">
-                Updating details for <strong id="rcGuestName"></strong>
-            </p>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px;">Guest Name</label>
-                <input type="text" id="rcGuestNameInput" style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;">
+    <div id="roomChangeModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
+        <div class="modal-content">
+            <h3 class="crm-modal-title">Konaklama Bilgilerini Düzenle</h3>
+            <p class="crm-modal-sub"><strong id="rcGuestName"></strong> için güncelleme</p>
+            <div class="crm-field">
+                <label>Misafir Adı</label>
+                <input type="text" id="rcGuestNameInput">
             </div>
-            <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 500;">
-                    <input type="checkbox" id="rcIsPreArrival" onchange="document.getElementById('rcNewRoom').disabled = this.checked; if(this.checked) document.getElementById('rcNewRoom').value = '';">
-                    Set as Pre-Arrival (No Room Assigned)
-                </label>
+            <label class="crm-check">
+                <input type="checkbox" id="rcIsPreArrival" onchange="document.getElementById('rcNewRoom').disabled = this.checked; if(this.checked) document.getElementById('rcNewRoom').value = '';">
+                Pre-Arrival olarak işaretle (oda atanmadı)
+            </label>
+            <div class="crm-field">
+                <label>Oda No</label>
+                <input type="text" id="rcNewRoom">
             </div>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px;">Room Number</label>
-                <input type="text" id="rcNewRoom" style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;">
+            <div class="crm-row2">
+                <div class="crm-field"><label>Giriş</label><input type="tel" id="rcCheckIn" placeholder="GG/AA/YYYY"></div>
+                <div class="crm-field"><label>Çıkış</label><input type="tel" id="rcCheckOut" placeholder="GG/AA/YYYY"></div>
             </div>
-            <div style="display: flex; gap: 15px; margin-bottom: 25px;">
-                <div style="flex: 1;">
-                    <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px;">Check-In</label>
-                    <input type="tel" id="rcCheckIn" placeholder="DD/MM/YYYY" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box;">
-                </div>
-                <div style="flex: 1;">
-                    <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px;">Check-Out</label>
-                    <input type="tel" id="rcCheckOut" placeholder="DD/MM/YYYY" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box;">
-                </div>
-            </div>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="closeRoomChangeModal()" style="padding: 10px 16px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Cancel</button>
-                <button onclick="submitRoomChange()" style="padding: 10px 16px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Save Details</button>
+            <div class="crm-modal-actions">
+                <button class="crm-btn crm-btn-ghost" onclick="closeRoomChangeModal()">Vazgeç</button>
+                <button class="crm-btn crm-btn-primary" onclick="submitRoomChange()">Kaydet</button>
             </div>
         </div>
     </div>
 
     <!-- Add Guest Modal (manual entry into the directory) -->
-    <div id="addGuestModal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-        <div class="modal-content" style="background: white; border-radius: 12px; max-width: 420px; width: 90%; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); margin: 10vh auto 0;">
-            <h3 style="margin-top: 0; color: #1e293b;">Misafir Ekle</h3>
-            <p style="font-size: 13px; color: #64748b; margin-top: -6px;">Rezervasyon sistemi (PMS) kullanmıyorsanız misafiri buradan elle ekleyin.</p>
-            <div style="margin-bottom: 12px;">
-                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Ad Soyad</label>
-                <input type="text" id="agName" placeholder="Örn. Ahmet Yılmaz" style="width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:14px; box-sizing:border-box;">
+    <div id="addGuestModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
+        <div class="modal-content">
+            <h3 class="crm-modal-title">Misafir Ekle</h3>
+            <p class="crm-modal-sub">Rezervasyon sistemi (PMS) kullanmıyorsanız misafiri buradan elle ekleyin.</p>
+            <div class="crm-field">
+                <label>Ad Soyad</label>
+                <input type="text" id="agName" placeholder="Örn. Ahmet Yılmaz">
             </div>
-            <div style="margin-bottom: 12px;">
-                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Oda No</label>
-                <input type="text" id="agRoom" placeholder="Örn. 101" style="width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:14px; box-sizing:border-box;">
+            <div class="crm-field">
+                <label>Oda No</label>
+                <input type="text" id="agRoom" placeholder="Örn. 101">
             </div>
-            <div style="display:flex; gap:10px; margin-bottom: 14px;">
-                <div style="flex:1;">
-                    <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Giriş</label>
-                    <input type="tel" id="agCheckIn" placeholder="GG/AA/YYYY" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:13px; box-sizing:border-box;">
-                </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Çıkış</label>
-                    <input type="tel" id="agCheckOut" placeholder="GG/AA/YYYY" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:13px; box-sizing:border-box;">
-                </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Giriş</label><input type="tel" id="agCheckIn" placeholder="GG/AA/YYYY"></div>
+                <div class="crm-field"><label>Çıkış</label><input type="tel" id="agCheckOut" placeholder="GG/AA/YYYY"></div>
             </div>
-            <div style="margin-bottom: 16px;">
-                <label style="display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">Durum</label>
-                <select id="agStatus" style="width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:14px; box-sizing:border-box;">
-                    <option value="in_house">In House (konaklıyor)</option>
-                    <option value="pre_arrival">Arrival (gelecek)</option>
+            <div class="crm-field">
+                <label>Durum</label>
+                <select id="agStatus">
+                    <option value="in_house">Konaklayan (in house)</option>
+                    <option value="pre_arrival">Bekleyen (arrival)</option>
                 </select>
             </div>
-            <div style="display:flex; justify-content:flex-end; gap:10px;">
-                <button id="agCancel" type="button" style="padding:10px 16px; background:#e2e8f0; color:#475569; border:none; border-radius:8px; cursor:pointer; font-weight:500;">Vazgeç</button>
-                <button id="agSave" type="button" style="padding:10px 16px; background:#2563eb; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:500;">Kaydet</button>
+            <div class="crm-modal-actions">
+                <button id="agCancel" type="button" class="crm-btn crm-btn-ghost">Vazgeç</button>
+                <button id="agSave" type="button" class="crm-btn crm-btn-primary">Kaydet</button>
             </div>
         </div>
     </div>
 
     <!-- Merge Guests Modal -->
-    <div id="mergeModal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-        <div class="modal-content" style="background: white; border-radius: 12px; max-width: 440px; width: 90%; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-            <h3 style="margin-top: 0; color: #1e293b;">Merge Duplicate Guest</h3>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 18px;">
-                <strong id="mergePrimaryName"></strong> will be kept as the main guest. The duplicate you pick below will be merged into it (its reservations, logs and notes are transferred) and then removed.
-            </p>
-            <div style="margin-bottom: 15px;">
-                <label style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 8px;">Duplicate guest to merge</label>
-                <input type="text" id="mergeSearch" placeholder="Search by name or room..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box; margin-bottom: 8px;">
-                <select id="mergeSelect" size="6" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;"></select>
+    <div id="mergeModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
+        <div class="modal-content">
+            <h3 class="crm-modal-title">Yinelenen Misafiri Birleştir</h3>
+            <p class="crm-modal-sub"><strong id="mergePrimaryName"></strong> ana misafir olarak kalır. Aşağıdan seçtiğiniz kopya bununla birleştirilir (rezervasyonları, kayıtları ve notları aktarılır) ve silinir.</p>
+            <div class="crm-field">
+                <label>Birleştirilecek kopya misafir</label>
+                <input type="text" id="mergeSearch" placeholder="İsim veya odaya göre ara..." style="margin-bottom:8px;">
+                <select id="mergeSelect" size="6"></select>
             </div>
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button onclick="closeMergeModal()" style="padding: 10px 16px; background: #e2e8f0; color: #475569; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Cancel</button>
-                <button onclick="submitMerge()" style="padding: 10px 16px; background: #7c3aed; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Merge Guests</button>
+            <div class="crm-modal-actions">
+                <button class="crm-btn crm-btn-ghost" onclick="closeMergeModal()">Vazgeç</button>
+                <button class="crm-btn crm-btn-purple" onclick="submitMerge()">Birleştir</button>
             </div>
         </div>
     </div>
