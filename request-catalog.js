@@ -18,9 +18,9 @@
 
     // Default starter menu — 4 operational categories.
     const DEFAULTS = [
-        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping' },
         { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping' },
         { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Temizlik', name: 'Banyo Malzemeleri', icon: '🧴', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Ekstra Yastık', icon: '🛏️', eta: '15 dk', department: 'Housekeeping' },
@@ -166,6 +166,7 @@
         $('catDesc').value = it ? (it.description || '') : '';
         $('catPrice').value = it && it.price ? it.price : '';
         $('catEta').value = it ? (it.eta || '') : '';
+        $('catMaxQty').value = it && it.maxQty ? it.maxQty : '';
         $('catActive').checked = it ? (it.active !== false) : true;
         $('catalogDeleteBtn').style.display = it ? 'block' : 'none';
         $('catalogModal').style.display = 'flex';
@@ -192,6 +193,7 @@
             description: $('catDesc').value.trim(),
             eta: $('catEta').value.trim().slice(0, 20),
             price: price,
+            maxQty: Math.max(0, parseInt($('catMaxQty').value, 10) || 0),
             active: $('catActive').checked,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };

@@ -91,19 +91,63 @@
         }
     });
 
+    // ── Minimal in-page confirm (no native popup) ─────────────
+    function injectStyles() {
+        if (document.getElementById('mg-styles')) return;
+        var css = '.mg-c-back{position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:100000;display:flex;'
+            + 'align-items:center;justify-content:center;opacity:0;transition:opacity .15s;font-family:Outfit,system-ui,sans-serif}'
+            + '.mg-c-back.show{opacity:1}'
+            + '.mg-c{background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(15,23,42,.22);max-width:300px;width:calc(100% - 48px);'
+            + 'padding:18px 18px 14px;transform:translateY(6px);transition:transform .15s}'
+            + '.mg-c-back.show .mg-c{transform:none}'
+            + '.mg-c-msg{font-size:14.5px;color:#1e293b;line-height:1.45;font-weight:500}'
+            + '.mg-c-row{display:flex;gap:8px;margin-top:16px}'
+            + '.mg-c-row button{flex:1;border:none;border-radius:10px;padding:11px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit}'
+            + '.mg-no{background:#f1f5f9;color:#475569}.mg-yes{background:#ef4444;color:#fff}';
+        var s = document.createElement('style'); s.id = 'mg-styles'; s.textContent = css; document.head.appendChild(s);
+    }
+    var confirmEl = null, onYesCb = null;
+    function buildConfirm() {
+        injectStyles();
+        confirmEl = document.createElement('div');
+        confirmEl.className = 'mg-c-back';
+        confirmEl.innerHTML = '<div class="mg-c"><div class="mg-c-msg">' + MSG
+            + '</div><div class="mg-c-row"><button class="mg-no" type="button">Vazgeç</button>'
+            + '<button class="mg-yes" type="button">Kapat</button></div></div>';
+        document.body.appendChild(confirmEl);
+        var close = function () { confirmEl.classList.remove('show'); onYesCb = null; };
+        confirmEl.querySelector('.mg-no').addEventListener('click', close);
+        confirmEl.addEventListener('click', function (e) { if (e.target === confirmEl) close(); });
+        confirmEl.querySelector('.mg-yes').addEventListener('click', function () {
+            var cb = onYesCb; close(); if (cb) cb();
+        });
+    }
+    function askClose(onYes) {
+        if (!confirmEl) buildConfirm();
+        onYesCb = onYes;
+        confirmEl.classList.add('show');
+    }
+    function hideModal(el) {
+        // Close the same way the modal itself would (class- or inline-based).
+        el.classList.remove('show', 'active', 'open');
+        if (isVisible(el)) el.style.display = 'none';
+        el.__mgSnap = null;
+        visState.set(el, false);
+    }
+
     // ── Intercept outside-clicks (capture phase, before close handlers) ──
     document.addEventListener('click', function (e) {
         var el = e.target;
         if (!(el && el.matches && el.matches(SEL))) return;   // only direct backdrop clicks
         if (!isVisible(el)) return;
         if (isDirty(el)) {
-            if (!window.confirm(MSG)) {
-                e.stopImmediatePropagation();
-                e.preventDefault();
-                return;
-            }
+            // Block the native close, ask with a minimal in-page dialog instead.
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            askClose(function () { hideModal(el); });
+            return;
         }
-        // Proceeding to close: forget the snapshot so the next open is clean.
+        // Not dirty: let it close, just forget the snapshot.
         el.__mgSnap = null;
         visState.set(el, false);
     }, true);
