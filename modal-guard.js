@@ -95,8 +95,8 @@
     function injectStyles() {
         if (document.getElementById('mg-styles')) return;
         var css = '.mg-c-back{position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:100000;display:flex;'
-            + 'align-items:center;justify-content:center;opacity:0;transition:opacity .15s;font-family:Outfit,system-ui,sans-serif}'
-            + '.mg-c-back.show{opacity:1}'
+            + 'align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s;font-family:Outfit,system-ui,sans-serif}'
+            + '.mg-c-back.show{opacity:1;pointer-events:auto}'
             + '.mg-c{background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(15,23,42,.22);max-width:300px;width:calc(100% - 48px);'
             + 'padding:18px 18px 14px;transform:translateY(6px);transition:transform .15s}'
             + '.mg-c-back.show .mg-c{transform:none}'

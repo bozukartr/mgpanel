@@ -101,10 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const generateTags = (logs, res) => {
         const tags = [];
-        if (res.length > 2) tags.push('Loyal Guest');
-        if (logs.length > 3) tags.push('Frequent Issues');
+        if (res.length > 2) tags.push('Sadık Misafir');
+        if (logs.length > 3) tags.push('Sık Talep');
         if (res.some(r => r.serviceType === 'VIP')) tags.push('VIP');
-        if (logs.some(l => l.complaint?.toLowerCase().includes('birthday'))) tags.push('Special Occasion');
+        if (logs.some(l => l.complaint?.toLowerCase().includes('birthday'))) tags.push('Özel Gün');
         return tags;
     };
 
@@ -136,10 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="guest-card-header">
                     <span class="guest-card-name">${esc(g.name)}${dateAlert}</span>
                     <span class="guest-card-status ${g.status === 'in_house' ? 'status-in-house' : (g.status === 'pre_arrival' ? 'status-arrival' : 'status-checked-out')}">
-                        ${g.status === 'in_house' ? 'In House' : (g.status === 'pre_arrival' ? 'Pre-Arrival' : 'Checked Out')}
+                        ${g.status === 'in_house' ? 'Konaklayan' : (g.status === 'pre_arrival' ? 'Bekleyen' : 'Çıkış yaptı')}
                     </span>
                 </div>
-                <div class="guest-card-room">Room: ${esc(g.room || 'N/A')}</div>
+                <div class="guest-card-room">Oda: ${esc(g.room || '—')}</div>
             </div>
         `}).join('');
     };
@@ -184,34 +184,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}
                     </div>
                     <div class="profile-room-badge">
-                        Room ${esc(guest.room || 'N/A')} • Registry updated ${new Date(guest.lastUpdated).toLocaleDateString()}
-                        ${guest.checkIn ? `<br><span style="color:#2563eb; font-weight:600;">Check-In: ${esc(guest.checkIn)}</span>` : ''}
-                        ${guest.checkOut ? ` <span style="color:#e11d48; font-weight:600; margin-left:10px;">Check-Out: ${esc(guest.checkOut)}</span>` : ''}
+                        Oda ${esc(guest.room || '—')} • Güncellendi ${new Date(guest.lastUpdated).toLocaleDateString('tr-TR')}
+                        ${guest.checkIn ? `<br><span style="color:#2563eb; font-weight:600;">Giriş: ${esc(guest.checkIn)}</span>` : ''}
+                        ${guest.checkOut ? ` <span style="color:#e11d48; font-weight:600; margin-left:10px;">Çıkış: ${esc(guest.checkOut)}</span>` : ''}
                     </div>
                 </div>
                 <div class="profile-actions" style="display: flex; gap: 8px;">
                     <button class="btn-status-toggle" style="background-color: #f59e0b; color: white;" 
                             onclick="openRoomChangeModal('${guest.id}', '${guest.name}', '${guest.room === 'Pre-Arrival' ? '' : (guest.room || '')}', '${guest.checkIn || ''}', '${guest.checkOut || ''}', '${guest.status}')">
-                        Edit Stay
+                        Bilgileri Düzenle
                     </button>
                     ${guest.status === 'pre_arrival' ? `
                     <button class="btn-status-toggle btn-in-house" onclick="toggleStatus('${guest.id}', 'in_house')">
-                        Check In Now
+                        Giriş Yap
                     </button>
                     ` : `
-                    <button class="btn-status-toggle ${guest.status === 'in_house' ? 'btn-checked-out' : 'btn-in-house'}" 
+                    <button class="btn-status-toggle ${guest.status === 'in_house' ? 'btn-checked-out' : 'btn-in-house'}"
                             onclick="toggleStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')">
-                        ${guest.status === 'in_house' ? 'Check Out Now' : 'Check In (In House)'}
+                        ${guest.status === 'in_house' ? 'Çıkış Yap' : 'Giriş Yap'}
                     </button>
                     `}
                     ${isAdminUser ? `
                     <button class="btn-status-toggle" style="background-color: #7c3aed; color: white;"
                             onclick="openMergeModal('${guest.id}')">
-                        Merge
+                        Birleştir
                     </button>
                     <button class="btn-status-toggle" style="background-color: #ef4444; color: white;"
                             onclick="deleteGuest('${guest.id}', '${guest.name.replace(/'/g, "\\'")}')">
-                        Delete Guest
+                        Sil
                     </button>
                     ` : ''}
                 </div>
@@ -219,53 +219,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <div class="guest-notes-area">
                 <div class="notes-header">
-                    <span>Internal Staff Notes & Preferences</span>
-                    <span style="opacity:0.6; font-size:10px;">Autosaving...</span>
+                    <span>Personel Notları & Tercihler</span>
+                    <span style="opacity:0.6; font-size:10px;">Otomatik kaydediliyor...</span>
                 </div>
                 <div class="notes-content">
-                    <textarea id="guestNotesInput" placeholder="Add preferences, allergies, or special requests..." 
+                    <textarea id="guestNotesInput" placeholder="Tercih, alerji veya özel istekleri ekleyin..."
                               oninput="updateGuestNotes('${guest.id}', this.value)">${esc(guest.notes || '')}</textarea>
                 </div>
             </div>
 
             <div class="profile-grid">
                 <div class="info-card">
-                    <label>Total Interactions</label>
+                    <label>Toplam Etkileşim</label>
                     <div class="val">${interactions.length}</div>
                 </div>
                 <div class="info-card">
-                    <label>Issue Resolution</label>
+                    <label>Çözüm Oranı</label>
                     <div class="val">${gLogs.length === 0 ? '100%' : Math.round((gLogs.filter(l => l.status === 'Solved').length / gLogs.length) * 100) + '%'}</div>
                 </div>
                 <div class="info-card">
-                    <label>Active Status</label>
-                    <div class="val" style="color:${guest.status === 'in_house' ? '#10b981' : '#64748b'}">${guest.status === 'in_house' ? 'IN HOUSE' : 'CHECKED OUT'}</div>
+                    <label>Durum</label>
+                    <div class="val" style="color:${guest.status === 'in_house' ? '#10b981' : '#64748b'}">${guest.status === 'in_house' ? 'KONAKLIYOR' : 'ÇIKIŞ YAPTI'}</div>
                 </div>
             </div>
 
             <div class="interaction-history">
                 <div class="detail-tabs">
-                    <button class="tab-link ${timelineFilter === 'all' ? 'active' : ''}" onclick="setTimelineFilter('all')">All Interactions</button>
-                    <button class="tab-link ${timelineFilter === 'issues' ? 'active' : ''}" onclick="setTimelineFilter('issues')">Guest Issues</button>
+                    <button class="tab-link ${timelineFilter === 'all' ? 'active' : ''}" onclick="setTimelineFilter('all')">Tümü</button>
+                    <button class="tab-link ${timelineFilter === 'issues' ? 'active' : ''}" onclick="setTimelineFilter('issues')">Talepler</button>
                     <button class="tab-link ${timelineFilter === 'concierge' ? 'active' : ''}" onclick="setTimelineFilter('concierge')">Concierge</button>
                 </div>
                 
                 <div class="history-timeline">
-                    ${filteredInteractions.length === 0 ? '<p style="color:#888; padding:20px;">No records found for this category.</p>' : filteredInteractions.map(i => {
+                    ${filteredInteractions.length === 0 ? '<p style="color:#888; padding:20px;">Bu kategoride kayıt yok.</p>' : filteredInteractions.map(i => {
                         const isIssue = i.interactionType === 'issue';
-                        const title = isIssue ? i.complaint : `${i.type} Reservation ${i.resName || i.vehicle || i.vessel || ''}`;
+                        const title = isIssue ? i.complaint : `${i.type} Rezervasyon ${i.resName || i.vehicle || i.vessel || ''}`;
                         const desc = isIssue ? (i.solution || '') : (i.notes || '');
-                        
+
                         return `
                             <div class="timeline-item ${isIssue ? 'issue' : 'concierge'}">
                                 <div class="item-header">
-                                    <span class="item-type type-${isIssue ? 'issue' : 'concierge'}">${isIssue ? 'Issue Log' : 'Concierge'}</span>
-                                    <span class="item-date">${new Date(i.sortDate).toLocaleDateString()}</span>
+                                    <span class="item-type type-${isIssue ? 'issue' : 'concierge'}">${isIssue ? 'Kayıt' : 'Concierge'}</span>
+                                    <span class="item-date">${new Date(i.sortDate).toLocaleDateString('tr-TR')}</span>
                                 </div>
                                 <div class="item-title">${esc(title)}</div>
                                 <div class="item-desc">${esc(desc)}</div>
                                 <div style="font-size:11px; color:#94a3b8; margin-top:8px;">
-                                    ${isIssue ? `Dept: ${esc(i.department)} • Staff: ${esc(i.staffInitial)}` : `Time: ${esc(i.time || '—')} • Status: ${esc(i.status)} • Staff: ${esc(i.staffInitial)}`}
+                                    ${isIssue ? `Departman: ${esc(i.department)} • Personel: ${esc(i.staffInitial)}` : `Saat: ${esc(i.time || '—')} • Durum: ${esc(i.status)} • Personel: ${esc(i.staffInitial)}`}
                                 </div>
                             </div>
                         `;
@@ -339,9 +339,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(g => g.id !== mergePrimaryId)
             .filter(g => !s || g.name.toLowerCase().includes(s) || (g.room && g.room.toLowerCase().includes(s)))
             .sort((a, b) => a.name.localeCompare(b.name));
-        const statusLabel = (st) => st === 'in_house' ? 'In House' : (st === 'pre_arrival' ? 'Pre-Arrival' : 'Checked Out');
+        const statusLabel = (st) => st === 'in_house' ? 'Konaklayan' : (st === 'pre_arrival' ? 'Bekleyen' : 'Çıkış yaptı');
         sel.innerHTML = opts.map(g =>
-            `<option value="${g.id}">${esc(g.name)} — ${esc(g.room || 'N/A')} (${statusLabel(g.status)})</option>`
+            `<option value="${g.id}">${esc(g.name)} — ${esc(g.room || '—')} (${statusLabel(g.status)})</option>`
         ).join('');
     }
 
