@@ -1031,12 +1031,35 @@
         const view = link.dataset.view;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         $('view-' + view).classList.add('active');
-        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'] };
+        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], site: ['Site', 'Apex tanıtım sayfası görünümü'] };
         $('pageTitle').textContent = titles[view][0];
         $('pageSub').textContent = titles[view][1];
         $('sidebar').classList.remove('open');
     }));
     $('menuToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
+
+    // ── Apex tanıtım sayfası görünümü (Açık / Yakında / Bakımda) ──
+    (function () {
+        const saveBtn = $('apexSave');
+        if (!saveBtn) return;
+        const setRadio = (mode) => {
+            const r = document.querySelector('input[name="apexMode"][value="' + mode + '"]');
+            if (r) r.checked = true;
+        };
+        db.collection('siteConfig').doc('apex').get()
+            .then(doc => setRadio((doc.exists && doc.data().mode) || 'open'))
+            .catch(() => setRadio('open'));
+        saveBtn.addEventListener('click', () => {
+            const sel = document.querySelector('input[name="apexMode"]:checked');
+            const mode = sel ? sel.value : 'open';
+            saveBtn.disabled = true; saveBtn.textContent = 'Kaydediliyor...';
+            db.collection('siteConfig').doc('apex').set(
+                { mode, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+                .then(() => { const s = $('apexSaved'); if (s) { s.style.display = 'inline'; setTimeout(() => { s.style.display = 'none'; }, 2500); } })
+                .catch(e => { console.error(e); alert('Kaydedilemedi.'); })
+                .finally(() => { saveBtn.disabled = false; saveBtn.textContent = 'Kaydet'; });
+        });
+    })();
 
     // ---------- auth ----------
     $('loginForm').addEventListener('submit', async (e) => {

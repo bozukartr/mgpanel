@@ -11,11 +11,19 @@
             var h = (location.hostname || '').toLowerCase();
             var p = h.split('.');
             if (h.indexOf('stayos.org') !== -1 && p.length >= 3 && p[0] !== 'www') {
-                location.replace('/login.html');
+                location.replace('/login.html'); return;
             }
+        } catch (e) {}
+        // Apex display-mode gate (Açık / Yakında / Bakımda — superadmin'den ayarlanır).
+        // Hide content until the mode is read; ?preview bypasses; fail-open on timeout.
+        try {
+            if (new URLSearchParams(location.search).has('preview')) return;
+            document.documentElement.className += ' apex-gate';
+            setTimeout(function () { document.documentElement.classList.remove('apex-gate'); }, 3000);
         } catch (e) {}
     })();
     </script>
+    <style>html.apex-gate body { visibility: hidden; }</style>
     <title>StayOS — Modern Otel Yönetim Platformu</title>
     <meta name="description" content="StayOS; rezervasyon, concierge, misafir ilişkileri (CRM), departman talep akışı ve raporlamayı tek modern panelde toplayan, çok otelli otel yönetim platformudur.">
     <meta property="og:title" content="StayOS — Otel Yönetim Platformu">
@@ -777,6 +785,23 @@
     <!-- Firebase (quote form persistence) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <!-- Apex görünüm modu: siteConfig/apex (Açık / Yakında / Bakımda) -->
+    <script>
+    (function () {
+        function reveal() { try { document.documentElement.classList.remove('apex-gate'); } catch (e) {} }
+        try { if (new URLSearchParams(location.search).has('preview')) { reveal(); return; } } catch (e) { reveal(); return; }
+        try { firebase.initializeApp({ apiKey: 'AIzaSyA9gr0enNzAxFNVcWAn9oiLLMJn5DfgCac', projectId: 'panel-d25c9' }); } catch (e) {}
+        var db; try { db = firebase.firestore(); } catch (e) { reveal(); return; }
+        db.collection('siteConfig').doc('apex').get().then(function (doc) {
+            var mode = doc.exists ? (doc.data().mode || 'open') : 'open';
+            if (mode === 'maintenance') { location.replace('apex-bakim.html'); return; }
+            if (mode === 'coming_soon') { location.replace('apex-yakinda.html'); return; }
+            reveal();
+        }).catch(reveal);
+    })();
+    </script>
+
     <!-- GSAP for scroll-driven motion -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
