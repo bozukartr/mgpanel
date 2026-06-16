@@ -491,7 +491,12 @@
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) return;
         buildUI();
         if (window.RT && RT.registerOpener) RT.registerOpener('guestOrder', focusOrder);
+        // App Shell'deki "Talepler" sekmesi (postMessage) veya ?orders=1 ile çekmeceyi aç.
+        window.addEventListener('message', function (e) {
+            if (e.data && e.data.__mgShell && e.data.type === 'openOrders') openDrawer();
+        });
         try { const oid = new URLSearchParams(location.search).get('order'); if (oid) pendingFocus = oid; } catch (e) {}
+        try { if (new URLSearchParams(location.search).get('orders') === '1') setTimeout(openDrawer, 80); } catch (e) {}
         auth.onAuthStateChanged(u => {
             if (!u || u.isAnonymous) return;
             listen();

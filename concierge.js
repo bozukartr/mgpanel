@@ -516,6 +516,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Yeni Rezervasyon modalı — sağdaki "Misafir Özeti" panelini doldur.
+    const RES_ICON = { Restaurant: '🍽️', Beach: '🏖️', Transfer: '🚗', Flower: '🌸', Cake: '🎂', Boat: '🛥️', Tour: '🗺️', Other: '✨' };
+    function renderGuestSummary(name) {
+        const host = document.getElementById('rs-guestSummary');
+        if (!host) return;
+        const n = (name || '').trim();
+        if (!n) { host.className = 'rs-sum-empty'; host.textContent = 'Misafir seçtiğinizde rezervasyon özeti burada görünür.'; return; }
+        const g = guestDirectory.find(x => (x.name || '').toLowerCase() === n.toLowerCase());
+        const list = reservations.filter(r => (r.guestName || '').toLowerCase() === n.toLowerCase())
+            .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+        if (!g && !list.length) { host.className = 'rs-sum-empty'; host.textContent = '“' + n + '” için kayıt yok — yeni misafir olarak eklenecek.'; return; }
+        host.className = '';
+        const initials = n.split(/\s+/).map(s => s[0] || '').slice(0, 2).join('').toUpperCase();
+        const room = (g && g.room && g.room !== 'Pre-Arrival') ? g.room : ((g && g.status === 'pre_arrival') ? 'Ön geliş' : '—');
+        const st = g ? (g.status === 'in_house' ? ['in', 'Konaklıyor'] : (g.status === 'pre_arrival' ? ['pre', 'Bekliyor'] : ['out', 'Çıkış yaptı'])) : null;
+        let html = '<div class="rs-sum-head"><div class="rs-sum-av">' + esc(initials || '·') + '</div><div>'
+            + '<div class="rs-sum-name">' + esc(n) + '</div><div class="rs-sum-sub">Oda ' + esc(room) + '</div></div></div>';
+        if (st) html += '<span class="rs-sum-stat ' + st[0] + '">' + st[1] + '</span>';
+        if (g && (g.checkIn || g.checkOut)) html += '<div class="rs-sum-dates">'
+            + (g.checkIn ? '<span>Giriş: ' + esc(g.checkIn) + '</span>' : '')
+            + (g.checkOut ? '<span>Çıkış: ' + esc(g.checkOut) + '</span>' : '') + '</div>';
+        html += '<div class="rs-sum-list-title">Rezervasyonlar (' + list.length + ')</div>';
+        if (!list.length) html += '<div class="rs-sum-empty">Henüz rezervasyon yok.</div>';
+        else {
+            html += list.slice(0, 6).map(function (r) {
+                const p = r.status === 'Confirmed' ? ['confirmed', 'Onaylı'] : (r.status === 'Cancelled' ? ['cancelled', 'İptal'] : ['pending', 'Bekliyor']);
+                const d = (r.date && /^\d{4}-\d{2}-\d{2}/.test(r.date)) ? r.date.split('-').reverse().join('.') : (r.date || '—');
+                return '<div class="rs-sum-item"><div class="rs-sum-ico">' + (RES_ICON[r.type] || '✨') + '</div>'
+                    + '<div class="it-main"><div class="it-t">' + esc(r.type || '') + (r.time ? ' · ' + esc(r.time) : '') + '</div>'
+                    + '<div class="it-d">' + esc(d) + '</div></div><span class="rs-sum-pill ' + p[0] + '">' + p[1] + '</span></div>';
+            }).join('');
+            if (list.length > 6) html += '<div class="rs-sum-more">+' + (list.length - 6) + ' daha</div>';
+        }
+        host.innerHTML = html;
+    }
+
     // Auto-fill Details & Sync Pre-Arrival state when guest name is selected from directory
     document.getElementById('rs-guest')?.addEventListener('input', (e) => {
         const name = e.target.value.trim();
@@ -544,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('rs-pa-box').style.display = 'block'; // Restore outer wrapper
             }
         }
+        renderGuestSummary(name);
     });
 
     async function syncGuestStatus(name, room, isPreArrival, checkIn, checkOut) {
@@ -1178,6 +1215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rs-repeatOpts').style.display = 'none';
         document.getElementById('rs-repeatCount').value = 3;
         document.getElementById('rs-repeatInterval').value = '1';
+        renderGuestSummary('');
         openSheet(resSheet, resBackdrop);
     };
 
@@ -1444,7 +1482,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFormFields();
 
         document.getElementById('rs-guest').value = r.guestName;
-        
+        renderGuestSummary(r.guestName);
+
         const isPreArrival = r.room === 'Pre-Arrival';
         const paCheckbox = document.getElementById('rs-isPreArrival');
         paCheckbox.checked = isPreArrival;

@@ -63,6 +63,20 @@
         });
     });
 
+    // "Talepler" — misafir QR talep/sipariş çekmecesini açar (Concierge/Kayıtlar'da
+    // gömülü guest-orders.js çalışır). Başka görünümdeysek Concierge'e geçip açar.
+    function openOrders() {
+        if (currentRoute === 'concierge' || currentRoute === 'kayitlar') {
+            try { frame.contentWindow.postMessage({ __mgShell: 1, type: 'openOrders' }, '*'); } catch (e) {}
+        } else {
+            location.hash = '#concierge';
+            loadRoute('concierge', 'orders=1', true);
+        }
+    }
+    document.querySelectorAll('[data-action="orders"]').forEach(function (el) {
+        el.addEventListener('click', openOrders);
+    });
+
     // iframe kendi içinde başka panele giderse (ör. hızlı aksiyon) → aktif sekmeyi senkronla
     window.addEventListener('message', function (e) {
         var d = e.data;
@@ -94,6 +108,9 @@
         $('shRole').textContent = ROLE ? (ROLE.charAt(0).toUpperCase() + ROLE.slice(1)) : 'Personel';
         $('shAvatar').textContent = (USERNAME.slice(0, 2) || '··').toUpperCase();
         if (ROLE === 'admin' || USERNAME.toLowerCase() === 'admin') { var a = $('shAdmin'); if (a) a.style.display = ''; }
+        if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) {
+            document.querySelectorAll('.sh-orders').forEach(function (el) { el.style.display = 'none'; });
+        }
         $('shLogout').onclick = function () { try { auth.signOut(); } catch (e) {} location.href = 'login.html'; };
         fromHash();
     }
