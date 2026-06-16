@@ -31,6 +31,7 @@
     <meta name="theme-color" content="#f7f9fc">
     <link rel="icon" href="logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="pricing.css">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         :root{
@@ -332,7 +333,7 @@
                 <a href="#ozellikler">Özellikler</a>
                 <a href="#akis">Talep Akışı</a>
                 <a href="#moduller">Modüller</a>
-                <a href="#paketler">Paketler</a>
+                <a href="#fiyatlandirma">Fiyatlandırma</a>
                 <a href="#sss">SSS</a>
             </nav>
             <div class="nav-cta">
@@ -344,7 +345,7 @@
             <a href="#ozellikler">Özellikler</a>
             <a href="#akis">Talep Akışı</a>
             <a href="#moduller">Modüller</a>
-            <a href="#paketler">Paketler</a>
+            <a href="#fiyatlandirma">Fiyatlandırma</a>
             <a href="#sss">SSS</a>
         </div>
     </header>
@@ -597,41 +598,123 @@
     </section>
 
     <!-- PACKAGES (no pricing) -->
-    <section id="paketler">
+    <section id="fiyatlandirma" class="pr-section">
         <div class="wrap">
             <div class="sec-head gs-up">
-                <span class="tag">Paketler</span>
-                <h2>İhtiyacınıza göre şekillenen paketler</h2>
-                <p>Tek bir Core paket + otelinize göre eklenen modüller. Size özel teklifi birlikte oluşturalım.</p>
+                <span class="tag">Fiyatlandırma</span>
+                <h2>Otelinize göre adil, şeffaf fiyatlandırma</h2>
+                <p>Sabit base ücret + oda başına küçük bir ücret + ihtiyacınız olan modüller. Gizli ücret yok, kurulum bedeli yok.</p>
             </div>
-            <div class="pkg">
-                <div class="pkg-card gs-card">
-                    <span class="pkg-badge">Core Paket</span>
-                    <h3>Operasyonun tamamı, standart pakette</h3>
-                    <p>Her StayOS kurulumu şunlarla birlikte gelir:</p>
-                    <ul class="pkg-list">
-                        <li>Otel paneli &amp; özel alt alan adı</li>
-                        <li>Tam rezervasyon yönetimi</li>
-                        <li>Concierge &amp; hizmet yönetimi</li>
-                        <li>Departman talep akışı &amp; süre takibi</li>
-                        <li>CRM &amp; misafir rehberi</li>
-                        <li>Raporlama (Excel &amp; PDF)</li>
-                        <li>Gerçek zamanlı bildirimler</li>
-                        <li>Mobil uygulama (PWA)</li>
+
+            <div class="pr-toggle-wrap gs-up">
+                <div class="pr-toggle">
+                    <button class="pr-tg active" data-billing="monthly">Aylık</button>
+                    <button class="pr-tg" data-billing="annual">Yıllık <span class="pr-save">−%18</span></button>
+                </div>
+            </div>
+
+            <div class="pr-grid gs-up">
+                <!-- Starter -->
+                <div class="pr-card" data-plan="starter">
+                    <div class="pr-name">Starter</div>
+                    <div class="pr-desc">Küçük ekipler ve tek modülle başlamak isteyenler için.</div>
+                    <div class="pr-price"><span class="amt">€49</span><span class="per">/ay base</span></div>
+                    <div class="pr-room">+ <b>€0,8</b> / oda / ay</div>
+                    <div class="pr-annual-note"></div>
+                    <ul class="pr-feats">
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Core özellikler (rezervasyon, raporlama, bildirim, PWA)</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><b>1 modül</b> (Concierge veya CRM)</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Özel alt alan adı &amp; mobil uygulama</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>E-posta desteği</li>
                     </ul>
-                    <div class="pkg-mods">
-                        <span class="pkg-mod">+ Ek otel paneli</span>
-                        <span class="pkg-mod">+ Ek kullanıcı paketi</span>
-                        <span class="pkg-mod">+ PMS entegrasyonu</span>
+                    <button class="pr-cta" data-quote>Teklif Al</button>
+                </div>
+
+                <!-- Pro -->
+                <div class="pr-card feat" data-plan="pro">
+                    <span class="pr-badge">⭐ En çok önerilen</span>
+                    <div class="pr-name">Pro</div>
+                    <div class="pr-desc">Büyüyen oteller için en dengeli seçim — çoğu ekip için ideal.</div>
+                    <div class="pr-price"><span class="amt">€99</span><span class="per">/ay base</span></div>
+                    <div class="pr-room">+ <b>€1,2</b> / oda / ay</div>
+                    <div class="pr-annual-note"></div>
+                    <ul class="pr-feats">
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Tüm Core özellikler</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><b>3 modül</b> (Concierge, CRM, Guest Issue)</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Misafir self-servis (QR talepler)</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Öncelikli e-posta desteği</li>
+                    </ul>
+                    <button class="pr-cta" data-quote>Teklif Al</button>
+                </div>
+
+                <!-- Business -->
+                <div class="pr-card" data-plan="business">
+                    <div class="pr-name">Business</div>
+                    <div class="pr-desc">Tam entegrasyon ve öncelikli destek isteyen oteller için.</div>
+                    <div class="pr-price"><span class="amt">€199</span><span class="per">/ay base</span></div>
+                    <div class="pr-room">+ <b>€1,5</b> / oda / ay</div>
+                    <div class="pr-annual-note"></div>
+                    <ul class="pr-feats">
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><b>Tüm modüller</b> dahil</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><b>PMS Entegrasyonu</b> dahil</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Öncelikli destek (hızlı yanıt)</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Gelişmiş raporlama</li>
+                    </ul>
+                    <button class="pr-cta" data-quote>Teklif Al</button>
+                </div>
+            </div>
+
+            <div class="pr-addons gs-up">
+                <span class="pr-addon">🔌 PMS Entegrasyonu <b>+€99/ay</b></span>
+                <span class="pr-addon">➕ Ekstra Modül <b>+€19/ay</b></span>
+                <span class="pr-addon">🏨 Oda sayısında <b>limit yok</b></span>
+            </div>
+
+            <!-- Dinamik hesaplayıcı -->
+            <div class="pr-calc gs-up">
+                <div class="pr-calc-head">
+                    <h3>Anlık fiyat hesaplayıcı</h3>
+                    <p>Oda sayınızı girin, eklentileri seçin — toplam anında görünsün.</p>
+                    <div class="pr-field">
+                        <label>Paket</label>
+                        <div class="pr-plans">
+                            <div class="pr-plan-opt" data-plan="starter">Starter</div>
+                            <div class="pr-plan-opt active" data-plan="pro">Pro</div>
+                            <div class="pr-plan-opt" data-plan="business">Business</div>
+                        </div>
+                    </div>
+                    <div class="pr-row">
+                        <div class="pr-field">
+                            <label>Oda sayısı</label>
+                            <input class="pr-input" id="prRooms" type="number" min="0" value="40" inputmode="numeric">
+                        </div>
+                        <div class="pr-field" data-extra>
+                            <label>Ekstra modül</label>
+                            <div class="pr-stepper">
+                                <button type="button" data-step="down">−</button>
+                                <input class="pr-input" id="prExtra" type="number" min="0" value="0" inputmode="numeric">
+                                <button type="button" data-step="up">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pr-field">
+                        <label>Eklenti</label>
+                        <label class="pr-check" data-pms>
+                            <input type="checkbox" id="prPms"> PMS Entegrasyonu
+                            <span class="pr-cprice">+€99/ay</span>
+                        </label>
                     </div>
                 </div>
-                <div class="pkg-side gs-card">
-                    <h3>Size özel teklif</h3>
-                    <p>Oda sayınızı ve ihtiyaçlarınızı paylaşın; paket ve fiyat teklifinizi aynı gün e-posta ile iletelim.</p>
-                    <button class="btn" data-quote>Teklif Al</button>
-                    <small>Kurulum ücreti yok · Yıllık ödemede avantaj</small>
+                <div class="pr-result">
+                    <div class="pr-r-label">Tahmini tutarınız</div>
+                    <div class="pr-r-total" id="prTotal">€0<span>/ay</span></div>
+                    <div class="pr-r-sub" id="prSub"></div>
+                    <span class="pr-r-save" id="prSave" style="display:none;"></span>
+                    <button class="pr-r-cta" data-quote>Bu fiyata Teklif Al →</button>
                 </div>
             </div>
+
+            <p class="pr-note">Tüm fiyatlar KDV hariçtir ve €/aydır. <b>Oda sayısında limit yok</b> — küçük butik otelden büyük zincire kadar aynı adil model. Kesin teklif için “Teklif Al” deyin, aynı gün dönelim.</p>
         </div>
     </section>
 
@@ -695,7 +778,7 @@
                         <a href="#ozellikler">Özellikler</a>
                         <a href="#akis">Talep Akışı</a>
                         <a href="#moduller">Modüller</a>
-                        <a href="#paketler">Paketler</a>
+                        <a href="#fiyatlandirma">Fiyatlandırma</a>
                         <a href="#sss">SSS</a>
                     </div>
                     <div class="foot-col">
@@ -1088,5 +1171,6 @@
         document.getElementById('cbReject').addEventListener('click', function () { decide('rejected'); });
     })();
     </script>
+    <script src="pricing.js"></script>
 </body>
 </html>
