@@ -1,0 +1,102 @@
+/* StayOS — app-shell.js
+ * Tek kalıcı header + iframe içerik kabuğunun yönlendiricisi.
+ * Paneller iframe içinde gömülü (?embed=1) çalışır; header sabit kalır,
+ * yalnızca iframe içeriği değişir. Admin paneli kabuğun DIŞINDADIR (üst pencere). */
+(function () {
+    'use strict';
+    if (typeof auth === 'undefined') return;
+    var $ = function (id) { return document.getElementById(id); };
+
+    var USERNAME = localStorage.getItem('hotelUsername') || '';
+    var ROLE = (localStorage.getItem('hotelRole') || '').toLowerCase();
+
+    // Oturum yoksa girişe (üst pencere).
+    if (!USERNAME) { location.replace('login.html'); return; }
+    auth.onAuthStateChanged(function (u) { if (!u) location.replace('login.html'); });
+
+    var ROUTES = {
+        dashboard: { page: 'dashboard.html', module: null },
+        concierge: { page: 'concierge.html', module: 'concierge' },
+        kayitlar:  { page: 'panel.html',      module: 'guestIssues' },
+        crm:       { page: 'crm.html',         module: 'crm' }
+    };
+    function moduleOn(key) {
+        if (!key) return true;
+        return (typeof moduleEnabled === 'function') ? moduleEnabled(key) : true;
+    }
+
+    var frame = $('shFrame');
+    var loading = $('shLoading');
+    var currentRoute = null;
+
+    function setActive(route) {
+        document.querySelectorAll('.sh-tab[data-route], .sh-bn[data-route]').forEach(function (el) {
+            el.classList.toggle('active', el.getAttribute('data-route') === route);
+        });
+    }
+
+    // route: hedef görünüm · query: iframe'e geçirilecek ek parametre · force: aynı route olsa da yeniden yükle
+    function loadRoute(route, query, force) {
+        var def = ROUTES[route];
+        if (!def || !moduleOn(def.module)) { route = 'dashboard'; def = ROUTES.dashboard; }
+        var src = def.page + '?embed=1' + (query ? '&' + query : '');
+        if (force || query || route !== currentRoute) {
+            if (loading) loading.classList.add('show');
+            frame.src = src;
+        }
+        currentRoute = route;
+        setActive(route);
+    }
+
+    // Hash değişimi → görünüm yükle
+    function fromHash() {
+        var h = (location.hash || '').replace('#', '').split('?')[0];
+        loadRoute(h || 'dashboard');
+    }
+    window.addEventListener('hashchange', fromHash);
+
+    // Nav tıklamaları → hash güncelle
+    document.querySelectorAll('.sh-tab[data-route], .sh-bn[data-route]').forEach(function (el) {
+        el.addEventListener('click', function () {
+            var r = el.getAttribute('data-route');
+            if (('#' + r) === location.hash) loadRoute(r); else location.hash = '#' + r;
+        });
+    });
+
+    // iframe kendi içinde başka panele giderse (ör. hızlı aksiyon) → aktif sekmeyi senkronla
+    window.addEventListener('message', function (e) {
+        var d = e.data;
+        if (!d || !d.__mgShell || d.type !== 'route' || !d.route) return;
+        if (d.route === currentRoute) { setActive(d.route); return; }
+        currentRoute = d.route;          // iframe zaten o sayfada; yeniden yükleme
+        setActive(d.route);
+        try { history.replaceState(null, '', '#' + d.route); } catch (err) {}
+    });
+
+    frame.addEventListener('load', function () { if (loading) loading.classList.remove('show'); });
+
+    // Bildirim (zil) tıklamaları kabuk içinde doğru görünüme yönlensin.
+    if (window.RT) {
+        RT.onOpen = function (recordId) {
+            location.hash = '#kayitlar';
+            loadRoute('kayitlar', recordId ? 'open=' + encodeURIComponent(recordId) : '', true);
+        };
+        if (RT.registerOpener) RT.registerOpener('guestOrder', function (orderId) {
+            location.hash = '#concierge';
+            loadRoute('concierge', orderId ? 'order=' + encodeURIComponent(orderId) : '', true);
+        });
+    }
+
+    // Header
+    function init() {
+        var name = USERNAME ? (USERNAME.charAt(0).toUpperCase() + USERNAME.slice(1)) : 'Ekip';
+        $('shUser').textContent = name;
+        $('shRole').textContent = ROLE ? (ROLE.charAt(0).toUpperCase() + ROLE.slice(1)) : 'Personel';
+        $('shAvatar').textContent = (USERNAME.slice(0, 2) || '··').toUpperCase();
+        if (ROLE === 'admin' || USERNAME.toLowerCase() === 'admin') { var a = $('shAdmin'); if (a) a.style.display = ''; }
+        $('shLogout').onclick = function () { try { auth.signOut(); } catch (e) {} location.href = 'login.html'; };
+        fromHash();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})();

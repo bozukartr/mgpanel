@@ -1,0 +1,13 @@
+/* StayOS — embed.css
+ * App Shell iframe'i içinde gömülüyken panel sayfalarının KENDİ üst/alt nav'larını
+ * gizler (shell tek header'ı sağlar). Yalnızca html.embed durumunda etkilidir;
+ * standalone açılışta hiçbir kural uygulanmaz. */
+html.embed .crm-header,
+html.embed .panel-header,
+html.embed .dash-header,
+html.embed .app-header,
+html.embed .bottom-nav,
+html.embed .dash-bnav {
+    display: none !important;
+}
+html.embed body { background: #f4f7f9; }

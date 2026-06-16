@@ -24,7 +24,8 @@
     //    Extension-agnostic (cleanUrls) and treats panel-mobile as panel.
     const base = (window.location.pathname || '').toLowerCase().replace(/\/$/, '').split('/').pop().replace(/\.html$/, '').replace(/-mobile$/, '');
     const current = MAP.find(x => base === x.page.replace(/\.html$/, ''));
-    if (current && !enabled(current.key)) {
+    // App Shell iframe'i içinde gömülüyken yönlendirmeyi kabuk yapar; burada sadece nav gizlenir.
+    if (current && !enabled(current.key) && !window.__EMBED__) {
         const dest = MAP.find(x => enabled(x.key));
         window.location.replace(dest ? dest.page : 'login.html');
         return;

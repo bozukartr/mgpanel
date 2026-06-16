@@ -164,6 +164,9 @@
     // ── toast for new notifications ────────────────────────────
     let toastEl = null, toastTimer = null;
     function showToast(n) {
+        // App Shell iframe'i içinde gömülüyken bildirim toast'ını kabuk gösterir;
+        // çift gösterimi önlemek için panel kopyası sessiz kalır (listener çalışmaya devam eder).
+        if (window.__EMBED__) return;
         injectStyles();
         if (!toastEl) {
             toastEl = document.createElement('div');
