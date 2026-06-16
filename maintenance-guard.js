@@ -4,6 +4,8 @@
    which leads to the admin panel (admin.html has no guard). */
 (function () {
     if (/maintenance(\.html)?$/i.test(window.location.pathname)) return;
+    // App Shell iframe'i içinde gömülüyken bakım yönlendirmesini kabuk (üst pencere) yapar.
+    if (window.__EMBED__) return;
     try {
         db.collection('maintenance').doc(guardTenant()).onSnapshot((doc) => {
             if (!doc.exists) return;

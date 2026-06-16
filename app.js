@@ -1,3 +1,7 @@
+// Giriş sayfası bir App Shell iframe'i içinde (oturum düşmesi vb.) yüklenirse,
+// üst pencerede tam ekran açılmalı — iframe içinde login gösterme.
+(function () { try { if (window.top !== window.self) window.top.location.replace('login.html'); } catch (e) {} })();
+
 // Maintenance enforcement — runs on the login page (and as a fallback on cached
 // pages). Pre-auth, the relevant hotel comes from the URL (subdomain / ?tenant),
 // NOT a previous session's localStorage, so switching hotels isn't blocked by
@@ -63,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loginCard.classList.add('fade-out');
         forcePwCard.classList.add('fade-out');
         setTimeout(() => {
-            window.location.href = 'dashboard.html';
+            window.location.href = 'app.html';
         }, 800);
     }
 
