@@ -956,7 +956,7 @@
 @media (min-width: 769px) {
     #resSheet {
         left: 50%; right: auto; bottom: auto; top: 50%;
-        width: 820px; max-width: 95vw; max-height: 92vh;
+        width: 900px !important; max-width: 95vw !important; max-height: 90vh !important;
         border-radius: 20px;
         padding-bottom: 22px;
         transform: translate(-50%, -50%) scale(.96);
@@ -975,27 +975,57 @@
        so their two inner fields become individual grid cells; full-width
        blocks reset each row, so the remaining short fields pair up exactly:
        Misafir+Oda · Tarih+Saat · Fiyat+Kapora · Voucher+Not. */
-    #resSheet .sheet-body {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        column-gap: 22px;
-        row-gap: 14px;
-        align-items: start;
+    /* İki bölme: solda form (2 sütun), sağda misafir özeti */
+    #resSheet { display: flex; flex-direction: column; }
+    #resSheet .sheet-body { display: flex; gap: 22px; align-items: stretch; flex: 1; min-height: 0; overflow-y: auto; }
+    #resSheet .rs-main {
+        flex: 1; min-width: 0;
+        display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; row-gap: 12px; align-items: start;
     }
-    #resSheet .sheet-body > .field-row { display: contents; }
-    #resSheet .sheet-body > .field-group,
-    #resSheet .sheet-body .field-row > .field-group { margin-bottom: 0; }
+    #resSheet .rs-main > .field-row { display: contents; }
+    #resSheet .rs-main > .field-group,
+    #resSheet .rs-main .field-row > .field-group { margin-bottom: 0; }
 
     /* Wide blocks span the full width and reset the row flow. */
-    #resSheet .sheet-body > .field-group:first-child,   /* Hizmet Türü */
+    #resSheet .rs-main > .field-group:first-child,   /* Hizmet Türü */
     #resSheet #rs-pa-box,
     #resSheet #rs-dynamic-fields,
     #resSheet #rs-conflict-alert,
     #resSheet #rs-repeatBox,
     #resSheet #rs-submit { grid-column: 1 / -1; }
 
-    /* Empty dynamic container shouldn't reserve a row. */
     #resSheet #rs-dynamic-fields:empty { display: none; }
     #resSheet #rs-submit { margin-top: 6px; }
-    #resSheet #rs-notes { min-height: 44px; }
+    #resSheet #rs-notes { min-height: 40px; }
+
+    /* Sağ özet paneli (masaüstü) */
+    #resSheet .rs-aside {
+        width: 252px; flex: 0 0 252px; border-top: none; border-left: 1px solid #eef0f3;
+        padding: 0 0 0 20px; margin: 0; max-height: 100%; overflow-y: auto;
+    }
 }
+
+/* ═══ Yeni Rezervasyon — Misafir Özeti paneli ═══ */
+.rs-aside { margin-top: 14px; border-top: 1px solid #eef0f3; padding-top: 12px; }
+.rs-aside-title { font-size: 12px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: #94a3b8; margin-bottom: 12px; }
+.rs-sum-empty { font-size: 12.5px; color: #94a3b8; line-height: 1.5; }
+.rs-sum-head { display: flex; align-items: center; gap: 10px; }
+.rs-sum-av { width: 38px; height: 38px; border-radius: 11px; background: #eef2ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+.rs-sum-name { font-size: 14.5px; font-weight: 800; color: #1e293b; line-height: 1.2; }
+.rs-sum-sub { font-size: 11.5px; color: #64748b; margin-top: 1px; }
+.rs-sum-stat { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; margin-top: 10px; }
+.rs-sum-stat.in { background: #f0fdf4; color: #16a34a; }
+.rs-sum-stat.pre { background: #eff6ff; color: #2563eb; }
+.rs-sum-stat.out { background: #f1f5f9; color: #64748b; }
+.rs-sum-dates { font-size: 12px; color: #475569; margin: 11px 0; display: grid; gap: 3px; }
+.rs-sum-list-title { font-size: 11px; font-weight: 700; color: #94a3b8; margin: 14px 0 4px; }
+.rs-sum-item { display: flex; align-items: center; gap: 9px; padding: 9px 0; border-top: 1px solid #f1f5f9; }
+.rs-sum-ico { width: 28px; height: 28px; border-radius: 8px; background: #f4f7f9; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.rs-sum-item .it-main { flex: 1; min-width: 0; }
+.rs-sum-item .it-t { font-size: 12.5px; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-sum-item .it-d { font-size: 11px; color: #94a3b8; }
+.rs-sum-pill { font-size: 9.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; flex-shrink: 0; }
+.rs-sum-pill.pending { background: #fff7ed; color: #c2680c; }
+.rs-sum-pill.confirmed { background: #f0fdf4; color: #16a34a; }
+.rs-sum-pill.cancelled { background: #fef2f2; color: #dc2626; }
+.rs-sum-more { font-size: 11px; color: #94a3b8; text-align: center; padding-top: 10px; }
