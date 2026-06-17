@@ -453,18 +453,66 @@ async function deleteAuthUser(uid) {
   }
 }
 
-// Superadmin-only: remove a hotel — its staff Auth accounts, their systemUsers
-// docs, and the tenant document — so the code can be reused cleanly.
+// Delete every document a query returns, chunked under Firestore's 500/batch
+// limit so it scales to large collections. Returns the number removed.
+async function deleteByQuery(query) {
+  let total = 0;
+  for (;;) {
+    const snap = await query.limit(450).get();
+    if (snap.empty) break;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    total += snap.size;
+    if (snap.size < 450) break;
+  }
+  return total;
+}
+
+// Hotel-scoped data. Most collections carry a `tenantId` field; a few config
+// collections use the tenant id as the document id. Push tokens belong to a
+// user, so they're cleared by the removed users' uids.
+const TENANT_FIELD_COLLECTIONS = [
+  'reservations', 'guestLogs', 'guestDirectory', 'tickets', 'payments',
+  'presence', 'notifications', 'requestCatalog', 'guestOrders', 'roomAccess'
+];
+const TENANT_DOC_COLLECTIONS = ['maintenance', 'financeConfig', 'pmsConfig', 'guestConfig'];
+
+// Permanently remove ALL of a hotel's data (used by "Tamamen Sil").
+async function purgeTenantData(tenantId, userUids) {
+  let removed = 0;
+  for (const col of TENANT_FIELD_COLLECTIONS) {
+    removed += await deleteByQuery(db.collection(col).where('tenantId', '==', tenantId));
+  }
+  for (const col of TENANT_DOC_COLLECTIONS) {
+    await db.collection(col).doc(tenantId).delete().catch(() => {});
+  }
+  for (const uid of userUids) {
+    removed += await deleteByQuery(db.collection('pushTokens').where('uid', '==', uid));
+  }
+  return removed;
+}
+
+// Superadmin-only: remove a hotel. Always deletes the staff Auth accounts,
+// their systemUsers docs and the tenant document (so the code can be reused).
+// When { purgeData: true }, ALSO permanently deletes every hotel-scoped record
+// (reservations, guests, orders, logs, settings…) — the "Tamamen Sil" option.
 exports.deleteHotel = onCall({ region: REGION }, async (request) => {
   await requireSuperAdmin(request);
   const tenantId = request.data && request.data.tenantId;
   if (!tenantId || typeof tenantId !== 'string') {
     throw new HttpsError('invalid-argument', 'Otel kodu gerekli.');
   }
+  const purge = !!(request.data && request.data.purgeData);
 
   const usersSnap = await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+  const userUids = usersSnap.docs.map((doc) => doc.id);
+
+  let purgedDocs = 0;
+  if (purge) purgedDocs = await purgeTenantData(tenantId, userUids);
+
   // Remove each staff member's Auth account (UID == doc id), then their record.
-  await Promise.all(usersSnap.docs.map((doc) => deleteAuthUser(doc.id)));
+  await Promise.all(userUids.map((uid) => deleteAuthUser(uid)));
   if (!usersSnap.empty) {
     const batch = db.batch();
     usersSnap.docs.forEach((doc) => batch.delete(doc.ref));
@@ -472,7 +520,7 @@ exports.deleteHotel = onCall({ region: REGION }, async (request) => {
   }
   await db.collection('tenants').doc(tenantId).delete();
 
-  return { deleted: true, removedUsers: usersSnap.size };
+  return { deleted: true, removedUsers: usersSnap.size, purged: purge, purgedDocs };
 });
 
 // Superadmin-only: remove a single staff member — Auth account + systemUsers

@@ -39,6 +39,7 @@
     // Returns { key, label, cls, end, days }
     function statusOf(t) {
         const end = t.subscriptionEnd && t.subscriptionEnd.toDate ? t.subscriptionEnd.toDate() : null;
+        if (t.archived === true) return { key: 'archived', label: 'Arşivli', cls: 'pill-gray', end };
         if (t.suspended === true) return { key: 'suspended', label: 'Askıda', cls: 'pill-gray', end };
         if (!end) return { key: 'none', label: 'Tanımsız', cls: 'pill-gray', end: null };
         const days = daysBetween(end);
@@ -426,7 +427,7 @@
     function renderRenewals() {
         const rows = tenants
             .map(t => ({ t, s: statusOf(t) }))
-            .filter(x => x.s.end && x.s.days >= 0 && x.s.days <= 14 && x.s.key !== 'suspended')
+            .filter(x => x.s.end && x.s.days >= 0 && x.s.days <= 14 && x.s.key !== 'suspended' && x.s.key !== 'archived')
             .sort((a, b) => a.s.days - b.s.days);
         const body = $('renewalsBody');
         if (!rows.length) {
@@ -648,7 +649,9 @@
         const name = t ? (t.name || id) : id;
         if (!confirm(suspended ? `${name} aktifleştirilsin mi?` : `${name} askıya alınsın mı? Otelin tüm kullanıcıları giriş yapamaz.`)) return;
         try {
-            await db.collection('tenants').doc(id).update({ suspended: !suspended });
+            // Reactivating also lifts the archived flag, restoring the hotel.
+            const patch = suspended ? { suspended: false, archived: false } : { suspended: true };
+            await db.collection('tenants').doc(id).update(patch);
             toast(suspended ? 'Otel aktifleştirildi' : 'Otel askıya alındı');
         } catch (e) {
             toast('Hata: ' + e.message, true);
@@ -810,7 +813,7 @@
         const count = userCountByTenant[t.id] || 0;
         const max = t.maxUsers || 0;
         $('dUserCount').textContent = max > 0 ? `${count} / ${max}` : count;
-        $('dToggle').textContent = t.suspended ? 'Aktifleştir' : 'Askıya Al';
+        $('dToggle').textContent = t.archived ? 'Arşivden Çıkar' : (t.suspended ? 'Aktifleştir' : 'Askıya Al');
     }
     async function loadDrawerUsers(id) {
         const list = $('dUserList');
@@ -906,31 +909,54 @@
     }
 
     // Delete hotel
+    function delMode() {
+        const r = document.querySelector('input[name="delMode"]:checked');
+        return r ? r.value : 'archive';
+    }
+    function syncDelButton() {
+        $('delConfirmBtn').textContent = delMode() === 'purge' ? 'Kalıcı Olarak Sil' : 'Arşivle';
+    }
     function openDeleteModal() {
         const t = tenants.find(x => x.id === drawerTenantId); if (!t) return;
         $('delHotel').textContent = (t.name || t.id) + ' · ' + t.id;
         $('delCode').textContent = t.id;
         $('delConfirm').value = '';
         $('delErr').textContent = '';
+        const archive = document.querySelector('input[name="delMode"][value="archive"]');
+        if (archive) archive.checked = true;
+        syncDelButton();
         $('deleteModal').classList.add('show');
     }
     async function doDeleteHotel() {
         const t = tenants.find(x => x.id === drawerTenantId); if (!t) return;
         const err = $('delErr'); err.textContent = '';
         if ($('delConfirm').value.trim() !== t.id) return err.textContent = 'Otel kodu eşleşmiyor.';
-        const btn = $('delConfirmBtn'); btn.disabled = true; btn.textContent = 'Siliniyor...';
+        const purge = delMode() === 'purge';
+        const btn = $('delConfirmBtn'); btn.disabled = true;
+        btn.textContent = purge ? 'Siliniyor...' : 'Arşivleniyor...';
         try {
-            // Server-side delete: removes staff Auth accounts too, so the hotel
-            // code (slug) is genuinely freed and can be reused without the
-            // "email-already-in-use" error.
-            const deleteHotel = firebase.app().functions('us-central1').httpsCallable('deleteHotel');
-            await deleteHotel({ tenantId: t.id });
+            if (purge) {
+                // Server-side full delete: removes staff Auth accounts and ALL
+                // hotel data, so the code (slug) is genuinely freed and nothing
+                // is left behind ("email-already-in-use" hatası da önlenir).
+                const deleteHotel = firebase.app().functions('us-central1').httpsCallable('deleteHotel');
+                await deleteHotel({ tenantId: t.id, purgeData: true });
+                toast(t.name + ' ve tüm verileri silindi');
+            } else {
+                // Soft archive: keep all data, deactivate the hotel and block
+                // logins. Reversible via "Aktifleştir".
+                await db.collection('tenants').doc(t.id).update({
+                    archived: true,
+                    suspended: true,
+                    archivedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                toast(t.name + ' arşivlendi');
+            }
             $('deleteModal').classList.remove('show');
             closeDrawer();
-            toast(t.name + ' silindi');
             await refresh();
         } catch (e) { err.textContent = 'Hata: ' + e.message; }
-        finally { btn.disabled = false; btn.textContent = 'Kalıcı Olarak Sil'; }
+        finally { btn.disabled = false; syncDelButton(); }
     }
 
     // ---------- events ----------
@@ -958,6 +984,7 @@
     $('editSave').addEventListener('click', saveEdit);
     $('uaCreate').addEventListener('click', createDrawerUser);
     $('delConfirmBtn').addEventListener('click', doDeleteHotel);
+    document.querySelectorAll('input[name="delMode"]').forEach(r => r.addEventListener('change', syncDelButton));
     $('dUserList').addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-uact]');
         if (!btn) return;
