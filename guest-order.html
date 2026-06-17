@@ -24,6 +24,9 @@
                     <span id="goHotelName">StayOS</span>
                 </div>
                 <div class="go-top-r">
+                    <button class="go-ic" id="goInfoIc" aria-label="Otel Bilgileri" style="display:none;">
+                        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    </button>
                     <button class="go-ic" id="goTrackIc" aria-label="Taleplerim">
                         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                     </button>
@@ -34,7 +37,7 @@
                 </div>
             </div>
             <h1 class="go-title">Size nasıl yardımcı olabiliriz?</h1>
-            <p class="go-sub">İhtiyacınız olan hizmeti seçin, anında ekibimize iletelim.</p>
+            <p class="go-sub" id="goSub">İhtiyacınız olan hizmeti seçin, anında ekibimize iletelim.</p>
         </header>
 
         <div class="go-scroll">
@@ -85,6 +88,17 @@
                 <span id="goSubmitLabel">Sipariş Ver</span>
             </button>
         </div>
+    </section>
+
+    <!-- ── Hotel info bottom sheet ── -->
+    <div class="go-backdrop" id="goInfoBackdrop"></div>
+    <section class="go-sheet go-info-sheet" id="goInfoSheet" aria-hidden="true">
+        <div class="go-sheet-pill"></div>
+        <div class="go-sheet-head">
+            <h2 id="goInfoTitle">Otel Bilgileri</h2>
+            <button class="go-sheet-close" id="goInfoClose" aria-label="Kapat">✕</button>
+        </div>
+        <div class="go-sheet-scroll" id="goInfoBody"></div>
     </section>
 
     <!-- ── Verification gate (surname + room) ── -->

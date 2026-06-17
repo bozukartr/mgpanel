@@ -256,6 +256,45 @@
                             <input type="checkbox" id="cfgRequireVerify">
                             <span>Misafir doğrulaması iste (soyadı + oda) — çıkış yapan oda talep oluşturamaz</span>
                         </label>
+
+                        <div style="border-top:1px solid var(--border,#e6eaf0); margin-top:4px; padding-top:14px;">
+                            <h3 style="font-size:14px; font-weight:700; margin:0 0 3px;">Otel Bilgileri</h3>
+                            <p class="card-sub" style="margin:0 0 12px;">Misafirin QR sayfasındaki “Otel Bilgileri” bölümünde görünür. Boş bırakılanlar gizlenir.</p>
+                            <div style="display:grid; gap:12px;">
+                                <div class="form-group">
+                                    <label>Karşılama mesajı</label>
+                                    <input type="text" id="cfgWelcome" maxlength="160" placeholder="Örn. Konaklamanızın keyfini çıkarın, her şey bir dokunuş uzağınızda.">
+                                </div>
+                                <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                    <div>
+                                        <label>Resepsiyon telefonu</label>
+                                        <input type="text" id="cfgPhone" maxlength="30" placeholder="Örn. 0 (000) 000 00 00">
+                                    </div>
+                                    <div>
+                                        <label>Çıkış (check-out) saati</label>
+                                        <input type="text" id="cfgCheckout" maxlength="20" placeholder="Örn. 12:00">
+                                    </div>
+                                </div>
+                                <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                    <div>
+                                        <label>Wi-Fi ağı</label>
+                                        <input type="text" id="cfgWifiName" maxlength="40" placeholder="Örn. Hotel-Guest">
+                                    </div>
+                                    <div>
+                                        <label>Wi-Fi şifresi</label>
+                                        <input type="text" id="cfgWifiPass" maxlength="40" placeholder="Örn. konaklama2024">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Kahvaltı saatleri</label>
+                                    <input type="text" id="cfgBreakfast" maxlength="60" placeholder="Örn. 07:00 – 10:30 · Lobi Restoran">
+                                </div>
+                                <div class="form-group">
+                                    <label>Adres</label>
+                                    <input type="text" id="cfgAddress" maxlength="160" placeholder="Otel adresi (haritada açılır)">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
