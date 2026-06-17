@@ -73,6 +73,10 @@ input, textarea { font-family: inherit; }
 .go-items-head .ih-ico { width: 36px; height: 36px; border-radius: 12px; color: #fff; display: flex; align-items: center; justify-content: center; }
 .go-items-head h2 { font-size: 19px; font-weight: 800; margin: 0; letter-spacing: -.3px; }
 .go-grid { display: grid; gap: 12px; }
+.go-subhead { font-size: 13px; font-weight: 800; color: var(--text, #1e293b); margin: 18px 2px 9px;
+    display: flex; align-items: center; gap: 8px; }
+.go-subhead::before { content: ''; width: 16px; height: 2px; border-radius: 2px; background: var(--brand, #6366f1); }
+.go-grid + .go-subhead { margin-top: 22px; }
 
 .go-card { display: flex; align-items: center; gap: 15px; background: var(--surface); border: 1px solid var(--border);
     border-radius: 20px; padding: 15px 16px; box-shadow: var(--shadow); transition: transform .12s, border-color .15s; }

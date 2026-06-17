@@ -279,9 +279,17 @@
 
     function renderItems() {
         const items = catalog.filter(i => (i.category || 'Diğer') === activeCat);
+        // Group by subcategory ('' = ungrouped, shown first under the category head).
+        const subs = [];
+        items.forEach(i => { const s = (i.subcategory || '').trim(); if (!subs.includes(s)) subs.push(s); });
+        const body = subs.map(sub => {
+            const subItems = items.filter(i => (i.subcategory || '').trim() === sub);
+            const head = sub ? `<div class="go-subhead">${esc(sub)}</div>` : '';
+            return head + `<div class="go-grid">${subItems.map(cardHtml).join('')}</div>`;
+        }).join('');
         $('goBody').innerHTML = `
             <div class="go-items-head"><span class="ih-ico" style="background:${catGrad(activeCat)}">${catIcon(activeCat, 20)}</span><h2>${esc(activeCat)}</h2></div>
-            <div class="go-grid">${items.map(cardHtml).join('')}</div>`;
+            ${body}`;
         bindBodyEvents();
     }
 
