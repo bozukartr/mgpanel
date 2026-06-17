@@ -200,6 +200,8 @@
                     <button class="fin-tab" data-fin="settings">Ayarlar</button>
                 </div>
 
+                <div class="fin-rate-banner" id="finRateBanner"></div>
+
                 <!-- ÖZET -->
                 <div class="fin-panel active" id="fin-summary">
                     <div class="kpi-grid" id="finKpis"></div>
@@ -242,14 +244,14 @@
                         <div class="table-wrap"><table>
                             <thead><tr>
                                 <th>Tarih</th><th>Otel</th><th>Tür</th><th>Döngü/Paket</th>
-                                <th style="text-align:right;">Net</th><th style="text-align:right;">KDV</th><th style="text-align:right;">Brüt</th><th></th>
+                                <th style="text-align:right;">Brüt (€)</th><th style="text-align:right;">₺ Karşılığı</th><th style="text-align:right;">KDV (₺)</th><th></th>
                             </tr></thead>
                             <tbody id="finTxBody"></tbody>
                             <tfoot><tr class="fin-tx-foot">
                                 <td colspan="4">Toplam</td>
-                                <td style="text-align:right;" id="finTxNet">—</td>
-                                <td style="text-align:right;" id="finTxKdv">—</td>
-                                <td style="text-align:right;" id="finTxGross">—</td><td></td>
+                                <td style="text-align:right;" id="finTxGross">—</td>
+                                <td style="text-align:right;" id="finTxTry">—</td>
+                                <td style="text-align:right;" id="finTxKdv">—</td><td></td>
                             </tr></tfoot>
                         </table></div>
                     </div>
@@ -280,8 +282,12 @@
                                 <label>Açıklama / Kalem</label>
                                 <input id="invDesc" placeholder="StayOS aboneliği">
                                 <div class="fin-form-row">
-                                    <div><label>Brüt Tutar (KDV dahil) ₺</label><input id="invGross" type="number" min="0" step="0.01" value="0"></div>
+                                    <div><label>Brüt Tutar (€, KDV dahil)</label><input id="invGross" type="number" min="0" step="0.01" value="0"></div>
                                     <div><label>KDV Oranı %</label><input id="invKdv" type="number" min="0" step="1" value="20"></div>
+                                </div>
+                                <div class="fin-form-row">
+                                    <div><label>EUR → TRY Kuru</label><input id="invFx" type="number" min="0" step="0.0001" placeholder="Ayarlardan"></div>
+                                    <div><label>&nbsp;</label><div class="inv-fx-hint" id="invFxHint">Fatura ₺ olarak düzenlenir</div></div>
                                 </div>
                                 <div class="fin-form-row">
                                     <div><label>Fatura Seri</label><input id="invSeries" placeholder="SOS"></div>
@@ -342,9 +348,16 @@
                                 <div><label>Telefon</label><input id="setPhone" placeholder="+90 (542) 307 4620"></div>
                                 <div><label>E-posta</label><input id="setEmail" placeholder="bu.gol@outlook.com"></div>
                             </div>
+                            <div class="fin-sec-divider">Tahsilat &amp; Plan Fiyatları</div>
+                            <div class="fin-note-box">Tüm gelirler <b>EUR (€)</b> olarak tahsil edilir. Muhasebe işlemleri aşağıdaki <b>EUR→TRY kuru</b> ile ₺'ye çevrilir.</div>
                             <div class="fin-form-row">
+                                <div><label>Starter (€/ay)</label><input id="setPlanStarter" type="number" min="0" step="0.01" value="49"></div>
+                                <div><label>Pro (€/ay)</label><input id="setPlanPro" type="number" min="0" step="0.01" value="99"></div>
+                                <div><label>Enterprise (€/ay)</label><input id="setPlanEnterprise" type="number" min="0" step="0.01" value="199"></div>
+                            </div>
+                            <div class="fin-form-row">
+                                <div><label>EUR → TRY Kuru (1€ = ? ₺)</label><input id="setFxRate" type="number" min="0" step="0.0001" placeholder="örn. 35"></div>
                                 <div><label>Varsayılan KDV Oranı %</label><input id="setKdv" type="number" min="0" step="1" value="20"></div>
-                                <div><label>Para Birimi</label><input id="setCurrency" value="₺"></div>
                             </div>
                             <div class="fin-form-row">
                                 <div><label>Fatura Seri</label><input id="setSeries" placeholder="SOS"></div>

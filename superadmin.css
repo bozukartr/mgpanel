@@ -478,3 +478,11 @@ a.btn-ghost, a.btn-primary { text-decoration: none; }
     .fin-form-row { flex-direction:column; gap:0; }
     .fin-range-label { display:none; }
 }
+
+/* Finance settings extras */
+.fin-sec-divider { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--faint); margin:22px 0 6px; padding-top:14px; border-top:1px solid var(--border); }
+.fin-note-box { background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:10px 13px; font-size:12.5px; color:#3730a3; line-height:1.5; margin-bottom:6px; }
+.inv-fx-hint { font-size:12px; color:var(--faint); padding:11px 0; }
+.fin-rate-banner { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:var(--muted); background:#fff; border:1px solid var(--border); border-radius:999px; padding:6px 14px; margin-bottom:16px; }
+.fin-rate-banner b { color:var(--accent); }
+.fin-rate-banner.warn { background:#fef3c7; border-color:#fde68a; color:#92400e; }

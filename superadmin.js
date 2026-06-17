@@ -968,16 +968,27 @@
     let finTxTypeFilter = 'all';
     let billing = {};           // siteConfig/billing (seller + invoice settings)
 
-    // Monthly list price per plan (TRY) — mirrors functions PLAN_PRICE; used to
-    // estimate recurring revenue (MRR) and upcoming renewal amounts.
-    const PLAN_PRICE_TRY = { starter: 7500, pro: 15000, enterprise: 30000, custom: 0 };
+    // Revenue is collected in EUR; the Muhasebe panel converts to TRY for
+    // accounting using a manual rate (siteConfig/billing.fxRate). Per-plan
+    // monthly EUR prices are editable in Ayarlar (defaults = pricing page base).
     const BILLING_DEFAULTS = {
         name: 'Burak Göl Şahıs Şirketi', addr: '', taxOffice: 'Arda Vergi Dairesi',
         taxNo: '1234567890', mersis: '000000000', iban: '', phone: '+90 (542) 307 4620',
-        email: 'bu.gol@outlook.com', kdvRate: 20, currency: '₺', series: 'SOS', nextNo: 1, notes: ''
+        email: 'bu.gol@outlook.com', kdvRate: 20, series: 'SOS', nextNo: 1, notes: '',
+        planStarter: 49, planPro: 99, planEnterprise: 199, fxRate: 0
     };
     function B(k) { return (billing && billing[k] != null && billing[k] !== '') ? billing[k] : BILLING_DEFAULTS[k]; }
     function currentKdvRate() { const r = Number(B('kdvRate')); return isFinite(r) ? r : 20; }
+    function fxRate() { const r = Number(B('fxRate')); return (isFinite(r) && r > 0) ? r : 0; }
+    function planPriceEur(key) {
+        const map = { starter: 'planStarter', pro: 'planPro', enterprise: 'planEnterprise' };
+        if (key === 'custom' || !map[key]) return 0;
+        const v = Number(B(map[key]));
+        return isFinite(v) ? v : 0;
+    }
+    function eurM(n) { const v = Number(n) || 0; return '€' + v.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+    function tryM(n, dec) { const r = fxRate(); if (!r) return '—'; const v = (Number(n) || 0) * r; return v.toLocaleString('tr-TR', { minimumFractionDigits: dec == null ? 0 : dec, maximumFractionDigits: dec == null ? 0 : dec }) + ' ₺'; }
+    // tryM takes an EUR amount and returns its TRY string at the current rate.
 
     function subscribePayments() {
         db.collection('payments').onSnapshot(snap => {
@@ -1018,7 +1029,16 @@
         return fmt(b.from) + ' – ' + fmt(end);
     }
 
-    // ── Unified transaction model ──────────────────────────────
+    // Normalise any stored amount to EUR (the billing currency). Legacy records
+    // (old subscription/checkout) were in TRY; new ones carry currency:'EUR'.
+    function toEur(amount, currency) {
+        const v = Number(amount) || 0;
+        if (currency === 'EUR') return v;
+        const r = fxRate();
+        return r ? v / r : v; // TRY → EUR (best effort; needs the rate)
+    }
+
+    // ── Unified transaction model (gross is EUR) ───────────────
     function buildTx() {
         const tx = [];
         orders.forEach(o => {
@@ -1028,7 +1048,7 @@
                 id: o.id, kind: 'new', date: d, hotel: (o.buyer && o.buyer.hotel) || '—',
                 buyer: o.buyer || {}, cycle: o.cycle || 'monthly',
                 detail: (o.cycle === 'annual' ? 'Yıllık' : 'Aylık') + ' Paket',
-                gross: Number(o.priceTRY) || 0, ref: o.oid || o.id, tenantId: o.sourceTenantId || ''
+                gross: toEur(o.priceTRY, o.currency || 'TRY'), ref: o.oid || o.id, tenantId: o.sourceTenantId || ''
             });
         });
         payments.forEach(p => {
@@ -1040,7 +1060,7 @@
                 id: p.id, kind: 'renewal', date: d, hotel: hotel,
                 buyer: { hotel: hotel, email: (t && t.billingEmail) || '', phone: (t && t.billingPhone) || '' },
                 cycle: 'monthly', detail: planLabel(p.plan) + ' · Yenileme',
-                gross: Number(p.amountTRY) || 0, ref: p.oid || p.id, tenantId: p.tenantId || ''
+                gross: toEur(p.amount != null ? p.amount : p.amountTRY, p.currency || 'EUR'), ref: p.oid || p.id, tenantId: p.tenantId || ''
             });
         });
         return tx.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
@@ -1064,6 +1084,12 @@
     function renderFinance() {
         if (!document.getElementById('view-finance')) return;
         const lbl = $('finRangeLabel'); if (lbl) lbl.textContent = rangeLabelText();
+        const banner = $('finRateBanner');
+        if (banner) {
+            const r = fxRate();
+            if (r) { banner.className = 'fin-rate-banner'; banner.innerHTML = 'Tahsilat: <b>€ (EUR)</b> · Muhasebe kuru: <b>1€ = ' + r.toLocaleString('tr-TR') + ' ₺</b>'; }
+            else { banner.className = 'fin-rate-banner warn'; banner.innerHTML = '⚠ EUR→TRY kuru girilmemiş — ₺ karşılıkları görünmüyor. <b>Ayarlar</b> sekmesinden kuru girin.'; }
+        }
         const b = rangeBounds();
         const all = buildTx();
         const rng = all.filter(t => inRange(t.date, b));
@@ -1073,20 +1099,22 @@
         finRebuildInvoiceSelect(all);
     }
 
+    // Amounts in tx.gross are EUR (billing currency). finMoney → ₺ (accounting).
     function finRenderSummary(rng, all) {
-        const rate = currentKdvRate();
+        const kdvR = currentKdvRate();
         let gross = 0, newG = 0, renG = 0;
         rng.forEach(t => { gross += t.gross; if (t.kind === 'new') newG += t.gross; else renG += t.gross; });
-        const { net, kdv } = splitKdv(gross, rate);
+        const tryGross = gross * fxRate();
+        const { net, kdv } = splitKdv(tryGross, kdvR); // KDV in TRY (Türk muhasebesi)
         $('finKpis').innerHTML = finKpiCards([
-            { lbl: 'Brüt Gelir', val: finMoney(gross), hint: rng.length + ' işlem', ico: 'green', svg: ICO.money },
-            { lbl: 'Net (Matrah)', val: finMoney(net, 0), hint: 'KDV hariç', ico: 'indigo', svg: ICO.net },
-            { lbl: 'KDV (%' + rate + ')', val: finMoney(kdv, 0), hint: 'Hesaplanan', ico: 'amber', svg: ICO.kdv },
-            { lbl: 'Yeni Satış', val: finMoney(newG), hint: rng.filter(t => t.kind === 'new').length + ' işlem', ico: 'slate', svg: ICO.cart },
-            { lbl: 'Yenileme', val: finMoney(renG), hint: rng.filter(t => t.kind === 'renewal').length + ' işlem', ico: 'green', svg: ICO.repeat }
+            { lbl: 'Brüt Gelir', val: eurM(gross), hint: '≈ ' + tryM(gross) + ' · ' + rng.length + ' işlem', ico: 'green', svg: ICO.money },
+            { lbl: 'Net Matrah (₺)', val: fxRate() ? finMoney(net, 0) : '—', hint: 'KDV hariç', ico: 'indigo', svg: ICO.net },
+            { lbl: 'KDV ₺ (%' + kdvR + ')', val: fxRate() ? finMoney(kdv, 0) : '—', hint: 'Hesaplanan', ico: 'amber', svg: ICO.kdv },
+            { lbl: 'Yeni Satış', val: eurM(newG), hint: rng.filter(t => t.kind === 'new').length + ' işlem', ico: 'slate', svg: ICO.cart },
+            { lbl: 'Yenileme', val: eurM(renG), hint: rng.filter(t => t.kind === 'renewal').length + ' işlem', ico: 'green', svg: ICO.repeat }
         ]);
 
-        // 12-month trend (from all tx, independent of selected range)
+        // 12-month trend (€, from all tx, independent of selected range)
         const now = new Date(); const months = [];
         for (let i = 11; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth(), sum: 0 }); }
         all.forEach(t => { if (!t.date) return; const mm = months.find(x => x.y === t.date.getFullYear() && x.m === t.date.getMonth()); if (mm) mm.sum += t.gross; });
@@ -1094,71 +1122,71 @@
         const mlbl = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
         $('finChart').innerHTML = months.map(x => {
             const h = Math.round((x.sum / max) * 100);
-            const v = x.sum >= 1000 ? Math.round(x.sum / 1000) + 'k' : (x.sum || '');
-            return `<div class="fin-bar-wrap" title="${finMoney(x.sum)}"><div class="fin-bar-val">${v}</div>
+            const v = x.sum >= 1000 ? '€' + Math.round(x.sum / 1000) + 'k' : (x.sum ? '€' + Math.round(x.sum) : '');
+            return `<div class="fin-bar-wrap" title="${eurM(x.sum)}"><div class="fin-bar-val">${v}</div>
                 <div class="fin-bar" style="height:${h}%"></div><div class="fin-bar-lbl">${mlbl[x.m]}</div></div>`;
         }).join('');
 
-        // By plan / type
+        // By plan / type (€)
         const byPlan = {};
         rng.forEach(t => { const k = t.kind === 'new' ? ('Yeni Satış · ' + (t.cycle === 'annual' ? 'Yıllık' : 'Aylık')) : t.detail; byPlan[k] = byPlan[k] || { c: 0, g: 0 }; byPlan[k].c++; byPlan[k].g += t.gross; });
         const planRows = Object.keys(byPlan).sort((a, b) => byPlan[b].g - byPlan[a].g);
         $('finByPlan').innerHTML = planRows.length ? planRows.map(k =>
-            `<tr><td>${esc(k)}</td><td style="text-align:right;">${byPlan[k].c}</td><td style="text-align:right;">${finMoney(byPlan[k].g)}</td></tr>`).join('')
+            `<tr><td>${esc(k)}</td><td style="text-align:right;">${byPlan[k].c}</td><td style="text-align:right;">${eurM(byPlan[k].g)}</td></tr>`).join('')
             : `<tr><td colspan="3"><div class="empty">Bu dönemde gelir yok.</div></td></tr>`;
 
-        // Top hotels
+        // Top hotels (€)
         const byHotel = {};
         rng.forEach(t => { byHotel[t.hotel] = byHotel[t.hotel] || { c: 0, g: 0 }; byHotel[t.hotel].c++; byHotel[t.hotel].g += t.gross; });
         const hotelRows = Object.keys(byHotel).sort((a, b) => byHotel[b].g - byHotel[a].g).slice(0, 8);
         $('finTopHotels').innerHTML = hotelRows.length ? hotelRows.map(k =>
-            `<tr><td>${esc(k)}</td><td style="text-align:right;">${byHotel[k].c}</td><td style="text-align:right;">${finMoney(byHotel[k].g)}</td></tr>`).join('')
+            `<tr><td>${esc(k)}</td><td style="text-align:right;">${byHotel[k].c}</td><td style="text-align:right;">${eurM(byHotel[k].g)}</td></tr>`).join('')
             : `<tr><td colspan="3"><div class="empty">Bu dönemde gelir yok.</div></td></tr>`;
     }
 
     function finRenderTx(rng) {
-        const rate = currentKdvRate();
+        const kdvR = currentKdvRate();
         const rows = rng.filter(t => finTxTypeFilter === 'all' || t.kind === finTxTypeFilter);
         $('finTxCount').textContent = rows.length + ' işlem · ' + rangeLabelText();
-        let net = 0, kdv = 0, gross = 0;
+        let gross = 0, kdv = 0;
         $('finTxBody').innerHTML = rows.length ? rows.map(t => {
-            const s = splitKdv(t.gross, rate); net += s.net; kdv += s.kdv; gross += t.gross;
+            const s = splitKdv(t.gross * fxRate(), kdvR); kdv += s.kdv; gross += t.gross;
             return `<tr>
                 <td>${fmtDate(t.date)}</td>
                 <td>${esc(t.hotel)}</td>
                 <td><span class="tx-badge ${t.kind}">${t.kind === 'new' ? 'Yeni Satış' : 'Yenileme'}</span></td>
                 <td>${esc(t.detail)}</td>
-                <td style="text-align:right;">${finMoney(s.net, 0)}</td>
-                <td style="text-align:right;">${finMoney(s.kdv, 0)}</td>
-                <td style="text-align:right;"><b>${finMoney(t.gross)}</b></td>
+                <td style="text-align:right;"><b>${eurM(t.gross)}</b></td>
+                <td style="text-align:right;">${tryM(t.gross, 0)}</td>
+                <td style="text-align:right;">${fxRate() ? finMoney(s.kdv, 0) : '—'}</td>
                 <td style="text-align:right;"><button class="fin-inv-open" data-invtx="${esc(t.id)}">Fatura</button></td>
             </tr>`;
         }).join('') : `<tr><td colspan="8"><div class="empty">Bu dönemde işlem yok.</div></td></tr>`;
-        $('finTxNet').textContent = finMoney(net, 0);
-        $('finTxKdv').textContent = finMoney(kdv, 0);
-        $('finTxGross').textContent = finMoney(gross);
+        $('finTxGross').textContent = eurM(gross);
+        $('finTxTry').textContent = tryM(gross, 0);
+        $('finTxKdv').textContent = fxRate() ? finMoney(kdv, 0) : '—';
     }
 
     function finRenderMrr() {
         const active = tenants.filter(t => { const k = statusOf(t).key; return k === 'active' || k === 'soon'; });
         const byPlan = {}; let mrr = 0;
-        active.forEach(t => { const k = planKey(t); const price = PLAN_PRICE_TRY[k] || 0; byPlan[k] = byPlan[k] || { c: 0, price: price, sum: 0 }; byPlan[k].c++; byPlan[k].sum += price; mrr += price; });
+        active.forEach(t => { const k = planKey(t); const price = planPriceEur(k); byPlan[k] = byPlan[k] || { c: 0, price: price, sum: 0 }; byPlan[k].c++; byPlan[k].sum += price; mrr += price; });
         $('finMrrKpis').innerHTML = finKpiCards([
-            { lbl: 'MRR', val: finMoney(mrr), hint: 'Aylık tekrarlayan gelir', ico: 'green', svg: ICO.repeat },
-            { lbl: 'ARR', val: finMoney(mrr * 12), hint: 'Yıllık tahmini', ico: 'indigo', svg: ICO.trend },
+            { lbl: 'MRR', val: eurM(mrr), hint: '≈ ' + tryM(mrr) + '/ay', ico: 'green', svg: ICO.repeat },
+            { lbl: 'ARR', val: eurM(mrr * 12), hint: 'Yıllık tahmini · ≈ ' + tryM(mrr * 12), ico: 'indigo', svg: ICO.trend },
             { lbl: 'Aktif Abonelik', val: active.length, hint: 'Gelir getiren otel', ico: 'slate', svg: ICO.cart },
-            { lbl: 'Ortalama (ARPA)', val: finMoney(active.length ? mrr / active.length : 0, 0), hint: 'Otel başına/ay', ico: 'amber', svg: ICO.money }
+            { lbl: 'Ortalama (ARPA)', val: eurM(active.length ? mrr / active.length : 0), hint: 'Otel başına/ay', ico: 'amber', svg: ICO.money }
         ]);
         const order = ['starter', 'pro', 'enterprise', 'custom'];
         $('finMrrByPlan').innerHTML = order.filter(k => byPlan[k]).map(k =>
-            `<tr><td>${planLabel(k)}</td><td style="text-align:right;">${byPlan[k].c}</td><td style="text-align:right;">${byPlan[k].price ? finMoney(byPlan[k].price) : '—'}</td><td style="text-align:right;"><b>${finMoney(byPlan[k].sum)}</b></td></tr>`).join('')
+            `<tr><td>${planLabel(k)}</td><td style="text-align:right;">${byPlan[k].c}</td><td style="text-align:right;">${byPlan[k].price ? eurM(byPlan[k].price) : '—'}</td><td style="text-align:right;"><b>${eurM(byPlan[k].sum)}</b></td></tr>`).join('')
             || `<tr><td colspan="4"><div class="empty">Aktif abonelik yok.</div></td></tr>`;
 
         const soon = tenants.map(t => ({ t, s: statusOf(t) }))
             .filter(x => x.s.end && x.s.days != null && x.s.days >= 0 && x.s.days <= 30 && x.s.key !== 'suspended' && x.s.key !== 'archived')
             .sort((a, b) => a.s.days - b.s.days);
         $('finUpcoming').innerHTML = soon.length ? soon.map(({ t, s }) =>
-            `<tr><td>${esc(t.name || t.id)}</td><td>${fmtDate(s.end)} · ${s.days}g</td><td style="text-align:right;">${finMoney(PLAN_PRICE_TRY[planKey(t)] || 0)}</td></tr>`).join('')
+            `<tr><td>${esc(t.name || t.id)}</td><td>${fmtDate(s.end)} · ${s.days}g</td><td style="text-align:right;">${eurM(planPriceEur(planKey(t)))}</td></tr>`).join('')
             : `<tr><td colspan="3"><div class="empty">30 gün içinde yenileme yok.</div></td></tr>`;
     }
 
@@ -1169,7 +1197,7 @@
         const sel = $('invTx'); if (!sel) return;
         const cur = sel.value;
         sel.innerHTML = '<option value="">— Elle giriş —</option>' + all.slice(0, 300).map(t =>
-            `<option value="${esc(t.id)}">${fmtDate(t.date)} · ${esc(t.hotel)} · ${finMoney(t.gross)} (${t.kind === 'new' ? 'Yeni' : 'Yenileme'})</option>`).join('');
+            `<option value="${esc(t.id)}">${fmtDate(t.date)} · ${esc(t.hotel)} · ${eurM(t.gross)} (${t.kind === 'new' ? 'Yeni' : 'Yenileme'})</option>`).join('');
         if (cur) sel.value = cur;
     }
     function prefillInvoiceFromTx(id) {
@@ -1182,20 +1210,25 @@
         $('invBuyerEmail').value = b.email || '';
         $('invBuyerPhone').value = b.phone || '';
         $('invDesc').value = 'StayOS · ' + t.detail;
-        $('invGross').value = t.gross;
+        $('invGross').value = t.gross;            // EUR
+        if ($('invFx') && !$('invFx').value) $('invFx').value = fxRate() || '';
         $('invDate').value = (t.date || new Date()).toISOString().slice(0, 10);
         renderInvoicePreview();
     }
+    // The invoice is issued in TRY (Türk muhasebesi): the EUR amount is converted
+    // at the entered rate, then KDV is computed on the TRY figure.
     function renderInvoicePreview() {
-        const gross = Number($('invGross').value) || 0;
-        const rate = Number($('invKdv').value) || 0;
-        const { net, kdv } = splitKdv(gross, rate);
-        const cur = B('currency');
-        const m = (n, d) => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d }) + ' ' + cur;
+        const grossEur = Number($('invGross').value) || 0;
+        const kdvRate = Number($('invKdv').value) || 0;
+        const fx = Number($('invFx').value) || fxRate();
+        const grossTry = grossEur * fx;
+        const { net, kdv } = splitKdv(grossTry, kdvRate);
+        const m = (n, d) => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d }) + ' ₺';
         const dateStr = $('invDate').value ? new Date($('invDate').value + 'T00:00:00').toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
         const noStr = ($('invSeries').value || B('series') || '') + (($('invSeries').value || B('series')) ? '-' : '') + ($('invNo').value || '');
         const sellerLines = [B('addr'), (B('taxOffice') ? 'V.D.: ' + B('taxOffice') : '') + (B('taxNo') ? ' · VKN: ' + B('taxNo') : ''), B('mersis') ? 'MERSİS: ' + B('mersis') : '', [B('phone'), B('email')].filter(Boolean).join(' · '), B('iban') ? 'IBAN: ' + B('iban') : ''].filter(Boolean);
         const buyerLines = [$('invBuyerAddr').value, ([$('invBuyerTaxOffice').value ? 'V.D.: ' + $('invBuyerTaxOffice').value : '', $('invBuyerTaxNo').value ? 'VKN/TCKN: ' + $('invBuyerTaxNo').value : ''].filter(Boolean).join(' · ')), [$('invBuyerEmail').value, $('invBuyerPhone').value].filter(Boolean).join(' · ')].filter(Boolean);
+        const fxNote = fx ? ('Döviz: ' + eurM(grossEur) + ' · Kur: 1€ = ' + fx.toLocaleString('tr-TR') + ' ₺') : '⚠ Kur girilmedi — tutarlar 0 ₺';
         $('invPreview').innerHTML = `<div class="inv-doc" id="invDoc">
             <div class="inv-top">
                 <div class="inv-seller"><b>${esc(B('name'))}</b>${sellerLines.map(l => `<div>${esc(l)}</div>`).join('')}</div>
@@ -1206,15 +1239,15 @@
                 <div><h4>Alıcı</h4><div><b>${esc($('invBuyerName').value || '—')}</b></div>${buyerLines.map(l => `<div>${esc(l)}</div>`).join('')}</div>
             </div>
             <table class="inv-tbl">
-                <thead><tr><th>Açıklama</th><th class="r">Matrah</th><th class="r">KDV (%${rate})</th><th class="r">Tutar</th></tr></thead>
-                <tbody><tr><td>${esc($('invDesc').value || 'StayOS aboneliği')}</td><td class="r">${m(net)}</td><td class="r">${m(kdv)}</td><td class="r">${m(gross)}</td></tr></tbody>
+                <thead><tr><th>Açıklama</th><th class="r">Matrah</th><th class="r">KDV (%${kdvRate})</th><th class="r">Tutar</th></tr></thead>
+                <tbody><tr><td>${esc($('invDesc').value || 'StayOS aboneliği')}</td><td class="r">${m(net)}</td><td class="r">${m(kdv)}</td><td class="r">${m(grossTry)}</td></tr></tbody>
             </table>
             <div class="inv-totals">
                 <div class="row"><span>Matrah</span><span>${m(net)}</span></div>
-                <div class="row"><span>KDV (%${rate})</span><span>${m(kdv)}</span></div>
-                <div class="row grand"><span>Genel Toplam</span><span>${m(gross)}</span></div>
+                <div class="row"><span>KDV (%${kdvRate})</span><span>${m(kdv)}</span></div>
+                <div class="row grand"><span>Genel Toplam</span><span>${m(grossTry)}</span></div>
             </div>
-            <div class="inv-foot">${esc(B('notes') || '')}${B('notes') ? '<br>' : ''}Bu belge bilgilendirme amaçlı bir taslaktır; resmi e-Fatura/e-Arşiv yerine geçmez.</div>
+            <div class="inv-foot">${esc(fxNote)}<br>${esc(B('notes') || '')}${B('notes') ? '<br>' : ''}Bu belge bilgilendirme amaçlı bir taslaktır; resmi e-Fatura/e-Arşiv yerine geçmez.</div>
         </div>`;
     }
     function printInvoice() {
@@ -1241,17 +1274,19 @@
     // ── CSV export ─────────────────────────────────────────────
     function exportFinCsv() {
         const b = rangeBounds();
-        const rate = currentKdvRate();
+        const kdvR = currentKdvRate();
+        const fx = fxRate();
         const rows = buildTx().filter(t => inRange(t.date, b)).filter(t => finTxTypeFilter === 'all' || t.kind === finTxTypeFilter);
-        const head = ['Tarih', 'Otel', 'Tur', 'Detay', 'Net', 'KDV', 'Brut', 'Referans'];
+        const head = ['Tarih', 'Otel', 'Tur', 'Detay', 'Brut_EUR', 'Kur', 'Brut_TRY', 'Matrah_TRY', 'KDV_TRY', 'Referans'];
         const lines = [head.join(';')];
         rows.forEach(t => {
-            const s = splitKdv(t.gross, rate);
+            const grossTry = t.gross * fx;
+            const s = splitKdv(grossTry, kdvR);
             const cell = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
             lines.push([
                 t.date ? t.date.toISOString().slice(0, 10) : '',
                 t.hotel, t.kind === 'new' ? 'Yeni Satis' : 'Yenileme', t.detail,
-                s.net.toFixed(2), s.kdv.toFixed(2), t.gross.toFixed(2), t.ref
+                t.gross.toFixed(2), fx || '', grossTry.toFixed(2), s.net.toFixed(2), s.kdv.toFixed(2), t.ref
             ].map(cell).join(';'));
         });
         const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
@@ -1263,10 +1298,12 @@
 
     // ── Settings (siteConfig/billing) ──────────────────────────
     function fillSettingsForm() {
-        const map = { setName: 'name', setAddr: 'addr', setTaxOffice: 'taxOffice', setTaxNo: 'taxNo', setMersis: 'mersis', setIban: 'iban', setPhone: 'phone', setEmail: 'email', setKdv: 'kdvRate', setCurrency: 'currency', setSeries: 'series', setNextNo: 'nextNo', setNotes: 'notes' };
+        const map = { setName: 'name', setAddr: 'addr', setTaxOffice: 'taxOffice', setTaxNo: 'taxNo', setMersis: 'mersis', setIban: 'iban', setPhone: 'phone', setEmail: 'email', setKdv: 'kdvRate', setSeries: 'series', setNextNo: 'nextNo', setNotes: 'notes', setPlanStarter: 'planStarter', setPlanPro: 'planPro', setPlanEnterprise: 'planEnterprise' };
         Object.keys(map).forEach(id => { const el = $(id); if (el) el.value = B(map[id]); });
+        const fxEl = $('setFxRate'); if (fxEl) fxEl.value = fxRate() || '';
         // Invoice defaults
         if ($('invKdv')) $('invKdv').value = currentKdvRate();
+        if ($('invFx')) $('invFx').value = fxRate() || '';
         if ($('invSeries')) $('invSeries').value = B('series');
         if ($('invNo')) $('invNo').value = B('nextNo');
         if ($('invDate') && !$('invDate').value) $('invDate').value = new Date().toISOString().slice(0, 10);
@@ -1282,8 +1319,10 @@
             name: $('setName').value.trim(), addr: $('setAddr').value.trim(), taxOffice: $('setTaxOffice').value.trim(),
             taxNo: $('setTaxNo').value.trim(), mersis: $('setMersis').value.trim(), iban: $('setIban').value.trim(),
             phone: $('setPhone').value.trim(), email: $('setEmail').value.trim(),
-            kdvRate: Number($('setKdv').value) || 0, currency: $('setCurrency').value.trim() || '₺',
-            series: $('setSeries').value.trim(), nextNo: Number($('setNextNo').value) || 1, notes: $('setNotes').value.trim()
+            kdvRate: Number($('setKdv').value) || 0,
+            series: $('setSeries').value.trim(), nextNo: Number($('setNextNo').value) || 1, notes: $('setNotes').value.trim(),
+            planStarter: Number($('setPlanStarter').value) || 0, planPro: Number($('setPlanPro').value) || 0,
+            planEnterprise: Number($('setPlanEnterprise').value) || 0, fxRate: Number($('setFxRate').value) || 0
         };
         const btn = $('setSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
         try {
@@ -1428,7 +1467,7 @@
         prefillInvoiceFromTx(btn.dataset.invtx);
     });
     $('invTx').addEventListener('change', (e) => { if (e.target.value) prefillInvoiceFromTx(e.target.value); else renderInvoicePreview(); });
-    ['invBuyerName', 'invBuyerAddr', 'invBuyerTaxOffice', 'invBuyerTaxNo', 'invBuyerEmail', 'invBuyerPhone', 'invDesc', 'invGross', 'invKdv', 'invSeries', 'invNo', 'invDate']
+    ['invBuyerName', 'invBuyerAddr', 'invBuyerTaxOffice', 'invBuyerTaxNo', 'invBuyerEmail', 'invBuyerPhone', 'invDesc', 'invGross', 'invKdv', 'invFx', 'invSeries', 'invNo', 'invDate']
         .forEach(id => { const el = $(id); if (el) el.addEventListener('input', renderInvoicePreview); });
     $('invPrint').addEventListener('click', printInvoice);
     $('setSave').addEventListener('click', saveFinSettings);

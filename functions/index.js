@@ -25,10 +25,21 @@ const MERCHANT_ID = defineSecret('PAYTR_MERCHANT_ID');
 const MERCHANT_KEY = defineSecret('PAYTR_MERCHANT_KEY');
 const MERCHANT_SALT = defineSecret('PAYTR_MERCHANT_SALT');
 
-// Monthly price per plan, in TRY (server-authoritative — clients can't tamper).
-const PLAN_PRICE = { starter: 7500, pro: 15000, enterprise: 30000 };
+// Monthly price per plan, in EUR (server-authoritative — clients can't tamper).
+// Revenue is collected in EUR; the superadmin Muhasebe panel converts to TRY
+// for accounting with a manual rate. Operators can override these amounts in
+// siteConfig/billing (planStarter / planPro / planEnterprise).
+const PLAN_PRICE = { starter: 49, pro: 99, enterprise: 199 };
+function configuredPlanPrice(plan, cfg) {
+  const map = { starter: 'planStarter', pro: 'planPro', enterprise: 'planEnterprise' };
+  const v = cfg && Number(cfg[map[plan]]);
+  return (v && v > 0) ? v : PLAN_PRICE[plan];
+}
 
-// Public website pricing (Core + extra modules), in TRY. Server-authoritative.
+// Public website checkout pricing (Core + extra modules), in TRY. NOTE: the
+// public new-signup flow (createCheckout) still uses this TRY model and does NOT
+// yet match the EUR pricing page (base + per-room). Migrating checkout to EUR is
+// a separate task; subscription renewals (createPayment) are already EUR.
 const CHECKOUT_PRICES = { core: 10000, hotel: 5000, userPack: 2000, pms: 4000 };
 const ANNUAL_DISCOUNT = 0.18;
 
@@ -55,23 +66,25 @@ exports.createPayment = onCall(
     const tenantSnap = await db.collection('tenants').doc(tenantId).get();
     const tenant = tenantSnap.exists ? tenantSnap.data() : {};
     const plan = tenant.plan || 'pro';
-    const priceTRY = PLAN_PRICE[plan];
-    if (!priceTRY) {
+    const billingSnap = await db.collection('siteConfig').doc('billing').get();
+    const billingCfg = billingSnap.exists ? billingSnap.data() : {};
+    const price = configuredPlanPrice(plan, billingCfg); // EUR
+    if (!price) {
       throw new HttpsError('failed-precondition', 'Bu paket için online ödeme tanımlı değil. Lütfen iletişime geçin.');
     }
-    const amount = priceTRY * 100; // PayTR expects the amount in kuruş
+    const amount = Math.round(price * 100); // PayTR expects the amount in minor units (cents)
 
     const email = user.email || (user.username + '@' + tenantId + '.com');
     const oid = tenantId.replace(/[^a-zA-Z0-9]/g, '') + Date.now(); // alphanumeric only
     const req = request.rawRequest;
     const userIp = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.ip || '127.0.0.1';
     const basket = Buffer.from(JSON.stringify([
-      ['StayOS ' + plan + ' aboneliği (1 ay)', priceTRY.toFixed(2), 1]
+      ['StayOS ' + plan + ' aboneliği (1 ay)', price.toFixed(2), 1]
     ])).toString('base64');
 
     const noInstallment = '1';
     const maxInstallment = '0';
-    const currency = 'TL';
+    const currency = 'EUR';
 
     const mid = MERCHANT_ID.value();
     const key = MERCHANT_KEY.value();
@@ -82,7 +95,7 @@ exports.createPayment = onCall(
 
     // Record the pending order before redirecting to PayTR.
     await db.collection('payments').doc(oid).set({
-      oid, tenantId, plan, amountTRY: priceTRY, status: 'pending',
+      oid, tenantId, plan, amount: price, currency: 'EUR', amountTRY: price, status: 'pending',
       createdBy: uid, createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
