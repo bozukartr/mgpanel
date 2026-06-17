@@ -112,16 +112,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const listEl = document.getElementById('guestList');
         const search = document.getElementById('guestSearch').value.toLowerCase();
         
+        const searching = search.trim() !== '';
         let filtered = guestDirectory.filter(g => {
             const matchesSearch = g.name.toLowerCase().includes(search) || (g.room && g.room.includes(search));
-            
+
+            // Global search: while typing, match across ALL statuses (bekleyen /
+            // konaklayan / çıkış yapmış) regardless of the active filter tab.
+            if (searching) return matchesSearch;
+
             let matchesStatus = false;
             if (filterStatus === 'arrival') {
                 matchesStatus = g.status === 'pre_arrival';
             } else {
                 matchesStatus = g.status === filterStatus;
             }
-
             return matchesSearch && matchesStatus;
         });
 
