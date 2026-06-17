@@ -472,8 +472,10 @@ async function deleteByQuery(query) {
 // Hotel-scoped data. Most collections carry a `tenantId` field; a few config
 // collections use the tenant id as the document id. Push tokens belong to a
 // user, so they're cleared by the removed users' uids.
+// NOTE: `payments` is intentionally excluded — financial records are kept even
+// on full delete (they may be needed later for accounting/reference).
 const TENANT_FIELD_COLLECTIONS = [
-  'reservations', 'guestLogs', 'guestDirectory', 'tickets', 'payments',
+  'reservations', 'guestLogs', 'guestDirectory', 'tickets',
   'presence', 'notifications', 'requestCatalog', 'guestOrders', 'roomAccess'
 ];
 const TENANT_DOC_COLLECTIONS = ['maintenance', 'financeConfig', 'pmsConfig', 'guestConfig'];
