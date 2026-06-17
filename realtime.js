@@ -119,7 +119,7 @@
                 <span class="rt-badge" id="rt-badge">0</span>
             </button>
             <div class="rt-panel" id="rt-panel">
-                <div class="rt-panel-head"><b>Bildirimler</b><button class="rt-readall" id="rt-readall">Tümünü okundu işaretle</button></div>
+                <div class="rt-panel-head"><b>Bildirimler</b><button class="rt-readall" id="rt-readall">Tümünü temizle</button></div>
                 <div class="rt-list" id="rt-list"></div>
             </div>`;
         badgeEl = mount.querySelector('#rt-badge');
@@ -198,9 +198,11 @@
             document.body.appendChild(toastEl);
             toastEl.addEventListener('click', () => {
                 toastEl.classList.remove('show');
+                if (toastEl.dataset.id) RT.markRead(toastEl.dataset.id); // interaction → remove
                 RT.openRecord(toastEl.dataset.record, toastEl.dataset.type);
             });
         }
+        toastEl.dataset.id = n.id || '';
         toastEl.dataset.record = n.recordId || '';
         toastEl.dataset.type = n.type || '';
         toastEl.innerHTML = `<div class="rt-ico">${n.type === 'complaint' ? '⚠️' : '🔔'}</div>
@@ -268,12 +270,12 @@
         const target = (window.innerWidth > 768 ? 'panel.html' : 'panel-mobile.html') + '?open=' + encodeURIComponent(recordId);
         window.location.href = target;
     };
-    RT.markRead = async function (id) { try { await db.collection('notifications').doc(id).update({ read: true }); } catch (e) { } };
+    // Notifications are removed once read / interacted with (no read-archive).
+    RT.markRead = async function (id) { try { await db.collection('notifications').doc(id).delete(); } catch (e) { } };
     RT.markAllRead = async function () {
-        const unread = notifications.filter(n => !n.read);
-        if (!unread.length) return;
+        if (!notifications.length) return;
         const batch = db.batch();
-        unread.forEach(n => batch.update(db.collection('notifications').doc(n.id), { read: true }));
+        notifications.forEach(n => batch.delete(db.collection('notifications').doc(n.id)));
         try { await batch.commit(); } catch (e) { }
     };
 
