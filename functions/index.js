@@ -427,3 +427,63 @@ exports.pmsTestConfig = onCall({ region: REGION }, async (request) => {
   const query = (request.data && request.data.query) || 'a';
   return pmsRunLookup(Object.assign({}, cfg, { enabled: true }), query);
 });
+
+/* ── Hotel / user deletion (Admin SDK) ─────────────────────────────────────
+ * Why a function? A staff member's login is a Firebase Auth account whose UID
+ * is the systemUsers document id (see superadmin createHotel). The client SDK
+ * can only delete the *currently signed-in* user, so deleting a hotel/user from
+ * the panel left the Auth account orphaned — recreating with the same
+ * name/username reused the derived email and failed with "email-already-in-use"
+ * ("zaten tanımlı"). Here the Admin SDK removes the Auth account too, so the
+ * slug/username is genuinely free again. Both are superadmin-only.
+ */
+async function requireSuperAdmin(request) {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const su = await db.collection('superAdmins').doc(request.auth.uid).get();
+  if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
+}
+
+// Delete a single Auth account, tolerating an already-removed one.
+async function deleteAuthUser(uid) {
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (e) {
+    if (e && e.code === 'auth/user-not-found') return; // already gone — fine
+    throw e;
+  }
+}
+
+// Superadmin-only: remove a hotel — its staff Auth accounts, their systemUsers
+// docs, and the tenant document — so the code can be reused cleanly.
+exports.deleteHotel = onCall({ region: REGION }, async (request) => {
+  await requireSuperAdmin(request);
+  const tenantId = request.data && request.data.tenantId;
+  if (!tenantId || typeof tenantId !== 'string') {
+    throw new HttpsError('invalid-argument', 'Otel kodu gerekli.');
+  }
+
+  const usersSnap = await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+  // Remove each staff member's Auth account (UID == doc id), then their record.
+  await Promise.all(usersSnap.docs.map((doc) => deleteAuthUser(doc.id)));
+  if (!usersSnap.empty) {
+    const batch = db.batch();
+    usersSnap.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+  }
+  await db.collection('tenants').doc(tenantId).delete();
+
+  return { deleted: true, removedUsers: usersSnap.size };
+});
+
+// Superadmin-only: remove a single staff member — Auth account + systemUsers
+// doc — so the same username can be issued again.
+exports.deleteUser = onCall({ region: REGION }, async (request) => {
+  await requireSuperAdmin(request);
+  const uid = request.data && request.data.uid;
+  if (!uid || typeof uid !== 'string') {
+    throw new HttpsError('invalid-argument', 'Kullanıcı kimliği gerekli.');
+  }
+  await deleteAuthUser(uid);
+  await db.collection('systemUsers').doc(uid).delete();
+  return { deleted: true };
+});
