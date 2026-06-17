@@ -920,12 +920,11 @@
         if ($('delConfirm').value.trim() !== t.id) return err.textContent = 'Otel kodu eşleşmiyor.';
         const btn = $('delConfirmBtn'); btn.disabled = true; btn.textContent = 'Siliniyor...';
         try {
-            // Remove the hotel's user accounts (revokes access), then the tenant document.
-            const snap = await db.collection('systemUsers').where('tenantId', '==', t.id).get();
-            const batch = db.batch();
-            snap.forEach(doc => batch.delete(doc.ref));
-            await batch.commit();
-            await db.collection('tenants').doc(t.id).delete();
+            // Server-side delete: removes staff Auth accounts too, so the hotel
+            // code (slug) is genuinely freed and can be reused without the
+            // "email-already-in-use" error.
+            const deleteHotel = firebase.app().functions('us-central1').httpsCallable('deleteHotel');
+            await deleteHotel({ tenantId: t.id });
             $('deleteModal').classList.remove('show');
             closeDrawer();
             toast(t.name + ' silindi');
@@ -972,7 +971,10 @@
         } else if (btn.dataset.uact === 'remove') {
             if (!confirm(`${uname} kaldırılsın mı? Bu kullanıcı giriş yapamayacak.`)) return;
             try {
-                await db.collection('systemUsers').doc(uid).delete();
+                // Server-side delete removes the Auth account too, so the same
+                // username can be issued again later.
+                const deleteUser = firebase.app().functions('us-central1').httpsCallable('deleteUser');
+                await deleteUser({ uid: uid });
                 toast('Kullanıcı kaldırıldı');
                 await refresh();
                 loadDrawerUsers(drawerTenantId);
