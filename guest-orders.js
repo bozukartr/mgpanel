@@ -104,8 +104,13 @@
         .gos-list { flex: 1; overflow-y: auto; padding: 8px 16px 24px; }
         .gos-empty { text-align: center; color: #94a3b8; padding: 60px 20px; font-size: 14px; }
         .gos-empty .e { font-size: 40px; display: block; margin-bottom: 10px; }
-        .gos-card { background: #fff; border: 1px solid #e8edf2; border-radius: 16px; margin-bottom: 13px;
-            box-shadow: 0 4px 16px rgba(15,23,42,.05); overflow: hidden; }
+        /* Compact, clickable summary row */
+        .gos-card { background: #fff; border: 1px solid #e8edf2; border-radius: 14px; margin-bottom: 9px;
+            box-shadow: 0 2px 8px rgba(15,23,42,.04); display: flex; align-items: center; gap: 11px;
+            padding: 10px 12px; cursor: pointer; transition: transform .12s, box-shadow .2s, border-color .2s; }
+        .gos-card:hover { box-shadow: 0 8px 22px rgba(15,23,42,.10); transform: translateY(-1px); border-color: #dbe3ec; }
+        .gos-card:active { transform: translateY(0); }
+        .gos-chev { color: #cbd5e1; font-size: 19px; font-weight: 700; flex-shrink: 0; line-height: 1; }
         .gos-card.gos-new { animation: gosPop .4s ease; border-color: #fcd34d; }
         @keyframes gosPop { 0% { transform: scale(.96); box-shadow: 0 0 0 4px #fef3c7; } 100% { transform: scale(1); } }
         .gos-card.gos-flash { animation: gosFlash 1.5s ease; }
@@ -150,6 +155,20 @@
         .gos-assign select { flex: 1; border: 1px solid #e2e8f0; border-radius: 9px; padding: 8px 10px; font-size: 12.5px;
             font-family: inherit; color: #1e293b; background: #fbfcfe; }
         .gos-assigned { font-size: 11.5px; color: #16a34a; font-weight: 700; padding: 0 14px 10px; }
+        /* Compact room badge inside the summary row */
+        .gos-card > .gos-room { width: 42px; height: 42px; }
+        .gos-card > .gos-meta { flex: 1; min-width: 0; }
+        /* Order detail modal */
+        .gos-mback { position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 5010; display: flex;
+            align-items: center; justify-content: center; padding: 18px; opacity: 0; pointer-events: none; transition: opacity .18s; }
+        .gos-mback.show { opacity: 1; pointer-events: auto; }
+        .gos-modal { background: #fff; border-radius: 18px; width: 440px; max-width: 100%; max-height: 88vh; overflow-y: auto;
+            box-shadow: 0 30px 80px rgba(15,23,42,.35); transform: translateY(10px); transition: transform .18s; }
+        .gos-mback.show .gos-modal { transform: none; }
+        .gos-mhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 15px 4px; }
+        .gos-mhead .gos-mtitle { font-size: 13px; font-weight: 700; color: #94a3b8; }
+        .gos-mclose { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 9px; cursor: pointer;
+            font-size: 14px; color: #64748b; flex-shrink: 0; }
         @media (max-width: 600px) { .gos-drawer { width: 100%; } }`;
         const el = document.createElement('style');
         el.id = 'go-staff-styles';
@@ -201,6 +220,37 @@
             drawer.querySelectorAll('.gos-fchip').forEach(x => x.classList.toggle('active', x === c));
             render();
         }));
+
+        // Order detail modal (opened by tapping a compact card).
+        const mback = document.createElement('div');
+        mback.className = 'gos-mback';
+        mback.id = 'gos-mback';
+        mback.innerHTML = `<div class="gos-modal" id="gos-modal"></div>`;
+        mback.addEventListener('click', e => { if (e.target === mback) closeOrderModal(); });
+        document.body.appendChild(mback);
+    }
+
+    let currentModalId = null;
+    function openOrderModal(id) {
+        const o = findOrder(id); if (!o) return;
+        currentModalId = id;
+        document.getElementById('gos-modal').innerHTML = orderDetailHtml(o);
+        document.getElementById('gos-mback').classList.add('show');
+        bindOrderActions(document.getElementById('gos-modal'));
+        document.getElementById('gos-mclose').addEventListener('click', closeOrderModal);
+    }
+    function closeOrderModal() {
+        currentModalId = null;
+        const m = document.getElementById('gos-mback');
+        if (m) m.classList.remove('show');
+    }
+    function refreshModal() {
+        if (!currentModalId) return;
+        const o = findOrder(currentModalId);
+        if (!o) { closeOrderModal(); return; }
+        document.getElementById('gos-modal').innerHTML = orderDetailHtml(o);
+        bindOrderActions(document.getElementById('gos-modal'));
+        document.getElementById('gos-mclose').addEventListener('click', closeOrderModal);
     }
 
     function openDrawer() {
@@ -212,6 +262,7 @@
     }
     function closeDrawer() {
         drawerOpen = false;
+        closeOrderModal();
         document.getElementById('gos-backdrop').classList.remove('show');
         document.getElementById('gos-drawer').classList.remove('show');
     }
@@ -237,6 +288,7 @@
     }
 
     function render() {
+        if (currentModalId) refreshModal();   // keep an open detail modal in sync
         if (!listEl) return;
         const list = visibleOrders();
         if (!list.length) {
@@ -247,7 +299,23 @@
         bindCardEvents();
     }
 
+    // Compact, clickable summary row → opens the detail modal.
     function cardHtml(o) {
+        const created = ms(o.createdAt);
+        const cls = ['gos-card', o.status];
+        return `<div class="${cls.join(' ')}" data-open="${esc(o.id)}">
+            <div class="gos-room"><small>ODA</small><b>${esc(o.room || '—')}</b></div>
+            <div class="gos-meta">
+                <div class="gos-guest">${esc(guestNameForRoom(o.room, o.guestName))}</div>
+                <div class="gos-sub">${(o.items || []).length} kalem · ${esc(timeAgo(created))}</div>
+            </div>
+            <span class="gos-ostat ${o.status}">${esc(LABEL[o.status] || o.status)}</span>
+            <span class="gos-chev">›</span>
+        </div>`;
+    }
+
+    // Full order detail (rendered inside the modal).
+    function orderDetailHtml(o) {
         const created = ms(o.createdAt);
         const items = (o.items || []).map((it, idx) => {
             const sIdx = FLOW.indexOf(it.status);
@@ -278,7 +346,7 @@
             actions = `<button class="gos-act ok" data-bulk="${esc(o.id)}|completed">✓ Tümünü Tamamla</button>`;
         }
 
-        return `<div class="gos-card ${o.status}" data-card="${esc(o.id)}">
+        return `<div class="gos-mhead"><span class="gos-mtitle">Talep Detayı</span><button class="gos-mclose" id="gos-mclose">✕</button></div>
             <div class="gos-card-top">
                 <div class="gos-room"><small>ODA</small><b>${esc(o.room || '—')}</b></div>
                 <div class="gos-meta">
@@ -293,26 +361,32 @@
                 <select data-assignsel="${esc(o.id)}"><option value="">Personele ata...</option>${usersOpts}</select>
                 <button class="gos-act ghost" data-assign="${esc(o.id)}">Ata</button>
             </div>` : ''}
-            ${actions ? `<div class="gos-actions">${actions}</div>` : ''}
-        </div>`;
+            ${actions ? `<div class="gos-actions">${actions}</div>` : ''}`;
     }
 
+    // List cards are now just summaries → tapping one opens the detail modal.
     function bindCardEvents() {
-        listEl.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => {
+        listEl.querySelectorAll('[data-open]').forEach(c => c.addEventListener('click', () => openOrderModal(c.dataset.open)));
+    }
+
+    // Order actions live inside the detail modal.
+    function bindOrderActions(root) {
+        if (!root) return;
+        root.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => {
             const [id, status] = b.dataset.bulk.split('|');
             bulkSet(id, status);
         });
-        listEl.querySelectorAll('[data-adv]').forEach(b => b.onclick = () => {
+        root.querySelectorAll('[data-adv]').forEach(b => b.onclick = () => {
             const [id, itemId] = b.dataset.adv.split('|');
             advanceItem(id, itemId);
         });
-        listEl.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => {
+        root.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => {
             const id = b.dataset.cancel;
             if (confirm('Bu siparişi iptal etmek istiyor musunuz?')) bulkSet(id, 'cancelled');
         });
-        listEl.querySelectorAll('[data-assign]').forEach(b => b.onclick = () => {
+        root.querySelectorAll('[data-assign]').forEach(b => b.onclick = () => {
             const id = b.dataset.assign;
-            const sel = listEl.querySelector(`[data-assignsel="${CSS.escape(id)}"]`);
+            const sel = root.querySelector(`[data-assignsel="${CSS.escape(id)}"]`);
             if (sel && sel.value) { const [uid, uname] = sel.value.split('|'); assignOrder(id, uid, uname); }
         });
     }
@@ -467,11 +541,7 @@
         if (drawer) drawer.querySelectorAll('.gos-fchip').forEach(x => x.classList.toggle('active', x.dataset.f === 'all'));
         openDrawer();
         if (!orderId) return;
-        requestAnimationFrame(() => {
-            const sel = (window.CSS && CSS.escape) ? CSS.escape(orderId) : orderId;
-            const card = listEl && listEl.querySelector('[data-card="' + sel + '"]');
-            if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.add('gos-flash'); setTimeout(() => card.classList.remove('gos-flash'), 1600); }
-        });
+        requestAnimationFrame(() => openOrderModal(orderId));   // jump straight to the detail
     }
 
     function notifyNew(id, o) {
