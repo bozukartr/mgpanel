@@ -406,3 +406,75 @@ a.btn-ghost, a.btn-primary { text-decoration: none; }
 .pms-guest .vip { font-size:9px; font-weight:800; color:#b45309; background:#fff7ed; border:1px solid #fed7aa; padding:1px 6px; border-radius:6px; margin-left:6px; }
 .pms-test-msg { font-size:12.5px; padding:8px 0; }
 .pms-test-msg.ok { color:#16a34a; } .pms-test-msg.err { color:var(--red); }
+
+/* ── Muhasebe (Finance) ─────────────────────────────────────── */
+.fin-rangebar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
+.fin-range { display:inline-flex; gap:4px; background:#fff; border:1px solid var(--border); border-radius:11px; padding:4px; }
+.fin-rg { border:none; background:none; font:inherit; font-size:13px; font-weight:600; color:var(--muted); padding:8px 14px; border-radius:8px; cursor:pointer; transition:.15s; }
+.fin-rg:hover { color:var(--text); }
+.fin-rg.active { background:var(--accent); color:#fff; }
+.fin-custom { display:inline-flex; align-items:center; gap:8px; }
+.fin-custom input { border:1px solid var(--border); border-radius:9px; padding:8px 10px; font:inherit; font-size:13px; color:var(--text); }
+.fin-custom span { color:var(--faint); }
+.fin-range-label { font-size:12.5px; color:var(--faint); margin-left:auto; }
+
+.fin-tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:22px; overflow-x:auto; }
+.fin-tab { border:none; background:none; font:inherit; font-size:14px; font-weight:600; color:var(--muted); padding:11px 16px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; transition:.15s; }
+.fin-tab:hover { color:var(--text); }
+.fin-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.fin-panel { display:none; }
+.fin-panel.active { display:block; animation:finFade .2s ease-out; }
+@keyframes finFade { from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+.fin-two { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:18px; }
+@media (max-width:900px){ .fin-two{ grid-template-columns:1fr; } }
+
+/* Simple bar chart */
+.fin-chart { display:flex; align-items:flex-end; gap:10px; height:170px; padding:14px 4px 0; }
+.fin-bar-wrap { flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; height:100%; justify-content:flex-end; min-width:0; }
+.fin-bar { width:100%; max-width:42px; background:linear-gradient(180deg,#818cf8,#4f46e5); border-radius:6px 6px 0 0; min-height:3px; transition:height .3s; }
+.fin-bar-val { font-size:10.5px; font-weight:700; color:var(--muted); white-space:nowrap; }
+.fin-bar-lbl { font-size:10.5px; color:var(--faint); white-space:nowrap; }
+
+.fin-tx-foot td { font-weight:800; color:var(--text); border-top:2px solid var(--border); }
+.tx-badge { font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; }
+.tx-badge.new { background:#eef2ff; color:#4338ca; }
+.tx-badge.renewal { background:#ecfdf5; color:#047857; }
+.fin-inv-open { background:none; border:1px solid var(--border); border-radius:7px; padding:4px 9px; font-size:11.5px; font-weight:600; color:var(--accent); cursor:pointer; }
+
+/* Invoice */
+.fin-inv-wrap { display:grid; grid-template-columns:minmax(0,360px) 1fr; gap:18px; align-items:start; }
+@media (max-width:1000px){ .fin-inv-wrap{ grid-template-columns:1fr; } }
+.fin-form-body { padding:4px 2px; }
+.fin-form-body label { display:block; font-size:12px; font-weight:600; color:#475569; margin:13px 0 5px; }
+.fin-form-body input, .fin-form-body select { width:100%; border:1px solid var(--border); border-radius:9px; padding:10px 12px; font:inherit; font-size:13.5px; color:var(--text); background:#fff; }
+.fin-form-body input:focus, .fin-form-body select:focus { outline:none; border-color:var(--accent); }
+.fin-form-row { display:flex; gap:12px; }
+.fin-form-row > div { flex:1; min-width:0; }
+.fin-inv-actions { margin-top:16px; display:flex; gap:10px; }
+
+.fin-inv-preview { padding:30px 32px; }
+.inv-doc { font-size:13px; color:#1e293b; }
+.inv-top { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; border-bottom:2px solid #1e293b; padding-bottom:16px; margin-bottom:18px; }
+.inv-seller b { font-size:16px; }
+.inv-seller div, .inv-buyer div { font-size:12px; color:#475569; line-height:1.6; }
+.inv-title { text-align:right; }
+.inv-title h2 { margin:0; font-size:20px; letter-spacing:1px; color:#1e293b; }
+.inv-meta { font-size:12px; color:#64748b; margin-top:6px; line-height:1.6; }
+.inv-parties { display:flex; gap:24px; margin-bottom:18px; flex-wrap:wrap; }
+.inv-parties > div { flex:1; min-width:200px; }
+.inv-parties h4 { margin:0 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#94a3b8; }
+.inv-tbl { width:100%; border-collapse:collapse; margin:6px 0 16px; }
+.inv-tbl th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:#94a3b8; border-bottom:1px solid #e2e8f0; padding:8px 6px; }
+.inv-tbl td { padding:10px 6px; border-bottom:1px solid #eef2f7; font-size:13px; }
+.inv-tbl td.r, .inv-tbl th.r { text-align:right; }
+.inv-totals { margin-left:auto; width:260px; }
+.inv-totals .row { display:flex; justify-content:space-between; padding:6px 0; font-size:13px; color:#475569; }
+.inv-totals .row.grand { border-top:2px solid #1e293b; margin-top:6px; padding-top:10px; font-size:16px; font-weight:800; color:#1e293b; }
+.inv-foot { margin-top:22px; padding-top:14px; border-top:1px solid #e2e8f0; font-size:11.5px; color:#94a3b8; line-height:1.6; }
+.inv-empty { padding:60px 20px; text-align:center; color:var(--faint); }
+
+@media (max-width:760px){
+    .fin-form-row { flex-direction:column; gap:0; }
+    .fin-range-label { display:none; }
+}

@@ -69,6 +69,10 @@
                 Siparişler
                 <span class="nav-badge" id="ordersBadge" hidden></span>
             </button>
+            <button class="sb-link" data-view="finance">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>
+                Muhasebe
+            </button>
             <button class="sb-link" data-view="site">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                 Site
@@ -166,6 +170,194 @@
                         </tr></thead>
                         <tbody id="ordersBody"></tbody>
                     </table></div>
+                </div>
+            </section>
+
+            <!-- FINANCE / MUHASEBE -->
+            <section class="view" id="view-finance">
+                <!-- Dönem seçici -->
+                <div class="fin-rangebar">
+                    <div class="fin-range" id="finRange">
+                        <button class="fin-rg active" data-range="month">Bu Ay</button>
+                        <button class="fin-rg" data-range="lastMonth">Geçen Ay</button>
+                        <button class="fin-rg" data-range="quarter">Bu Çeyrek</button>
+                        <button class="fin-rg" data-range="year">Bu Yıl</button>
+                        <button class="fin-rg" data-range="all">Tümü</button>
+                        <button class="fin-rg" data-range="custom">Özel</button>
+                    </div>
+                    <div class="fin-custom" id="finCustom" hidden>
+                        <input type="date" id="finFrom"><span>→</span><input type="date" id="finTo">
+                    </div>
+                    <div class="fin-range-label" id="finRangeLabel"></div>
+                </div>
+
+                <!-- Alt sekmeler -->
+                <div class="fin-tabs" id="finTabs">
+                    <button class="fin-tab active" data-fin="summary">Özet</button>
+                    <button class="fin-tab" data-fin="tx">İşlemler</button>
+                    <button class="fin-tab" data-fin="invoice">Fatura</button>
+                    <button class="fin-tab" data-fin="mrr">Abonelikler</button>
+                    <button class="fin-tab" data-fin="settings">Ayarlar</button>
+                </div>
+
+                <!-- ÖZET -->
+                <div class="fin-panel active" id="fin-summary">
+                    <div class="kpi-grid" id="finKpis"></div>
+                    <div class="card">
+                        <div class="card-head"><div><h3>Aylık Gelir Dağılımı</h3><div class="sub">Seçili döneme göre brüt gelir (son 12 ay)</div></div></div>
+                        <div class="fin-chart" id="finChart"></div>
+                    </div>
+                    <div class="fin-two">
+                        <div class="card">
+                            <div class="card-head"><div><h3>Pakete Göre Gelir</h3><div class="sub">Dönem içi brüt</div></div></div>
+                            <div class="table-wrap"><table>
+                                <thead><tr><th>Paket / Tür</th><th style="text-align:right;">İşlem</th><th style="text-align:right;">Brüt</th></tr></thead>
+                                <tbody id="finByPlan"></tbody>
+                            </table></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head"><div><h3>En Çok Gelir Getiren Oteller</h3><div class="sub">Dönem içi brüt</div></div></div>
+                            <div class="table-wrap"><table>
+                                <thead><tr><th>Otel</th><th style="text-align:right;">İşlem</th><th style="text-align:right;">Brüt</th></tr></thead>
+                                <tbody id="finTopHotels"></tbody>
+                            </table></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- İŞLEMLER -->
+                <div class="fin-panel" id="fin-tx">
+                    <div class="card">
+                        <div class="card-head">
+                            <div><h3>İşlemler</h3><div class="sub" id="finTxCount">—</div></div>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <select id="finTxType" class="m-select" style="width:auto;">
+                                    <option value="all">Tüm türler</option>
+                                    <option value="new">Yeni Satış</option>
+                                    <option value="renewal">Yenileme</option>
+                                </select>
+                                <button class="btn-ghost" id="finExportCsv">CSV indir</button>
+                            </div>
+                        </div>
+                        <div class="table-wrap"><table>
+                            <thead><tr>
+                                <th>Tarih</th><th>Otel</th><th>Tür</th><th>Döngü/Paket</th>
+                                <th style="text-align:right;">Net</th><th style="text-align:right;">KDV</th><th style="text-align:right;">Brüt</th><th></th>
+                            </tr></thead>
+                            <tbody id="finTxBody"></tbody>
+                            <tfoot><tr class="fin-tx-foot">
+                                <td colspan="4">Toplam</td>
+                                <td style="text-align:right;" id="finTxNet">—</td>
+                                <td style="text-align:right;" id="finTxKdv">—</td>
+                                <td style="text-align:right;" id="finTxGross">—</td><td></td>
+                            </tr></tfoot>
+                        </table></div>
+                    </div>
+                </div>
+
+                <!-- FATURA -->
+                <div class="fin-panel" id="fin-invoice">
+                    <div class="fin-inv-wrap">
+                        <div class="card fin-inv-form">
+                            <div class="card-head"><div><h3>Fatura Parametreleri</h3><div class="sub">Bir işlem seçin veya alanları elle doldurun</div></div></div>
+                            <div class="fin-form-body">
+                                <label>İşlem</label>
+                                <select id="invTx" class="m-select"><option value="">— Elle giriş —</option></select>
+
+                                <label>Alıcı (Müşteri) Ünvanı</label>
+                                <input id="invBuyerName" placeholder="Otel / şirket ünvanı">
+                                <label>Adres</label>
+                                <input id="invBuyerAddr" placeholder="Fatura adresi">
+                                <div class="fin-form-row">
+                                    <div><label>Vergi D. / TCKN</label><input id="invBuyerTaxOffice" placeholder="Vergi dairesi"></div>
+                                    <div><label>VKN / TCKN</label><input id="invBuyerTaxNo" placeholder="—"></div>
+                                </div>
+                                <div class="fin-form-row">
+                                    <div><label>E-posta</label><input id="invBuyerEmail" placeholder="—"></div>
+                                    <div><label>Telefon</label><input id="invBuyerPhone" placeholder="—"></div>
+                                </div>
+
+                                <label>Açıklama / Kalem</label>
+                                <input id="invDesc" placeholder="StayOS aboneliği">
+                                <div class="fin-form-row">
+                                    <div><label>Brüt Tutar (KDV dahil) ₺</label><input id="invGross" type="number" min="0" step="0.01" value="0"></div>
+                                    <div><label>KDV Oranı %</label><input id="invKdv" type="number" min="0" step="1" value="20"></div>
+                                </div>
+                                <div class="fin-form-row">
+                                    <div><label>Fatura Seri</label><input id="invSeries" placeholder="SOS"></div>
+                                    <div><label>Fatura No</label><input id="invNo" placeholder="0001"></div>
+                                </div>
+                                <label>Fatura Tarihi</label>
+                                <input id="invDate" type="date">
+                            </div>
+                        </div>
+                        <div class="card fin-inv-preview" id="invPreview">
+                            <!-- doldurulacak -->
+                        </div>
+                    </div>
+                    <div class="fin-inv-actions">
+                        <button class="btn-ghost" id="invPrint">Yazdır / PDF</button>
+                    </div>
+                </div>
+
+                <!-- ABONELİKLER (MRR) -->
+                <div class="fin-panel" id="fin-mrr">
+                    <div class="kpi-grid" id="finMrrKpis"></div>
+                    <div class="fin-two">
+                        <div class="card">
+                            <div class="card-head"><div><h3>Pakete Göre MRR</h3><div class="sub">Aktif aboneliklerin aylık tekrarlayan geliri</div></div></div>
+                            <div class="table-wrap"><table>
+                                <thead><tr><th>Paket</th><th style="text-align:right;">Aktif Otel</th><th style="text-align:right;">Birim/ay</th><th style="text-align:right;">MRR</th></tr></thead>
+                                <tbody id="finMrrByPlan"></tbody>
+                            </table></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head"><div><h3>Yaklaşan Yenilemeler</h3><div class="sub">30 gün içinde · tahmini tutar</div></div></div>
+                            <div class="table-wrap"><table>
+                                <thead><tr><th>Otel</th><th>Bitiş</th><th style="text-align:right;">Tahmini ₺</th></tr></thead>
+                                <tbody id="finUpcoming"></tbody>
+                            </table></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AYARLAR -->
+                <div class="fin-panel" id="fin-settings">
+                    <div class="card" style="max-width:720px;">
+                        <div class="card-head"><div><h3>Satıcı & Fatura Ayarları</h3><div class="sub">Faturalarda kullanılacak şirket bilgileri ve varsayılan parametreler</div></div></div>
+                        <div class="fin-form-body">
+                            <label>Şirket / Satıcı Ünvanı</label>
+                            <input id="setName" placeholder="Burak Göl Şahıs Şirketi">
+                            <label>Adres</label>
+                            <input id="setAddr" placeholder="Adres">
+                            <div class="fin-form-row">
+                                <div><label>Vergi Dairesi</label><input id="setTaxOffice" placeholder="Arda Vergi Dairesi"></div>
+                                <div><label>VKN / TCKN</label><input id="setTaxNo" placeholder="1234567890"></div>
+                            </div>
+                            <div class="fin-form-row">
+                                <div><label>MERSİS No</label><input id="setMersis" placeholder="000000000"></div>
+                                <div><label>IBAN</label><input id="setIban" placeholder="TR.."></div>
+                            </div>
+                            <div class="fin-form-row">
+                                <div><label>Telefon</label><input id="setPhone" placeholder="+90 (542) 307 4620"></div>
+                                <div><label>E-posta</label><input id="setEmail" placeholder="bu.gol@outlook.com"></div>
+                            </div>
+                            <div class="fin-form-row">
+                                <div><label>Varsayılan KDV Oranı %</label><input id="setKdv" type="number" min="0" step="1" value="20"></div>
+                                <div><label>Para Birimi</label><input id="setCurrency" value="₺"></div>
+                            </div>
+                            <div class="fin-form-row">
+                                <div><label>Fatura Seri</label><input id="setSeries" placeholder="SOS"></div>
+                                <div><label>Sonraki Fatura No</label><input id="setNextNo" type="number" min="1" value="1"></div>
+                            </div>
+                            <label>Fatura Notu / Dipnot</label>
+                            <input id="setNotes" placeholder="Teşekkür ederiz.">
+                            <div style="display:flex; align-items:center; gap:12px; margin-top:18px;">
+                                <button class="btn-primary" id="setSave">Kaydet</button>
+                                <span id="setSaved" class="sub" style="display:none; color:#16a34a;">✓ Kaydedildi</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
