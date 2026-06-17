@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fiyatlandırma · StayOS</title>
-    <meta name="description" content="StayOS hibrit fiyatlandırma: base ücret + oda başına ücret + modüller. Oda sayısında limit yok. Anlık fiyat hesaplayıcı.">
+    <meta name="description" content="StayOS hibrit fiyatlandırma: base ücret + oda başına ücret + modüller. 500 odaya kadar ölçeklenir. Anlık fiyat hesaplayıcı.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -46,114 +46,66 @@
             <div class="sec-head">
                 <span class="tag">Fiyatlandırma</span>
                 <h2>Otelinize göre adil, şeffaf fiyatlandırma</h2>
-                <p>Sabit base ücret + oda başına küçük bir ücret + ihtiyacınız olan modüller. Gizli ücret yok, kurulum bedeli yok.</p>
+                <p>Base ücret + oda başına küçük bir ücret + ihtiyacınız olan modüller. Gizli ücret yok, kurulum bedeli yok.</p>
             </div>
 
-            <div class="pr-toggle-wrap">
-                <div class="pr-toggle">
-                    <button class="pr-tg active" data-billing="monthly">Aylık</button>
-                    <button class="pr-tg" data-billing="annual">Yıllık <span class="pr-save">−%18</span></button>
-                </div>
-            </div>
+            <!-- Tek container: yapılandırma + canlı toplam -->
+            <div class="pr-panel">
+                <div class="pr-config">
+                    <div class="pr-toggle-wrap">
+                        <div class="pr-toggle">
+                            <button class="pr-tg active" data-billing="monthly">Aylık</button>
+                            <button class="pr-tg" data-billing="annual">Yıllık <span class="pr-save">−%18</span></button>
+                        </div>
+                    </div>
 
-            <div class="pr-grid">
-                <div class="pr-card" data-plan="starter">
-                    <div class="pr-name">Starter</div>
-                    <div class="pr-desc">Küçük ekipler ve tek modülle başlamak isteyenler için.</div>
-                    <div class="pr-price"><span class="amt">€49</span><span class="per">/ay base</span></div>
-                    <div class="pr-room">+ <b>€0,8</b> / oda / ay</div>
-                    <div class="pr-annual-note"></div>
-                    <ul class="pr-feats">
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Core özellikler (rezervasyon, raporlama, bildirim, PWA)</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><b>1 modül</b> (Concierge veya CRM)</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Özel alt alan adı &amp; mobil uygulama</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>E-posta desteği</li>
-                    </ul>
-                    <button class="pr-cta" data-quote>Teklif Al</button>
-                </div>
-
-                <div class="pr-card feat" data-plan="pro">
-                    <span class="pr-badge">⭐ En çok önerilen</span>
-                    <div class="pr-name">Pro</div>
-                    <div class="pr-desc">Büyüyen oteller için en dengeli seçim — çoğu ekip için ideal.</div>
-                    <div class="pr-price"><span class="amt">€99</span><span class="per">/ay base</span></div>
-                    <div class="pr-room">+ <b>€1,2</b> / oda / ay</div>
-                    <div class="pr-annual-note"></div>
-                    <ul class="pr-feats">
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Tüm Core özellikler</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><b>3 modül</b> (Concierge, CRM, Guest Issue)</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Misafir self-servis (QR talepler)</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Öncelikli e-posta desteği</li>
-                    </ul>
-                    <button class="pr-cta" data-quote>Teklif Al</button>
-                </div>
-
-                <div class="pr-card" data-plan="business">
-                    <div class="pr-name">Business</div>
-                    <div class="pr-desc">Tam entegrasyon ve öncelikli destek isteyen oteller için.</div>
-                    <div class="pr-price"><span class="amt">€199</span><span class="per">/ay base</span></div>
-                    <div class="pr-room">+ <b>€1,5</b> / oda / ay</div>
-                    <div class="pr-annual-note"></div>
-                    <ul class="pr-feats">
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><b>Tüm modüller</b> dahil</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><b>PMS Entegrasyonu</b> dahil</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Öncelikli destek (hızlı yanıt)</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Gelişmiş raporlama</li>
-                    </ul>
-                    <button class="pr-cta" data-quote>Teklif Al</button>
-                </div>
-            </div>
-
-            <div class="pr-addons">
-                <span class="pr-addon">🔌 PMS Entegrasyonu <b>+€99/ay</b></span>
-                <span class="pr-addon">➕ Ekstra Modül <b>+€19/ay</b></span>
-                <span class="pr-addon">🏨 Oda sayısında <b>limit yok</b></span>
-            </div>
-
-            <div class="pr-calc">
-                <div class="pr-calc-head">
-                    <h3>Anlık fiyat hesaplayıcı</h3>
-                    <p>Oda sayınızı girin, eklentileri seçin — toplam anında görünsün.</p>
                     <div class="pr-field">
                         <label>Paket</label>
                         <div class="pr-plans">
-                            <div class="pr-plan-opt" data-plan="starter">Starter</div>
-                            <div class="pr-plan-opt active" data-plan="pro">Pro</div>
-                            <div class="pr-plan-opt" data-plan="business">Business</div>
+                            <button type="button" class="pr-plan-opt" data-plan="starter">
+                                <b>Starter</b><span class="amt">€49</span><small>/ay base · €0,8/oda</small>
+                            </button>
+                            <button type="button" class="pr-plan-opt active" data-plan="pro">
+                                <span class="pr-plan-tag">Önerilen</span>
+                                <b>Pro</b><span class="amt">€99</span><small>/ay base · €1,2/oda</small>
+                            </button>
+                            <button type="button" class="pr-plan-opt" data-plan="business">
+                                <b>Business</b><span class="amt">€199</span><small>/ay base · €1,5/oda</small>
+                            </button>
                         </div>
                     </div>
-                    <div class="pr-row">
-                        <div class="pr-field">
-                            <label>Oda sayısı</label>
-                            <input class="pr-input" id="prRooms" type="number" min="0" value="40" inputmode="numeric">
-                        </div>
-                        <div class="pr-field" data-extra>
-                            <label>Ekstra modül</label>
-                            <div class="pr-stepper">
-                                <button type="button" data-step="down">−</button>
-                                <input class="pr-input" id="prExtra" type="number" min="0" value="0" inputmode="numeric">
-                                <button type="button" data-step="up">+</button>
-                            </div>
-                        </div>
-                    </div>
+
                     <div class="pr-field">
-                        <label>Eklenti</label>
-                        <label class="pr-check" data-pms>
-                            <input type="checkbox" id="prPms"> PMS Entegrasyonu
-                            <span class="pr-cprice">+€99/ay</span>
-                        </label>
+                        <label>Oda sayısı: <b id="prRoomsVal">40</b> oda</label>
+                        <input type="range" class="pr-range" id="prRooms" min="0" max="500" step="5" value="40">
+                        <div class="pr-range-hint"><span>0</span><span><b>500+</b> maksimum fiyat</span></div>
                     </div>
+
+                    <div class="pr-field" data-extra>
+                        <label>Ek modüller <small>(her biri +€19/ay)</small></label>
+                        <div class="pr-mods">
+                            <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="concierge"><span>Concierge</span></label>
+                            <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="crm"><span>CRM</span></label>
+                            <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="guestOrders"><span>Misafir Talepleri</span></label>
+                            <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="guestIssues"><span>Sorun Takibi</span></label>
+                        </div>
+                    </div>
+
+                    <label class="pr-check" data-pms>
+                        <input type="checkbox" id="prPms"><span>PMS Entegrasyonu</span>
+                        <span class="pr-cprice">+€99/ay</span>
+                    </label>
                 </div>
+
                 <div class="pr-result">
                     <div class="pr-r-label">Tahmini tutarınız</div>
                     <div class="pr-r-total" id="prTotal">€0<span>/ay</span></div>
                     <div class="pr-r-sub" id="prSub"></div>
                     <span class="pr-r-save" id="prSave" style="display:none;"></span>
-                    <button class="pr-r-cta" data-quote>Bu fiyata Teklif Al →</button>
+                    <button class="pr-r-cta" data-quote>Teklif Al →</button>
+                    <div class="pr-r-note">Tüm fiyatlar KDV hariç ve €/aydır. Kesin teklif için “Teklif Al” deyin, aynı gün dönelim.</div>
                 </div>
             </div>
-
-            <p class="pr-note">Tüm fiyatlar KDV hariçtir ve €/aydır. <b>Oda sayısında limit yok</b> — küçük butik otelden büyük zincire kadar aynı adil model. Kesin teklif için “Teklif Al” deyin, aynı gün dönelim.</p>
         </div>
     </section>
 

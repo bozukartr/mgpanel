@@ -615,7 +615,7 @@
                 <div class="pr-teaser-txt">
                     <span class="tag">Fiyatlandırma</span>
                     <h2>Otelinize göre adil, şeffaf fiyatlandırma</h2>
-                    <p>Sabit base ücret + oda başına küçük bir ücret + ihtiyacınız olan modüller. Gizli ücret yok, kurulum bedeli yok. <b>Oda sayısında limit yok.</b></p>
+                    <p>Sabit base ücret + oda başına küçük bir ücret + ihtiyacınız olan modüller. Gizli ücret yok, kurulum bedeli yok. <b>500 odaya kadar ölçeklenir.</b></p>
                     <div class="pr-teaser-chips">
                         <span>Starter <b>€49</b>/ay</span>
                         <span>Pro <b>€99</b>/ay</span>
@@ -1004,6 +1004,8 @@
             b.addEventListener('click', function (e) { e.preventDefault(); open(); });
         });
         $('quoteClose').addEventListener('click', close);
+        // Fiyatlandırma sayfasından "/#teklif" ile gelindiğinde formu hemen aç.
+        if (location.hash === '#teklif') setTimeout(open, 300);
         modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modal.classList.contains('show')) close(); });
 
