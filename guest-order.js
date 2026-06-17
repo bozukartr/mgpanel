@@ -63,8 +63,12 @@
     ].map((d, i) => Object.assign({ id: 'demo-' + i, active: true, sortOrder: (i + 1) * 10 }, d));
 
     // Admin-controlled guest-page settings (collection `guestConfig/{tenant}`).
-    const DEFAULT_CONFIG = { hotelName: '', showPrices: false, currency: '₺', requireVerification: false };
-    const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺', requireVerification: true };
+    const DEFAULT_CONFIG = { hotelName: '', showPrices: false, currency: '₺', requireVerification: false,
+        welcome: '', phone: '', wifiName: '', wifiPass: '', checkoutTime: '', breakfast: '', address: '' };
+    const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺', requireVerification: true,
+        welcome: 'Konaklamanızın keyfini çıkarın — her şey bir dokunuş uzağınızda.',
+        phone: '0 (212) 000 00 00', wifiName: 'GrandDemo-Guest', wifiPass: 'demo2024',
+        checkoutTime: '12:00', breakfast: '07:00 – 10:30 · Lobi Restoran', address: 'Sahil Cad. No:1, İstanbul' };
     let config = Object.assign({}, DEFAULT_CONFIG);
 
     // ── Status metadata ────────────────────────────────────────
@@ -204,6 +208,63 @@
     function applyHotelName() {
         const name = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
         $('goHotelName').textContent = name + (DEMO ? ' · DEMO' : '');
+        // Welcome message replaces the generic subtitle when provided.
+        const sub = $('goSub');
+        if (sub && config.welcome && config.welcome.trim()) sub.textContent = config.welcome.trim();
+        // Show the info button only if there's at least one hotel-info field.
+        const hasInfo = ['welcome', 'phone', 'wifiName', 'wifiPass', 'checkoutTime', 'breakfast', 'address']
+            .some(k => config[k] && String(config[k]).trim());
+        const ic = $('goInfoIc'); if (ic) ic.style.display = hasInfo ? '' : 'none';
+        renderHotelInfo();
+    }
+
+    // ── Hotel info sheet ───────────────────────────────────────
+    function infoRow(svg, label, value, opts) {
+        opts = opts || {};
+        var val = String(value == null ? '' : value).trim();
+        if (!val) return '';
+        var right = '';
+        if (opts.copy) right = `<button class="go-info-copy" data-copy="${esc(val)}">Kopyala</button>`;
+        else if (opts.href) right = `<a class="go-info-link" href="${esc(opts.href)}"${opts.blank ? ' target="_blank" rel="noopener"' : ''}>${esc(opts.linkText || 'Aç')}</a>`;
+        return `<div class="go-info-row">
+            <span class="go-info-ico">${svg}</span>
+            <div class="go-info-txt"><span class="go-info-label">${esc(label)}</span><span class="go-info-val">${esc(val)}</span></div>
+            ${right}</div>`;
+    }
+    function renderHotelInfo() {
+        const body = $('goInfoBody'); if (!body) return;
+        const I = {
+            phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+            wifi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>',
+            key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+            clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+            coffee: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
+            pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>'
+        };
+        const phoneDigits = (config.phone || '').replace(/[^0-9+]/g, '');
+        const rows = [
+            infoRow(I.phone, 'Resepsiyon', config.phone, phoneDigits ? { href: 'tel:' + phoneDigits, linkText: 'Ara' } : {}),
+            infoRow(I.wifi, 'Wi-Fi ağı', config.wifiName, { copy: true }),
+            infoRow(I.key, 'Wi-Fi şifresi', config.wifiPass, { copy: true }),
+            infoRow(I.clock, 'Çıkış (check-out)', config.checkoutTime),
+            infoRow(I.coffee, 'Kahvaltı', config.breakfast),
+            infoRow(I.pin, 'Adres', config.address, config.address ? { href: 'https://maps.google.com/?q=' + encodeURIComponent(config.address), blank: true, linkText: 'Harita' } : {})
+        ].filter(Boolean).join('');
+        const hname = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
+        body.innerHTML = `<div class="go-info-hero"><div class="go-info-h-name">${esc(hname)}</div>${config.welcome && config.welcome.trim() ? `<div class="go-info-h-welcome">${esc(config.welcome.trim())}</div>` : ''}</div>${rows || '<div class="go-info-empty">Henüz otel bilgisi eklenmemiş.</div>'}`;
+        body.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+            try { navigator.clipboard.writeText(b.dataset.copy); toast('Kopyalandı'); } catch (e) {}
+        });
+    }
+    function openInfoSheet() {
+        $('goInfoBackdrop').classList.add('show');
+        $('goInfoSheet').classList.add('show');
+        $('goInfoSheet').setAttribute('aria-hidden', 'false');
+    }
+    function closeInfoSheet() {
+        $('goInfoBackdrop').classList.remove('show');
+        $('goInfoSheet').classList.remove('show');
+        $('goInfoSheet').setAttribute('aria-hidden', 'true');
     }
 
     // ── Data (config + catalog) ────────────────────────────────
@@ -772,6 +833,9 @@
         $('goSheetClose').onclick = closeSheet;
         $('goBackdrop').onclick = closeSheet;
         $('goSubmit').onclick = submitOrder;
+        $('goInfoIc').onclick = openInfoSheet;
+        $('goInfoClose').onclick = closeInfoSheet;
+        $('goInfoBackdrop').onclick = closeInfoSheet;
         $('goMini').onclick = () => { if (currentOrder) showTrackingView(); };
         $('goTrackIc').onclick = () => {
             if (currentOrder) showTrackingView();

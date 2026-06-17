@@ -270,6 +270,11 @@
     }
 
     // ── Guest page settings (guestConfig) ──────────────────────
+    // Optional hotel-info fields shown to guests on the QR page.
+    const INFO_FIELDS = {
+        cfgWelcome: 'welcome', cfgPhone: 'phone', cfgCheckout: 'checkoutTime',
+        cfgWifiName: 'wifiName', cfgWifiPass: 'wifiPass', cfgBreakfast: 'breakfast', cfgAddress: 'address'
+    };
     function loadConfig() {
         db.collection(CFG).doc(TENANT_ID).get().then(doc => {
             if (doc.exists) cfg = Object.assign(cfg, doc.data());
@@ -278,6 +283,7 @@
             if (cur) cur.value = cfg.currency || '₺';
             if (sp) sp.checked = !!cfg.showPrices;
             if (rv) rv.checked = !!cfg.requireVerification;
+            Object.keys(INFO_FIELDS).forEach(id => { const el = $(id); if (el) el.value = cfg[INFO_FIELDS[id]] || ''; });
             render();
         }).catch(err => console.error('config load failed', err));
     }
@@ -288,6 +294,7 @@
             showPrices: $('cfgShowPrices').checked,
             requireVerification: $('cfgRequireVerify').checked
         };
+        Object.keys(INFO_FIELDS).forEach(id => { const el = $(id); if (el) cfg[INFO_FIELDS[id]] = (el.value || '').trim().slice(0, 160); });
         db.collection(CFG).doc(TENANT_ID).set(Object.assign({ tenantId: TENANT_ID, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, cfg), { merge: true })
             .then(() => { toast('Ayarlar kaydedildi.'); render(); })
             .catch(err => { console.error(err); toast('Kaydedilemedi.', true); });
