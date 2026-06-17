@@ -301,6 +301,7 @@
         }).join('');
 
         if (drawerOrderId) refreshOrderDrawer();
+        if (typeof renderFinance === 'function') renderFinance();
     }
 
     // ---------- order detail drawer ----------
@@ -959,6 +960,346 @@
         finally { btn.disabled = false; syncDelButton(); }
     }
 
+    // ======================================================================
+    //  MUHASEBE (Finance)
+    // ======================================================================
+    let payments = [];          // tenant subscription renewal payments
+    let finRange = 'month';     // month | lastMonth | quarter | year | all | custom
+    let finTxTypeFilter = 'all';
+    let billing = {};           // siteConfig/billing (seller + invoice settings)
+
+    // Monthly list price per plan (TRY) — mirrors functions PLAN_PRICE; used to
+    // estimate recurring revenue (MRR) and upcoming renewal amounts.
+    const PLAN_PRICE_TRY = { starter: 7500, pro: 15000, enterprise: 30000, custom: 0 };
+    const BILLING_DEFAULTS = {
+        name: 'Burak Göl Şahıs Şirketi', addr: '', taxOffice: 'Arda Vergi Dairesi',
+        taxNo: '1234567890', mersis: '000000000', iban: '', phone: '+90 (542) 307 4620',
+        email: 'bu.gol@outlook.com', kdvRate: 20, currency: '₺', series: 'SOS', nextNo: 1, notes: ''
+    };
+    function B(k) { return (billing && billing[k] != null && billing[k] !== '') ? billing[k] : BILLING_DEFAULTS[k]; }
+    function currentKdvRate() { const r = Number(B('kdvRate')); return isFinite(r) ? r : 20; }
+
+    function subscribePayments() {
+        db.collection('payments').onSnapshot(snap => {
+            payments = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+            renderFinance();
+        }, () => { });
+    }
+
+    function tsDate(ts) { return ts && ts.toDate ? ts.toDate() : (ts instanceof Date ? ts : null); }
+    function finMoney(n, dec) {
+        const v = Number(n) || 0;
+        return v.toLocaleString('tr-TR', { minimumFractionDigits: dec == null ? 0 : dec, maximumFractionDigits: dec == null ? 0 : dec }) + ' ₺';
+    }
+    function splitKdv(gross, ratePct) { const r = (Number(ratePct) || 0) / 100; const net = r ? gross / (1 + r) : gross; return { net, kdv: gross - net }; }
+    function planLabel(key) { return (PLANS[key] || {}).name || key || '—'; }
+
+    // ── Date range ─────────────────────────────────────────────
+    function rangeBounds() {
+        const now = new Date(); const y = now.getFullYear(), m = now.getMonth();
+        let from = null, to = null;
+        if (finRange === 'month') { from = new Date(y, m, 1); to = new Date(y, m + 1, 1); }
+        else if (finRange === 'lastMonth') { from = new Date(y, m - 1, 1); to = new Date(y, m, 1); }
+        else if (finRange === 'quarter') { const q = Math.floor(m / 3); from = new Date(y, q * 3, 1); to = new Date(y, q * 3 + 3, 1); }
+        else if (finRange === 'year') { from = new Date(y, 0, 1); to = new Date(y + 1, 0, 1); }
+        else if (finRange === 'custom') {
+            const f = $('finFrom').value, t = $('finTo').value;
+            from = f ? new Date(f + 'T00:00:00') : null;
+            if (t) { to = new Date(t + 'T00:00:00'); to.setDate(to.getDate() + 1); }
+        }
+        return { from, to };
+    }
+    function inRange(d, b) { if (!d) return false; if (b.from && d < b.from) return false; if (b.to && d >= b.to) return false; return true; }
+    function rangeLabelText() {
+        const b = rangeBounds();
+        if (!b.from && !b.to) return 'Tüm zamanlar';
+        const fmt = d => d ? d.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) : '…';
+        const end = b.to ? new Date(b.to.getTime() - 1) : null;
+        return fmt(b.from) + ' – ' + fmt(end);
+    }
+
+    // ── Unified transaction model ──────────────────────────────
+    function buildTx() {
+        const tx = [];
+        orders.forEach(o => {
+            if (o.status !== 'success') return;
+            const d = tsDate(o.paidAt) || tsDate(o.createdAt);
+            tx.push({
+                id: o.id, kind: 'new', date: d, hotel: (o.buyer && o.buyer.hotel) || '—',
+                buyer: o.buyer || {}, cycle: o.cycle || 'monthly',
+                detail: (o.cycle === 'annual' ? 'Yıllık' : 'Aylık') + ' Paket',
+                gross: Number(o.priceTRY) || 0, ref: o.oid || o.id, tenantId: o.sourceTenantId || ''
+            });
+        });
+        payments.forEach(p => {
+            if (p.status !== 'success') return;
+            const d = tsDate(p.paidAt) || tsDate(p.createdAt);
+            const t = tenants.find(x => x.id === p.tenantId);
+            const hotel = t ? (t.name || p.tenantId) : (p.tenantId || '—');
+            tx.push({
+                id: p.id, kind: 'renewal', date: d, hotel: hotel,
+                buyer: { hotel: hotel, email: (t && t.billingEmail) || '', phone: (t && t.billingPhone) || '' },
+                cycle: 'monthly', detail: planLabel(p.plan) + ' · Yenileme',
+                gross: Number(p.amountTRY) || 0, ref: p.oid || p.id, tenantId: p.tenantId || ''
+            });
+        });
+        return tx.sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0));
+    }
+
+    function finKpiCards(cards) {
+        return cards.map(c => `<div class="kpi"><div class="top"><span class="lbl">${c.lbl}</span>
+            <span class="ico ico-${c.ico}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.svg}</svg></span></div>
+            <div class="val">${c.val}</div><div class="hint">${c.hint || ''}</div></div>`).join('');
+    }
+    const ICO = {
+        money: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+        net: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/>',
+        kdv: '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>',
+        cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+        repeat: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+        trend: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>'
+    };
+
+    // ── Master render (called on data/range changes) ───────────
+    function renderFinance() {
+        if (!document.getElementById('view-finance')) return;
+        const lbl = $('finRangeLabel'); if (lbl) lbl.textContent = rangeLabelText();
+        const b = rangeBounds();
+        const all = buildTx();
+        const rng = all.filter(t => inRange(t.date, b));
+        finRenderSummary(rng, all);
+        finRenderTx(rng);
+        finRenderMrr();
+        finRebuildInvoiceSelect(all);
+    }
+
+    function finRenderSummary(rng, all) {
+        const rate = currentKdvRate();
+        let gross = 0, newG = 0, renG = 0;
+        rng.forEach(t => { gross += t.gross; if (t.kind === 'new') newG += t.gross; else renG += t.gross; });
+        const { net, kdv } = splitKdv(gross, rate);
+        $('finKpis').innerHTML = finKpiCards([
+            { lbl: 'Brüt Gelir', val: finMoney(gross), hint: rng.length + ' işlem', ico: 'green', svg: ICO.money },
+            { lbl: 'Net (Matrah)', val: finMoney(net, 0), hint: 'KDV hariç', ico: 'indigo', svg: ICO.net },
+            { lbl: 'KDV (%' + rate + ')', val: finMoney(kdv, 0), hint: 'Hesaplanan', ico: 'amber', svg: ICO.kdv },
+            { lbl: 'Yeni Satış', val: finMoney(newG), hint: rng.filter(t => t.kind === 'new').length + ' işlem', ico: 'slate', svg: ICO.cart },
+            { lbl: 'Yenileme', val: finMoney(renG), hint: rng.filter(t => t.kind === 'renewal').length + ' işlem', ico: 'green', svg: ICO.repeat }
+        ]);
+
+        // 12-month trend (from all tx, independent of selected range)
+        const now = new Date(); const months = [];
+        for (let i = 11; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth(), sum: 0 }); }
+        all.forEach(t => { if (!t.date) return; const mm = months.find(x => x.y === t.date.getFullYear() && x.m === t.date.getMonth()); if (mm) mm.sum += t.gross; });
+        const max = Math.max(1, ...months.map(x => x.sum));
+        const mlbl = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+        $('finChart').innerHTML = months.map(x => {
+            const h = Math.round((x.sum / max) * 100);
+            const v = x.sum >= 1000 ? Math.round(x.sum / 1000) + 'k' : (x.sum || '');
+            return `<div class="fin-bar-wrap" title="${finMoney(x.sum)}"><div class="fin-bar-val">${v}</div>
+                <div class="fin-bar" style="height:${h}%"></div><div class="fin-bar-lbl">${mlbl[x.m]}</div></div>`;
+        }).join('');
+
+        // By plan / type
+        const byPlan = {};
+        rng.forEach(t => { const k = t.kind === 'new' ? ('Yeni Satış · ' + (t.cycle === 'annual' ? 'Yıllık' : 'Aylık')) : t.detail; byPlan[k] = byPlan[k] || { c: 0, g: 0 }; byPlan[k].c++; byPlan[k].g += t.gross; });
+        const planRows = Object.keys(byPlan).sort((a, b) => byPlan[b].g - byPlan[a].g);
+        $('finByPlan').innerHTML = planRows.length ? planRows.map(k =>
+            `<tr><td>${esc(k)}</td><td style="text-align:right;">${byPlan[k].c}</td><td style="text-align:right;">${finMoney(byPlan[k].g)}</td></tr>`).join('')
+            : `<tr><td colspan="3"><div class="empty">Bu dönemde gelir yok.</div></td></tr>`;
+
+        // Top hotels
+        const byHotel = {};
+        rng.forEach(t => { byHotel[t.hotel] = byHotel[t.hotel] || { c: 0, g: 0 }; byHotel[t.hotel].c++; byHotel[t.hotel].g += t.gross; });
+        const hotelRows = Object.keys(byHotel).sort((a, b) => byHotel[b].g - byHotel[a].g).slice(0, 8);
+        $('finTopHotels').innerHTML = hotelRows.length ? hotelRows.map(k =>
+            `<tr><td>${esc(k)}</td><td style="text-align:right;">${byHotel[k].c}</td><td style="text-align:right;">${finMoney(byHotel[k].g)}</td></tr>`).join('')
+            : `<tr><td colspan="3"><div class="empty">Bu dönemde gelir yok.</div></td></tr>`;
+    }
+
+    function finRenderTx(rng) {
+        const rate = currentKdvRate();
+        const rows = rng.filter(t => finTxTypeFilter === 'all' || t.kind === finTxTypeFilter);
+        $('finTxCount').textContent = rows.length + ' işlem · ' + rangeLabelText();
+        let net = 0, kdv = 0, gross = 0;
+        $('finTxBody').innerHTML = rows.length ? rows.map(t => {
+            const s = splitKdv(t.gross, rate); net += s.net; kdv += s.kdv; gross += t.gross;
+            return `<tr>
+                <td>${fmtDate(t.date)}</td>
+                <td>${esc(t.hotel)}</td>
+                <td><span class="tx-badge ${t.kind}">${t.kind === 'new' ? 'Yeni Satış' : 'Yenileme'}</span></td>
+                <td>${esc(t.detail)}</td>
+                <td style="text-align:right;">${finMoney(s.net, 0)}</td>
+                <td style="text-align:right;">${finMoney(s.kdv, 0)}</td>
+                <td style="text-align:right;"><b>${finMoney(t.gross)}</b></td>
+                <td style="text-align:right;"><button class="fin-inv-open" data-invtx="${esc(t.id)}">Fatura</button></td>
+            </tr>`;
+        }).join('') : `<tr><td colspan="8"><div class="empty">Bu dönemde işlem yok.</div></td></tr>`;
+        $('finTxNet').textContent = finMoney(net, 0);
+        $('finTxKdv').textContent = finMoney(kdv, 0);
+        $('finTxGross').textContent = finMoney(gross);
+    }
+
+    function finRenderMrr() {
+        const active = tenants.filter(t => { const k = statusOf(t).key; return k === 'active' || k === 'soon'; });
+        const byPlan = {}; let mrr = 0;
+        active.forEach(t => { const k = planKey(t); const price = PLAN_PRICE_TRY[k] || 0; byPlan[k] = byPlan[k] || { c: 0, price: price, sum: 0 }; byPlan[k].c++; byPlan[k].sum += price; mrr += price; });
+        $('finMrrKpis').innerHTML = finKpiCards([
+            { lbl: 'MRR', val: finMoney(mrr), hint: 'Aylık tekrarlayan gelir', ico: 'green', svg: ICO.repeat },
+            { lbl: 'ARR', val: finMoney(mrr * 12), hint: 'Yıllık tahmini', ico: 'indigo', svg: ICO.trend },
+            { lbl: 'Aktif Abonelik', val: active.length, hint: 'Gelir getiren otel', ico: 'slate', svg: ICO.cart },
+            { lbl: 'Ortalama (ARPA)', val: finMoney(active.length ? mrr / active.length : 0, 0), hint: 'Otel başına/ay', ico: 'amber', svg: ICO.money }
+        ]);
+        const order = ['starter', 'pro', 'enterprise', 'custom'];
+        $('finMrrByPlan').innerHTML = order.filter(k => byPlan[k]).map(k =>
+            `<tr><td>${planLabel(k)}</td><td style="text-align:right;">${byPlan[k].c}</td><td style="text-align:right;">${byPlan[k].price ? finMoney(byPlan[k].price) : '—'}</td><td style="text-align:right;"><b>${finMoney(byPlan[k].sum)}</b></td></tr>`).join('')
+            || `<tr><td colspan="4"><div class="empty">Aktif abonelik yok.</div></td></tr>`;
+
+        const soon = tenants.map(t => ({ t, s: statusOf(t) }))
+            .filter(x => x.s.end && x.s.days != null && x.s.days >= 0 && x.s.days <= 30 && x.s.key !== 'suspended' && x.s.key !== 'archived')
+            .sort((a, b) => a.s.days - b.s.days);
+        $('finUpcoming').innerHTML = soon.length ? soon.map(({ t, s }) =>
+            `<tr><td>${esc(t.name || t.id)}</td><td>${fmtDate(s.end)} · ${s.days}g</td><td style="text-align:right;">${finMoney(PLAN_PRICE_TRY[planKey(t)] || 0)}</td></tr>`).join('')
+            : `<tr><td colspan="3"><div class="empty">30 gün içinde yenileme yok.</div></td></tr>`;
+    }
+
+    // ── Invoice ────────────────────────────────────────────────
+    let invTxCache = [];
+    function finRebuildInvoiceSelect(all) {
+        invTxCache = all;
+        const sel = $('invTx'); if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">— Elle giriş —</option>' + all.slice(0, 300).map(t =>
+            `<option value="${esc(t.id)}">${fmtDate(t.date)} · ${esc(t.hotel)} · ${finMoney(t.gross)} (${t.kind === 'new' ? 'Yeni' : 'Yenileme'})</option>`).join('');
+        if (cur) sel.value = cur;
+    }
+    function prefillInvoiceFromTx(id) {
+        const t = invTxCache.find(x => x.id === id); if (!t) return;
+        const b = t.buyer || {};
+        $('invBuyerName').value = b.hotel || t.hotel || '';
+        $('invBuyerAddr').value = b.address || '';
+        $('invBuyerTaxOffice').value = '';
+        $('invBuyerTaxNo').value = '';
+        $('invBuyerEmail').value = b.email || '';
+        $('invBuyerPhone').value = b.phone || '';
+        $('invDesc').value = 'StayOS · ' + t.detail;
+        $('invGross').value = t.gross;
+        $('invDate').value = (t.date || new Date()).toISOString().slice(0, 10);
+        renderInvoicePreview();
+    }
+    function renderInvoicePreview() {
+        const gross = Number($('invGross').value) || 0;
+        const rate = Number($('invKdv').value) || 0;
+        const { net, kdv } = splitKdv(gross, rate);
+        const cur = B('currency');
+        const m = (n, d) => (Number(n) || 0).toLocaleString('tr-TR', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d }) + ' ' + cur;
+        const dateStr = $('invDate').value ? new Date($('invDate').value + 'T00:00:00').toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+        const noStr = ($('invSeries').value || B('series') || '') + (($('invSeries').value || B('series')) ? '-' : '') + ($('invNo').value || '');
+        const sellerLines = [B('addr'), (B('taxOffice') ? 'V.D.: ' + B('taxOffice') : '') + (B('taxNo') ? ' · VKN: ' + B('taxNo') : ''), B('mersis') ? 'MERSİS: ' + B('mersis') : '', [B('phone'), B('email')].filter(Boolean).join(' · '), B('iban') ? 'IBAN: ' + B('iban') : ''].filter(Boolean);
+        const buyerLines = [$('invBuyerAddr').value, ([$('invBuyerTaxOffice').value ? 'V.D.: ' + $('invBuyerTaxOffice').value : '', $('invBuyerTaxNo').value ? 'VKN/TCKN: ' + $('invBuyerTaxNo').value : ''].filter(Boolean).join(' · ')), [$('invBuyerEmail').value, $('invBuyerPhone').value].filter(Boolean).join(' · ')].filter(Boolean);
+        $('invPreview').innerHTML = `<div class="inv-doc" id="invDoc">
+            <div class="inv-top">
+                <div class="inv-seller"><b>${esc(B('name'))}</b>${sellerLines.map(l => `<div>${esc(l)}</div>`).join('')}</div>
+                <div class="inv-title"><h2>FATURA</h2><div class="inv-meta">No: ${esc(noStr || '—')}<br>Tarih: ${esc(dateStr)}</div></div>
+            </div>
+            <div class="inv-parties">
+                <div><h4>Satıcı</h4><div>${esc(B('name'))}</div></div>
+                <div><h4>Alıcı</h4><div><b>${esc($('invBuyerName').value || '—')}</b></div>${buyerLines.map(l => `<div>${esc(l)}</div>`).join('')}</div>
+            </div>
+            <table class="inv-tbl">
+                <thead><tr><th>Açıklama</th><th class="r">Matrah</th><th class="r">KDV (%${rate})</th><th class="r">Tutar</th></tr></thead>
+                <tbody><tr><td>${esc($('invDesc').value || 'StayOS aboneliği')}</td><td class="r">${m(net)}</td><td class="r">${m(kdv)}</td><td class="r">${m(gross)}</td></tr></tbody>
+            </table>
+            <div class="inv-totals">
+                <div class="row"><span>Matrah</span><span>${m(net)}</span></div>
+                <div class="row"><span>KDV (%${rate})</span><span>${m(kdv)}</span></div>
+                <div class="row grand"><span>Genel Toplam</span><span>${m(gross)}</span></div>
+            </div>
+            <div class="inv-foot">${esc(B('notes') || '')}${B('notes') ? '<br>' : ''}Bu belge bilgilendirme amaçlı bir taslaktır; resmi e-Fatura/e-Arşiv yerine geçmez.</div>
+        </div>`;
+    }
+    function printInvoice() {
+        const doc = document.getElementById('invDoc');
+        if (!doc) { toast('Önce fatura alanlarını doldurun', true); return; }
+        const css = `body{font-family:Inter,system-ui,sans-serif;color:#1e293b;padding:32px;max-width:780px;margin:0 auto;}
+            .inv-top{display:flex;justify-content:space-between;border-bottom:2px solid #1e293b;padding-bottom:16px;margin-bottom:18px;}
+            .inv-seller b{font-size:17px;} .inv-seller div,.inv-buyer div,.inv-parties div{font-size:12px;color:#475569;line-height:1.6;}
+            .inv-title{text-align:right;} .inv-title h2{margin:0;font-size:22px;letter-spacing:1px;} .inv-meta{font-size:12px;color:#64748b;margin-top:6px;}
+            .inv-parties{display:flex;gap:24px;margin-bottom:18px;} .inv-parties>div{flex:1;} .inv-parties h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;color:#94a3b8;}
+            .inv-tbl{width:100%;border-collapse:collapse;margin:6px 0 16px;} .inv-tbl th{text-align:left;font-size:11px;text-transform:uppercase;color:#94a3b8;border-bottom:1px solid #e2e8f0;padding:8px 6px;}
+            .inv-tbl td{padding:10px 6px;border-bottom:1px solid #eef2f7;font-size:13px;} .inv-tbl .r{text-align:right;}
+            .inv-totals{margin-left:auto;width:260px;} .inv-totals .row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#475569;}
+            .inv-totals .row.grand{border-top:2px solid #1e293b;margin-top:6px;padding-top:10px;font-size:16px;font-weight:800;color:#1e293b;}
+            .inv-foot{margin-top:22px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:11.5px;color:#94a3b8;line-height:1.6;}`;
+        const w = window.open('', '_blank', 'width=820,height=900');
+        if (!w) { toast('Pop-up engellendi', true); return; }
+        w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Fatura</title><style>' + css + '</style></head><body>' + doc.innerHTML + '</body></html>');
+        w.document.close();
+        w.focus();
+        setTimeout(() => { w.print(); }, 250);
+    }
+
+    // ── CSV export ─────────────────────────────────────────────
+    function exportFinCsv() {
+        const b = rangeBounds();
+        const rate = currentKdvRate();
+        const rows = buildTx().filter(t => inRange(t.date, b)).filter(t => finTxTypeFilter === 'all' || t.kind === finTxTypeFilter);
+        const head = ['Tarih', 'Otel', 'Tur', 'Detay', 'Net', 'KDV', 'Brut', 'Referans'];
+        const lines = [head.join(';')];
+        rows.forEach(t => {
+            const s = splitKdv(t.gross, rate);
+            const cell = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+            lines.push([
+                t.date ? t.date.toISOString().slice(0, 10) : '',
+                t.hotel, t.kind === 'new' ? 'Yeni Satis' : 'Yenileme', t.detail,
+                s.net.toFixed(2), s.kdv.toFixed(2), t.gross.toFixed(2), t.ref
+            ].map(cell).join(';'));
+        });
+        const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'muhasebe-' + finRange + '-' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+
+    // ── Settings (siteConfig/billing) ──────────────────────────
+    function fillSettingsForm() {
+        const map = { setName: 'name', setAddr: 'addr', setTaxOffice: 'taxOffice', setTaxNo: 'taxNo', setMersis: 'mersis', setIban: 'iban', setPhone: 'phone', setEmail: 'email', setKdv: 'kdvRate', setCurrency: 'currency', setSeries: 'series', setNextNo: 'nextNo', setNotes: 'notes' };
+        Object.keys(map).forEach(id => { const el = $(id); if (el) el.value = B(map[id]); });
+        // Invoice defaults
+        if ($('invKdv')) $('invKdv').value = currentKdvRate();
+        if ($('invSeries')) $('invSeries').value = B('series');
+        if ($('invNo')) $('invNo').value = B('nextNo');
+        if ($('invDate') && !$('invDate').value) $('invDate').value = new Date().toISOString().slice(0, 10);
+    }
+    function loadFinSettings() {
+        db.collection('siteConfig').doc('billing').get().then(s => {
+            billing = s.exists ? s.data() : {};
+            fillSettingsForm(); renderFinance(); renderInvoicePreview();
+        }).catch(() => { fillSettingsForm(); });
+    }
+    async function saveFinSettings() {
+        const data = {
+            name: $('setName').value.trim(), addr: $('setAddr').value.trim(), taxOffice: $('setTaxOffice').value.trim(),
+            taxNo: $('setTaxNo').value.trim(), mersis: $('setMersis').value.trim(), iban: $('setIban').value.trim(),
+            phone: $('setPhone').value.trim(), email: $('setEmail').value.trim(),
+            kdvRate: Number($('setKdv').value) || 0, currency: $('setCurrency').value.trim() || '₺',
+            series: $('setSeries').value.trim(), nextNo: Number($('setNextNo').value) || 1, notes: $('setNotes').value.trim()
+        };
+        const btn = $('setSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+        try {
+            await db.collection('siteConfig').doc('billing').set(data, { merge: true });
+            billing = data;
+            const ok = $('setSaved'); ok.style.display = 'inline'; setTimeout(() => ok.style.display = 'none', 2200);
+            fillSettingsForm(); renderFinance(); renderInvoicePreview();
+        } catch (e) { toast('Hata: ' + e.message, true); }
+        finally { btn.disabled = false; btn.textContent = 'Kaydet'; }
+    }
+
+    function switchFinTab(name) {
+        document.querySelectorAll('.fin-tab').forEach(t => t.classList.toggle('active', t.dataset.fin === name));
+        document.querySelectorAll('.fin-panel').forEach(p => p.classList.toggle('active', p.id === 'fin-' + name));
+    }
+
     // ---------- events ----------
     $('hotelsBody').addEventListener('click', (e) => {
         const btn = e.target.closest('[data-act]');
@@ -1060,12 +1401,37 @@
         const view = link.dataset.view;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         $('view-' + view).classList.add('active');
-        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], site: ['Site', 'Apex tanıtım sayfası görünümü'] };
+        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], finance: ['Muhasebe', 'Gelir, KDV, abonelik ve fatura'], site: ['Site', 'Apex tanıtım sayfası görünümü'] };
         $('pageTitle').textContent = titles[view][0];
         $('pageSub').textContent = titles[view][1];
         $('sidebar').classList.remove('open');
     }));
     $('menuToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
+
+    // ---------- finance events ----------
+    $('finRange').addEventListener('click', (e) => {
+        const btn = e.target.closest('.fin-rg'); if (!btn) return;
+        finRange = btn.dataset.range;
+        $('finRange').querySelectorAll('.fin-rg').forEach(b => b.classList.toggle('active', b === btn));
+        $('finCustom').hidden = finRange !== 'custom';
+        renderFinance();
+    });
+    $('finFrom').addEventListener('change', renderFinance);
+    $('finTo').addEventListener('change', renderFinance);
+    $('finTabs').addEventListener('click', (e) => { const t = e.target.closest('.fin-tab'); if (t) switchFinTab(t.dataset.fin); });
+    $('finTxType').addEventListener('change', (e) => { finTxTypeFilter = e.target.value; renderFinance(); });
+    $('finExportCsv').addEventListener('click', exportFinCsv);
+    $('finTxBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-invtx]'); if (!btn) return;
+        switchFinTab('invoice');
+        $('invTx').value = btn.dataset.invtx;
+        prefillInvoiceFromTx(btn.dataset.invtx);
+    });
+    $('invTx').addEventListener('change', (e) => { if (e.target.value) prefillInvoiceFromTx(e.target.value); else renderInvoicePreview(); });
+    ['invBuyerName', 'invBuyerAddr', 'invBuyerTaxOffice', 'invBuyerTaxNo', 'invBuyerEmail', 'invBuyerPhone', 'invDesc', 'invGross', 'invKdv', 'invSeries', 'invNo', 'invDate']
+        .forEach(id => { const el = $(id); if (el) el.addEventListener('input', renderInvoicePreview); });
+    $('invPrint').addEventListener('click', printInvoice);
+    $('setSave').addEventListener('click', saveFinSettings);
 
     // ── Apex tanıtım sayfası görünümü (Açık / Yakında / Bakımda) ──
     (function () {
@@ -1143,6 +1509,8 @@
         subscribeTenants();
         subscribeOrders();
         subscribeQuotes();
+        subscribePayments();
+        loadFinSettings();
         await refresh();
     });
 })();
