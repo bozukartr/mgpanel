@@ -77,6 +77,9 @@
         .cat-row .cat-flag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
         .cat-row .cat-flag.on { background: #f0fdf4; color: #16a34a; }
         .cat-row .cat-flag.off { background: #fef2f2; color: #dc2626; }
+        .cat-subhead { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
+            color: #6366f1; margin: 12px 0 8px; display: flex; align-items: center; gap: 8px; }
+        .cat-subhead::before { content: '↳'; color: #c7d2fe; font-weight: 700; }
         .cat-empty { text-align: center; color: #94a3b8; padding: 40px 20px; font-size: 14px; }
         .cat-qr { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 12px;
             font-size: 12.5px; color: #475569; }
@@ -105,6 +108,23 @@
     function byOrder(a, b) {
         return (a.sortOrder || 0) - (b.sortOrder || 0) || (a.name || '').localeCompare(b.name || '', 'tr');
     }
+    // Ordered, de-duplicated subcategories within a category ('' = no subcategory).
+    function subcatsOrdered(cat) {
+        const seen = [];
+        items.filter(i => (i.category || 'Diğer') === cat).slice().sort(byOrder).forEach(i => {
+            const s = (i.subcategory || '').trim();
+            if (!seen.includes(s)) seen.push(s);
+        });
+        return seen;
+    }
+    function allSubcats() {
+        const seen = [];
+        items.slice().sort(byOrder).forEach(i => {
+            const s = (i.subcategory || '').trim();
+            if (s && !seen.includes(s)) seen.push(s);
+        });
+        return seen;
+    }
 
     function render() {
         const wrap = $('catalogList');
@@ -120,20 +140,28 @@
             const url = `${base}?tenant=${encodeURIComponent(TENANT_ID)}&room=ODA_NO`;
             hint.innerHTML = `<div class="cat-qr">📱 Misafir QR adresi: <code>${esc(url)}</code> — her oda için <code>ODA_NO</code> yerine oda numarasını yazıp QR oluşturun.</div>`;
         }
-        // Category datalist for the modal
+        // Category + subcategory datalists for the modal
         const dl = $('catCatOptions');
         if (dl) dl.innerHTML = categoriesOrdered().map(c => `<option value="${esc(c)}">`).join('');
+        const dls = $('catSubOptions');
+        if (dls) dls.innerHTML = allSubcats().map(s => `<option value="${esc(s)}">`).join('');
 
         if (!items.length) {
             wrap.innerHTML = `<div class="cat-empty">Henüz talep eklenmemiş.<br>“Varsayılanları Yükle” ile başlayabilir veya “Talep Ekle” diyebilirsiniz.</div>`;
             return;
         }
         wrap.innerHTML = categoriesOrdered().map(cat => {
-            const rows = items.filter(i => (i.category || 'Diğer') === cat).sort(byOrder).map(rowHtml).join('');
-            const count = items.filter(i => (i.category || 'Diğer') === cat).length;
+            const catItems = items.filter(i => (i.category || 'Diğer') === cat);
+            // Group the category's items by subcategory ('' = ungrouped, shown first).
+            const subs = subcatsOrdered(cat);
+            const blocks = subs.map(sub => {
+                const rows = catItems.filter(i => (i.subcategory || '').trim() === sub).sort(byOrder).map(rowHtml).join('');
+                const head = sub ? `<div class="cat-subhead">${esc(sub)}</div>` : '';
+                return head + `<div class="cat-grid">${rows}</div>`;
+            }).join('');
             return `<div class="cat-group">
-                <h3>${esc(cat)} <span class="cat-count">${count}</span></h3>
-                <div class="cat-grid">${rows}</div>
+                <h3>${esc(cat)} <span class="cat-count">${catItems.length}</span></h3>
+                ${blocks}
             </div>`;
         }).join('');
         wrap.querySelectorAll('[data-edit]').forEach(r => r.onclick = () => openModal(r.dataset.edit));
@@ -161,6 +189,7 @@
         $('catalogModalTitle').textContent = it ? 'Talep Düzenle' : 'Talep Ekle';
         $('catName').value = it ? (it.name || '') : '';
         $('catCategory').value = it ? (it.category || '') : '';
+        $('catSubcategory').value = it ? (it.subcategory || '') : '';
         $('catIcon').value = it ? (it.icon || '') : '';
         $('catDept').value = it ? (it.department || '') : '';
         $('catDesc').value = it ? (it.description || '') : '';
@@ -188,6 +217,7 @@
             tenantId: TENANT_ID,
             name: name,
             category: category,
+            subcategory: $('catSubcategory').value.trim().slice(0, 60),
             icon: ($('catIcon').value.trim() || '🛎️').slice(0, 8),
             department: $('catDept').value,
             description: $('catDesc').value.trim(),
