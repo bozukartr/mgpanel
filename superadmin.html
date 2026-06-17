@@ -436,16 +436,31 @@
 <!-- ===== MODAL: Delete Hotel ===== -->
 <div class="modal-backdrop" id="deleteModal">
     <div class="modal">
-        <div class="modal-head"><h3>Oteli Sil</h3><p id="delHotel">—</p></div>
+        <div class="modal-head"><h3>Oteli Kaldır</h3><p id="delHotel">—</p></div>
         <div class="modal-body">
-            <p class="del-warn">⚠️ Bu işlem oteli ve <b>tüm kullanıcı hesaplarını</b> kaldırır. Misafir/rezervasyon kayıtları arşiv olarak kalır. <b>Geri alınamaz.</b></p>
+            <div class="del-modes">
+                <label class="del-mode">
+                    <input type="radio" name="delMode" value="archive" checked>
+                    <div class="del-mode-txt">
+                        <b>Arşivle</b>
+                        <small>Otel pasife alınır ve kullanıcı girişleri kapatılır. Misafir, rezervasyon ve sipariş <b>verileri korunur</b>. İstendiğinde geri alınabilir.</small>
+                    </div>
+                </label>
+                <label class="del-mode del-mode-danger">
+                    <input type="radio" name="delMode" value="purge">
+                    <div class="del-mode-txt">
+                        <b>Tamamen Sil</b>
+                        <small>Otel, tüm kullanıcı hesapları <b>ve tüm verileri</b> (misafir, rezervasyon, sipariş, log, ayarlar) kalıcı olarak silinir. <b>Geri alınamaz.</b></small>
+                    </div>
+                </label>
+            </div>
             <label>Onaylamak için otel kodunu yazın: <code id="delCode">—</code></label>
             <input id="delConfirm" autocapitalize="off" spellcheck="false">
             <div class="modal-err" id="delErr"></div>
         </div>
         <div class="modal-foot">
             <button class="btn-ghost" data-close>Vazgeç</button>
-            <button class="btn-primary btn-danger" id="delConfirmBtn">Kalıcı Olarak Sil</button>
+            <button class="btn-primary btn-danger" id="delConfirmBtn">Arşivle</button>
         </div>
     </div>
 </div>

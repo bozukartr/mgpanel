@@ -376,6 +376,18 @@ a.btn-ghost, a.btn-primary { text-decoration: none; }
 }
 .modal-body code { font-family: ui-monospace, Menlo, monospace; background: #f1f5f9; padding: 1px 6px; border-radius: 5px; color: var(--accent); }
 
+/* Delete modal: archive vs full-delete choice */
+.del-modes { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.del-mode { display: flex; align-items: flex-start; gap: 11px; padding: 13px 14px; border: 1px solid var(--border); border-radius: 11px; cursor: pointer; transition: border-color .15s, background .15s; }
+.del-mode:hover { border-color: #c7d2fe; background: #f8fafc; }
+.del-mode input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--accent); flex-shrink: 0; }
+.del-mode:has(input:checked) { border-color: var(--accent); background: #eef2ff; }
+.del-mode-danger:has(input:checked) { border-color: #ef4444; background: #fef2f2; }
+.del-mode-txt { display: flex; flex-direction: column; gap: 3px; }
+.del-mode-txt b { font-size: 13.5px; color: #1e293b; }
+.del-mode-txt small { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.del-mode-danger .del-mode-txt b { color: #b91c1c; }
+
 @media (max-width: 760px) {
     .d-actions { gap: 6px; }
 }
