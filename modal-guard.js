@@ -4,15 +4,24 @@
  * for confirmation IF the user has changed/typed something inside. Explicit
  * close buttons (×, Cancel) are untouched — only outside-clicks are guarded.
  *
- * Works across the app's modal patterns (`.modal`, `.modal-backdrop`) without
- * editing each one: it snapshots a modal's field values when it opens and only
- * prompts when the current values differ, so prefilled "edit" modals don't nag.
+ * Works across every modal pattern in the app without editing each one:
+ *   • overlay-contains-content  (.modal / .modal-backdrop  →  .modal-content)
+ *   • sibling backdrop + panel  (.sheet-backdrop  +  separate .sheet.open)
+ * It snapshots a panel's field values when it opens and only prompts when the
+ * current values differ, so prefilled "edit" modals don't nag.
+ *
+ * On confirm it re-dispatches the original backdrop click (with a bypass flag)
+ * so the page's OWN close handler runs — the guard never has to know how each
+ * screen actually hides its modal.
  *
  * Drop-in: include on any page that has modals. No dependencies.
  */
 (function () {
     'use strict';
-    var SEL = '.modal, .modal-backdrop';
+    // Elements we snapshot when they appear (anything that may hold fields).
+    var WATCH_SEL = '.modal, .modal-backdrop, .sheet, .sheet-backdrop';
+    // Elements that, when clicked directly, close their modal (the backdrops).
+    var CLICK_SEL = '.modal, .modal-backdrop, .sheet-backdrop';
     var MSG = 'Kaydedilmemiş değişiklikler var. Bu pencereyi kapatmak istiyor musunuz?';
 
     function isVisible(el) {
@@ -40,6 +49,7 @@
         el.__mgSnap = map;
     }
     function isDirty(el) {
+        if (!el) return false;
         var snap = el.__mgSnap;
         var fields = editableFields(el);
         if (snap) {
@@ -58,6 +68,24 @@
         return false;
     }
 
+    // The element actually holding the form fields for a clicked backdrop.
+    // Overlay patterns hold their own fields; the sibling-backdrop pattern keeps
+    // the fields in a separate visible panel (.sheet.open / .modal-content).
+    function contentPanel(el) {
+        if (editableFields(el).length) return el;
+        var scopes = [el.parentNode || document, document];
+        var sels = ['.sheet.open', '.modal.show', '.modal.open', '.modal-content'];
+        for (var s = 0; s < scopes.length; s++) {
+            for (var q = 0; q < sels.length; q++) {
+                var list = scopes[s].querySelectorAll(sels[q]);
+                for (var i = 0; i < list.length; i++) {
+                    if (isVisible(list[i]) && editableFields(list[i]).length) return list[i];
+                }
+            }
+        }
+        return el;
+    }
+
     // ── Snapshot on open (track visibility transitions) ────────
     var visState = new WeakMap();
     function refresh(el) {
@@ -69,7 +97,7 @@
     var attrObserver = new MutationObserver(function (muts) {
         for (var n = 0; n < muts.length; n++) {
             var el = muts[n].target;
-            if (el.matches && el.matches(SEL)) refresh(el);
+            if (el.matches && el.matches(WATCH_SEL)) refresh(el);
         }
     });
     function watch(el) {
@@ -77,7 +105,7 @@
         attrObserver.observe(el, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
     }
     function watchAll(root) {
-        (root || document).querySelectorAll(SEL).forEach(watch);
+        (root || document).querySelectorAll(WATCH_SEL).forEach(watch);
     }
     var addObserver = new MutationObserver(function (muts) {
         for (var m = 0; m < muts.length; m++) {
@@ -85,7 +113,7 @@
             for (var a = 0; a < added.length; a++) {
                 var node = added[a];
                 if (node.nodeType !== 1) continue;
-                if (node.matches && node.matches(SEL)) watch(node);
+                if (node.matches && node.matches(WATCH_SEL)) watch(node);
                 if (node.querySelectorAll) watchAll(node);
             }
         }
@@ -127,27 +155,32 @@
         onYesCb = onYes;
         confirmEl.classList.add('show');
     }
-    function hideModal(el) {
-        // Close the same way the modal itself would (class- or inline-based).
-        el.classList.remove('show', 'active', 'open');
-        if (isVisible(el)) el.style.display = 'none';
-        el.__mgSnap = null;
-        visState.set(el, false);
-    }
 
     // ── Intercept outside-clicks (capture phase, before close handlers) ──
+    var bypass = false;
     document.addEventListener('click', function (e) {
+        if (bypass) return;                                   // re-dispatched close — let the page handle it
         var el = e.target;
-        if (!(el && el.matches && el.matches(SEL))) return;   // only direct backdrop clicks
+        if (!(el && el.matches && el.matches(CLICK_SEL))) return;   // only direct backdrop clicks
         if (!isVisible(el)) return;
-        if (isDirty(el)) {
+        var panel = contentPanel(el);
+        if (isDirty(panel)) {
             // Block the native close, ask with a minimal in-page dialog instead.
             e.stopImmediatePropagation();
             e.preventDefault();
-            askClose(function () { hideModal(el); });
+            askClose(function () {
+                if (panel) panel.__mgSnap = null;
+                el.__mgSnap = null;
+                visState.set(el, false);
+                // Re-fire the same click so the screen's own handler closes it.
+                bypass = true;
+                try { el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); }
+                finally { bypass = false; }
+            });
             return;
         }
         // Not dirty: let it close, just forget the snapshot.
+        if (panel) panel.__mgSnap = null;
         el.__mgSnap = null;
         visState.set(el, false);
     }, true);
