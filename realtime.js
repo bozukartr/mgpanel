@@ -93,7 +93,14 @@
         .rt-toast .rt-ico { background: rgba(99,102,241,.25); color: #c7d2fe; }
         .rt-toast b { font-size: 13.5px; display: block; }
         .rt-toast span { font-size: 12.5px; color: #cbd5e1; }
-        @media (max-width: 600px) { .rt-toast { top: 12px; width: calc(100vw - 24px); } }`;
+        @media (max-width: 600px) {
+            .rt-toast { top: 12px; width: calc(100vw - 24px); }
+            /* On phones the bell may sit anywhere in the header; anchoring the
+               panel to the bell (right:0) pushed a 340px panel off the left edge.
+               Pin it to the viewport instead so it always stays on-screen. JS
+               sets a precise top from the bell's position. */
+            .rt-panel { position: fixed; left: 12px; right: 12px; top: 62px; width: auto; max-width: none; }
+        }`;
         const el = document.createElement('style');
         el.id = 'rt-styles';
         el.textContent = css;
@@ -121,11 +128,28 @@
         mount.querySelector('#rt-bell-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             panelEl.classList.toggle('show');
-            if (panelEl.classList.contains('show')) renderList();
+            if (panelEl.classList.contains('show')) {
+                positionPanel(mount);
+                renderList();
+            }
         });
         mount.querySelector('#rt-readall').addEventListener('click', (e) => { e.stopPropagation(); RT.markAllRead(); });
         document.addEventListener('click', (e) => { if (panelEl && !mount.contains(e.target)) panelEl.classList.remove('show'); });
         renderBadge();
+    }
+
+    // On phones, pin the panel to the viewport just below the bell (CSS handles
+    // the left/right inset; here we set a precise top). On wider screens the
+    // CSS absolute positioning applies, so clear any inline top.
+    function positionPanel(mount) {
+        if (!panelEl) return;
+        if (window.innerWidth <= 600) {
+            const btn = mount.querySelector('#rt-bell-btn');
+            const r = btn ? btn.getBoundingClientRect() : null;
+            panelEl.style.top = (r ? Math.round(r.bottom + 8) : 62) + 'px';
+        } else {
+            panelEl.style.top = '';
+        }
     }
 
     function renderBadge() {
