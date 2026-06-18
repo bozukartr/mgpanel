@@ -11,7 +11,8 @@
         pro:      { base: 99,  perRoom: 1.2 },
         business: { base: 199, perRoom: 1.5 }
     };
-    var PMS = 99, EXTRA = 19, DISCOUNT = 0.18, MAX_ROOMS = 500;
+    // Taban fiyat (€49 vb.) ilk MIN_ROOMS odayı ve 1 modülü kapsar.
+    var PMS = 99, EXTRA = 19, DISCOUNT = 0.18, MAX_ROOMS = 500, MIN_ROOMS = 25, INCLUDED_MODS = 1;
     var billing = 'monthly';
     var curPlan = 'pro';
 
@@ -61,26 +62,34 @@
     qa('.pr-plan-opt').forEach(function (o) { o.addEventListener('click', function () { setPlan(o.getAttribute('data-plan')); }); });
 
     // ── Oda (slider, maks 500) ─────────────────────────────────
+    function clampRooms() { return Math.min(MAX_ROOMS, Math.max(MIN_ROOMS, parseInt(rooms && rooms.value, 10) || MIN_ROOMS)); }
     function paintRange() {
         if (!rooms) return;
-        var r = Math.min(MAX_ROOMS, Math.max(0, parseInt(rooms.value, 10) || 0));
-        rooms.style.setProperty('--pr-fill', Math.round(r / MAX_ROOMS * 100) + '%');
+        var r = clampRooms();
+        rooms.style.setProperty('--pr-fill', Math.round((r - MIN_ROOMS) / (MAX_ROOMS - MIN_ROOMS) * 100) + '%');
         if (roomsVal) roomsVal.textContent = (r >= MAX_ROOMS ? '500+' : r);
     }
     if (rooms) {
         rooms.addEventListener('input', function () { paintRange(); calc(); });
     }
-    modChecks().forEach(function (c) { c.addEventListener('change', calc); });
+    // En az 1 modül seçili kalsın (taban fiyat 1 modülü kapsar).
+    modChecks().forEach(function (c) {
+        c.addEventListener('change', function () {
+            if (!c.checked && checkedMods() === 0) { c.checked = true; return; }
+            calc();
+        });
+    });
     if (pms) pms.addEventListener('change', calc);
 
     // ── Hesap ──────────────────────────────────────────────────
     function calc() {
         var p = PLANS[curPlan]; if (!p || !totalEl) return;
-        var r = Math.min(MAX_ROOMS, Math.max(0, parseInt(rooms && rooms.value, 10) || 0));
+        var r = clampRooms();
         var isBiz = curPlan === 'business';
-        var x = isBiz ? 0 : checkedMods();
+        var billableRooms = Math.max(0, r - MIN_ROOMS);          // ilk 25 oda dahil
+        var x = isBiz ? 0 : Math.max(0, checkedMods() - INCLUDED_MODS); // 1 modül dahil
         var pmsCost = isBiz ? 0 : ((pms && pms.checked) ? PMS : 0);
-        var monthly = p.base + r * p.perRoom + x * EXTRA + pmsCost;
+        var monthly = p.base + billableRooms * p.perRoom + x * EXTRA + pmsCost;
         var roomTxt = (r >= MAX_ROOMS ? '500+' : r) + ' oda';
         if (billing === 'annual') {
             var annual = monthly * 12 * (1 - DISCOUNT);
@@ -90,7 +99,7 @@
             if (saveEl) { saveEl.style.display = saved > 0 ? 'inline-block' : 'none'; saveEl.textContent = 'Yıllık ' + eur0(saved) + ' tasarruf'; }
         } else {
             totalEl.innerHTML = eur(monthly) + '<span>/ay</span>';
-            if (subEl) subEl.textContent = p.base + '€ base + ' + roomTxt + ' × ' + p.perRoom + '€' + (x ? (' + ' + x + ' modül') : '') + (pmsCost ? ' + PMS' : '');
+            if (subEl) subEl.textContent = p.base + '€ (25 oda + 1 modül dahil)' + (billableRooms ? ' + ' + billableRooms + ' oda × ' + p.perRoom + '€' : '') + (x ? (' + ' + x + ' ek modül') : '') + (pmsCost ? ' + PMS' : '');
             if (saveEl) saveEl.style.display = 'none';
         }
     }

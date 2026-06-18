@@ -63,28 +63,28 @@
                         <label>Paket</label>
                         <div class="pr-plans">
                             <button type="button" class="pr-plan-opt" data-plan="starter">
-                                <b>Starter</b><span class="amt">€49</span><small>/ay base · €0,8/oda</small>
+                                <b>Starter</b><span class="amt">€49</span><small>25 oda + 1 modül dahil · sonrası €0,8/oda</small>
                             </button>
                             <button type="button" class="pr-plan-opt active" data-plan="pro">
                                 <span class="pr-plan-tag">Önerilen</span>
-                                <b>Pro</b><span class="amt">€99</span><small>/ay base · €1,2/oda</small>
+                                <b>Pro</b><span class="amt">€99</span><small>25 oda + 1 modül dahil · sonrası €1,2/oda</small>
                             </button>
                             <button type="button" class="pr-plan-opt" data-plan="business">
-                                <b>Business</b><span class="amt">€199</span><small>/ay base · €1,5/oda</small>
+                                <b>Business</b><span class="amt">€199</span><small>25 oda + tüm modüller dahil · sonrası €1,5/oda</small>
                             </button>
                         </div>
                     </div>
 
                     <div class="pr-field">
                         <label>Oda sayısı: <b id="prRoomsVal">40</b> oda</label>
-                        <input type="range" class="pr-range" id="prRooms" min="0" max="500" step="5" value="40">
-                        <div class="pr-range-hint"><span>0</span><span><b>500+</b> maksimum fiyat</span></div>
+                        <input type="range" class="pr-range" id="prRooms" min="25" max="500" step="5" value="40">
+                        <div class="pr-range-hint"><span><b>25</b> oda dahil</span><span><b>500+</b> maksimum fiyat</span></div>
                     </div>
 
                     <div class="pr-field" data-extra>
-                        <label>Ek modüller <small>(her biri +€19/ay)</small></label>
+                        <label>Modüller <small>(1 modül dahil · ek her biri +€19/ay)</small></label>
                         <div class="pr-mods">
-                            <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="concierge"><span>Concierge</span></label>
+                            <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="concierge" checked><span>Concierge</span></label>
                             <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="crm"><span>CRM</span></label>
                             <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="guestOrders"><span>Misafir Talepleri</span></label>
                             <label class="pr-mod"><input type="checkbox" class="pr-modchk" value="guestIssues"><span>Sorun Takibi</span></label>
