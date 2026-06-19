@@ -486,3 +486,15 @@ a.btn-ghost, a.btn-primary { text-decoration: none; }
 .fin-rate-banner { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; color:var(--muted); background:#fff; border:1px solid var(--border); border-radius:999px; padding:6px 14px; margin-bottom:16px; }
 .fin-rate-banner b { color:var(--accent); }
 .fin-rate-banner.warn { background:#fef3c7; border-color:#fde68a; color:#92400e; }
+
+/* ── Destek (tickets) ─────────────────────────────────────────── */
+.tk-type { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #eef2ff; color: #4338ca; white-space: nowrap; }
+.tk-thread { display: flex; flex-direction: column; gap: 10px; max-height: 340px; overflow-y: auto; margin-bottom: 16px; padding-right: 2px; }
+.tk-msg { background: #f6f8fb; border: 1px solid var(--border); border-radius: 12px; padding: 11px 13px; }
+.tk-msg.tk-mine { background: #eef2ff; border-color: #c7d2fe; }
+.tk-who { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+.tk-who .tk-when { font-size: 11px; font-weight: 500; color: var(--faint); margin-left: 6px; }
+.tk-text { font-size: 13.5px; color: #334155; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+#ticketModal textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-family: inherit;
+    font-size: 13.5px; color: var(--text); resize: vertical; }
+#ticketModal textarea:focus { outline: none; border-color: var(--accent); }

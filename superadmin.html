@@ -69,6 +69,11 @@
                 Siparişler
                 <span class="nav-badge" id="ordersBadge" hidden></span>
             </button>
+            <button class="sb-link" data-view="tickets">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                Destek
+                <span class="nav-badge" id="ticketsBadge" hidden></span>
+            </button>
             <button class="sb-link" data-view="finance">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>
                 Muhasebe
@@ -169,6 +174,33 @@
                             <th>Tarih</th><th>Otel / Yetkili</th><th>Paket</th><th>Tutar</th><th>Durum</th><th style="text-align:right;">İşlem</th>
                         </tr></thead>
                         <tbody id="ordersBody"></tbody>
+                    </table></div>
+                </div>
+            </section>
+
+            <!-- SUPPORT / DESTEK -->
+            <section class="view" id="view-tickets">
+                <div class="card">
+                    <div class="card-head">
+                        <div><h3>Destek Talepleri</h3><div class="sub" id="ticketsCount">—</div></div>
+                        <div class="o-search-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input id="ticketSearch" type="search" placeholder="Otel, konu, kişi…" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="o-filters" id="ticketFilters">
+                        <button class="o-tab active" data-tf="open">Açık</button>
+                        <button class="o-tab" data-tf="closed">Kapalı</button>
+                        <button class="o-tab" data-tf="Sorun">Sorun</button>
+                        <button class="o-tab" data-tf="İstek">İstek</button>
+                        <button class="o-tab" data-tf="Öneri">Öneri</button>
+                        <button class="o-tab" data-tf="all">Tümü</button>
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr>
+                            <th>Tarih</th><th>Otel</th><th>Tür</th><th>Konu</th><th>Öncelik</th><th>Durum</th>
+                        </tr></thead>
+                        <tbody id="ticketsBody"></tbody>
                     </table></div>
                 </div>
             </section>
@@ -740,6 +772,29 @@
         <div class="modal-foot">
             <button class="btn-ghost" data-close>Vazgeç</button>
             <button class="btn-primary" id="pmsSave">Kaydet</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: Ticket Detail ===== -->
+<div class="modal-backdrop" id="ticketModal">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-head"><h3 id="tkSubject">Talep</h3><p id="tkMeta">—</p></div>
+        <div class="modal-body">
+            <div class="tk-thread" id="tkThread"></div>
+            <label>Yanıt (otele iletilir)</label>
+            <textarea id="tkReply" rows="3" placeholder="Yanıtınızı yazın…"></textarea>
+            <div class="modal-err" id="tkErr"></div>
+        </div>
+        <div class="modal-foot" style="flex-wrap:wrap; gap:10px;">
+            <select id="tkStatus" class="m-select" style="width:auto;">
+                <option value="Open">Açık</option>
+                <option value="In Progress">İşlemde</option>
+                <option value="Closed">Kapalı</option>
+            </select>
+            <span style="flex:1;"></span>
+            <button class="btn-ghost" data-close>Kapat</button>
+            <button class="btn-primary" id="tkSend">Yanıtla &amp; Kaydet</button>
         </div>
     </div>
 </div>
