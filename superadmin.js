@@ -211,6 +211,7 @@
         renderRenewals();
         renderHotels();
         renderOrders();
+        if (typeof renderTickets === 'function') renderTickets();
         if (drawerTenantId) refreshDrawerStats();
     }
 
@@ -961,6 +962,98 @@
     }
 
     // ======================================================================
+    //  DESTEK (Support tickets from hotel admins)
+    // ======================================================================
+    let tickets = [];
+    let ticketFilter = 'open';
+    let ticketSearch = '';
+    let curTicketId = null;
+
+    function subscribeTickets() {
+        db.collection('tickets').onSnapshot(snap => {
+            tickets = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+                .sort((a, b) => ((b.updatedAt && b.updatedAt.toMillis ? b.updatedAt.toMillis() : 0) -
+                                 (a.updatedAt && a.updatedAt.toMillis ? a.updatedAt.toMillis() : 0)));
+            renderTickets();
+            if (curTicketId) { const t = tickets.find(x => x.id === curTicketId); if (t) fillTicketModal(t); }
+        }, () => { });
+    }
+    function ticketHotel(t) { const x = tenants.find(h => h.id === t.tenantId); return x ? (x.name || t.tenantId) : (t.tenantId || '—'); }
+    function ticketOpen(t) { return (t.status || 'Open') !== 'Closed'; }
+
+    function renderTickets() {
+        const open = tickets.filter(ticketOpen).length;
+        const badge = $('ticketsBadge');
+        if (badge) { badge.textContent = open; badge.hidden = open === 0; }
+        const body = $('ticketsBody'); if (!body) return;
+
+        const q = ticketSearch.trim().toLowerCase();
+        const rows = tickets.filter(t => {
+            if (ticketFilter === 'open' && !ticketOpen(t)) return false;
+            if (ticketFilter === 'closed' && ticketOpen(t)) return false;
+            if (['Sorun', 'İstek', 'Öneri'].includes(ticketFilter) && (t.type || '') !== ticketFilter) return false;
+            if (q && ![ticketHotel(t), t.subject, t.createdBy, t.message].some(v => (v || '').toLowerCase().includes(q))) return false;
+            return true;
+        });
+        $('ticketsCount').textContent = rows.length + ' talep · ' + open + ' açık';
+        const typeBadge = ty => ty ? `<span class="tk-type">${esc(ty)}</span>` : '';
+        const prio = p => { const k = (p || 'Medium'); const cls = k === 'High' ? 'pill-red' : (k === 'Low' ? 'pill-gray' : 'pill-amber'); const lbl = k === 'High' ? 'Yüksek' : (k === 'Low' ? 'Düşük' : 'Orta'); return `<span class="pill ${cls}">${lbl}</span>`; };
+        const stat = t => ticketOpen(t) ? `<span class="pill pill-green">${esc(t.status === 'In Progress' ? 'İşlemde' : 'Açık')}</span>` : `<span class="pill pill-gray">Kapalı</span>`;
+        body.innerHTML = rows.length ? rows.map(t => {
+            const d = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate() : null;
+            const rc = Array.isArray(t.replies) ? t.replies.length : 0;
+            return `<tr class="row-click" data-ticket="${esc(t.id)}">
+                <td>${fmtDate(d)}</td>
+                <td><b>${esc(ticketHotel(t))}</b></td>
+                <td>${typeBadge(t.type)}</td>
+                <td>${esc(t.subject || '—')}${rc ? ` <span class="muted-sm">· ${rc} yanıt</span>` : ''}</td>
+                <td>${prio(t.priority)}</td>
+                <td>${stat(t)}</td>
+            </tr>`;
+        }).join('') : `<tr><td colspan="6"><div class="empty">Bu filtrede talep yok.</div></td></tr>`;
+    }
+
+    function openTicketModal(id) {
+        const t = tickets.find(x => x.id === id); if (!t) return;
+        curTicketId = id;
+        fillTicketModal(t);
+        $('tkReply').value = '';
+        $('tkErr').textContent = '';
+        $('ticketModal').classList.add('show');
+    }
+    function fillTicketModal(t) {
+        $('tkSubject').textContent = (t.type ? '[' + t.type + '] ' : '') + (t.subject || 'Talep');
+        const d = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString('tr-TR') : '';
+        $('tkMeta').textContent = ticketHotel(t) + ' · ' + (t.createdBy || '—') + ' · ' + d;
+        $('tkStatus').value = t.status || 'Open';
+        let html = `<div class="tk-msg"><div class="tk-who">${esc(t.createdBy || '—')} <span class="tk-when">otel</span></div><div class="tk-text">${esc(t.message || '')}</div></div>`;
+        (t.replies || []).forEach(r => {
+            const rwhen = r.at ? new Date(r.at).toLocaleString('tr-TR') : '';
+            const mine = r.platform;
+            html += `<div class="tk-msg ${mine ? 'tk-mine' : ''}"><div class="tk-who">${esc(r.by || '')} <span class="tk-when">${mine ? 'StayOS' : 'otel'} · ${rwhen}</span></div><div class="tk-text">${esc(r.text || '')}</div></div>`;
+        });
+        $('tkThread').innerHTML = html;
+    }
+    async function sendTicketReply() {
+        if (!curTicketId) return;
+        const text = $('tkReply').value.trim();
+        const status = $('tkStatus').value;
+        const btn = $('tkSend'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+        try {
+            const upd = { status: status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+            if (text) {
+                upd.replies = firebase.firestore.FieldValue.arrayUnion({
+                    by: 'StayOS Destek', platform: true, text: text, at: new Date().toISOString()
+                });
+            }
+            await db.collection('tickets').doc(curTicketId).update(upd);
+            $('tkReply').value = '';
+            toast('Kaydedildi');
+        } catch (e) { $('tkErr').textContent = 'Hata: ' + e.message; }
+        finally { btn.disabled = false; btn.textContent = 'Yanıtla & Kaydet'; }
+    }
+
+    // ======================================================================
     //  MUHASEBE (Finance)
     // ======================================================================
     let payments = [];          // tenant subscription renewal payments
@@ -1440,12 +1533,25 @@
         const view = link.dataset.view;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         $('view-' + view).classList.add('active');
-        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], finance: ['Muhasebe', 'Gelir, KDV, abonelik ve fatura'], site: ['Site', 'Apex tanıtım sayfası görünümü'] };
+        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], tickets: ['Destek', 'Otellerden gelen sorun, istek ve öneriler'], finance: ['Muhasebe', 'Gelir, KDV, abonelik ve fatura'], site: ['Site', 'Apex tanıtım sayfası görünümü'] };
         $('pageTitle').textContent = titles[view][0];
         $('pageSub').textContent = titles[view][1];
         $('sidebar').classList.remove('open');
     }));
     $('menuToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
+
+    // ---------- support (tickets) events ----------
+    $('ticketFilters').addEventListener('click', (e) => {
+        const b = e.target.closest('.o-tab'); if (!b) return;
+        ticketFilter = b.dataset.tf;
+        $('ticketFilters').querySelectorAll('.o-tab').forEach(x => x.classList.toggle('active', x === b));
+        renderTickets();
+    });
+    $('ticketSearch').addEventListener('input', (e) => { ticketSearch = e.target.value; renderTickets(); });
+    $('ticketsBody').addEventListener('click', (e) => {
+        const row = e.target.closest('tr[data-ticket]'); if (row) openTicketModal(row.dataset.ticket);
+    });
+    $('tkSend').addEventListener('click', sendTicketReply);
 
     // ---------- finance events ----------
     $('finRange').addEventListener('click', (e) => {
@@ -1549,6 +1655,7 @@
         subscribeOrders();
         subscribeQuotes();
         subscribePayments();
+        subscribeTickets();
         loadFinSettings();
         await refresh();
     });

@@ -509,30 +509,38 @@
     <div id="ticketModal" class="modal">
         <div class="modal-content small-modal">
             <div class="modal-header">
-                <h3>New Support Ticket</h3>
+                <h3>Yeni Destek Talebi</h3>
                 <button class="close-modal" id="closeTicketModal">&times;</button>
             </div>
             <form id="ticketForm">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label>Subject</label>
-                        <input type="text" id="ticketSubject" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Priority</label>
-                        <select id="ticketPriority">
-                            <option value="Low">Low</option>
-                            <option value="Medium" selected>Medium</option>
-                            <option value="High">High</option>
+                        <label>Tür</label>
+                        <select id="ticketType">
+                            <option value="Sorun">🛠️ Sorun / Hata</option>
+                            <option value="İstek">📨 İstek / Talep</option>
+                            <option value="Öneri">💡 Öneri / Yenilik</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Message</label>
+                        <label>Konu</label>
+                        <input type="text" id="ticketSubject" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Öncelik</label>
+                        <select id="ticketPriority">
+                            <option value="Low">Düşük</option>
+                            <option value="Medium" selected>Orta</option>
+                            <option value="High">Yüksek</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Mesaj</label>
                         <textarea id="ticketMessage" rows="5" required></textarea>
                     </div>
                 </div>
                 <div class="modal-actions vertical">
-                    <button type="submit" class="action-btn save-btn">Submit Ticket</button>
+                    <button type="submit" class="action-btn save-btn">Gönder</button>
                 </div>
             </form>
         </div>

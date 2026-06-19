@@ -326,8 +326,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="ticket-status ${statusClass}">${esc(t.status || 'Open')}</span>
                     </div>
                     <div class="ticket-meta">
+                        ${t.type ? `<span class="ticket-priority" style="background:#eef2ff;color:#4f46e5;">${esc(t.type)}</span>` : ''}
                         <span class="ticket-priority ${prioClass}">${esc(t.priority || 'Medium')}</span>
-                        ${esc(t.createdBy || 'Unknown')} • ${when}${replyCount ? ` • ${replyCount} reply${replyCount > 1 ? 's' : ''}` : ''}
+                        ${esc(t.createdBy || 'Unknown')} • ${when}${replyCount ? ` • ${replyCount} yanıt` : ''}
                     </div>
                 `;
                 item.onclick = () => openTicketDetail(doc.id, t);
@@ -364,11 +365,12 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const subject = document.getElementById('ticketSubject').value.trim();
         const priority = document.getElementById('ticketPriority').value;
+        const type = (document.getElementById('ticketType') || {}).value || 'Sorun';
         const message = document.getElementById('ticketMessage').value.trim();
         if (!subject || !message) return;
         try {
             await db.collection('tickets').add({
-                subject, message, priority,
+                subject, message, priority, type,
                 status: 'Open',
                 tenantId: TENANT_ID,
                 createdBy: loggedUsername,
