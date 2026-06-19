@@ -18,9 +18,9 @@
 
     // Default starter menu — 4 operational categories.
     const DEFAULTS = [
-        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping', availFrom: '09:00', availTo: '16:00' },
         { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping', availFrom: '09:00', availTo: '16:00' },
         { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Temizlik', name: 'Banyo Malzemeleri', icon: '🧴', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Ekstra Yastık', icon: '🛏️', eta: '15 dk', department: 'Housekeeping' },
@@ -171,7 +171,8 @@
         const active = i.active !== false;
         const cur = (cfg && cfg.currency) || '₺';
         const priceTxt = i.price ? cur + Number(i.price).toLocaleString('tr-TR') : 'Ücretsiz';
-        const sub = [i.department || '—', priceTxt].join(' · ');
+        const avail = (i.availFrom && i.availTo) ? ('🕒 ' + i.availFrom + '–' + i.availTo) : '';
+        const sub = [i.department || '—', priceTxt, avail].filter(Boolean).join(' · ');
         return `<div class="cat-row ${active ? '' : 'inactive'}" data-edit="${esc(i.id)}">
             <div class="cat-emoji">${esc(i.icon || '🛎️')}</div>
             <div class="cat-body">
@@ -196,6 +197,8 @@
         $('catPrice').value = it && it.price ? it.price : '';
         $('catEta').value = it ? (it.eta || '') : '';
         $('catMaxQty').value = it && it.maxQty ? it.maxQty : '';
+        $('catAvailFrom').value = it ? (it.availFrom || '') : '';
+        $('catAvailTo').value = it ? (it.availTo || '') : '';
         $('catActive').checked = it ? (it.active !== false) : true;
         $('catalogDeleteBtn').style.display = it ? 'block' : 'none';
         $('catalogModal').style.display = 'flex';
@@ -224,6 +227,8 @@
             eta: $('catEta').value.trim().slice(0, 20),
             price: price,
             maxQty: Math.max(0, parseInt($('catMaxQty').value, 10) || 0),
+            availFrom: $('catAvailFrom').value || '',
+            availTo: $('catAvailTo').value || '',
             active: $('catActive').checked,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };

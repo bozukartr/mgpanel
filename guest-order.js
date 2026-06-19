@@ -39,9 +39,9 @@
 
     // Built-in DEMO catalog — 4 operational categories only.
     const DEMO_CATALOG = [
-        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping', availFrom: '09:00', availTo: '16:00' },
         { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping', availFrom: '09:00', availTo: '16:00' },
         { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Temizlik', name: 'Banyo Malzemeleri', icon: '🧴', eta: '15 dk', department: 'Housekeeping' },
         { category: 'Konfor', name: 'Ekstra Yastık', icon: '🛏️', eta: '15 dk', department: 'Housekeeping' },
@@ -82,7 +82,7 @@
     const FLOW = ['pending', 'confirmed', 'in_progress', 'completed'];
 
     // ── State ──────────────────────────────────────────────────
-    let catalog = [], cart = [], activeCat = null, sessionUid = null;
+    let catalog = [], cart = [], activeCat = null, activeSub = 'all', sessionUid = null;
     let orderUnsub = null, currentOrderId = null, activeOrderStatus = null;
     let currentOrder = null, lastStatus = null, miniDismissed = false;
 
@@ -332,34 +332,74 @@
             const t = e.target.closest('.go-tile');
             if (!t || t.dataset.cat === activeCat) return;
             activeCat = t.dataset.cat;
+            activeSub = 'all';
             renderTiles();
             renderItems();
             refreshStepControls();
         };
     }
 
+    function subcatsOf(cat) {
+        const subs = [];
+        catalog.filter(i => (i.category || 'Diğer') === cat).forEach(i => {
+            const s = (i.subcategory || '').trim(); if (s && !subs.includes(s)) subs.push(s);
+        });
+        return subs;
+    }
+
     function renderItems() {
         const items = catalog.filter(i => (i.category || 'Diğer') === activeCat);
-        // Group by subcategory ('' = ungrouped, shown first under the category head).
-        const subs = [];
-        items.forEach(i => { const s = (i.subcategory || '').trim(); if (!subs.includes(s)) subs.push(s); });
-        const body = subs.map(sub => {
-            const subItems = items.filter(i => (i.subcategory || '').trim() === sub);
-            const head = sub ? `<div class="go-subhead">${esc(sub)}</div>` : '';
-            return head + `<div class="go-grid">${subItems.map(cardHtml).join('')}</div>`;
-        }).join('');
+        const namedSubs = subcatsOf(activeCat);
+        if (activeSub !== 'all' && namedSubs.indexOf(activeSub) < 0) activeSub = 'all';
+
+        // Subcategory filter chips (only when the category actually has them).
+        let chips = '';
+        if (namedSubs.length) {
+            chips = `<div class="go-subchips">
+                <button class="go-subchip ${activeSub === 'all' ? 'active' : ''}" data-sub="all">Tümü</button>
+                ${namedSubs.map(s => `<button class="go-subchip ${activeSub === s ? 'active' : ''}" data-sub="${esc(s)}">${esc(s)}</button>`).join('')}
+            </div>`;
+        }
+
+        // Body: when filtered to one sub, show that grid; otherwise group all.
+        let body;
+        if (activeSub !== 'all') {
+            body = `<div class="go-grid">${items.filter(i => (i.subcategory || '').trim() === activeSub).map(cardHtml).join('')}</div>`;
+        } else {
+            const groups = [];
+            items.forEach(i => { const s = (i.subcategory || '').trim(); if (!groups.includes(s)) groups.push(s); });
+            body = groups.map(sub => {
+                const subItems = items.filter(i => (i.subcategory || '').trim() === sub);
+                const head = sub ? `<div class="go-subhead">${esc(sub)}</div>` : '';
+                return head + `<div class="go-grid">${subItems.map(cardHtml).join('')}</div>`;
+            }).join('');
+        }
+
         $('goBody').innerHTML = `
             <div class="go-items-head"><span class="ih-ico" style="background:${catGrad(activeCat)}">${catIcon(activeCat, 20)}</span><h2>${esc(activeCat)}</h2></div>
-            ${body}`;
+            ${chips}${body}`;
         bindBodyEvents();
     }
 
+    // Availability window (admin-set HH:MM). Empty = always available.
+    function availInfo(item) {
+        const f = (item && item.availFrom || '').trim(), t = (item && item.availTo || '').trim();
+        if (!f || !t) return { limited: false, available: true, window: '' };
+        const toMin = s => { const p = String(s).split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); };
+        const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
+        const fm = toMin(f), tm = toMin(t);
+        const ok = (fm <= tm) ? (nm >= fm && nm < tm) : (nm >= fm || nm < tm); // gece yarısını geçen aralık
+        return { limited: true, available: ok, window: f + '–' + t };
+    }
+
     function cardHtml(item) {
+        const av = availInfo(item);
         const price = priceTag(item);
         const metaBits = [];
         if (item.eta) metaBits.push(`<span class="go-meta">${clockSvg}${esc(item.eta)}</span>`);
+        if (av.limited) metaBits.push(`<span class="go-meta go-avail ${av.available ? '' : 'go-avail-off'}">🕒 ${esc(av.window)}</span>`);
         if (price) metaBits.push(price);
-        return `<div class="go-card" data-id="${esc(item.id)}">
+        return `<div class="go-card ${av.available ? '' : 'go-card-unavail'}" data-id="${esc(item.id)}">
             <div class="go-emoji">${esc(item.icon || '🛎️')}</div>
             <div class="go-info">
                 <div class="go-name">${esc(item.name)}</div>
@@ -373,6 +413,8 @@
     function refreshStepControls() {
         document.querySelectorAll('.go-card-action').forEach(slot => {
             const id = slot.dataset.actionFor;
+            const item = catalog.find(i => i.id === id);
+            if (item && !availInfo(item).available) { slot.innerHTML = `<span class="go-unavail-tag">Saat dışı</span>`; return; }
             const line = cart.find(l => l.catalogId === id);
             if (line && line.qty > 0) {
                 slot.innerHTML = `<div class="go-stepper"><button data-dec="${esc(id)}">−</button><span class="go-qty">${line.qty}</span><button data-inc="${esc(id)}">+</button></div>`;
@@ -384,6 +426,8 @@
 
     function bindBodyEvents() {
         $('goBody').onclick = (e) => {
+            const sub = e.target.closest('[data-sub]');
+            if (sub) { activeSub = sub.dataset.sub; renderItems(); refreshStepControls(); return; }
             const add = e.target.closest('[data-add]');
             const inc = e.target.closest('[data-inc]');
             const dec = e.target.closest('[data-dec]');
@@ -401,6 +445,10 @@
     function changeQty(catalogId, delta) {
         const item = catalog.find(i => i.id === catalogId);
         if (!item) return;
+        if (delta > 0) {
+            const av = availInfo(item);
+            if (!av.available) { toast('Bu talep yalnızca ' + av.window + ' saatleri arasında verilebilir.', true); return; }
+        }
         let line = cart.find(l => l.catalogId === catalogId);
         if (!line && delta > 0) {
             if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
