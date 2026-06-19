@@ -51,10 +51,10 @@
 
     // ---------- plans / modules ----------
     const PLANS = {
-        starter:    { name: 'Başlangıç',   maxUsers: 5,  modules: { concierge: true, crm: false, guestIssues: true, guestOrders: true } },
-        pro:        { name: 'Profesyonel', maxUsers: 25, modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } },
-        enterprise: { name: 'Kurumsal',    maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } },
-        custom:     { name: 'Özel',        maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } }
+        starter:    { name: 'Starter',  maxUsers: 5,  modules: { concierge: true, crm: false, guestIssues: false, guestOrders: false } },
+        pro:        { name: 'Pro',      maxUsers: 15, modules: { concierge: true, crm: true,  guestIssues: false, guestOrders: false } },
+        enterprise: { name: 'Business', maxUsers: 40, modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } },
+        custom:     { name: 'Özel',     maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } }
     };
     const MODULE_KEYS = ['concierge', 'crm', 'guestIssues', 'guestOrders'];
     const MODULE_LABELS = { concierge: 'Concierge', crm: 'CRM', guestIssues: 'Kayıtlar', guestOrders: 'Misafir Talepleri' };
