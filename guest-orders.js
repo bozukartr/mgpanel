@@ -546,6 +546,9 @@
 
     function notifyNew(id, o) {
         try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (e) {}
+        // In the App Shell the persistent bell (realtime.js) already toasts new
+        // guest orders via a Cloud Function notification — avoid a double toast.
+        if (window.__EMBED__) return;
         const t = document.createElement('div');
         t.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:12px 18px;border-radius:12px;z-index:99999;font-family:Outfit,sans-serif;font-size:13.5px;font-weight:600;box-shadow:0 18px 50px rgba(15,23,42,.35);cursor:pointer';
         t.textContent = `🛎️ Yeni misafir talebi · ${guestNameForRoom(o.room)}`;

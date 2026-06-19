@@ -295,16 +295,19 @@ exports.onNotificationCreate = onDocumentCreated(
     if (!tokens.length) return;
 
     const recordId = n.recordId || '';
+    const link = (n.type === 'guestOrder')
+      ? '/concierge.html?orders=1'
+      : '/panel.html?open=' + encodeURIComponent(recordId);
     const message = {
       notification: { title: n.title || 'StayOS', body: n.body || '' },
       data: {
         recordId: recordId,
         type: n.type || 'request',
-        url: '/panel.html?open=' + encodeURIComponent(recordId)
+        url: link
       },
       webpush: {
         notification: { icon: '/logo.png', badge: '/logo.png' },
-        fcmOptions: { link: '/panel.html?open=' + encodeURIComponent(recordId) }
+        fcmOptions: { link: link }
       },
       tokens
     };
@@ -326,6 +329,48 @@ exports.onNotificationCreate = onDocumentCreated(
     } catch (e) {
       console.error('push send failed', e);
     }
+  }
+);
+
+// ─── New guest order → notify the hotel's staff ───────────────────
+// A guest (anonymous) creates a guestOrder; they cannot write notifications,
+// so this trigger fans out an in-app notification to every staff member of the
+// tenant. That makes the bell light up in the persistent App Shell (no matter
+// which tab is open) AND triggers onNotificationCreate for a web-push.
+exports.onGuestOrderCreate = onDocumentCreated(
+  { document: 'guestOrders/{id}', region: REGION },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const o = snap.data() || {};
+    if ((o.status || 'pending') !== 'pending') return;
+    const tenantId = o.tenantId || 'mgallery';
+    const room = String(o.room || '').trim();
+    const count = Array.isArray(o.items) ? o.items.length : 0;
+
+    const staffSnap = await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+    if (staffSnap.empty) return;
+
+    const title = '🛎️ Yeni misafir talebi';
+    const body = (room ? 'Oda ' + room : 'Misafir') + (count ? ' · ' + count + ' talep' : '');
+    const batch = db.batch();
+    staffSnap.docs.forEach((doc) => {
+      const ref = db.collection('notifications').doc();
+      batch.set(ref, {
+        toUid: doc.id,
+        toUsername: (doc.data() || {}).username || '',
+        title: title,
+        body: body,
+        recordId: event.params.id,
+        type: 'guestOrder',
+        fromUid: 'system',
+        fromUsername: 'Misafir',
+        tenantId: tenantId,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    try { await batch.commit(); } catch (e) { console.error('guest order notify failed', e); }
   }
 );
 
