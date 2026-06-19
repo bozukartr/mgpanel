@@ -491,6 +491,15 @@
                         <input type="number" id="catMaxQty" min="0" step="1" placeholder="Örn. oda temizliği için 1">
                     </div>
                     <div class="form-group">
+                        <label>Uygunluk saatleri (opsiyonel) — boş = her zaman</label>
+                        <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:center;">
+                            <input type="time" id="catAvailFrom">
+                            <span style="color:#94a3b8;">→</span>
+                            <input type="time" id="catAvailTo">
+                        </div>
+                        <small style="color:#94a3b8; font-size:11.5px;">Örn. Temizlik 09:00 → 16:00. Bu saatler dışında misafir talep edemez.</small>
+                    </div>
+                    <div class="form-group">
                         <label class="switch-row" style="display:flex; align-items:center; gap:10px;">
                             <input type="checkbox" id="catActive" checked>
                             <span>Aktif (misafirlere göster)</span>
