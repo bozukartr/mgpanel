@@ -149,10 +149,11 @@
 /* ── Modals (cleaned, class-based) ────────────────────── */
 .modal-backdrop { background: rgba(15, 23, 42, .5) !important; backdrop-filter: blur(3px); align-items: flex-start; justify-content: center; }
 .modal-content {
-    background: #fff; border-radius: 18px !important; box-shadow: var(--shadow-lg) !important; padding: 22px !important;
-    max-width: 420px !important; width: 90%; margin: 12vh auto 0; border: 1px solid var(--border);
-    max-height: 84vh; overflow-y: auto;
+    background: #fff; border-radius: 18px !important; box-shadow: var(--shadow-lg) !important; padding: 24px !important;
+    max-width: 540px !important; width: 92%; margin: 9vh auto 0; border: 1px solid var(--border);
+    max-height: 86vh; overflow-y: auto;
 }
+@media (max-width: 560px) { .crm-row2 { flex-direction: column; gap: 0; } }
 .crm-modal-title { margin: 0 0 4px; font-size: 18px; font-weight: 800; color: var(--text-main); }
 .crm-modal-sub { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; line-height: 1.45; }
 .crm-field { margin-bottom: 12px; }

@@ -392,31 +392,31 @@
 
     <!-- User Management Modal -->
     <div id="userModal" class="modal">
-        <div class="modal-content small-modal">
+        <div class="modal-content">
             <div class="modal-header">
-                <h3>User Settings</h3>
+                <h3>Kullanıcı Ayarları</h3>
                 <button class="close-modal" id="closeUserModal">&times;</button>
             </div>
             <form id="userForm">
-                <div class="modal-body">
+                <div class="modal-body modal-grid">
                     <div class="form-group">
-                        <label>Username</label>
+                        <label>Kullanıcı Adı</label>
                         <input type="text" id="adminNewUsername" required>
                     </div>
                     <div class="form-group">
-                        <label>Password</label>
+                        <label>Şifre</label>
                         <input type="password" id="adminNewPassword" required>
                     </div>
                     <div class="form-group">
-                        <label>Role</label>
+                        <label>Rol</label>
                         <select id="adminUserRole">
-                            <option value="Staff">Staff</option>
-                            <option value="Manager">Manager</option>
+                            <option value="Staff">Personel</option>
+                            <option value="Manager">Yönetici</option>
                             <option value="Admin">Admin</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Default Department</label>
+                        <label>Varsayılan Departman</label>
                         <select id="adminUserDept">
                             <option value="Housekeeping">Housekeeping</option>
                             <option value="Front Desk">Front Desk</option>
@@ -426,7 +426,7 @@
                     </div>
                 </div>
                 <div class="modal-actions vertical">
-                    <button type="submit" class="action-btn save-btn">Save Permissions</button>
+                    <button type="submit" class="action-btn save-btn">Kaydet</button>
                 </div>
             </form>
         </div>
@@ -434,14 +434,14 @@
 
     <!-- Catalog Item Modal (guest self-service request) -->
     <div id="catalogModal" class="modal">
-        <div class="modal-content small-modal">
+        <div class="modal-content">
             <div class="modal-header">
                 <h3 id="catalogModalTitle">Talep Ekle</h3>
                 <button class="close-modal" id="closeCatalogModal">&times;</button>
             </div>
             <form id="catalogForm">
-                <div class="modal-body">
-                    <div class="form-group">
+                <div class="modal-body modal-grid">
+                    <div class="form-group span2">
                         <label>Talep Adı</label>
                         <input type="text" id="catName" maxlength="120" placeholder="Örn. Ekstra Havlu" required>
                     </div>
@@ -455,54 +455,49 @@
                         <input type="text" id="catSubcategory" list="catSubOptions" maxlength="60" placeholder="Örn. Yastık">
                         <datalist id="catSubOptions"></datalist>
                     </div>
-                    <div class="form-group" style="display:grid; grid-template-columns:90px 1fr; gap:10px;">
-                        <div>
-                            <label>İkon</label>
-                            <input type="text" id="catIcon" maxlength="8" placeholder="🛏️" style="text-align:center; font-size:20px;">
-                        </div>
-                        <div>
-                            <label>Departman (personel)</label>
-                            <select id="catDept">
-                                <option value="">Otomatik (kategoriye göre)</option>
-                                <option value="Housekeeping">Housekeeping</option>
-                                <option value="Front Desk">Front Desk</option>
-                                <option value="Engineering">Engineering</option>
-                                <option value="Food & Beverage">Food & Beverage</option>
-                                <option value="Concierge">Concierge</option>
-                            </select>
-                        </div>
+                    <div class="form-group">
+                        <label>İkon</label>
+                        <input type="text" id="catIcon" maxlength="8" placeholder="🛏️" style="text-align:center; font-size:20px;">
                     </div>
                     <div class="form-group">
+                        <label>Departman (personel)</label>
+                        <select id="catDept">
+                            <option value="">Otomatik (kategoriye göre)</option>
+                            <option value="Housekeeping">Housekeeping</option>
+                            <option value="Front Desk">Front Desk</option>
+                            <option value="Engineering">Engineering</option>
+                            <option value="Food & Beverage">Food & Beverage</option>
+                            <option value="Concierge">Concierge</option>
+                        </select>
+                    </div>
+                    <div class="form-group span2">
                         <label>Açıklama (opsiyonel)</label>
                         <input type="text" id="catDesc" maxlength="160" placeholder="Misafire gösterilecek kısa açıklama">
                     </div>
-                    <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                        <div>
-                            <label>Fiyat (opsiyonel)</label>
-                            <input type="number" id="catPrice" min="0" step="1" placeholder="0 = ücretsiz">
-                        </div>
-                        <div>
-                            <label>Tahmini süre (opsiyonel)</label>
-                            <input type="text" id="catEta" maxlength="20" placeholder="Örn. 15-30 dk">
-                        </div>
+                    <div class="form-group">
+                        <label>Fiyat (opsiyonel)</label>
+                        <input type="number" id="catPrice" min="0" step="1" placeholder="0 = ücretsiz">
+                    </div>
+                    <div class="form-group">
+                        <label>Tahmini süre (opsiyonel)</label>
+                        <input type="text" id="catEta" maxlength="20" placeholder="Örn. 15-30 dk">
                     </div>
                     <div class="form-group">
                         <label>Aynı anda en fazla adet (0 = sınırsız)</label>
-                        <input type="number" id="catMaxQty" min="0" step="1" placeholder="Örn. oda temizliği için 1">
+                        <input type="number" id="catMaxQty" min="0" step="1" placeholder="Örn. 1">
                     </div>
                     <div class="form-group">
-                        <label>Uygunluk saatleri (opsiyonel) — boş = her zaman</label>
-                        <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:center;">
+                        <label>Uygunluk saatleri (boş = her zaman)</label>
+                        <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center;">
                             <input type="time" id="catAvailFrom">
                             <span style="color:#94a3b8;">→</span>
                             <input type="time" id="catAvailTo">
                         </div>
-                        <small style="color:#94a3b8; font-size:11.5px;">Örn. Temizlik 09:00 → 16:00. Bu saatler dışında misafir talep edemez.</small>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group span2">
                         <label class="switch-row" style="display:flex; align-items:center; gap:10px;">
                             <input type="checkbox" id="catActive" checked>
-                            <span>Aktif (misafirlere göster)</span>
+                            <span>Aktif (misafirlere göster) — kapalıyken misafir bu talebi göremez. Temizlik gibi taleplere uygunluk saati verebilirsiniz (örn. 09:00 → 16:00).</span>
                         </label>
                     </div>
                 </div>
@@ -522,7 +517,7 @@
                 <button class="close-modal" id="closeTicketModal">&times;</button>
             </div>
             <form id="ticketForm">
-                <div class="modal-body">
+                <div class="modal-body modal-grid">
                     <div class="form-group">
                         <label>Tür</label>
                         <select id="ticketType">
@@ -532,10 +527,6 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Konu</label>
-                        <input type="text" id="ticketSubject" required>
-                    </div>
-                    <div class="form-group">
                         <label>Öncelik</label>
                         <select id="ticketPriority">
                             <option value="Low">Düşük</option>
@@ -543,7 +534,11 @@
                             <option value="High">Yüksek</option>
                         </select>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group span2">
+                        <label>Konu</label>
+                        <input type="text" id="ticketSubject" required>
+                    </div>
+                    <div class="form-group span2">
                         <label>Mesaj</label>
                         <textarea id="ticketMessage" rows="5" required></textarea>
                     </div>
@@ -557,30 +552,30 @@
 
     <!-- Ticket Detail Modal -->
     <div id="ticketDetailModal" class="modal">
-        <div class="modal-content small-modal">
+        <div class="modal-content">
             <div class="modal-header">
-                <h3 id="tdSubject">Ticket</h3>
+                <h3 id="tdSubject">Talep</h3>
                 <button class="close-modal" id="closeTicketDetail">&times;</button>
             </div>
             <div class="modal-body">
                 <div id="tdMeta"></div>
                 <div id="tdThread"></div>
                 <div class="form-group">
-                    <label>Reply</label>
+                    <label>Yanıt</label>
                     <textarea id="tdReply" rows="3"></textarea>
                 </div>
                 <div class="form-group">
-                    <label>Status</label>
+                    <label>Durum</label>
                     <select id="tdStatus">
-                        <option value="Open">Open</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Closed">Closed</option>
+                        <option value="Open">Açık</option>
+                        <option value="In Progress">İşlemde</option>
+                        <option value="Closed">Kapalı</option>
                     </select>
                 </div>
             </div>
             <div class="modal-actions vertical">
-                <button class="action-btn save-btn" id="tdSendReply">Send Reply</button>
-                <button class="action-btn secondary" id="tdUpdateStatus">Update Status</button>
+                <button class="action-btn save-btn" id="tdSendReply">Yanıt Gönder</button>
+                <button class="action-btn secondary" id="tdUpdateStatus">Durumu Güncelle</button>
             </div>
         </div>
     </div>

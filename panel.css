@@ -684,13 +684,18 @@ tr:hover td {
 
 .modal-content {
     background-color: #fff;
-    border-radius: 32px;
-    width: 90%;
-    max-width: 480px;
+    border-radius: 28px;
+    width: 92%;
+    max-width: 560px;
     box-shadow: 0 40px 100px rgba(0,0,0,0.1);
     overflow: hidden;
     animation: modalScale 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+    max-height: 92vh; display: flex; flex-direction: column;
 }
+.modal-content > .modal-header { flex-shrink: 0; }
+.modal-content > .modal-body { overflow-y: auto; }
+/* Compact 2-column form rows inside panel modals */
+@media (max-width: 560px) { .form-row { flex-direction: column; } }
 
 /* Premium Confirm Modal */
 .small-modal {
