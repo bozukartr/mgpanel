@@ -714,6 +714,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('assigneeGroup').style.display = isReq ? 'block' : 'none';
         document.getElementById('complaintLabel').textContent = isReq ? 'Talep Detayı' : 'Şikayet Detayı';
         document.getElementById('complaint').placeholder = isReq ? 'Misafirin talebini yazın' : 'Sorunu açıklayın';
+        const niTitle = document.getElementById('newIssueTitle');
+        if (niTitle) niTitle.textContent = isReq ? 'Yeni Talep' : 'Yeni Şikayet';
         document.querySelector('#submitBtn').textContent = isReq ? 'Talebi Departmana İlet' : 'Şikayeti Kaydet';
         const prevDept = departmentSel ? departmentSel.value : '';
         fillDeptSelect(departmentSel, type, prevDept);
