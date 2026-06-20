@@ -322,10 +322,10 @@
         if (!activeCat || !cats.includes(activeCat)) activeCat = cats[0];
         $('goTiles').innerHTML = cats.map(c => {
             const count = catalog.filter(i => (i.category || 'Diğer') === c).length;
-            return `<button class="go-tile ${c === activeCat ? 'active' : ''}" data-cat="${esc(c)}" style="background:${catGrad(c)}">
+            return `<button class="go-tile ${c === activeCat ? 'active' : ''}" data-cat="${esc(c)}">
+                <span class="go-tile-ico">${catIcon(c, 26)}</span>
+                <div class="go-tile-txt"><div class="go-tile-name">${esc(c)}</div><div class="go-tile-count">${count} hizmet</div></div>
                 <span class="go-tile-check">✓</span>
-                <span class="go-tile-ico">${catIcon(c, 32)}</span>
-                <div><div class="go-tile-name">${esc(c)}</div><div class="go-tile-count">${count} hizmet</div></div>
             </button>`;
         }).join('');
         $('goTiles').onclick = (e) => {
@@ -376,7 +376,7 @@
         }
 
         $('goBody').innerHTML = `
-            <div class="go-items-head"><span class="ih-ico" style="background:${catGrad(activeCat)}">${catIcon(activeCat, 20)}</span><h2>${esc(activeCat)}</h2></div>
+            <div class="go-items-head"><span class="ih-ico">${catIcon(activeCat, 19)}</span><h2>${esc(activeCat)}</h2></div>
             ${chips}${body}`;
         bindBodyEvents();
     }
