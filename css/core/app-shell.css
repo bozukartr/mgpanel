@@ -16,7 +16,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); font-family: 'Outfit', system-ui, -apple-system, sans-serif;
-    -webkit-font-smoothing: antialiased; overflow: hidden; }
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; overflow: hidden; }
 button { font-family: inherit; cursor: pointer; }
 a { text-decoration: none; color: inherit; }
 
