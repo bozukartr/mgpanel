@@ -2,10 +2,9 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>StayOS — Giriş</title>
-    <meta name="theme-color" content="#4f46e5">
-    <link rel="icon" href="logo.png">
+    <meta name="description" content="Ultra minimalistic login experience.">
     <link rel="stylesheet" href="css/core/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,69 +12,12 @@
 </head>
 <body>
     <div class="container">
-        <!-- ── Brand panel (left) ── -->
-        <aside class="brand-side">
-            <div class="logo-wrapper" id="logoWrapper">
-                <img src="logo.png" alt="StayOS" class="logo" id="logo">
-            </div>
-            <div class="brand-copy">
-                <h2 class="brand-headline">Otelinizin dijital<br>sinir merkezi.</h2>
-                <p class="brand-sub">Rezervasyon, concierge, CRM ve misafir taleplerini tek modern panelde yönetin.</p>
-                <ul class="brand-points">
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Tek panelde tüm operasyon</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Gerçek zamanlı talep akışı</li>
-                    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> QR ile misafir self-servis</li>
-                </ul>
-            </div>
-            <div class="brand-foot">© <span id="y"></span> StayOS · Otel Yönetim Platformu</div>
-        </aside>
+        <!-- Splash / Logo Area -->
+        <div class="logo-wrapper" id="logoWrapper">
+            <img src="logo.png" alt="Logo" class="logo" id="logo">
+        </div>
 
-        <!-- ── Form panel (right) ── -->
-        <main class="form-side">
-            <div class="form-inner">
-                <!-- Login Form -->
-                <div class="login-card" id="loginCard">
-                    <div class="form-head">
-                        <h1>Hoş geldiniz</h1>
-                        <p class="form-sub">Devam etmek için hesabınıza giriş yapın.</p>
-                    </div>
-                    <form id="loginForm">
-                        <div class="input-group">
-                            <input type="text" id="username" required placeholder=" " autocomplete="username">
-                            <label for="username">Kullanıcı Adı</label>
-                        </div>
-                        <div class="input-group">
-                            <input type="password" id="password" required placeholder=" " autocomplete="current-password">
-                            <label for="password">Şifre</label>
-                        </div>
-                        <button type="submit" class="login-btn">Giriş Yap</button>
-                        <div id="errorMessage" class="error-message"></div>
-                    </form>
-                </div>
-
-                <!-- Force Password Change -->
-                <div class="login-card" id="forcePwCard" style="display:none;">
-                    <div class="form-head">
-                        <h1>Şifrenizi yenileyin</h1>
-                        <p class="form-sub">Güvenliğiniz için lütfen yeni bir şifre belirleyin.</p>
-                    </div>
-                    <form id="forcePwForm">
-                        <div class="input-group">
-                            <input type="password" id="newPassword" required placeholder=" ">
-                            <label for="newPassword">Yeni Şifre</label>
-                        </div>
-                        <div class="input-group">
-                            <input type="password" id="newPassword2" required placeholder=" ">
-                            <label for="newPassword2">Yeni Şifre (Tekrar)</label>
-                        </div>
-                        <button type="submit" class="login-btn">Şifreyi Kaydet</button>
-                        <div id="pwError" class="error-message"></div>
-                    </form>
-                </div>
-            </div>
-        </main>
-
-        <!-- ── Access Restricted Overlay ── -->
+        <!-- Access Restricted Overlay -->
         <div id="paymentOverlay" class="payment-overlay">
             <div class="payment-card">
                 <div class="restricted-icon">
@@ -90,9 +32,47 @@
                 <button id="paymentCloseBtn" class="payment-close-btn">Geri Dön</button>
             </div>
         </div>
-    </div>
 
-    <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+        <!-- Login Form Area -->
+        <div class="login-card" id="loginCard">
+            
+            <form id="loginForm">
+                <div class="input-group">
+                    <input type="text" id="username" required placeholder=" ">
+                    <label for="username">Kullanıcı Adı</label>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" id="password" required placeholder=" ">
+                    <label for="password">Şifre</label>
+                </div>
+                
+
+                
+                <button type="submit" class="login-btn">Devam Et</button>
+                <div id="errorMessage" class="error-message"></div>
+            </form>
+        </div>
+
+        <!-- Force Password Change Area -->
+        <div class="login-card" id="forcePwCard" style="display:none;">
+            <p style="font-size:13px; color:#666; text-align:center; margin:0 0 18px;">
+                Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.
+            </p>
+            <form id="forcePwForm">
+                <div class="input-group">
+                    <input type="password" id="newPassword" required placeholder=" ">
+                    <label for="newPassword">Yeni Şifre</label>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="newPassword2" required placeholder=" ">
+                    <label for="newPassword2">Yeni Şifre (Tekrar)</label>
+                </div>
+                <button type="submit" class="login-btn">Şifreyi Kaydet</button>
+                <div id="pwError" class="error-message"></div>
+            </form>
+        </div>
+    </div>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -100,6 +80,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="js/core/firebase-config.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
+
     <script src="js/modules/app.js"></script>
 </body>
 </html>
