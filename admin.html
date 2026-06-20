@@ -77,6 +77,7 @@
             <button class="adm-tab" data-view="finance">Finans</button>
             <button class="adm-tab" data-view="users">Kullanıcılar</button>
             <button class="adm-tab" data-view="catalog">Hazır Talepler</button>
+            <button class="adm-tab" data-view="issues">Departman & Konu</button>
             <button class="adm-tab" data-view="tickets">Destek</button>
             <button class="adm-tab" data-view="system">Sistem</button>
         </nav>
@@ -333,6 +334,23 @@
                 </section>
             </section>
 
+            <!-- ═══ DEPARTMAN & KONU (Misafir kayıtları sınıflandırması) ═══ -->
+            <section class="adm-view" id="view-issues">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Departman & Konu</h2>
+                            <p class="card-sub">Misafir kayıtlarında (talep / şikayet) kullanılan departmanlar ve konular. Her departmanı talep, şikayet veya her ikisi için işaretleyebilir; konularla daha ayrıntılı sınıflandırma yapabilirsiniz.</p>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <button class="btn btn-ghost" id="issSeedBtn">Varsayılanları Yükle</button>
+                            <button class="btn btn-primary" id="issAddBtn">+ Departman Ekle</button>
+                        </div>
+                    </div>
+                    <div id="issueList" class="iss-list"><!-- rendered by issue-config-admin.js --></div>
+                </section>
+            </section>
+
             <!-- ═══ DESTEK ═══ -->
             <section class="adm-view" id="view-tickets">
                 <section class="admin-card">
@@ -508,6 +526,40 @@
         </div>
     </div>
 
+    <!-- Department & Topic Modal -->
+    <div id="issueModal" class="modal">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3 id="issueModalTitle">Departman Ekle</h3>
+                <button class="close-modal" id="closeIssueModal">&times;</button>
+            </div>
+            <form id="issueDeptForm">
+                <div class="modal-body modal-grid">
+                    <div class="form-group span2">
+                        <label>Departman Adı</label>
+                        <input type="text" id="issName" maxlength="60" placeholder="Örn. Teknik" required>
+                    </div>
+                    <div class="form-group span2">
+                        <label>Tür</label>
+                        <select id="issKind">
+                            <option value="both">Talep & Şikayet (her ikisi)</option>
+                            <option value="request">Sadece Talep</option>
+                            <option value="complaint">Sadece Şikayet</option>
+                        </select>
+                    </div>
+                    <div class="form-group span2">
+                        <label>Konular (opsiyonel) — her satıra bir konu</label>
+                        <textarea id="issTopics" rows="5" placeholder="Klima&#10;Elektrik / Aydınlatma&#10;Su / Tesisat&#10;TV&#10;İnternet / Wi-Fi"></textarea>
+                    </div>
+                </div>
+                <div class="modal-actions vertical">
+                    <button type="submit" class="action-btn save-btn">Kaydet</button>
+                    <button type="button" class="action-btn" id="issueDeleteBtn" style="display:none; background:#fef2f2; color:#dc2626;">Sil</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- New Ticket Modal -->
     <div id="ticketModal" class="modal">
         <div class="modal-content small-modal">
@@ -604,9 +656,11 @@
     <script src="js/core/modules.js"></script>
     <script src="js/core/realtime.js"></script>
     <script src="js/core/pwa.js"></script>
+    <script src="js/core/issue-config.js"></script>
     <script src="js/modules/admin.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="js/modules/request-catalog.js"></script>
+    <script src="js/modules/issue-config-admin.js"></script>
     <script src="js/modules/room-access.js"></script>
     <script src="js/utils/modal-guard.js"></script>
     <script>

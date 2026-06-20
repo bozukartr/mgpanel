@@ -143,20 +143,11 @@
             </div>
             <div class="field-group">
                 <label>Departman</label>
-                <select id="ni-dept">
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Front Desk">Front Desk</option>
-                    <option value="Concierge">Concierge</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Food &amp; Beverage">Food &amp; Beverage</option>
-                    <option value="Reservations">Reservations</option>
-                    <option value="Sales &amp; Marketing">Sales &amp; Marketing</option>
-                    <option value="Spa">Spa</option>
-                    <option value="Watersports">Watersports</option>
-                    <option value="Security">Security</option>
-                    <option value="Noise">Noise</option>
-                    <option value="Transfer">Transfer</option>
-                </select>
+                <select id="ni-dept"><!-- doldurulur: issue-config.js --></select>
+            </div>
+            <div class="field-group">
+                <label>Konu <span style="color:#94a3b8; font-weight:400;">(opsiyonel)</span></label>
+                <select id="ni-topic"><option value="">Genel</option></select>
             </div>
             <div class="field-group">
                 <label id="ni-complaintLabel">Şikayet Detayı</label>
@@ -277,21 +268,12 @@
                 <input type="text" id="ed-guest">
             </div>
             <div class="field-group">
-                <label>Department</label>
-                <select id="ed-dept">
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Front Desk">Front Desk</option>
-                    <option value="Concierge">Concierge</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Food &amp; Beverage">Food &amp; Beverage</option>
-                    <option value="Reservations">Reservations</option>
-                    <option value="Sales &amp; Marketing">Sales &amp; Marketing</option>
-                    <option value="Spa">Spa</option>
-                    <option value="Watersports">Watersports</option>
-                    <option value="Security">Security</option>
-                    <option value="Noise">Noise</option>
-                    <option value="Transfer">Transfer</option>
-                </select>
+                <label>Departman</label>
+                <select id="ed-dept"><!-- doldurulur: issue-config.js --></select>
+            </div>
+            <div class="field-group">
+                <label>Konu <span style="color:#94a3b8; font-weight:400;">(opsiyonel)</span></label>
+                <select id="ed-topic"><option value="">Genel</option></select>
             </div>
             <div class="field-group">
                 <label>Complaint</label>
@@ -382,6 +364,7 @@
     <script src="js/core/push.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
     <script src="js/core/modules.js"></script>
+    <script src="js/core/issue-config.js"></script>
     <script src="js/modules/pms.js"></script>
     <script src="js/modules/mobile.js"></script>
     <script src="js/modules/guest-orders.js"></script>
