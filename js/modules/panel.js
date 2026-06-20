@@ -611,6 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 room: document.getElementById('room').value,
                 guestName: document.getElementById('guestName').value,
                 department: document.getElementById('department').value,
+                topic: (document.getElementById('topic').value || '').trim() || 'Genel',
                 complaint: document.getElementById('complaint').value,
                 solution: isRequest ? '' : document.getElementById('solution').value,
                 staffInitial: document.getElementById('staffInitial').value,
@@ -659,9 +660,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ── Department & topic selects (driven by issueConfig) ─────
+    // Fills a department <select> from the per-hotel config, filtered by record
+    // type. A legacy/current value not present in the config is kept so old
+    // records still display and edit correctly.
+    function fillDeptSelect(sel, type, current) {
+        if (!sel) return;
+        const list = (window.IssueConfig ? IssueConfig.departmentsFor(type) : []);
+        const names = list.map(d => d.name);
+        if (current && names.indexOf(current) === -1) names.unshift(current);
+        sel.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+        if (current && names.indexOf(current) !== -1) sel.value = current;
+    }
+    // Fills a topic <select> for the chosen department. "" = Genel (default).
+    function fillTopicSelect(sel, deptName, current) {
+        if (!sel) return;
+        const topics = (window.IssueConfig ? IssueConfig.topicsFor(deptName) : []);
+        const opts = ['<option value="">Genel</option>'];
+        topics.forEach(t => opts.push(`<option value="${esc(t)}">${esc(t)}</option>`));
+        if (current && current !== 'Genel' && topics.indexOf(current) === -1) {
+            opts.push(`<option value="${esc(current)}">${esc(current)}</option>`);
+        }
+        sel.innerHTML = opts.join('');
+        sel.value = (current && current !== 'Genel') ? current : '';
+    }
+
     // ── Request vs complaint toggle + live assignee picker ─────
     let selectedAssignee = null;
     const reqTypeToggle = document.getElementById('reqTypeToggle');
+    const departmentSel = document.getElementById('department');
+    const topicSel = document.getElementById('topic');
+
+    function refreshNewFormDepts() {
+        const type = document.getElementById('recordType').value || 'complaint';
+        fillDeptSelect(departmentSel, type, departmentSel ? departmentSel.value : '');
+        fillTopicSelect(topicSel, departmentSel ? departmentSel.value : '', topicSel ? topicSel.value : '');
+    }
+    departmentSel?.addEventListener('change', () => fillTopicSelect(topicSel, departmentSel.value, ''));
+
+    // Populate now (defaults) and refresh once the per-hotel config is loaded,
+    // then keep listening so admin edits reflect live.
+    if (window.IssueConfig) {
+        refreshNewFormDepts();
+        IssueConfig.load().then(refreshNewFormDepts);
+        IssueConfig.listen(() => refreshNewFormDepts());
+    }
 
     function setRecordType(type) {
         document.getElementById('recordType').value = type;
@@ -672,6 +715,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('complaintLabel').textContent = isReq ? 'Talep Detayı' : 'Şikayet Detayı';
         document.getElementById('complaint').placeholder = isReq ? 'Misafirin talebini yazın' : 'Sorunu açıklayın';
         document.querySelector('#submitBtn').textContent = isReq ? 'Talebi Departmana İlet' : 'Şikayeti Kaydet';
+        const prevDept = departmentSel ? departmentSel.value : '';
+        fillDeptSelect(departmentSel, type, prevDept);
+        fillTopicSelect(topicSel, departmentSel ? departmentSel.value : '', '');
         if (isReq) loadAssignees();
     }
     reqTypeToggle?.querySelectorAll('.type-opt').forEach(btn => {
@@ -1546,16 +1592,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (p.length === 3) { const d = new Date(+p[0], +p[1] - 1, +p[2]); return isNaN(d) ? null : d; }
         const d = new Date(s); return isNaN(d) ? null : d;
     }
+    // "Tekrarlayan sorun" applies to COMPLAINTS only — a guest re-requesting a
+    // service (talep) isn't a recurring problem. Matches the same room +
+    // department + topic so distinct issues in one room aren't merged.
     function recurringRelated(record) {
         if (!record || !record.room) return [];
+        if ((record.type || 'complaint') !== 'complaint') return [];
         const rd = parseDateStr(record.date);
         if (!rd) return [];
         const room = String(record.room).trim().toLowerCase();
         const dept = (record.department || '').toLowerCase();
+        const topic = (record.topic || '').toLowerCase();
         return records
             .filter(r => r.id !== record.id
+                && (r.type || 'complaint') === 'complaint'
                 && String(r.room || '').trim().toLowerCase() === room
-                && (r.department || '').toLowerCase() === dept)
+                && (r.department || '').toLowerCase() === dept
+                && (r.topic || '').toLowerCase() === topic)
             .filter(r => { const od = parseDateStr(r.date); return od && Math.abs((rd - od) / 86400000) <= RECUR_WINDOW_DAYS; })
             .sort((a, b) => (parseDateStr(b.date) || 0) - (parseDateStr(a.date) || 0));
     }
@@ -1686,7 +1739,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedRecord = record;
         editingId = record.id;
         modalGuestRoom.textContent = `${record.guestName} - Oda ${record.room}`;
-        modalDept.textContent = record.department;
+        modalDept.textContent = record.department + ((record.topic && record.topic !== 'Genel') ? ' · ' + record.topic : '');
         if (record.type === 'request') {
             modalDesc.innerHTML = `<strong>Talep:</strong> ${esc(record.complaint)}`
                 + (record.assignedToName ? `<br><strong>Atanan:</strong> ${esc(record.assignedToName)}` : '');
@@ -1707,7 +1760,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
             modalDesc.innerHTML += `
                 <div class="recur-box">
-                    <div class="recur-head">🔁 Tekrarlayan sorun · ${esc(record.room)} · ${esc(record.department)}
+                    <div class="recur-head">🔁 Tekrarlayan sorun · ${esc(record.room)} · ${esc(record.department)}${(record.topic && record.topic !== 'Genel') ? ' · ' + esc(record.topic) : ''}
                         <span class="recur-count">son ${RECUR_WINDOW_DAYS} günde ${related.length + 1} kayıt</span></div>
                     ${items}
                 </div>`;
@@ -1951,11 +2004,16 @@ document.addEventListener('DOMContentLoaded', () => {
         noteInput.value = '';
     };
 
+    const editDeptSel = document.getElementById('editDepartment');
+    const editTopicSel = document.getElementById('editTopic');
+    editDeptSel?.addEventListener('change', () => fillTopicSelect(editTopicSel, editDeptSel.value, ''));
+
     function startModalEdit(record) {
         document.getElementById('editDate').value = record.date;
         document.getElementById('editRoom').value = record.room;
         document.getElementById('editGuestName').value = record.guestName;
-        document.getElementById('editDepartment').value = record.department;
+        fillDeptSelect(editDeptSel, record.type, record.department);
+        fillTopicSelect(editTopicSel, record.department, record.topic);
         document.getElementById('editComplaint').value = record.complaint;
         document.getElementById('editSolution').value = record.solution;
         document.getElementById('editStaffInitial').value = record.staffInitial;
@@ -1976,6 +2034,7 @@ document.addEventListener('DOMContentLoaded', () => {
             room: document.getElementById('editRoom').value,
             guestName: document.getElementById('editGuestName').value,
             department: document.getElementById('editDepartment').value,
+            topic: (document.getElementById('editTopic').value || '').trim() || 'Genel',
             complaint: document.getElementById('editComplaint').value,
             solution: document.getElementById('editSolution').value,
             staffInitial: document.getElementById('editStaffInitial').value,

@@ -229,21 +229,12 @@
                         </div>
                         <div class="form-group">
                             <label>Departman</label>
-                            <select id="department">
-                                <option value="Housekeeping">Housekeeping</option>
-                                <option value="Front Desk">Front Desk</option>
-                                <option value="Concierge">Concierge</option>
-                                <option value="Engineering">Engineering</option>
-                                <option value="Food & Beverage">Food & Beverage</option>
-                                <option value="Reservations">Reservations</option>
-                                <option value="Sales & Marketing">Sales & Marketing</option>
-                                <option value="Spa">Spa</option>
-                                <option value="Watersports">Watersports</option>
-                                <option value="Security">Security</option>
-                                <option value="Noise">Noise</option>
-                                <option value="Transfer">Transfer</option>
-                            </select>
+                            <select id="department"><!-- doldurulur: issue-config.js --></select>
                         </div>
+                    </div>
+                    <div class="form-group" id="topicGroup">
+                        <label>Konu <span style="color:#94a3b8; font-weight:400;">(opsiyonel)</span></label>
+                        <select id="topic"><option value="">Genel</option></select>
                     </div>
                     <div class="form-group">
                         <label id="complaintLabel">Şikayet Detayı</label>
@@ -351,21 +342,12 @@
                         </div>
                         <div class="form-group">
                             <label>Departman</label>
-                            <select id="editDepartment">
-                                <option value="Housekeeping">Housekeeping</option>
-                                <option value="Front Desk">Front Desk</option>
-                                <option value="Concierge">Concierge</option>
-                                <option value="Engineering">Engineering</option>
-                                <option value="Food & Beverage">Food & Beverage</option>
-                                <option value="Reservations">Reservations</option>
-                                <option value="Sales & Marketing">Sales & Marketing</option>
-                                <option value="Spa">Spa</option>
-                                <option value="Watersports">Watersports</option>
-                                <option value="Security">Security</option>
-                                <option value="Noise">Noise</option>
-                                <option value="Transfer">Transfer</option>
-                            </select>
+                            <select id="editDepartment"><!-- doldurulur: issue-config.js --></select>
                         </div>
+                    </div>
+                    <div class="form-group" id="editTopicGroup">
+                        <label>Konu <span style="color:#94a3b8; font-weight:400;">(opsiyonel)</span></label>
+                        <select id="editTopic"><option value="">Genel</option></select>
                     </div>
                     <div class="form-group">
                         <label>Şikayet / Talep</label>
@@ -439,6 +421,7 @@
     <script src="js/core/realtime.js"></script>
     <script src="js/core/pwa.js"></script>
     <script src="js/core/push.js"></script>
+    <script src="js/core/issue-config.js"></script>
 
     <!-- Scripts for Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>

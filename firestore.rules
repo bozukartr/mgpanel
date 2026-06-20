@@ -244,6 +244,15 @@ service cloud.firestore {
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
 
+    // --- Issue (guest-record) departments & topics (per hotel). The list of
+    //     departments and their sub-topics used by "Misafir Kayıtları" for both
+    //     talep and şikayet. Any signed-in staff member READS it; only the
+    //     hotel's admin writes it. Holds no guest data. ---
+    match /issueConfig/{tid} {
+      allow read:  if signedIn();
+      allow write: if isStaff() && isAdmin() && tid == callerTenant();
+    }
+
     // --- Guest self-service request catalog (admin-managed "menu"). Any signed-in
     //     client may READ it — including anonymous guests on the QR page — but
     //     only the hotel's own admin can add/edit/remove items. The catalog holds
