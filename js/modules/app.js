@@ -124,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 pendingUserData = userData;
                 pendingUserInput = userInput;
                 loginCard.classList.remove('show');
+                setTimeout(() => { loginCard.style.display = 'none'; }, 400);
                 forcePwCard.style.display = 'block';
                 requestAnimationFrame(() => forcePwCard.classList.add('show'));
                 return;
