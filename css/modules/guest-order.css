@@ -53,7 +53,7 @@ input, textarea { font-family: inherit; }
 .go-eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 10.5px; font-weight: 700; letter-spacing: 2.4px;
     text-transform: uppercase; color: var(--gold); }
 .go-eyebrow::before { content: ''; width: 22px; height: 1px; background: var(--gold); opacity: .7; }
-.go-title { font-family: 'Fraunces', Georgia, serif; font-size: 33px; line-height: 1.06; font-weight: 600;
+.go-title { font-size: 33px; line-height: 1.06; font-weight: 300;
     letter-spacing: -.4px; margin: 13px 0 0; color: #fbf8ef; }
 .go-sub { font-size: 14px; color: rgba(243,239,226,.74); margin: 9px 0 0; line-height: 1.55; max-width: 33ch; }
 .go-room-chip { display: inline-flex; align-items: center; gap: 7px; margin-top: 16px;
@@ -65,7 +65,7 @@ input, textarea { font-family: inherit; }
 .go-scroll { padding-bottom: 150px; }
 
 /* ── Category list (elegant rows) ─────────────────────── */
-.go-section-label { font-family: 'Fraunces', Georgia, serif; font-size: 13px; font-weight: 600; color: var(--text-muted);
+.go-section-label { font-size: 13px; font-weight: 700; color: var(--text-muted);
     letter-spacing: .2px; padding: 20px 18px 2px; }
 .go-tiles { display: flex; flex-direction: column; gap: 10px; padding: 18px 16px 4px; }
 .go-tile { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border);
@@ -77,7 +77,7 @@ input, textarea { font-family: inherit; }
     background: var(--primary-soft); color: var(--primary); transition: background .15s, color .15s; }
 .go-tile.active .go-tile-ico { background: var(--primary); color: #fbf8ef; }
 .go-tile-txt { flex: 1; min-width: 0; }
-.go-tile-name { font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.2px; line-height: 1.15; }
+.go-tile-name { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -.2px; line-height: 1.15; }
 .go-tile-count { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
 .go-tile-check { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: none; align-items: center; justify-content: center;
     background: var(--primary); color: #fff; font-size: 13px; font-weight: 800; }
@@ -88,7 +88,7 @@ input, textarea { font-family: inherit; }
 .go-items-head { display: flex; align-items: center; gap: 12px; padding: 18px 2px 14px; }
 .go-items-head .ih-ico { width: 38px; height: 38px; border-radius: 11px; background: var(--primary-soft); color: var(--primary);
     display: flex; align-items: center; justify-content: center; }
-.go-items-head h2 { font-family: 'Fraunces', Georgia, serif; font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -.3px; color: var(--text); }
+.go-items-head h2 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -.3px; color: var(--text); }
 .go-grid { display: grid; gap: 11px; }
 .go-subhead { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--gold); margin: 20px 2px 10px;
     display: flex; align-items: center; gap: 9px; }
@@ -170,7 +170,7 @@ input, textarea { font-family: inherit; }
 .go-sheet.show { transform: translateX(-50%) translateY(0); }
 .go-sheet-pill { width: 42px; height: 5px; border-radius: 3px; background: #d9cfb8; margin: 10px auto 4px; flex-shrink: 0; }
 .go-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px 12px; flex-shrink: 0; }
-.go-sheet-head h2 { font-family: 'Fraunces', Georgia, serif; font-size: 21px; font-weight: 600; margin: 0; color: var(--text); }
+.go-sheet-head h2 { font-size: 21px; font-weight: 700; margin: 0; color: var(--text); }
 .go-sheet-close { width: 36px; height: 36px; border-radius: 50%; background: #efe9dc; color: #475569; font-size: 17px; display: flex; align-items: center; justify-content: center; }
 .go-sheet-scroll { overflow-y: auto; padding: 4px 16px 16px; -webkit-overflow-scrolling: touch; }
 
@@ -214,7 +214,7 @@ input, textarea { font-family: inherit; }
 .go-back svg { width: 17px; height: 17px; }
 .go-track-hero { background: var(--surface); border-radius: 22px; padding: 26px 20px; text-align: center; box-shadow: var(--shadow); margin-top: 18px; border: 1px solid var(--border); }
 .go-track-emoji { font-size: 54px; line-height: 1; margin-bottom: 10px; }
-.go-track-hero h2 { font-family: 'Fraunces', Georgia, serif; font-size: 23px; font-weight: 600; margin: 0 0 4px; color: var(--text); }
+.go-track-hero h2 { font-size: 23px; font-weight: 700; margin: 0 0 4px; color: var(--text); }
 .go-track-hero p { font-size: 14px; color: var(--text-muted); margin: 0; }
 .go-track-total { margin-top: 12px; font-size: 14px; color: var(--text-muted); }
 .go-track-total b { color: var(--text); font-weight: 800; font-size: 16px; }
@@ -261,7 +261,7 @@ input, textarea { font-family: inherit; }
     padding: 32px 24px calc(40px + var(--safe-bottom)); text-align: center; }
 .go-gate-ico { width: 76px; height: 76px; border-radius: 22px; background: var(--primary-soft); color: var(--primary-dark);
     display: flex; align-items: center; justify-content: center; font-size: 38px; margin-bottom: 18px; box-shadow: var(--shadow); }
-.go-gate-title { font-family: 'Fraunces', Georgia, serif; font-size: 27px; font-weight: 600; margin: 0; letter-spacing: -.4px; color: var(--text); }
+.go-gate-title { font-size: 27px; font-weight: 700; margin: 0; letter-spacing: -.4px; color: var(--text); }
 .go-gate-sub { font-size: 14.5px; color: var(--text-muted); margin: 8px 0 26px; line-height: 1.5; max-width: 340px; }
 .go-gate-form { width: 100%; max-width: 360px; display: grid; gap: 14px; text-align: left; }
 .go-gate-form .go-field input { width: 100%; border: 1px solid var(--border); border-radius: 13px; padding: 14px 15px;
@@ -283,7 +283,7 @@ input, textarea { font-family: inherit; }
 /* ── Otel Bilgileri sheet ─────────────────────────────────────── */
 .go-info-hero { background: linear-gradient(160deg, var(--hero), var(--hero-2)); border: 1px solid rgba(185,151,91,.3);
     border-radius: 16px; padding: 18px 18px; margin-bottom: 14px; color: #f3efe2; }
-.go-info-h-name { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600; color: #fbf8ef; letter-spacing: -.2px; }
+.go-info-h-name { font-size: 20px; font-weight: 700; color: #fbf8ef; letter-spacing: -.2px; }
 .go-info-h-welcome { font-size: 13.5px; color: rgba(243,239,226,.78); line-height: 1.5; margin-top: 5px; }
 .go-info-row { display: flex; align-items: center; gap: 13px; padding: 13px 4px; border-bottom: 1px solid var(--border); }
 .go-info-row:last-child { border-bottom: none; }
