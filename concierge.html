@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Concierge Konsolu · StayOS</title>
-    <link rel="stylesheet" href="mobile.css">
-    <link rel="stylesheet" href="crm.css">
-    <link rel="stylesheet" href="concierge.css">
+    <link rel="stylesheet" href="css/core/mobile.css">
+    <link rel="stylesheet" href="css/modules/crm.css">
+    <link rel="stylesheet" href="css/modules/concierge.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,8 +14,8 @@
     <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link rel="stylesheet" href="embed.css">
-    <script src="embed.js"></script>
+    <link rel="stylesheet" href="css/core/embed.css">
+    <script src="js/core/embed.js"></script>
 </head>
 <body>
     <div class="crm-container">
@@ -586,23 +586,23 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js"></script>
-    <script src="firebase-config.js"></script>
-    <script src="maintenance-guard.js"></script>
-    <script src="modules.js"></script>
-    <script src="realtime.js"></script>
-    <script src="pwa.js"></script>
-    <script src="push.js"></script>
+    <script src="js/core/firebase-config.js"></script>
+    <script src="js/core/maintenance-guard.js"></script>
+    <script src="js/core/modules.js"></script>
+    <script src="js/core/realtime.js"></script>
+    <script src="js/core/pwa.js"></script>
+    <script src="js/core/push.js"></script>
 
     <!-- Scripts for Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <script src="pms.js"></script>
-    <script src="concierge.js"></script>
-    <script src="guest-orders.js"></script>
-    <script src="room-access.js"></script>
-    <script src="modal-guard.js"></script>
+    <script src="js/modules/pms.js"></script>
+    <script src="js/modules/concierge.js"></script>
+    <script src="js/modules/guest-orders.js"></script>
+    <script src="js/modules/room-access.js"></script>
+    <script src="js/utils/modal-guard.js"></script>
     <!-- â”€â”€ SELECTION MODAL (For Reports) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <div class="sheet-backdrop" id="selBackdrop"></div>
     <div class="sheet" id="selSheet">
