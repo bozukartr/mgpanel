@@ -20,6 +20,7 @@ body {
     background: var(--bg); color: var(--text);
     font-family: 'Outfit', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 button { font-family: inherit; cursor: pointer; }
 a { text-decoration: none; color: inherit; }

@@ -22,7 +22,8 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
-    font-family: 'Outfit', system-ui, -apple-system, sans-serif; overscroll-behavior-y: contain; }
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif; overscroll-behavior-y: contain;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body { max-width: 540px; margin: 0 auto; min-height: 100vh; position: relative; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 input, textarea { font-family: inherit; }
