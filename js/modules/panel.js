@@ -672,17 +672,14 @@ document.addEventListener('DOMContentLoaded', () => {
         sel.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
         if (current && names.indexOf(current) !== -1) sel.value = current;
     }
-    // Fills a topic <select> for the chosen department. "" = Genel (default).
-    function fillTopicSelect(sel, deptName, current) {
-        if (!sel) return;
+    // Suggests the chosen department's topics in the input's datalist while still
+    // letting staff type a new one. Empty value is saved as "Genel".
+    function fillTopicSelect(input, deptName, current) {
+        if (!input) return;
         const topics = (window.IssueConfig ? IssueConfig.topicsFor(deptName) : []);
-        const opts = ['<option value="">Genel</option>'];
-        topics.forEach(t => opts.push(`<option value="${esc(t)}">${esc(t)}</option>`));
-        if (current && current !== 'Genel' && topics.indexOf(current) === -1) {
-            opts.push(`<option value="${esc(current)}">${esc(current)}</option>`);
-        }
-        sel.innerHTML = opts.join('');
-        sel.value = (current && current !== 'Genel') ? current : '';
+        const dl = input.list || document.getElementById(input.getAttribute('list'));
+        if (dl) dl.innerHTML = topics.map(t => `<option value="${esc(t)}"></option>`).join('');
+        input.value = (current && current !== 'Genel') ? current : '';
     }
 
     // ── Request vs complaint toggle + live assignee picker ─────

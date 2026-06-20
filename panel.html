@@ -75,7 +75,7 @@
                     <aside class="cz-side gi-side">
                         <button class="cz-new" id="newIssueBtn">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                            Yeni Talep
+                            Ekle
                         </button>
 
                         <div class="gi-filters">
@@ -234,7 +234,8 @@
                     </div>
                     <div class="form-group" id="topicGroup">
                         <label>Konu <span style="color:#94a3b8; font-weight:400;">(opsiyonel)</span></label>
-                        <select id="topic"><option value="">Genel</option></select>
+                        <input type="text" id="topic" list="topicOptions" maxlength="60" placeholder="Seçin veya yazın — boş bırakılırsa Genel">
+                        <datalist id="topicOptions"></datalist>
                     </div>
                     <div class="form-group">
                         <label id="complaintLabel">Şikayet Detayı</label>
@@ -347,7 +348,8 @@
                     </div>
                     <div class="form-group" id="editTopicGroup">
                         <label>Konu <span style="color:#94a3b8; font-weight:400;">(opsiyonel)</span></label>
-                        <select id="editTopic"><option value="">Genel</option></select>
+                        <input type="text" id="editTopic" list="editTopicOptions" maxlength="60" placeholder="Seçin veya yazın — boş bırakılırsa Genel">
+                        <datalist id="editTopicOptions"></datalist>
                     </div>
                     <div class="form-group">
                         <label>Şikayet / Talep</label>

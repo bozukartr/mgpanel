@@ -147,7 +147,8 @@
             </div>
             <div class="field-group">
                 <label>Konu <span style="color:#94a3b8; font-weight:400;">(opsiyonel)</span></label>
-                <select id="ni-topic"><option value="">Genel</option></select>
+                <input type="text" id="ni-topic" list="ni-topicOptions" maxlength="60" placeholder="Seçin veya yazın — boş ise Genel">
+                <datalist id="ni-topicOptions"></datalist>
             </div>
             <div class="field-group">
                 <label id="ni-complaintLabel">Şikayet Detayı</label>
@@ -273,7 +274,8 @@
             </div>
             <div class="field-group">
                 <label>Konu <span style="color:#94a3b8; font-weight:400;">(opsiyonel)</span></label>
-                <select id="ed-topic"><option value="">Genel</option></select>
+                <input type="text" id="ed-topic" list="ed-topicOptions" maxlength="60" placeholder="Seçin veya yazın — boş ise Genel">
+                <datalist id="ed-topicOptions"></datalist>
             </div>
             <div class="field-group">
                 <label>Complaint</label>
