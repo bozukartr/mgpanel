@@ -2,51 +2,68 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#090c12">
 <title>Çok Yakında · StayOS</title>
 <meta name="description" content="StayOS — modern, çok otelli otel yönetim platformu. Çok yakında.">
+<link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --ink: #f4f5f8; --muted: #8a92a6; --faint: #565d70; --accent: #818cf8; --line: rgba(255,255,255,.08); }
+    html, body { height: 100%; }
     body {
-        font-family: 'Outfit', system-ui, sans-serif; color: #0f172a; min-height: 100vh;
-        display: flex; align-items: center; justify-content: center; padding: 28px; text-align: center;
+        font-family: 'Outfit', system-ui, -apple-system, sans-serif; color: var(--ink);
+        background: #090c12; -webkit-font-smoothing: antialiased; overflow: hidden;
+        min-height: 100svh; display: flex; position: relative;
+    }
+    body::before { content: ''; position: absolute; inset: 0; pointer-events: none;
         background:
-            radial-gradient(900px 520px at 50% -10%, rgba(99,102,241,.18), transparent 60%),
-            radial-gradient(700px 420px at 88% 112%, rgba(6,182,212,.14), transparent 60%),
-            #f7f9fc;
-    }
-    .box { max-width: 560px; }
-    .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; margin-bottom: 30px; }
-    .brand img { height: 30px; }
-    .badge {
-        display: inline-block; padding: 7px 15px; border-radius: 999px; font-size: 12.5px; font-weight: 700; letter-spacing: .4px;
-        background: #eef2ff; color: #4f46e5; margin-bottom: 18px; text-transform: uppercase;
-    }
-    h1 { font-size: 38px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; margin-bottom: 16px;
-        background: linear-gradient(120deg, #4f46e5, #6366f1 55%, #06b6d4); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-    p { font-size: 16.5px; color: #5b6b85; line-height: 1.6; max-width: 460px; margin: 0 auto; }
-    .cta { margin-top: 30px; display: inline-flex; align-items: center; gap: 9px; padding: 14px 24px; border-radius: 14px;
-        background: linear-gradient(120deg, #4f46e5, #6366f1); color: #fff; font-weight: 700; font-size: 15px; text-decoration: none;
-        box-shadow: 0 14px 34px rgba(79,70,229,.32); transition: transform .12s; }
-    .cta:active { transform: scale(.98); }
-    .dots { display: flex; gap: 7px; justify-content: center; margin-top: 34px; }
-    .dots span { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; animation: pulse 1.4s infinite; }
-    .dots span:nth-child(2) { animation-delay: .2s; } .dots span:nth-child(3) { animation-delay: .4s; }
-    @keyframes pulse { 0%,100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.25); background: #6366f1; } }
-    .foot { margin-top: 30px; font-size: 12.5px; color: #94a3b8; }
+            radial-gradient(80% 52% at 50% -10%, rgba(99,102,241,.14), transparent 60%),
+            radial-gradient(70% 60% at 100% 112%, rgba(6,182,212,.08), transparent 60%); }
+    .wrap { position: relative; z-index: 1; width: 100%; max-width: 760px; margin: 0 auto;
+        padding: clamp(26px, 6vh, 56px) clamp(24px, 6vw, 56px);
+        display: flex; flex-direction: column; min-height: 100svh; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 600; font-size: 16px; letter-spacing: .2px; }
+    .brand img { height: 26px; width: auto; filter: brightness(0) invert(1); opacity: .92; }
+    .center { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 600px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600;
+        letter-spacing: 3px; text-transform: uppercase; color: var(--accent); margin-bottom: 26px; }
+    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+        box-shadow: 0 0 0 0 rgba(129,140,248,.5); animation: breathe 2.4s ease-in-out infinite; }
+    @keyframes breathe { 0%,100% { box-shadow: 0 0 0 0 rgba(129,140,248,.45); } 50% { box-shadow: 0 0 0 7px rgba(129,140,248,0); } }
+    h1 { font-size: clamp(36px, 7.4vw, 62px); font-weight: 300; line-height: 1.03; letter-spacing: -1.6px; color: #fff; }
+    h1 b { font-weight: 600; }
+    p { margin-top: 22px; font-size: clamp(15px, 2.6vw, 17.5px); line-height: 1.65; color: var(--muted); max-width: 52ch; }
+    .cta { margin-top: 40px; display: inline-flex; align-items: center; gap: 9px; align-self: flex-start;
+        font-size: 15px; font-weight: 600; color: #fff; text-decoration: none; padding-bottom: 6px;
+        border-bottom: 1px solid rgba(255,255,255,.22); transition: border-color .18s, gap .18s; }
+    .cta:hover { border-color: var(--accent); gap: 13px; }
+    .cta svg { width: 17px; height: 17px; }
+    footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+        padding-top: 28px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--faint); }
+    footer a { color: var(--muted); font-weight: 500; text-decoration: none; }
+    footer a:hover { color: #fff; }
 </style>
 </head>
 <body>
-    <div class="box">
+    <div class="wrap">
         <div class="brand"><img src="logo.png" alt="StayOS">StayOS</div>
-        <div class="badge">Çok Yakında</div>
-        <h1>Yeni nesil otel yönetimi geliyor</h1>
-        <p>Rezervasyon, concierge, CRM ve departman talep akışını tek modern panelde toplayan StayOS çok yakında sizlerle.</p>
-        <a class="cta" href="mailto:bu.gol@outlook.com?subject=StayOS%20Bilgi%20Talebi">Bilgi Al →</a>
-        <div class="dots"><span></span><span></span><span></span></div>
-        <div class="foot">© <span id="y"></span> StayOS · Otel Yönetim Platformu</div>
+        <div class="center">
+            <span class="eyebrow"><span class="dot"></span>Çok Yakında</span>
+            <h1>Yeni nesil<br><b>otel yönetimi.</b></h1>
+            <p>Rezervasyon, concierge, CRM ve misafir talep akışını tek modern panelde toplayan StayOS çok yakında sizlerle.</p>
+            <a class="cta" href="mailto:bu.gol@outlook.com?subject=StayOS%20Bilgi%20Talebi">
+                Bilgi alın
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+            </a>
+        </div>
+        <footer>
+            <span>© <span id="y"></span> StayOS · Otel Yönetim Platformu</span>
+            <a href="mailto:bu.gol@outlook.com">bu.gol@outlook.com</a>
+        </footer>
     </div>
     <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
 </body>
