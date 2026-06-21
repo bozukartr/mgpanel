@@ -109,12 +109,26 @@ document.addEventListener('DOMContentLoaded', () => {
         sel.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
         if (current && names.indexOf(current) !== -1) sel.value = current;
     }
-    function mobFillTopicSelect(input, deptName, current) {
-        if (!input) return;
-        const topics = (window.IssueConfig ? IssueConfig.topicsFor(deptName) : []);
-        const dl = input.list || document.getElementById(input.getAttribute('list'));
-        if (dl) dl.innerHTML = topics.map(t => `<option value="${esc(t)}"></option>`).join('');
-        input.value = (current && current !== 'Genel') ? current : '';
+    // Konu (topic) suggestions = distinct topics already used on complaint
+    // records (global, not department-bound). Populates both new + edit datalists.
+    function mobCollectTopics() {
+        const seen = Object.create(null);
+        const out = [];
+        records.forEach(r => {
+            if ((r.type || 'complaint') !== 'complaint') return;
+            const t = (r.topic || '').trim();
+            if (!t) return;
+            const k = t.toLowerCase();
+            if (!seen[k]) { seen[k] = 1; out.push(t); }
+        });
+        return out.sort((a, b) => a.localeCompare(b, 'tr'));
+    }
+    function mobRefreshTopicDatalists() {
+        const html = mobCollectTopics().map(t => `<option value="${esc(t)}"></option>`).join('');
+        ['ni-topicOptions', 'ed-topicOptions'].forEach(id => {
+            const dl = document.getElementById(id);
+            if (dl) dl.innerHTML = html;
+        });
     }
 
     // ── DATA ───────────────────────────────────────────────────
@@ -266,6 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
     db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snap => {
         records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         updateGuestMap();
+        mobRefreshTopicDatalists();
         renderFeed();
         if (getSelected()) {
             const refreshed = records.find(r => r.id === getSelected().id);
@@ -326,23 +341,21 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ni-complaint').placeholder = isReq ? 'Misafirin talebini yazın…' : 'Sorunu açıklayın…';
         document.getElementById('ni-sheet-title').textContent = isReq ? 'Yeni Talep' : 'Yeni Şikayet';
         document.getElementById('ni-submit').textContent = isReq ? 'Talebi Departmana İlet' : 'Şikayeti Kaydet';
+        // Konu only applies to complaints — hide it for requests.
+        const niTopicGroup = document.getElementById('ni-topicGroup');
+        if (niTopicGroup) niTopicGroup.style.display = isReq ? 'none' : 'block';
         const niDept = document.getElementById('ni-dept');
         mobFillDeptSelect(niDept, type, niDept ? niDept.value : '');
-        mobFillTopicSelect(document.getElementById('ni-topic'), niDept ? niDept.value : '', '');
         if (isReq) loadNiAssignees();
     }
     document.querySelectorAll('#ni-typeToggle .type-opt').forEach(btn => {
         btn.addEventListener('click', () => setNiType(btn.dataset.type));
     });
-    document.getElementById('ni-dept')?.addEventListener('change', function () {
-        mobFillTopicSelect(document.getElementById('ni-topic'), this.value, '');
-    });
-    // Populate department/topic selects from the per-hotel config (live updates).
+    // Populate department select from the per-hotel config (live updates).
     function mobRefreshNewDepts() {
         const niDept = document.getElementById('ni-dept');
         const type = document.getElementById('ni-type')?.value || 'complaint';
         mobFillDeptSelect(niDept, type, niDept ? niDept.value : '');
-        mobFillTopicSelect(document.getElementById('ni-topic'), niDept ? niDept.value : '', '');
     }
     if (window.IssueConfig) {
         mobRefreshNewDepts();
@@ -453,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await syncGuestStatus(guest, room);
             const payload = {
                 date, room, guestName: guest, department: dept,
-                topic: (document.getElementById('ni-topic')?.value || '').trim() || 'Genel',
+                topic: isReq ? '' : ((document.getElementById('ni-topic')?.value || '').trim() || 'Genel'),
                 complaint: comp || '', solution: isReq ? '' : (sol || ''),
                 staffInitial: loggedUsername,
                 type,
@@ -477,10 +490,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).catch(() => {});
             }
             const wasAssigned = !!(isReq && niSelectedAssignee);
-            ['ni-date','ni-room','ni-guest','ni-complaint','ni-solution'].forEach(id => {
+            ['ni-date','ni-room','ni-guest','ni-complaint','ni-solution','ni-topic'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
-            mobFillTopicSelect(document.getElementById('ni-topic'), document.getElementById('ni-dept')?.value, '');
             niSelectedAssignee = null;
             closeSheet(newSheet, newBackdrop);
             showToast(isReq ? (wasAssigned ? 'Talep atandı, bildirim gönderildi.' : 'Talep oluşturuldu.') : 'Şikayet kaydedildi.');
@@ -687,13 +699,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ed-room').value      = r.room;
         document.getElementById('ed-guest').value     = r.guestName;
         mobFillDeptSelect(document.getElementById('ed-dept'), r.type, r.department);
-        mobFillTopicSelect(document.getElementById('ed-topic'), r.department, r.topic);
+        // Konu is complaint-only: hide for requests.
+        const edTopicGroup = document.getElementById('ed-topicGroup');
+        const edTopic = document.getElementById('ed-topic');
+        if (edTopicGroup) edTopicGroup.style.display = (r.type === 'request') ? 'none' : 'block';
+        if (edTopic) edTopic.value = (r.topic && r.topic !== 'Genel') ? r.topic : '';
         document.getElementById('ed-complaint').value = r.complaint || '';
         document.getElementById('ed-solution').value  = r.solution  || '';
         openSheet(editSheet, editBackdrop);
-    });
-    document.getElementById('ed-dept')?.addEventListener('change', function () {
-        mobFillTopicSelect(document.getElementById('ed-topic'), this.value, '');
     });
     document.getElementById('editClose')?.addEventListener('click', () => closeSheet(editSheet, editBackdrop));
     editBackdrop?.addEventListener('click', () => closeSheet(editSheet, editBackdrop));
@@ -705,7 +718,8 @@ document.addEventListener('DOMContentLoaded', () => {
             room:       document.getElementById('ed-room').value.trim(),
             guestName:  document.getElementById('ed-guest').value.trim(),
             department: document.getElementById('ed-dept').value,
-            topic:      (document.getElementById('ed-topic').value || '').trim() || 'Genel',
+            topic:      (getSelected().type === 'request')
+                ? '' : ((document.getElementById('ed-topic').value || '').trim() || 'Genel'),
             complaint:  document.getElementById('ed-complaint').value.trim(),
             solution:   document.getElementById('ed-solution').value.trim(),
         };

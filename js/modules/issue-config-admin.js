@@ -66,15 +66,11 @@
             return;
         }
         wrap.innerHTML = `<div class="iss-grid">` + depts.map((d, i) => {
-            const topics = (d.topics || []).length
-                ? d.topics.map(t => `<span class="iss-chip">${esc(t)}</span>`).join('')
-                : `<span class="iss-none">Konu yok</span>`;
             return `<div class="iss-card" data-i="${i}">
                 <div class="iss-card-head">
                     <span class="iss-name">${esc(d.name)}</span>
                     <span class="iss-kind k-${esc(d.kind || 'both')}">${esc(kindLabel(d.kind))}</span>
                 </div>
-                <div class="iss-topics">${topics}</div>
             </div>`;
         }).join('') + `</div>`;
         wrap.querySelectorAll('[data-i]').forEach(c => c.onclick = () => openModal(+c.dataset.i));
@@ -87,7 +83,6 @@
         $('issueModalTitle').textContent = d ? 'Departmanı Düzenle' : 'Departman Ekle';
         $('issName').value = d ? (d.name || '') : '';
         $('issKind').value = d ? (d.kind || 'both') : 'both';
-        $('issTopics').value = d ? (d.topics || []).join('\n') : '';
         $('issueDeleteBtn').style.display = d ? 'block' : 'none';
         $('issueModal').style.display = 'flex';
     }
@@ -111,12 +106,7 @@
         const name = $('issName').value.trim();
         if (!name) { toast('Departman adı zorunlu.', true); return; }
         const kind = $('issKind').value;
-        // One topic per line; trimmed + de-duplicated (case-insensitive).
-        const seen = Object.create(null);
-        const topics = $('issTopics').value.split('\n')
-            .map(s => s.trim()).filter(Boolean)
-            .filter(t => { const k = t.toLowerCase(); if (seen[k]) return false; seen[k] = 1; return true; });
-        const obj = { name: name, kind: kind, topics: topics };
+        const obj = { name: name, kind: kind };
 
         if (editingIdx >= 0) {
             depts[editingIdx] = obj;
@@ -145,7 +135,7 @@
         let added = 0;
         defs.forEach(d => {
             if (names[(d.name || '').toLowerCase()]) return;
-            depts.push({ name: d.name, kind: d.kind || 'both', topics: (d.topics || []).slice() });
+            depts.push({ name: d.name, kind: d.kind || 'both' });
             added++;
         });
         if (!added) { toast('Eklenecek yeni departman yok.'); return; }
@@ -157,8 +147,7 @@
         if (!Array.isArray(list)) return [];
         return list.map(d => ({
             name: String((d && d.name) || '').trim(),
-            kind: (d && (d.kind === 'request' || d.kind === 'complaint')) ? d.kind : 'both',
-            topics: (d && Array.isArray(d.topics)) ? d.topics.map(t => String(t || '').trim()).filter(Boolean) : []
+            kind: (d && (d.kind === 'request' || d.kind === 'complaint')) ? d.kind : 'both'
         })).filter(d => d.name);
     }
     function listen() {

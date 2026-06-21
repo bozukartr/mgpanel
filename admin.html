@@ -77,7 +77,7 @@
             <button class="adm-tab" data-view="finance">Finans</button>
             <button class="adm-tab" data-view="users">Kullanıcılar</button>
             <button class="adm-tab" data-view="catalog">Hazır Talepler</button>
-            <button class="adm-tab" data-view="issues">Departman & Konu</button>
+            <button class="adm-tab" data-view="issues">Departmanlar</button>
             <button class="adm-tab" data-view="tickets">Destek</button>
             <button class="adm-tab" data-view="system">Sistem</button>
         </nav>
@@ -339,8 +339,8 @@
                 <section class="admin-card">
                     <div class="card-header">
                         <div class="card-title">
-                            <h2>Departman & Konu</h2>
-                            <p class="card-sub">Misafir kayıtlarında (talep / şikayet) kullanılan departmanlar ve konular. Her departmanı talep, şikayet veya her ikisi için işaretleyebilir; konularla daha ayrıntılı sınıflandırma yapabilirsiniz.</p>
+                            <h2>Departmanlar</h2>
+                            <p class="card-sub">Misafir kayıtlarında (talep / şikayet) kullanılan departmanlar. Her departmanı talep, şikayet veya her ikisi için işaretleyebilirsiniz. Konu (alt başlık) ise şikayet eklerken elle yazılır; girilen konular otomatik olarak öneri listesine eklenir.</p>
                         </div>
                         <div style="display:flex; gap:8px; flex-wrap:wrap;">
                             <button class="btn btn-ghost" id="issSeedBtn">Varsayılanları Yükle</button>
@@ -546,10 +546,6 @@
                             <option value="request">Sadece Talep</option>
                             <option value="complaint">Sadece Şikayet</option>
                         </select>
-                    </div>
-                    <div class="form-group span2">
-                        <label>Konular (opsiyonel) — her satıra bir konu</label>
-                        <textarea id="issTopics" rows="5" placeholder="Klima&#10;Elektrik / Aydınlatma&#10;Su / Tesisat&#10;TV&#10;İnternet / Wi-Fi"></textarea>
                     </div>
                 </div>
                 <div class="modal-actions vertical">

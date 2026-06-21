@@ -556,6 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
         db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snapshot => {
             records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             updateGuestMap();
+            refreshTopicDatalists();
             updateView(globalSearch.value, dateSearch.value);
 
             // Trigger backfill check
@@ -611,7 +612,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 room: document.getElementById('room').value,
                 guestName: document.getElementById('guestName').value,
                 department: document.getElementById('department').value,
-                topic: (document.getElementById('topic').value || '').trim() || 'Genel',
+                topic: isRequest ? '' : ((document.getElementById('topic').value || '').trim() || 'Genel'),
                 complaint: document.getElementById('complaint').value,
                 solution: isRequest ? '' : document.getElementById('solution').value,
                 staffInitial: document.getElementById('staffInitial').value,
@@ -660,10 +661,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ── Department & topic selects (driven by issueConfig) ─────
-    // Fills a department <select> from the per-hotel config, filtered by record
-    // type. A legacy/current value not present in the config is kept so old
-    // records still display and edit correctly.
+    // ── Department select + global topic suggestions ───────────
+    // Department comes from the per-hotel config (issueConfig), filtered by type.
+    // A legacy/current value not in the config is kept so old records still
+    // display and edit correctly.
     function fillDeptSelect(sel, type, current) {
         if (!sel) return;
         const list = (window.IssueConfig ? IssueConfig.departmentsFor(type) : []);
@@ -672,28 +673,40 @@ document.addEventListener('DOMContentLoaded', () => {
         sel.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
         if (current && names.indexOf(current) !== -1) sel.value = current;
     }
-    // Suggests the chosen department's topics in the input's datalist while still
-    // letting staff type a new one. Empty value is saved as "Genel".
-    function fillTopicSelect(input, deptName, current) {
-        if (!input) return;
-        const topics = (window.IssueConfig ? IssueConfig.topicsFor(deptName) : []);
-        const dl = input.list || document.getElementById(input.getAttribute('list'));
-        if (dl) dl.innerHTML = topics.map(t => `<option value="${esc(t)}"></option>`).join('');
-        input.value = (current && current !== 'Genel') ? current : '';
+
+    // Konu (topic) is typed manually for complaints. Suggestions are the distinct
+    // topics already used on complaint records (global — not tied to department),
+    // exactly like picking a returning guest by name. A newly typed topic becomes
+    // a suggestion automatically once its complaint is saved.
+    function collectTopics() {
+        const seen = Object.create(null);
+        const out = [];
+        records.forEach(r => {
+            if ((r.type || 'complaint') !== 'complaint') return;
+            const t = (r.topic || '').trim();
+            if (!t) return;
+            const k = t.toLowerCase();
+            if (!seen[k]) { seen[k] = 1; out.push(t); }
+        });
+        return out.sort((a, b) => a.localeCompare(b, 'tr'));
+    }
+    function refreshTopicDatalists() {
+        const html = collectTopics().map(t => `<option value="${esc(t)}"></option>`).join('');
+        ['topicOptions', 'editTopicOptions'].forEach(id => {
+            const dl = document.getElementById(id);
+            if (dl) dl.innerHTML = html;
+        });
     }
 
     // ── Request vs complaint toggle + live assignee picker ─────
     let selectedAssignee = null;
     const reqTypeToggle = document.getElementById('reqTypeToggle');
     const departmentSel = document.getElementById('department');
-    const topicSel = document.getElementById('topic');
 
     function refreshNewFormDepts() {
         const type = document.getElementById('recordType').value || 'complaint';
         fillDeptSelect(departmentSel, type, departmentSel ? departmentSel.value : '');
-        fillTopicSelect(topicSel, departmentSel ? departmentSel.value : '', topicSel ? topicSel.value : '');
     }
-    departmentSel?.addEventListener('change', () => fillTopicSelect(topicSel, departmentSel.value, ''));
 
     // Populate now (defaults) and refresh once the per-hotel config is loaded,
     // then keep listening so admin edits reflect live.
@@ -709,14 +722,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const isReq = type === 'request';
         document.getElementById('solutionGroup').style.display = isReq ? 'none' : 'block';
         document.getElementById('assigneeGroup').style.display = isReq ? 'block' : 'none';
+        // Konu only applies to complaints — hide it for requests.
+        const topicGroup = document.getElementById('topicGroup');
+        if (topicGroup) topicGroup.style.display = isReq ? 'none' : 'block';
         document.getElementById('complaintLabel').textContent = isReq ? 'Talep Detayı' : 'Şikayet Detayı';
         document.getElementById('complaint').placeholder = isReq ? 'Misafirin talebini yazın' : 'Sorunu açıklayın';
         const niTitle = document.getElementById('newIssueTitle');
         if (niTitle) niTitle.textContent = isReq ? 'Yeni Talep' : 'Yeni Şikayet';
         document.querySelector('#submitBtn').textContent = isReq ? 'Talebi Departmana İlet' : 'Şikayeti Kaydet';
-        const prevDept = departmentSel ? departmentSel.value : '';
-        fillDeptSelect(departmentSel, type, prevDept);
-        fillTopicSelect(topicSel, departmentSel ? departmentSel.value : '', '');
+        fillDeptSelect(departmentSel, type, departmentSel ? departmentSel.value : '');
         if (isReq) loadAssignees();
     }
     reqTypeToggle?.querySelectorAll('.type-opt').forEach(btn => {
@@ -2005,14 +2019,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const editDeptSel = document.getElementById('editDepartment');
     const editTopicSel = document.getElementById('editTopic');
-    editDeptSel?.addEventListener('change', () => fillTopicSelect(editTopicSel, editDeptSel.value, ''));
 
     function startModalEdit(record) {
         document.getElementById('editDate').value = record.date;
         document.getElementById('editRoom').value = record.room;
         document.getElementById('editGuestName').value = record.guestName;
         fillDeptSelect(editDeptSel, record.type, record.department);
-        fillTopicSelect(editTopicSel, record.department, record.topic);
+        // Konu is complaint-only: hide the field for requests.
+        const editTopicGroup = document.getElementById('editTopicGroup');
+        const isReqRec = (record.type === 'request');
+        if (editTopicGroup) editTopicGroup.style.display = isReqRec ? 'none' : 'block';
+        if (editTopicSel) editTopicSel.value = (record.topic && record.topic !== 'Genel') ? record.topic : '';
         document.getElementById('editComplaint').value = record.complaint;
         document.getElementById('editSolution').value = record.solution;
         document.getElementById('editStaffInitial').value = record.staffInitial;
@@ -2033,7 +2050,8 @@ document.addEventListener('DOMContentLoaded', () => {
             room: document.getElementById('editRoom').value,
             guestName: document.getElementById('editGuestName').value,
             department: document.getElementById('editDepartment').value,
-            topic: (document.getElementById('editTopic').value || '').trim() || 'Genel',
+            topic: (selectedRecord && selectedRecord.type === 'request')
+                ? '' : ((document.getElementById('editTopic').value || '').trim() || 'Genel'),
             complaint: document.getElementById('editComplaint').value,
             solution: document.getElementById('editSolution').value,
             staffInitial: document.getElementById('editStaffInitial').value,
