@@ -552,6 +552,34 @@ document.addEventListener('DOMContentLoaded', () => {
         host.innerHTML = html;
     }
 
+    // Live preview (left panel of the split modal) — reflects the form as it fills.
+    function rsPreview() {
+        const gid = id => document.getElementById(id);
+        const typeSel = gid('rs-type');
+        const typeVal = typeSel ? typeSel.value : '';
+        let typeLabel = typeVal;
+        if (typeSel && typeSel.selectedOptions[0]) {
+            const parts = typeSel.selectedOptions[0].textContent.trim().split(' ');
+            typeLabel = parts.length > 1 ? parts.slice(1).join(' ') : parts[0];
+        }
+        const set = (id, val) => { const el = gid(id); if (el) el.textContent = val; };
+        set('rsPvIcon', RES_ICON[typeVal] || '✨');
+        set('rsPvType', typeLabel || 'Hizmet');
+        const date = (gid('rs-date') || {}).value || '';
+        const time = (gid('rs-time') || {}).value || '';
+        set('rsPvWhen', (date || time) ? [date, time].filter(Boolean).join(' · ') : 'Tarih ve saat girilmedi');
+        set('rsPvGuest', ((gid('rs-guest') || {}).value || '').trim() || '—');
+        set('rsPvRoom', ((gid('rs-room') || {}).value || '').trim() || '—');
+        const price = parseFloat((gid('rs-price') || {}).value);
+        const dep = parseFloat((gid('rs-deposit') || {}).value);
+        set('rsPvPrice', isNaN(price) ? '—' : price.toLocaleString('tr-TR'));
+        set('rsPvDeposit', isNaN(dep) ? '—' : dep.toLocaleString('tr-TR'));
+    }
+    ['rs-type', 'rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('input', rsPreview); el.addEventListener('change', rsPreview); }
+    });
+
     // Auto-fill Details & Sync Pre-Arrival state when guest name is selected from directory
     document.getElementById('rs-guest')?.addEventListener('input', (e) => {
         const name = e.target.value.trim();
@@ -581,6 +609,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         renderGuestSummary(name);
+        rsPreview();
     });
 
     async function syncGuestStatus(name, room, isPreArrival, checkIn, checkOut) {
@@ -1194,8 +1223,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const openNewRes = () => {
         editResId = null;
         resetConflictAlert(); // Wipe existing alerts
-        document.querySelector('#resSheet h3').textContent = 'New Reservation';
-        document.getElementById('rs-submit').textContent = 'Log Reservation';
+        document.querySelector('#resSheet h3').textContent = 'Yeni Rezervasyon';
+        document.getElementById('rs-submit').textContent = 'Rezervasyonu Kaydet';
         
         // Reset fields
         ['rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
@@ -1216,6 +1245,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rs-repeatCount').value = 3;
         document.getElementById('rs-repeatInterval').value = '1';
         renderGuestSummary('');
+        rsPreview();
         openSheet(resSheet, resBackdrop);
     };
 
@@ -1474,8 +1504,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         editResId = r.id;
         resetConflictAlert(); // Clear logic caches
-        document.querySelector('#resSheet h3').textContent = 'Edit Reservation';
-        document.getElementById('rs-submit').textContent = 'Save Changes';
+        document.querySelector('#resSheet h3').textContent = 'Rezervasyonu Düzenle';
+        document.getElementById('rs-submit').textContent = 'Değişiklikleri Kaydet';
         setRepeatVisible(false);
 
         typeSelect.value = r.type;
@@ -1516,7 +1546,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         checkConflictInline(); // Passive logic sync check instantly
-        
+        rsPreview(); // Reflect the edited reservation in the live preview
+
         // Close detail sheet, open res sheet
         closeSheet(detailSheet, detailBackdrop);
         openSheet(resSheet, resBackdrop);
