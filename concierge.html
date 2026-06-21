@@ -161,135 +161,168 @@
     </div>
 
 
-    <!-- ── BOTTOM SHEET: NEW RESERVATION ───────────────────── -->
+    <!-- ── SPLIT MODAL: NEW RESERVATION ─────────────────────── -->
     <div class="sheet-backdrop" id="resBackdrop"></div>
-    <div class="sheet" id="resSheet">
+    <div class="sheet rs-sheet" id="resSheet">
         <div class="sheet-pill"></div>
-        <div class="sheet-top">
-            <div>
-                <h3>Yeni Rezervasyon</h3>
-                <div class="rs-subtitle">Hizmet, misafir ve zaman bilgilerini girin</div>
-            </div>
-            <button class="sheet-close-btn" id="resClose">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <div class="sheet-body">
-            <div class="rs-main">
-            <div class="field-group">
-                <label>Hizmet Türü</label>
-                <select id="rs-type">
-                    <option value="Restaurant">🍽️ Restoran</option>
-                    <option value="Beach">🏖️ Plaj</option>
-                    <option value="Transfer">🚗 Transfer</option>
-                    <option value="Flower">🌸 Çiçek Siparişi</option>
-                    <option value="Cake">🎂 Pasta Siparişi</option>
-                    <option value="Boat">🛥️ Tekne Rezervasyonu</option>
-                    <option value="Tour">🗺️ Tur / Gezi</option>
-                    <option value="Other">✨ Diğer</option>
-                </select>
-            </div>
-            <div class="field-row">
-                <div class="field-group">
-                    <label>Misafir Adı</label>
-                    <input type="text" id="rs-guest" placeholder="Ad soyad" list="guest-list">
-                    <datalist id="guest-list"></datalist>
-                </div>
-                <div class="field-group">
-                    <label>Oda</label>
-                    <input type="text" id="rs-room" placeholder="No" inputmode="numeric">
-                </div>
-            </div>
-            <!-- Pre-Arrival & Stay Dates -->
-            <div id="rs-pa-box" class="rs-inset">
-                <label class="rs-inset-toggle">
-                    <input type="checkbox" id="rs-isPreArrival" onchange="
-                        document.getElementById('rs-room').disabled = this.checked;
-                        document.getElementById('rs-room').value = this.checked ? 'Pre-Arrival' : '';
-                    ">
-                    Ön Geliş misafiri (henüz oda atanmadı)
-                </label>
-                <div id="rs-dates-wrapper" class="field-row" style="display: none; margin-top: 10px;">
-                    <div class="field-group">
-                        <label style="font-size: 11px;">Giriş Tarihi</label>
-                        <input type="date" id="rs-checkIn">
-                    </div>
-                    <div class="field-group">
-                        <label style="font-size: 11px;">Çıkış Tarihi</label>
-                        <input type="date" id="rs-checkOut">
-                    </div>
-                </div>
-            </div>
-            <div class="field-row">
-                <div class="field-group">
-                    <label>Tarih</label>
-                    <input type="text" id="rs-date" placeholder="GG/AA/YYYY" inputmode="numeric" style="letter-spacing: 1px;">
-                </div>
-                <div class="field-group">
-                    <label>Saat</label>
-                    <input type="text" id="rs-time" placeholder="SS:DD" inputmode="numeric" style="letter-spacing: 1px;">
-                </div>
-            </div>
+        <div class="rs-split">
+            <!-- LEFT · premium live preview -->
+            <aside class="rs-hero">
+                <div class="rs-hero-brand"><span class="rs-hero-dot"></span> Concierge</div>
+                <h3 class="rs-hero-title">Yeni Rezervasyon</h3>
+                <p class="rs-hero-desc">Bilgileri girdikçe rezervasyon özeti burada canlı güncellenir.</p>
 
-            <!-- Dynamic Fields Container -->
-            <div id="rs-dynamic-fields" class="dynamic-group">
-                <!-- Specific fields injected by JS -->
-            </div>
-
-            <div class="field-row" id="rs-finance-group">
-                <div class="field-group">
-                    <label>Fiyat</label>
-                    <input type="number" id="rs-price" placeholder="0.00" inputmode="decimal">
-                </div>
-                <div class="field-group">
-                    <label>Ödenen Kapora</label>
-                    <input type="number" id="rs-deposit" placeholder="0.00" inputmode="decimal">
-                </div>
-            </div>
-
-            <div class="field-group" id="rs-voucher-group">
-                <label>Voucher / Onay No</label>
-                <input type="text" id="rs-voucher" placeholder="Onay için gerekli">
-            </div>
-
-            <div class="field-group">
-                <label>İç Notlar</label>
-                <textarea id="rs-notes" placeholder="Tedarikçi bilgisi, özel istekler..."></textarea>
-            </div>
-            
-            <div id="rs-conflict-alert" style="display:none; margin-bottom:15px; padding:12px; border-radius:8px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
-
-            <!-- Repeat / package: create the same reservation across several days -->
-            <div class="rs-repeat" id="rs-repeatBox">
-                <label class="rs-repeat-toggle">
-                    <input type="checkbox" id="rs-repeatOn">
-                    <span>🔁 Tekrarla / Paket</span>
-                </label>
-                <div class="rs-repeat-opts" id="rs-repeatOpts" style="display:none;">
-                    <div class="field-row">
-                        <div class="field-group">
-                            <label>Tekrar Sayısı</label>
-                            <input type="number" id="rs-repeatCount" min="2" max="30" value="3" inputmode="numeric">
+                <div class="rs-ticket">
+                    <div class="rs-ticket-head">
+                        <span class="rs-ticket-ico" id="rsPvIcon">🍽️</span>
+                        <div class="rs-ticket-headmain">
+                            <div class="rs-ticket-type" id="rsPvType">Restoran</div>
+                            <div class="rs-ticket-when" id="rsPvWhen">Tarih ve saat girilmedi</div>
                         </div>
+                    </div>
+                    <div class="rs-ticket-grid">
+                        <div><span>Misafir</span><b id="rsPvGuest">—</b></div>
+                        <div><span>Oda</span><b id="rsPvRoom">—</b></div>
+                        <div><span>Tutar</span><b id="rsPvPrice">—</b></div>
+                        <div><span>Kapora</span><b id="rsPvDeposit">—</b></div>
+                    </div>
+                </div>
+
+                <div class="rs-hero-sum">
+                    <div class="rs-hero-sum-title">Misafir Geçmişi</div>
+                    <div id="rs-guestSummary" class="rs-sum-empty">Misafir seçtiğinizde geçmiş rezervasyonları burada görünür.</div>
+                </div>
+            </aside>
+
+            <!-- RIGHT · form -->
+            <section class="rs-panel">
+                <button class="rs-close" id="resClose" aria-label="Kapat">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+
+                <div class="rs-form">
+                    <!-- Hizmet & Misafir -->
+                    <div class="rs-sec">
+                        <div class="rs-sec-h">Hizmet &amp; Misafir</div>
                         <div class="field-group">
-                            <label>Aralık</label>
-                            <select id="rs-repeatInterval">
-                                <option value="1">Her gün</option>
-                                <option value="2">2 günde bir</option>
-                                <option value="7">Haftalık</option>
+                            <label>Hizmet Türü</label>
+                            <select id="rs-type">
+                                <option value="Restaurant">🍽️ Restoran</option>
+                                <option value="Beach">🏖️ Plaj</option>
+                                <option value="Transfer">🚗 Transfer</option>
+                                <option value="Flower">🌸 Çiçek Siparişi</option>
+                                <option value="Cake">🎂 Pasta Siparişi</option>
+                                <option value="Boat">🛥️ Tekne Rezervasyonu</option>
+                                <option value="Tour">🗺️ Tur / Gezi</option>
+                                <option value="Other">✨ Diğer</option>
                             </select>
                         </div>
+                        <div class="field-row">
+                            <div class="field-group">
+                                <label>Misafir Adı</label>
+                                <input type="text" id="rs-guest" placeholder="Ad soyad" list="guest-list">
+                                <datalist id="guest-list"></datalist>
+                            </div>
+                            <div class="field-group">
+                                <label>Oda</label>
+                                <input type="text" id="rs-room" placeholder="No" inputmode="numeric">
+                            </div>
+                        </div>
+                        <div id="rs-pa-box" class="rs-inset">
+                            <label class="rs-inset-toggle">
+                                <input type="checkbox" id="rs-isPreArrival" onchange="
+                                    document.getElementById('rs-room').disabled = this.checked;
+                                    document.getElementById('rs-room').value = this.checked ? 'Pre-Arrival' : '';
+                                ">
+                                Ön Geliş misafiri (henüz oda atanmadı)
+                            </label>
+                            <div id="rs-dates-wrapper" class="field-row" style="display: none; margin-top: 10px;">
+                                <div class="field-group">
+                                    <label style="font-size: 11px;">Giriş Tarihi</label>
+                                    <input type="date" id="rs-checkIn">
+                                </div>
+                                <div class="field-group">
+                                    <label style="font-size: 11px;">Çıkış Tarihi</label>
+                                    <input type="date" id="rs-checkOut">
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="rs-repeat-hint" id="rs-repeatHint"></div>
-                </div>
-            </div>
 
-            <button class="primary-btn" id="rs-submit">Rezervasyonu Kaydet</button>
-            </div>
-            <aside class="rs-aside" id="rs-aside">
-                <div class="rs-aside-title">Misafir Özeti</div>
-                <div id="rs-guestSummary" class="rs-sum-empty">Misafir seçtiğinizde rezervasyon özeti burada görünür.</div>
-            </aside>
+                    <!-- Tarih & Detay -->
+                    <div class="rs-sec">
+                        <div class="rs-sec-h">Tarih &amp; Detay</div>
+                        <div class="field-row">
+                            <div class="field-group">
+                                <label>Tarih</label>
+                                <input type="text" id="rs-date" placeholder="GG/AA/YYYY" inputmode="numeric" style="letter-spacing: 1px;">
+                            </div>
+                            <div class="field-group">
+                                <label>Saat</label>
+                                <input type="text" id="rs-time" placeholder="SS:DD" inputmode="numeric" style="letter-spacing: 1px;">
+                            </div>
+                        </div>
+                        <div id="rs-dynamic-fields" class="dynamic-group"><!-- injected by JS --></div>
+                    </div>
+
+                    <!-- Finans -->
+                    <div class="rs-sec">
+                        <div class="rs-sec-h">Finans</div>
+                        <div class="field-row" id="rs-finance-group">
+                            <div class="field-group">
+                                <label>Fiyat</label>
+                                <input type="number" id="rs-price" placeholder="0.00" inputmode="decimal">
+                            </div>
+                            <div class="field-group">
+                                <label>Ödenen Kapora</label>
+                                <input type="number" id="rs-deposit" placeholder="0.00" inputmode="decimal">
+                            </div>
+                        </div>
+                        <div class="field-group" id="rs-voucher-group">
+                            <label>Voucher / Onay No</label>
+                            <input type="text" id="rs-voucher" placeholder="Onay için gerekli">
+                        </div>
+                    </div>
+
+                    <!-- Notlar & Seçenekler -->
+                    <div class="rs-sec">
+                        <div class="rs-sec-h">Notlar &amp; Seçenekler</div>
+                        <div class="field-group">
+                            <label>İç Notlar</label>
+                            <textarea id="rs-notes" placeholder="Tedarikçi bilgisi, özel istekler..."></textarea>
+                        </div>
+                        <div class="rs-repeat" id="rs-repeatBox">
+                            <label class="rs-repeat-toggle">
+                                <input type="checkbox" id="rs-repeatOn">
+                                <span>🔁 Tekrarla / Paket</span>
+                            </label>
+                            <div class="rs-repeat-opts" id="rs-repeatOpts" style="display:none;">
+                                <div class="field-row">
+                                    <div class="field-group">
+                                        <label>Tekrar Sayısı</label>
+                                        <input type="number" id="rs-repeatCount" min="2" max="30" value="3" inputmode="numeric">
+                                    </div>
+                                    <div class="field-group">
+                                        <label>Aralık</label>
+                                        <select id="rs-repeatInterval">
+                                            <option value="1">Her gün</option>
+                                            <option value="2">2 günde bir</option>
+                                            <option value="7">Haftalık</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="rs-repeat-hint" id="rs-repeatHint"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="rs-conflict-alert" style="display:none; padding:12px; border-radius:10px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
+                </div>
+
+                <div class="rs-foot">
+                    <button class="primary-btn" id="rs-submit">Rezervasyonu Kaydet</button>
+                </div>
+            </section>
         </div>
     </div>
 
