@@ -49,8 +49,6 @@
             const a = $('dashAdminNav'); if (a) a.style.display = '';
         }
         $('dashLogout').onclick = () => { try { auth.signOut(); } catch (e) {} location.href = 'login.html'; };
-        $('qaReservation').onclick = () => { location.href = 'concierge.html'; };
-        $('qaIssue').onclick = () => { location.href = window.innerWidth > 768 ? 'panel.html' : 'panel-mobile.html'; };
     }
 
     // ── KPI hesapları ──────────────────────────────────────────

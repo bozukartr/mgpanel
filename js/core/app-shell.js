@@ -28,6 +28,10 @@
     var frame = $('shFrame');
     var loading = $('shLoading');
     var currentRoute = null;
+    // Per-session cache-buster: ensures the iframe always loads the freshly
+    // deployed page and never an entry left in a stale (legacy) cache under the
+    // plain "?embed=1" URL. Stable within a session; new on each app load.
+    var SHELL_V = Date.now().toString(36);
 
     function setActive(route) {
         document.querySelectorAll('.sh-tab[data-route], .sh-bn[data-route]').forEach(function (el) {
@@ -39,7 +43,7 @@
     function loadRoute(route, query, force) {
         var def = ROUTES[route];
         if (!def || !moduleOn(def.module)) { route = 'dashboard'; def = ROUTES.dashboard; }
-        var src = def.page + '?embed=1' + (query ? '&' + query : '');
+        var src = def.page + '?embed=1&v=' + SHELL_V + (query ? '&' + query : '');
         if (force || query || route !== currentRoute) {
             if (loading) loading.classList.add('show');
             frame.src = src;
