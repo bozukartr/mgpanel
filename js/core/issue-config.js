@@ -18,12 +18,14 @@
     var COL = 'issueConfig';
 
     // Default starter departments (Turkish). kind: 'both' — each hotel customizes.
+    // Topics are NOT defined here: konu is entered manually per complaint and the
+    // suggestion list is built dynamically from previously-used topics.
     var DEFAULT_DEPTS = [
-        { name: 'Kat Hizmetleri', kind: 'both', topics: ['Temizlik', 'Çarşaf / Havlu', 'Minibar', 'Oda Düzeni', 'Banyo Malzemeleri'] },
-        { name: 'Ön Büro', kind: 'both', topics: ['Check-in / Check-out', 'Rezervasyon', 'Fatura / Ödeme', 'Anahtar / Kart', 'Bilgi / Yönlendirme'] },
-        { name: 'Teknik', kind: 'both', topics: ['Klima', 'Elektrik / Aydınlatma', 'Su / Tesisat', 'TV', 'İnternet / Wi-Fi'] },
-        { name: 'Mutfak', kind: 'both', topics: ['Sipariş', 'Özel Diyet', 'Eksik / Yanlış Ürün', 'Sunum'] },
-        { name: 'Yiyecek & İçecek', kind: 'both', topics: ['Restoran', 'Bar', 'Oda Servisi', 'Minibar'] }
+        { name: 'Kat Hizmetleri', kind: 'both' },
+        { name: 'Ön Büro', kind: 'both' },
+        { name: 'Teknik', kind: 'both' },
+        { name: 'Mutfak', kind: 'both' },
+        { name: 'Yiyecek & İçecek', kind: 'both' }
     ];
 
     var state = { departments: null, loaded: false };
@@ -35,10 +37,7 @@
             d = d || {};
             return {
                 name: String(d.name || '').trim(),
-                kind: (d.kind === 'request' || d.kind === 'complaint') ? d.kind : 'both',
-                topics: Array.isArray(d.topics)
-                    ? d.topics.map(function (t) { return String(t || '').trim(); }).filter(Boolean)
-                    : []
+                kind: (d.kind === 'request' || d.kind === 'complaint') ? d.kind : 'both'
             };
         }).filter(function (d) { return d.name; });
     }
@@ -65,12 +64,6 @@
             return this.departments().filter(function (d) {
                 return d.kind === 'both' || d.kind === t;
             });
-        },
-
-        // Topics for a department name (empty array if unknown).
-        topicsFor: function (name) {
-            var d = this.departments().filter(function (x) { return x.name === name; })[0];
-            return d ? d.topics.slice() : [];
         },
 
         isLoaded: function () { return state.loaded; },
