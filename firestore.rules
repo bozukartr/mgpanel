@@ -253,6 +253,18 @@ service cloud.firestore {
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
 
+    // --- Konular (complaint topics). One doc per topic, tenant-scoped. Any staff
+    //     member may ADD a topic while logging a complaint (so the suggestion list
+    //     fills itself); only the hotel's admin may DELETE one. Holds no guest
+    //     data — just the curatable list of topic labels. ---
+    match /issueTopics/{id} {
+      allow read:   if signedIn();
+      allow create: if isStaff()
+        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow delete: if isStaff() && isAdmin()
+        && resource.data.get('tenantId', 'mgallery') == callerTenant();
+    }
+
     // --- Guest self-service request catalog (admin-managed "menu"). Any signed-in
     //     client may READ it — including anonymous guests on the QR page — but
     //     only the hotel's own admin can add/edit/remove items. The catalog holds

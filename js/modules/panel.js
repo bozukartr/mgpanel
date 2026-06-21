@@ -630,6 +630,11 @@ document.addEventListener('DOMContentLoaded', () => {
             await syncGuestStatus(formData.guestName, formData.room);
             const ref = await db.collection('guestLogs').add(formData);
 
+            // Remember a freshly-typed complaint topic for future suggestions.
+            if (!isRequest && formData.topic && formData.topic !== 'Genel' && window.IssueConfig) {
+                IssueConfig.addTopic(formData.topic);
+            }
+
             // Notify the assigned teammate in real time.
             if (isRequest && selectedAssignee && window.RT) {
                 RT.sendNotification({
@@ -674,28 +679,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (current && names.indexOf(current) !== -1) sel.value = current;
     }
 
-    // Konu (topic) is typed manually for complaints. Suggestions are the distinct
-    // topics already used on complaint records (global — not tied to department),
-    // exactly like picking a returning guest by name. A newly typed topic becomes
-    // a suggestion automatically once its complaint is saved.
-    function collectTopics() {
-        const seen = Object.create(null);
-        const out = [];
-        records.forEach(r => {
-            if ((r.type || 'complaint') !== 'complaint') return;
-            const t = (r.topic || '').trim();
-            if (!t) return;
-            const k = t.toLowerCase();
-            if (!seen[k]) { seen[k] = 1; out.push(t); }
-        });
-        return out.sort((a, b) => a.localeCompare(b, 'tr'));
+    // Konu (topic) is typed manually for complaints. Suggestions come from the
+    // persisted, admin-curatable topic list (issueTopics) — global, not tied to a
+    // department. A newly typed topic is persisted on save, so next time it is a
+    // suggestion (like picking a returning guest by name).
+    function knownTopics() {
+        return (window.IssueConfig ? IssueConfig.topics() : []);
     }
     function refreshTopicDatalists() {
-        const html = collectTopics().map(t => `<option value="${esc(t)}"></option>`).join('');
+        const html = knownTopics().map(t => `<option value="${esc(t)}"></option>`).join('');
         ['topicOptions', 'editTopicOptions'].forEach(id => {
             const dl = document.getElementById(id);
             if (dl) dl.innerHTML = html;
         });
+        // Keep the report's topic filter in sync if present.
+        if (typeof populateReportTopics === 'function') populateReportTopics();
+    }
+    if (window.IssueConfig) {
+        IssueConfig.listenTopics(() => refreshTopicDatalists());
     }
 
     // ── Request vs complaint toggle + live assignee picker ─────
@@ -806,8 +807,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('openReportsBtn')?.addEventListener('click', () => {
         reportsModal.style.display = 'flex';
         populateGuestDatalist();
+        populateReportTopics();
         updateRptUI(); // Reset UI state on open
     });
+
+    // Fill the report "Konu" filter from the persisted topic list.
+    function populateReportTopics() {
+        const sel = document.getElementById('rpt-topicSelect');
+        if (!sel) return;
+        const current = sel.value;
+        const topics = (window.IssueConfig ? IssueConfig.topics() : []);
+        sel.innerHTML = '<option value="All">Tüm Konular</option>'
+            + topics.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+        if (current && [...sel.options].some(o => o.value === current)) sel.value = current;
+    }
+    window.populateReportTopics = populateReportTopics;
 
     function populateGuestDatalist() {
         // Construct the latest unique names string
@@ -832,12 +846,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const rangeGroup = document.getElementById('rpt-rangeGroup');
         const deptCont = document.getElementById('rpt-deptContainer');
         const guestCont = document.getElementById('rpt-guestContainer');
+        const topicCont = document.getElementById('rpt-topicContainer');
 
         // Reset all
         specificDateCont.style.display = 'none';
         rangeGroup.style.display = 'none';
         deptCont.style.display = 'none';
         guestCont.style.display = 'none';
+        if (topicCont) topicCont.style.display = 'none';
 
         // Show based on type
         if (type === 'summary' || type === 'byDate' || type === 'department') {
@@ -846,6 +862,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (type === 'dateRange' || type === 'historicalStatus' || type === 'deptHistorical' || type === 'status' || type === 'deptPerformance' || type === 'taskDurations') {
             rangeGroup.style.display = 'flex';
             if (type === 'deptHistorical') deptCont.style.display = 'block';
+        } else if (type === 'topic') {
+            rangeGroup.style.display = 'flex';
+            if (topicCont) topicCont.style.display = 'block';
         } else if (type === 'guest') {
             guestCont.style.display = 'block';
         }
@@ -867,7 +886,8 @@ document.addEventListener('DOMContentLoaded', () => {
             to: document.getElementById('rpt-dateTo')?.value || '',
             specific: document.getElementById('rpt-specificDate')?.value || getLocalDate(),
             dept: document.getElementById('rpt-departmentSelect')?.value || 'All',
-            guest: document.getElementById('rpt-guestSearch')?.value || ''
+            guest: document.getElementById('rpt-guestSearch')?.value || '',
+            topic: document.getElementById('rpt-topicSelect')?.value || 'All'
         };
     }
 
@@ -1046,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Report Engine ──────────────────────────────────────────
     window.generateReport = function (type, format) {
-        const { from, to, specific, dept, guest } = getRptDates();
+        const { from, to, specific, dept, guest, topic } = getRptDates();
 
         if (type === 'summary') {
             const date = specific || getLocalDate();
@@ -1142,6 +1162,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     arr.map(r => [d, r.date, r.room, r.guestName, r.complaint?.substring(0, 40), r.status || 'Following'])
                 );
                 exportPDF(`Issues by Department (${dept})`, ['Department', 'Date', 'Room', 'Guest', 'Complaint', 'Status'], rows, `By_Department_${dept}`);
+            }
+        }
+
+        // ── Konu bazlı rapor (yalnızca şikayetler): hangi konular ne sıklıkla
+        //    tekrar ediyor, çözülme oranı ne? Tarih aralığı + konu filtresi opsiyonel.
+        else if (type === 'topic') {
+            let data = records.filter(r => (r.type || 'complaint') === 'complaint');
+            if (from || to) data = filterByRange(data, from, to);
+            if (topic && topic !== 'All') data = data.filter(r => (r.topic || 'Genel') === topic);
+
+            // Group by topic → counts + status + department breakdown.
+            const grouped = {};
+            data.forEach(r => {
+                const t = (r.topic || 'Genel');
+                if (!grouped[t]) grouped[t] = [];
+                grouped[t].push(r);
+            });
+            const topicNames = Object.keys(grouped).sort((a, b) => grouped[b].length - grouped[a].length || a.localeCompare(b, 'tr'));
+
+            if (!data.length) { showToast('Bu rapor için veri yok.', true); return; }
+
+            const rangeLabel = (from || to) ? `${from || '…'} → ${to || '…'}` : 'Tüm Zamanlar';
+            const summaryTable = topicNames.map(t => {
+                const arr = grouped[t];
+                const solved = arr.filter(r => r.status === 'Solved').length;
+                const open = arr.length - solved;
+                const depts = [...new Set(arr.map(r => r.department || '—'))].join(', ');
+                return { Konu: t, Toplam: arr.length, Çözüldü: solved, Açık: open, Departmanlar: depts };
+            });
+
+            if (format === 'excel') {
+                const wb = XLSX.utils.book_new();
+                const wsSum = XLSX.utils.json_to_sheet(summaryTable);
+                autoSizeSheet(wsSum, summaryTable);
+                XLSX.utils.book_append_sheet(wb, wsSum, 'Konu Özeti');
+                const detail = data.map(r => ({
+                    Konu: r.topic || 'Genel', Tarih: r.date, Oda: r.room, Misafir: r.guestName,
+                    Departman: r.department, Şikayet: r.complaint, Çözüm: r.solution || '',
+                    Personel: r.staffInitial, Durum: statusLabelOf(r.status || 'Following')
+                }));
+                const wsDet = XLSX.utils.json_to_sheet(detail);
+                autoSizeSheet(wsDet, detail);
+                XLSX.utils.book_append_sheet(wb, wsDet, 'Detay');
+                XLSX.writeFile(wb, `Konu_Bazli_${topic === 'All' ? 'Tum' : topic}_${getLocalDate()}.xlsx`);
+                showToast('Excel raporu indirildi.');
+            } else {
+                const rows = summaryTable.map(s => [s.Konu, s.Toplam, s.Çözüldü, s.Açık, (s.Departmanlar || '').substring(0, 40)]);
+                exportPDF(`Konu Bazlı Şikayet Raporu (${rangeLabel})`, ['Konu', 'Toplam', 'Çözüldü', 'Açık', 'Departmanlar'], rows, `Konu_Bazli_${topic === 'All' ? 'Tum' : topic}`);
             }
         }
 
@@ -2058,6 +2126,9 @@ document.addEventListener('DOMContentLoaded', () => {
             status: document.getElementById('editStatus').value
         };
         await db.collection('guestLogs').doc(editingId).update(updatedData);
+        if (updatedData.topic && updatedData.topic !== 'Genel' && window.IssueConfig) {
+            IssueConfig.addTopic(updatedData.topic);
+        }
         closeModalFunc();
         showToast('Changes saved.');
     });
