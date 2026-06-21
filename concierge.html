@@ -166,7 +166,10 @@
     <div class="sheet" id="resSheet">
         <div class="sheet-pill"></div>
         <div class="sheet-top">
-            <h3>Yeni Rezervasyon</h3>
+            <div>
+                <h3>Yeni Rezervasyon</h3>
+                <div class="rs-subtitle">Hizmet, misafir ve zaman bilgilerini girin</div>
+            </div>
             <button class="sheet-close-btn" id="resClose">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
@@ -198,15 +201,15 @@
                 </div>
             </div>
             <!-- Pre-Arrival & Stay Dates -->
-            <div id="rs-pa-box" style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 500; margin-bottom: 0;">
+            <div id="rs-pa-box" class="rs-inset">
+                <label class="rs-inset-toggle">
                     <input type="checkbox" id="rs-isPreArrival" onchange="
-                        document.getElementById('rs-room').disabled = this.checked; 
+                        document.getElementById('rs-room').disabled = this.checked;
                         document.getElementById('rs-room').value = this.checked ? 'Pre-Arrival' : '';
                     ">
                     Ön Geliş misafiri (henüz oda atanmadı)
                 </label>
-                <div id="rs-dates-wrapper" class="field-row" style="margin-bottom: 0; display: none; margin-top: 10px;">
+                <div id="rs-dates-wrapper" class="field-row" style="display: none; margin-top: 10px;">
                     <div class="field-group">
                         <label style="font-size: 11px;">Giriş Tarihi</label>
                         <input type="date" id="rs-checkIn">
