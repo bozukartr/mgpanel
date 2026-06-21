@@ -956,35 +956,38 @@
 @media (min-width: 769px) {
     #resSheet {
         left: 50%; right: auto; bottom: auto; top: 50%;
-        width: 900px !important; max-width: 95vw !important; max-height: 90vh !important;
-        border-radius: 20px;
-        padding-bottom: 22px;
-        transform: translate(-50%, -50%) scale(.96);
+        width: 840px !important; max-width: 94vw !important; max-height: 88vh !important;
+        border-radius: 18px;
+        padding-bottom: 0;
+        transform: translate(-50%, -50%) scale(.97);
         opacity: 0; pointer-events: none;
         transition: transform .25s cubic-bezier(.2,.9,.3,1.1), opacity .2s;
-        box-shadow: 0 40px 100px rgba(15,23,42,.28);
+        box-shadow: 0 30px 80px rgba(15,23,42,.22);
+        display: flex; flex-direction: column; overflow: hidden;
     }
     #resSheet.open {
         transform: translate(-50%, -50%) scale(1);
         opacity: 1; pointer-events: auto;
     }
     #resSheet .sheet-pill { display: none; }
-    #resSheet .sheet-top { padding-top: 22px; }
 
-    /* Two-column form. We flatten the DIRECT field-rows with display:contents
-       so their two inner fields become individual grid cells; full-width
-       blocks reset each row, so the remaining short fields pair up exactly:
-       Misafir+Oda · Tarih+Saat · Fiyat+Kapora · Voucher+Not. */
-    /* İki bölme: solda form (2 sütun), sağda misafir özeti */
-    #resSheet { display: flex; flex-direction: column; }
-    #resSheet .sheet-body { display: flex; gap: 22px; align-items: stretch; flex: 1; min-height: 0; overflow-y: auto; }
+    /* Header */
+    #resSheet .sheet-top { padding: 17px 24px; align-items: flex-start; }
+    #resSheet .sheet-top h3 { font-size: 17px; font-weight: 800; letter-spacing: -.2px; }
+
+    /* Body: scrolling form (left) + summary panel (right), each independent. */
+    /* Two-column form: DIRECT field-rows use display:contents so their two
+       inner fields become individual grid cells; full-width blocks reset each
+       row, so short fields pair up: Misafir+Oda · Tarih+Saat · Fiyat+Kapora. */
+    #resSheet .sheet-body { display: flex; gap: 0; align-items: stretch; flex: 1; min-height: 0; padding: 0; }
     #resSheet .rs-main {
-        flex: 1; min-width: 0;
-        display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; row-gap: 12px; align-items: start;
+        flex: 1; min-width: 0; padding: 18px 22px; overflow-y: auto;
+        display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; row-gap: 11px;
+        align-items: start; align-content: start;
     }
     #resSheet .rs-main > .field-row { display: contents; }
     #resSheet .rs-main > .field-group,
-    #resSheet .rs-main .field-row > .field-group { margin-bottom: 0; }
+    #resSheet .rs-main .field-row > .field-group { margin-bottom: 0; gap: 5px; }
 
     /* Wide blocks span the full width and reset the row flow. */
     #resSheet .rs-main > .field-group:first-child,   /* Hizmet Türü */
@@ -994,16 +997,48 @@
     #resSheet #rs-repeatBox,
     #resSheet #rs-submit { grid-column: 1 / -1; }
 
-    #resSheet #rs-dynamic-fields:empty { display: none; }
-    #resSheet #rs-submit { margin-top: 6px; }
-    #resSheet #rs-notes { min-height: 40px; }
+    /* Compact, refined fields (desktop only — mobile keeps the larger touch UI). */
+    #resSheet .field-group label { font-size: 10px; letter-spacing: .5px; color: #94a3b8; }
+    #resSheet .field-group input,
+    #resSheet .field-group select,
+    #resSheet .field-group textarea {
+        padding: 9px 12px; font-size: 13.5px; border-radius: 9px;
+        border: 1px solid #e6eaf0; background: #fff;
+    }
+    #resSheet .field-group input:focus,
+    #resSheet .field-group select:focus,
+    #resSheet .field-group textarea:focus {
+        border-color: var(--accent, #6366f1); box-shadow: 0 0 0 3px rgba(99,102,241,.10);
+    }
 
-    /* Sağ özet paneli (masaüstü) */
+    #resSheet #rs-dynamic-fields:empty { display: none; }
+    #resSheet #rs-dynamic-fields { border-radius: 10px; padding: 11px 12px; gap: 11px; }
+    #resSheet #rs-notes { min-height: 52px; }
+
+    /* Submit as a clean, restrained footer button. */
+    #resSheet #rs-submit {
+        height: 44px; border-radius: 10px; font-size: 14px; margin-top: 7px;
+        box-shadow: 0 6px 16px rgba(99,102,241,.20);
+    }
+
+    /* Right summary panel — subtle, separated. */
     #resSheet .rs-aside {
-        width: 252px; flex: 0 0 252px; border-top: none; border-left: 1px solid #eef0f3;
-        padding: 0 0 0 20px; margin: 0; max-height: 100%; overflow-y: auto;
+        width: 248px; flex: 0 0 248px; border-top: none; border-left: 1px solid #eef0f3;
+        padding: 18px 20px; margin: 0; max-height: 100%; overflow-y: auto; background: #fbfcfe;
     }
 }
+
+/* ═══ Yeni Rezervasyon — başlık alt metni + ön-geliş kutusu ═══ */
+/* Mobile/base: stack the form fields with even spacing. The desktop two-column
+   grid (#resSheet .rs-main, ≥769px) overrides this. */
+.rs-main { display: flex; flex-direction: column; gap: 12px; }
+.rs-subtitle { font-size: 12px; color: #94a3b8; font-weight: 500; margin-top: 2px; }
+.rs-inset { background: #f9fafb; border: 1px solid #eef1f5; border-radius: 10px; padding: 10px 12px; }
+.rs-inset-toggle {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 12.5px; font-weight: 500; color: #475569; margin-bottom: 0;
+}
+.rs-inset-toggle input { width: 16px; height: 16px; accent-color: var(--accent, #6366f1); cursor: pointer; }
 
 /* ═══ Yeni Rezervasyon — Misafir Özeti paneli ═══ */
 .rs-aside { margin-top: 14px; border-top: 1px solid #eef0f3; padding-top: 12px; }
