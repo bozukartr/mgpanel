@@ -109,26 +109,19 @@ document.addEventListener('DOMContentLoaded', () => {
         sel.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
         if (current && names.indexOf(current) !== -1) sel.value = current;
     }
-    // Konu (topic) suggestions = distinct topics already used on complaint
-    // records (global, not department-bound). Populates both new + edit datalists.
-    function mobCollectTopics() {
-        const seen = Object.create(null);
-        const out = [];
-        records.forEach(r => {
-            if ((r.type || 'complaint') !== 'complaint') return;
-            const t = (r.topic || '').trim();
-            if (!t) return;
-            const k = t.toLowerCase();
-            if (!seen[k]) { seen[k] = 1; out.push(t); }
-        });
-        return out.sort((a, b) => a.localeCompare(b, 'tr'));
-    }
+    // Konu (topic) suggestions come from the persisted, admin-curatable topic
+    // list (issueTopics) — global, not department-bound. A newly typed topic is
+    // persisted on save, so next time it appears as a suggestion.
     function mobRefreshTopicDatalists() {
-        const html = mobCollectTopics().map(t => `<option value="${esc(t)}"></option>`).join('');
+        const topics = (window.IssueConfig ? IssueConfig.topics() : []);
+        const html = topics.map(t => `<option value="${esc(t)}"></option>`).join('');
         ['ni-topicOptions', 'ed-topicOptions'].forEach(id => {
             const dl = document.getElementById(id);
             if (dl) dl.innerHTML = html;
         });
+    }
+    if (window.IssueConfig) {
+        IssueConfig.listenTopics(() => mobRefreshTopicDatalists());
     }
 
     // ── DATA ───────────────────────────────────────────────────
@@ -479,6 +472,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 payload.assignedToName = niSelectedAssignee.username;
             }
             const ref = await db.collection('guestLogs').add(payload);
+            if (!isReq && payload.topic && payload.topic !== 'Genel' && window.IssueConfig) {
+                IssueConfig.addTopic(payload.topic);
+            }
             if (isReq && niSelectedAssignee && window.RT) {
                 RT.sendNotification({
                     toUid: niSelectedAssignee.uid,
@@ -725,6 +721,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         try {
             await db.collection('guestLogs').doc(getSelected().id).update(updatedData);
+            if (updatedData.topic && updatedData.topic !== 'Genel' && window.IssueConfig) {
+                IssueConfig.addTopic(updatedData.topic);
+            }
             closeSheet(editSheet, editBackdrop);
             showToast('Record updated.');
         } catch (e) { showToast('Error: ' + e.message, true); }

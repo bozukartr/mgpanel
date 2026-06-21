@@ -50,7 +50,16 @@
         .iss-chip { font-size: 11.5px; font-weight: 600; color: #475569; background: #f1f5f9;
             padding: 4px 10px; border-radius: 999px; }
         .iss-none { font-size: 11.5px; color: #94a3b8; font-style: italic; }
-        .iss-empty { text-align: center; color: #94a3b8; padding: 40px 20px; font-size: 14px; }`;
+        .iss-empty { text-align: center; color: #94a3b8; padding: 40px 20px; font-size: 14px; }
+        .iss-topic-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .iss-topic-pill { display: inline-flex; align-items: center; gap: 8px; background: #f8fafc;
+            border: 1px solid #e8edf2; border-radius: 999px; padding: 6px 6px 6px 14px; font-size: 13px;
+            font-weight: 600; color: #1e293b; }
+        .iss-topic-pill button { border: none; background: #eef2f7; color: #64748b; width: 22px; height: 22px;
+            border-radius: 50%; cursor: pointer; font-size: 14px; line-height: 1; display: flex;
+            align-items: center; justify-content: center; transition: background .15s, color .15s; }
+        .iss-topic-pill button:hover { background: #fee2e2; color: #dc2626; }
+        .iss-topic-empty { color: #94a3b8; font-size: 13px; padding: 8px 2px; }`;
         const el = document.createElement('style');
         el.id = 'iss-admin-styles';
         el.textContent = css;
@@ -159,6 +168,38 @@
         }, err => console.error('issueConfig listen failed', err));
     }
 
+    // ── Konular (topics) ───────────────────────────────────────
+    let topicEntries = [];
+    function renderTopics() {
+        const wrap = $('issTopicList');
+        if (!wrap) return;
+        if (!topicEntries.length) {
+            wrap.innerHTML = `<div class="iss-topic-empty">Henüz konu eklenmemiş. Şikayet eklerken yazılan konular burada birikir.</div>`;
+            return;
+        }
+        wrap.innerHTML = topicEntries.map(t => `
+            <span class="iss-topic-pill">${esc(t.name)}
+                <button type="button" data-del="${esc(t.id)}" title="Sil" aria-label="Sil">&times;</button>
+            </span>`).join('');
+        wrap.querySelectorAll('[data-del]').forEach(b => b.onclick = () => removeTopic(b.dataset.del));
+    }
+    function removeTopic(id) {
+        const entry = topicEntries.filter(t => t.id === id)[0];
+        const name = entry ? entry.name : '';
+        if (!confirm(`“${name}” konusu öneri listesinden silinsin mi? (Mevcut kayıtlar etkilenmez)`)) return;
+        if (window.IssueConfig) IssueConfig.deleteTopic(id).then(() => toast('Konu silindi.')).catch(() => toast('Silinemedi.', true));
+    }
+    function addTopicPrompt() {
+        const name = (prompt('Yeni konu adı:') || '').trim();
+        if (!name) return;
+        if (topicEntries.some(t => t.name.toLowerCase() === name.toLowerCase())) { toast('Bu konu zaten var.'); return; }
+        if (window.IssueConfig) IssueConfig.addTopic(name).then(() => toast('Konu eklendi.')).catch(() => toast('Eklenemedi.', true));
+    }
+    function listenTopics() {
+        if (!window.IssueConfig) return;
+        IssueConfig.listenTopics(list => { topicEntries = list || []; renderTopics(); });
+    }
+
     // ── Boot ───────────────────────────────────────────────────
     function boot() {
         // Feature-gated: if the hotel's plan doesn't include "Misafir Kayıtları"
@@ -176,9 +217,10 @@
         $('closeIssueModal') && ($('closeIssueModal').onclick = closeModal);
         $('issueDeptForm') && ($('issueDeptForm').onsubmit = save);
         $('issueDeleteBtn') && ($('issueDeleteBtn').onclick = remove);
+        $('issTopicAddBtn') && ($('issTopicAddBtn').onclick = addTopicPrompt);
         const modal = $('issueModal');
         if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-        auth.onAuthStateChanged(u => { if (u) listen(); });
+        auth.onAuthStateChanged(u => { if (u) { listen(); listenTopics(); } });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();

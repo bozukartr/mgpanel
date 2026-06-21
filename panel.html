@@ -487,6 +487,7 @@
                         <option value="summary">Genel Özet (Günlük)</option>
                         <option value="inHouseIssues">Oteldeki Misafir Kayıtları</option>
                         <option value="department">Departmana Göre</option>
+                        <option value="topic">Konu Bazlı (Şikayet)</option>
                         <option value="byDate">Belirli Tarihe Göre</option>
                         <option value="dateRange">Tarih Aralığı Raporu</option>
                         <option value="guest">Misafir Profiline Göre</option>
@@ -534,6 +535,14 @@
                             <option value="Noise">Noise</option>
                             <option value="Transfer">Transfer</option>
                             <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <!-- Topic Selector (Dynamic) -->
+                    <div id="rpt-topicContainer" style="display: none; margin-top: 15px;">
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">KONU</label>
+                        <select id="rpt-topicSelect" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                            <option value="All">Tüm Konular</option>
                         </select>
                     </div>
 

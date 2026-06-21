@@ -16,6 +16,7 @@
     'use strict';
 
     var COL = 'issueConfig';
+    var TOPIC_COL = 'issueTopics';
 
     // Default starter departments (Turkish). kind: 'both' — each hotel customizes.
     // Topics are NOT defined here: konu is entered manually per complaint and the
@@ -29,6 +30,7 @@
     ];
 
     var state = { departments: null, loaded: false };
+    var topicState = []; // [{ id, name }]
     var readyCbs = [];
 
     function normalize(list) {
@@ -101,6 +103,46 @@
                 state.loaded = true; flush();
                 if (typeof cb === 'function') { try { cb(self.departments()); } catch (e) {} }
             }, function () {});
+        },
+
+        // ── Konular (topics) ───────────────────────────────────
+        // Topics are stored as one doc per topic in the `issueTopics` collection
+        // (tenant-scoped). Any staff member may add one while logging a complaint;
+        // only an admin can delete. This makes the list curatable (list / delete)
+        // instead of a value derived from records.
+        topics: function () {
+            return topicState.map(function (t) { return t.name; });
+        },
+        // [{ id, name }] — for the admin management list.
+        topicEntries: function () {
+            return topicState.slice();
+        },
+        listenTopics: function (cb) {
+            if (typeof db === 'undefined' || typeof TENANT_ID === 'undefined') return function () {};
+            return db.collection(TOPIC_COL).where('tenantId', '==', TENANT_ID).onSnapshot(function (snap) {
+                topicState = snap.docs.map(function (d) {
+                    return { id: d.id, name: String((d.data() || {}).name || '').trim() };
+                }).filter(function (t) { return t.name; })
+                    .sort(function (a, b) { return a.name.localeCompare(b.name, 'tr'); });
+                if (typeof cb === 'function') { try { cb(topicState.slice()); } catch (e) {} }
+            }, function () {});
+        },
+        // Persist a typed topic if it isn't already known (case-insensitive).
+        addTopic: function (name) {
+            name = String(name || '').trim();
+            if (!name) return Promise.resolve();
+            if (typeof db === 'undefined' || typeof TENANT_ID === 'undefined') return Promise.resolve();
+            var key = name.toLowerCase();
+            if (topicState.some(function (t) { return t.name.toLowerCase() === key; })) return Promise.resolve();
+            return db.collection(TOPIC_COL).add({
+                tenantId: TENANT_ID,
+                name: name,
+                createdAt: (firebase && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : null
+            }).catch(function () {});
+        },
+        deleteTopic: function (id) {
+            if (!id || typeof db === 'undefined') return Promise.resolve();
+            return db.collection(TOPIC_COL).doc(id).delete();
         }
     };
 
