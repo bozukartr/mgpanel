@@ -5,7 +5,7 @@
  * Web Push (FCM) hooks are stubbed below and will be wired once the sender
  * Cloud Function can be deployed.
  */
-const CACHE = 'stayos-shell-v2';
+const CACHE = 'stayos-shell-v3';
 const SHELL = ['logo.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
