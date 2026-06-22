@@ -148,6 +148,7 @@
                 { label: 'Açıklama', get: r => r.complaint || '', wide: true },
                 { label: 'Çözüm', get: r => (r.type || 'complaint') === 'request' ? '' : (r.solution || ''), wide: true },
                 { label: 'Personel', get: r => r.staffInitial || '—' },
+                { label: 'Atanan', get: r => r.assignedToName || '—' },
                 { label: 'Durum', get: r => glStatus(r.status) + (glOverdue(r) ? ' ⚠' : '') },
                 { label: 'Süre', get: r => fmtDuration(glDuration(r)) }
             ],
@@ -197,6 +198,10 @@
                 });
                 return [['Toplam', rows.length, 'i'], ['Onaylı', conf, 's'], ['Bekleyen', pend, 'w'], ['İptal', canc, 'o'],
                 ['Ciro', money(rev), 'k'], ['Kapora', money(dep), 'p'], ['Kalan', money(rev - dep), 'c']];
+            },
+            groupAgg: rows => {
+                let rev = 0; rows.forEach(r => { if (r.status !== 'Cancelled') rev += Number(r.totalPrice) || 0; });
+                return rows.length + ' rez. · ' + money(rev) + ' ciro';
             }
         },
 
@@ -227,6 +232,60 @@
                 });
                 return [['Toplam', rows.length, 'i'], ['Bekleyen', pend, 'w'], ['Tamamlanan', done, 's'], ['İptal', canc, 'o'],
                 ['Ürün Adedi', qty, 'p'], ['Ciro', money(rev), 'k']];
+            },
+            groupAgg: rows => {
+                let rev = 0; rows.forEach(r => { if (r.status !== 'cancelled') rev += Number(r.total) || 0; });
+                return rows.length + ' sipariş · ' + money(rev) + ' ciro';
+            }
+        },
+
+        orderItems: {
+            label: 'Sipariş Ürünleri (kalem bazlı)',
+            collection: 'guestOrders', order: ['createdAt', 'desc'],
+            // Explode each order into one row per product line.
+            transform: orders => {
+                const out = [];
+                orders.forEach(o => {
+                    if (!Array.isArray(o.items)) return;
+                    o.items.forEach(it => out.push({
+                        _date: normDate(o.createdAt), room: o.room || '', guestName: o.guestName || '',
+                        category: it.category || 'Diğer', department: it.department || '—',
+                        name: it.name || '—', qty: it.qty || 1, price: Number(it.price) || 0,
+                        lineTotal: (Number(it.price) || 0) * (it.qty || 1),
+                        ostatus: o.status, currency: o.currency || ''
+                    }));
+                });
+                return out;
+            },
+            dateOf: r => r._date || '',
+            facets: [
+                facet({ key: 'category', label: 'Kategori', kind: 'chips', valueOf: r => r.category || 'Diğer' }),
+                facet({ key: 'product', label: 'Ürün', kind: 'text', valueOf: r => r.name || '' }),
+                facet({ key: 'department', label: 'Departman', kind: 'chips', valueOf: r => r.department || '—' }),
+                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Tamamlandı', 'İptal'], valueOf: r => ORD_STATUS[r.ostatus] || 'Bekliyor' }),
+                facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
+                facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
+            ],
+            columns: [
+                { label: 'Tarih', get: r => fmtDateTR(r._date) },
+                { label: 'Oda', get: r => r.room || '—' },
+                { label: 'Misafir', get: r => r.guestName || '—' },
+                { label: 'Kategori', get: r => r.category || 'Diğer' },
+                { label: 'Ürün', get: r => r.name || '—', wide: true },
+                { label: 'Adet', get: r => r.qty, c: true },
+                { label: 'Birim', get: r => money(r.price), c: true },
+                { label: 'Tutar', get: r => money(r.lineTotal), c: true },
+                { label: 'Departman', get: r => r.department || '—' },
+                { label: 'Durum', get: r => ORD_STATUS[r.ostatus] || 'Bekliyor' }
+            ],
+            summary: rows => {
+                let qty = 0, rev = 0; const prod = new Set();
+                rows.forEach(r => { qty += r.qty || 0; if (r.ostatus !== 'cancelled') rev += r.lineTotal || 0; prod.add((r.name || '').toLowerCase()); });
+                return [['Satır', rows.length, 'i'], ['Toplam Adet', qty, 'p'], ['Farklı Ürün', prod.size, 'c'], ['Ciro', money(rev), 'k']];
+            },
+            groupAgg: rows => {
+                let q = 0, rev = 0; rows.forEach(r => { q += r.qty || 0; if (r.ostatus !== 'cancelled') rev += r.lineTotal || 0; });
+                return rows.length + ' kalem · ' + q + ' adet · ' + money(rev) + ' ciro';
             }
         },
 
@@ -253,7 +312,7 @@
             }
         }
     };
-    const DOMAIN_ORDER = ['guestLogs', 'reservations', 'guestOrders', 'guestDirectory'];
+    const DOMAIN_ORDER = ['guestLogs', 'reservations', 'guestOrders', 'orderItems', 'guestDirectory'];
 
     // ── State ──────────────────────────────────────────────────
     let domainKey = 'guestLogs';
@@ -393,7 +452,7 @@
         } else {
             html = `<table class="rep-table"><thead><tr>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>`;
             for (const g of groups) {
-                if (g.key !== '') html += `<tr class="rep-grp"><td colspan="${cols.length}">${esc(g.label)} <span>${g.rows.length} kayıt</span></td></tr>`;
+                if (g.key !== '') html += `<tr class="rep-grp"><td colspan="${cols.length}">${esc(g.label)} <span>${esc(D.groupAgg ? D.groupAgg(g.rows) : g.rows.length + ' kayıt')}</span></td></tr>`;
                 for (const r of g.rows) {
                     if (shown >= MAX) { truncated = true; break; }
                     html += '<tr>' + cols.map(c => {
@@ -432,7 +491,7 @@
         const head = '<tr>' + cols.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
         let body = '';
         for (const g of groups) {
-            if (g.key !== '') body += `<tr><td class="grp" colspan="${cols.length}">${esc(g.label)}  (${g.rows.length} kayıt)</td></tr>`;
+            if (g.key !== '') body += `<tr><td class="grp" colspan="${cols.length}">${esc(g.label)}  (${esc(D.groupAgg ? D.groupAgg(g.rows) : g.rows.length + ' kayıt')})</td></tr>`;
             for (const r of g.rows) body += '<tr>' + cols.map(c => `<td class="${c.wide ? 'wide' : ''}${c.c ? ' c' : ''}">${esc(c.get(r))}</td>`).join('') + '</tr>';
             if (groupBy !== 'none' && g.key !== '') body += `<tr><td class="sub" colspan="${cols.length}">Ara toplam: ${g.rows.length}</td></tr>`;
         }
@@ -473,7 +532,7 @@
         const stats = D.summary(rows);
         let body = '';
         for (const g of groups) {
-            if (g.key !== '') body += `<tr><td class="grp" colspan="${cols.length}">${esc(g.label)} — ${g.rows.length} kayıt</td></tr>`;
+            if (g.key !== '') body += `<tr><td class="grp" colspan="${cols.length}">${esc(g.label)} — ${esc(D.groupAgg ? D.groupAgg(g.rows) : g.rows.length + ' kayıt')}</td></tr>`;
             for (const r of g.rows) body += '<tr>' + cols.map(c => `<td class="${c.wide ? 'wide' : ''}">${esc(c.get(r))}</td>`).join('') + '</tr>';
         }
         const w = window.open('', '_blank');
@@ -506,22 +565,21 @@
         let q = db.collection(D.collection).where('tenantId', '==', TENANT_ID);
         if (D.order) { try { q = q.orderBy(D.order[0], D.order[1]); } catch (e) { } }
         ready = false;
+        // Map docs, optionally transform (e.g. explode orders into line items).
+        const apply = docs => {
+            const raw = docs.map(d => Object.assign({ id: d.id }, d.data()));
+            records = D.transform ? D.transform(raw) : raw;
+            cache[domainKey] = records; ready = true; renderFacets(); render();
+        };
         // Show cached immediately for snappy switches.
         if (cache[domainKey]) { records = cache[domainKey]; ready = true; renderFacets(); render(); }
-        unsub = q.onSnapshot(snap => {
-            records = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-            cache[domainKey] = records;
-            ready = true;
-            renderFacets(); render();
-        }, err => {
+        unsub = q.onSnapshot(snap => apply(snap.docs), err => {
             console.error('reports load failed', err);
             // Fallback without orderBy (e.g. missing composite index).
             if (D.order) {
                 if (unsub) { try { unsub(); } catch (e) { } }
-                unsub = db.collection(D.collection).where('tenantId', '==', TENANT_ID).onSnapshot(s2 => {
-                    records = s2.docs.map(d => Object.assign({ id: d.id }, d.data()));
-                    cache[domainKey] = records; ready = true; renderFacets(); render();
-                }, e2 => { console.error(e2); toast('Veriler yüklenemedi.', true); });
+                unsub = db.collection(D.collection).where('tenantId', '==', TENANT_ID)
+                    .onSnapshot(s2 => apply(s2.docs), e2 => { console.error(e2); toast('Veriler yüklenemedi.', true); });
             } else { toast('Veriler yüklenemedi.', true); }
         });
     }
