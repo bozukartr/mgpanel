@@ -19,16 +19,12 @@
         <aside class="rep-side">
             <div class="rep-side-head">
                 <h1>Raporlar</h1>
-                <p>Filtreleri birleştirip istediğiniz raporu oluşturun.</p>
+                <p>Kaynağı seçip filtreleri birleştirin; istediğiniz raporu oluşturun.</p>
             </div>
 
             <div class="rep-f">
-                <label class="rep-l">Kayıt Türü</label>
-                <div class="rep-seg" id="repType">
-                    <button class="active" data-v="all">Tümü</button>
-                    <button data-v="complaint">Şikayet</button>
-                    <button data-v="request">Talep</button>
-                </div>
+                <label class="rep-l">Rapor Kaynağı</label>
+                <select id="repDomain" class="rep-in"></select>
             </div>
 
             <div class="rep-f">
@@ -49,56 +45,12 @@
                 </div>
             </div>
 
-            <div class="rep-f">
-                <label class="rep-l">Departman <span class="rep-hint" id="repDeptHint"></span></label>
-                <div class="rep-chips" id="repDepts"></div>
-            </div>
-
-            <div class="rep-f" id="repTopicWrap">
-                <label class="rep-l">Konu (şikayet) <span class="rep-hint" id="repTopicHint"></span></label>
-                <div class="rep-chips" id="repTopics"></div>
-            </div>
-
-            <div class="rep-f">
-                <label class="rep-l">Durum</label>
-                <div class="rep-chips" id="repStatus">
-                    <button data-v="Following">Bekliyor</button>
-                    <button data-v="InProgress">İşlemde</button>
-                    <button data-v="Solved">Tamamlandı</button>
-                    <button data-v="Overdue">Geciken</button>
-                </div>
-            </div>
-
-            <div class="rep-row2">
-                <div class="rep-f">
-                    <label class="rep-l">Personel</label>
-                    <select id="repStaff" class="rep-in"><option value="">Tümü</option></select>
-                </div>
-                <div class="rep-f">
-                    <label class="rep-l">Oda</label>
-                    <input type="text" id="repRoom" class="rep-in" placeholder="örn. 101">
-                </div>
-            </div>
-
-            <div class="rep-f">
-                <label class="rep-l">Misafir</label>
-                <input type="text" id="repGuest" class="rep-in" list="repGuestList" placeholder="Ad ile filtrele">
-                <datalist id="repGuestList"></datalist>
-            </div>
+            <!-- Domain-specific facets injected here -->
+            <div id="repFacets"></div>
 
             <div class="rep-f">
                 <label class="rep-l">Gruplama</label>
-                <select id="repGroupBy" class="rep-in">
-                    <option value="none">Gruplama Yok (düz liste)</option>
-                    <option value="department">Departmana göre</option>
-                    <option value="topic">Konuya göre</option>
-                    <option value="status">Duruma göre</option>
-                    <option value="type">Türe göre (Talep/Şikayet)</option>
-                    <option value="staff">Personele göre</option>
-                    <option value="room">Odaya göre</option>
-                    <option value="guestName">Misafire göre</option>
-                    <option value="date">Güne göre</option>
-                </select>
+                <select id="repGroupBy" class="rep-in"></select>
             </div>
 
             <button class="rep-reset" id="repReset">Filtreleri Sıfırla</button>

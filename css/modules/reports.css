@@ -79,7 +79,7 @@ button, input, select { font-family: inherit; }
 .rep-btn.primary:hover { background: #4338ca; }
 
 /* Stat cards */
-.rep-stats { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; padding: 16px 20px 4px; }
+.rep-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; padding: 16px 20px 4px; }
 .rep-stat { background: var(--rep-card); border: 1px solid var(--rep-line); border-radius: 12px; padding: 11px 12px; display: flex; flex-direction: column; gap: 2px; }
 .rep-stat .v { font-size: 19px; font-weight: 800; letter-spacing: -.4px; line-height: 1; }
 .rep-stat .l { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--rep-faint); }
@@ -102,6 +102,7 @@ button, input, select { font-family: inherit; }
 .rep-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: top; }
 .rep-table tbody tr:hover td { background: #fafbfc; }
 .rep-table .rep-wrap { max-width: 280px; min-width: 180px; white-space: normal; }
+.rep-table td.rep-c { text-align: center; white-space: nowrap; }
 .rep-table tr.rep-od td { background: #fff7f7; }
 .rep-table tr.rep-od:hover td { background: #fff1f1; }
 .rep-table tr.rep-grp td {
