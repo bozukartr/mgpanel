@@ -79,6 +79,18 @@
     const resType = r => RES_TYPE[r.type] || (r.type || 'Diğer');
     const RES_STATUS = { Pending: 'Bekliyor', Confirmed: 'Onaylı', Cancelled: 'İptal' };
     const resStatus = r => RES_STATUS[r.status] || 'Bekliyor';
+    // Where / details, per service type (dynamic fields stored on the reservation).
+    function resDetail(r) {
+        switch (r.type) {
+            case 'Restaurant':
+            case 'Beach': return r.resName || '';
+            case 'Transfer': return [r.from, r.to].filter(Boolean).join(' → ') + (r.vehicle ? ' (' + r.vehicle + ')' : '');
+            case 'Boat':
+            case 'Tour': return [r.vessel, r.provider].filter(Boolean).join(' · ');
+            case 'Other': return r.otherType || '';
+            default: return '';
+        }
+    }
     const ORD_STATUS = { pending: 'Bekliyor', completed: 'Tamamlandı', cancelled: 'İptal', accepted: 'Onaylandı' };
     const ordStatus = r => ORD_STATUS[r.status] || (r.status || 'Bekliyor');
     const DIR_STATUS = { in_house: 'Otelde', pre_arrival: 'Ön Geliş', checked_out: 'Çıkış Yaptı' };
@@ -157,6 +169,7 @@
             dateOf: r => normDate(r.date),
             facets: [
                 facet({ key: 'type', label: 'Hizmet', kind: 'chips', valueOf: resType }),
+                facet({ key: 'detail', label: 'Detay / Yer', kind: 'text', valueOf: resDetail }),
                 facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Onaylı', 'İptal'], valueOf: resStatus }),
                 facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
                 facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
@@ -165,6 +178,8 @@
                 { label: 'Tarih', get: r => fmtDateTR(normDate(r.date)) },
                 { label: 'Saat', get: r => r.time || '—' },
                 { label: 'Hizmet', get: resType },
+                { label: 'Detay / Yer', get: resDetail, wide: true },
+                { label: 'Kişi', get: r => r.pax || '—', c: true },
                 { label: 'Misafir', get: r => r.guestName || '—' },
                 { label: 'Oda', get: r => r.room || '—' },
                 { label: 'Durum', get: resStatus },
