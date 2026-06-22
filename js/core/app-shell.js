@@ -18,6 +18,7 @@
         dashboard: { page: 'dashboard.html', module: null },
         concierge: { page: 'concierge.html', module: 'concierge' },
         kayitlar:  { page: 'panel.html',      module: 'guestIssues' },
+        raporlar:  { page: 'reports.html',     module: 'guestIssues' },
         crm:       { page: 'crm.html',         module: 'crm' }
     };
     function moduleOn(key) {
