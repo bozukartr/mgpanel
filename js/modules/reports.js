@@ -457,7 +457,7 @@
                     if (shown >= MAX) { truncated = true; break; }
                     html += '<tr>' + cols.map(c => {
                         const val = c.get(r);
-                        return `<td class="${c.wide ? 'rep-wrap' : ''}${c.c ? ' rep-c' : ''}" title="${esc(val)}">${esc(val)}</td>`;
+                        return `<td class="${c.wide ? 'rep-w' : ''}${c.c ? ' rep-c' : ''}" title="${esc(val)}">${esc(val)}</td>`;
                     }).join('') + '</tr>';
                     shown++;
                 }
