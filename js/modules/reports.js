@@ -381,7 +381,10 @@
                 if (g.key !== '') html += `<tr class="rep-grp"><td colspan="${cols.length}">${esc(g.label)} <span>${g.rows.length} kayıt</span></td></tr>`;
                 for (const r of g.rows) {
                     if (shown >= MAX) { truncated = true; break; }
-                    html += '<tr>' + cols.map(c => `<td class="${c.wide ? 'rep-wrap' : ''}${c.c ? ' rep-c' : ''}">${esc(c.get(r))}</td>`).join('') + '</tr>';
+                    html += '<tr>' + cols.map(c => {
+                        const val = c.get(r);
+                        return `<td class="${c.wide ? 'rep-wrap' : ''}${c.c ? ' rep-c' : ''}" title="${esc(val)}">${esc(val)}</td>`;
+                    }).join('') + '</tr>';
                     shown++;
                 }
                 if (truncated) break;
