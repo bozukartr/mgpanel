@@ -452,6 +452,16 @@
                             <option value="Food & Beverage">Food & Beverage</option>
                         </select>
                     </div>
+                    <div class="form-group span2">
+                        <label>Erişebileceği Modüller</label>
+                        <div class="mod-perms" id="userModules">
+                            <label class="mod-perm"><input type="checkbox" data-mod="concierge"><span>Concierge</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="guestIssues"><span>Misafir Kayıtları &amp; Raporlar</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="crm"><span>CRM</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="guestOrders"><span>Misafir Siparişleri</span></label>
+                        </div>
+                        <p class="mod-hint">İşaretlenmeyen modüller bu kullanıcının menüsünde görünmez. Panel ve (admin ise) Ayarlar her zaman erişilebilir. Değişiklik kullanıcının bir sonraki girişinde etkin olur.</p>
+                    </div>
                 </div>
                 <div class="modal-actions vertical">
                     <button type="submit" class="action-btn save-btn">Kaydet</button>

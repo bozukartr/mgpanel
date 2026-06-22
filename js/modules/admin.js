@@ -72,6 +72,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
+    // ── Per-user module access ─────────────────────────────────
+    const MOD_KEYS = ['concierge', 'guestIssues', 'crm', 'guestOrders'];
+    function setUserModuleSel(modules) {
+        MOD_KEYS.forEach(k => {
+            const cb = document.querySelector('#userModules input[data-mod="' + k + '"]');
+            if (cb) cb.checked = !modules || modules[k] !== false; // absent → full access
+        });
+    }
+    function getUserModuleSel() {
+        const m = {};
+        MOD_KEYS.forEach(k => {
+            const cb = document.querySelector('#userModules input[data-mod="' + k + '"]');
+            m[k] = cb ? cb.checked : true;
+        });
+        return m;
+    }
+
     const openEditUser = (id, data) => {
         currentEditingUserId = id;
         document.getElementById('adminNewUsername').value = data.username;
@@ -79,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('adminNewPassword').disabled = true;
         document.getElementById('adminUserRole').value = data.role;
         document.getElementById('adminUserDept').value = data.department;
+        setUserModuleSel(data.modules);
         userModal.style.display = 'flex';
     };
 
@@ -96,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     username: username,
                     role: role,
                     department: department,
+                    modules: getUserModuleSel(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 showToast('Permissions updated for ' + username);
@@ -129,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     email: email,
                     role: role,
                     department: department,
+                    modules: getUserModuleSel(),
                     tenantId: TENANT_ID,
                     mustChangePassword: true,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -148,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         userModal.style.display = 'flex';
         currentEditingUserId = null;
         userForm.reset();
+        setUserModuleSel(null); // new users default to full access (all checked)
         document.getElementById('adminNewPassword').disabled = false;
     };
 
