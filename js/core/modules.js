@@ -10,8 +10,14 @@
         try { return JSON.parse(localStorage.getItem('hotelModules')) || {}; }
         catch (e) { return {}; }
     }
+    function userMods() {
+        try { return JSON.parse(localStorage.getItem('userModules')) || {}; }
+        catch (e) { return {}; }
+    }
     const m = modules();
-    const enabled = (key) => m[key] !== false;
+    const um = userMods();
+    // Enabled only if the hotel's plan includes it AND the user is allowed to see it.
+    const enabled = (key) => m[key] !== false && um[key] !== false;
 
     // module key -> page + nav selector
     const MAP = [

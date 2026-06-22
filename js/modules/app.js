@@ -63,6 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             localStorage.setItem('hotelUsername', userInput);
         }
+        // Per-user module access (admin-managed). Absent = full access.
+        localStorage.setItem('userModules', JSON.stringify((userData && userData.modules) || {}));
         logoWrapper.classList.add('expand');
         loginCard.classList.add('fade-out');
         forcePwCard.classList.add('fade-out');

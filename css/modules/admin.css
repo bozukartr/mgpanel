@@ -307,3 +307,15 @@
     .adm-tabs { top: 58px; }
     .adm-brand .brand-text { display: none; }
 }
+
+/* ── Per-user module access (user modal) ── */
+.mod-perms { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mod-perm {
+    display: flex; align-items: center; gap: 9px; padding: 10px 12px; cursor: pointer;
+    border: 1px solid #e6eaf0; border-radius: 10px; background: #fff; font-size: 13.5px; font-weight: 600; color: #334155;
+    transition: border-color .15s, background .15s;
+}
+.mod-perm:hover { border-color: #c7d2fe; }
+.mod-perm input { width: 17px; height: 17px; accent-color: #4f46e5; cursor: pointer; flex-shrink: 0; }
+.mod-perm:has(input:checked) { border-color: #c7d2fe; background: #f5f7ff; }
+.mod-hint { font-size: 11.5px; color: #94a3b8; line-height: 1.5; margin: 8px 0 0; }

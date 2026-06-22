@@ -99,6 +99,15 @@ function hotelModules() {
     try { return JSON.parse(localStorage.getItem('hotelModules')) || {}; }
     catch (e) { return {}; }
 }
+// Per-user module access, set at login from the user's systemUsers doc. A module
+// is allowed unless explicitly set to false, so users without a restriction keep
+// full access (backward compatible).
+function userModules() {
+    try { return JSON.parse(localStorage.getItem('userModules')) || {}; }
+    catch (e) { return {}; }
+}
+// A module is usable only if the hotel's plan includes it AND the signed-in
+// user is allowed to see it.
 function moduleEnabled(key) {
-    return hotelModules()[key] !== false;
+    return hotelModules()[key] !== false && userModules()[key] !== false;
 }
