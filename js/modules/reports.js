@@ -1,8 +1,10 @@
-/* StayOS — Raporlar (Misafir Kayıtları rapor merkezi).
+/* StayOS — Raporlar (uygulama geneli rapor merkezi).
  *
- * Standalone page (reports.html), app-shell içinde "Raporlar" sekmesi olarak
- * gömülü çalışır. guestLogs üzerinden çok boyutlu filtreleme + gruplama yapar;
- * Excel (profesyonel tablolu .xls) ve Yazdır çıktısı üretir.
+ * Standalone page (reports.html), app-shell içinde "Raporlar" sekmesi.
+ * Çok kaynaklı (Misafir Kayıtları, Concierge Rezervasyonları, Misafir
+ * Siparişleri, Misafirler) jenerik rapor motoru: kaynak seç → çok boyutlu
+ * filtre + gruplama → canlı önizleme + Excel (profesyonel tablolu .xls) +
+ * Yazdır.
  */
 (function () {
     'use strict';
@@ -22,16 +24,6 @@
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
     function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
     function todayStr() { return ymd(new Date()); }
-    function parseDateStr(s) {
-        if (!s) return null;
-        const p = String(s).split('-');
-        if (p.length === 3) { const d = new Date(+p[0], +p[1] - 1, +p[2]); return isNaN(d) ? null : d; }
-        const d = new Date(s); return isNaN(d) ? null : d;
-    }
-    function fmtDateTR(s) {
-        const d = parseDateStr(s); if (!d) return s || '—';
-        return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear();
-    }
     function tsToDate(v) {
         if (!v) return null;
         if (v.toDate) { try { return v.toDate(); } catch (e) { return null; } }
@@ -39,6 +31,22 @@
         if (typeof v === 'number') return new Date(v);
         if (v.seconds) return new Date(v.seconds * 1000);
         return null;
+    }
+    // Normalize any date-ish value to 'YYYY-MM-DD' ('' if none).
+    function normDate(v) {
+        if (!v) return '';
+        if (typeof v === 'number' || v.toDate || v.seconds) { const d = tsToDate(v); return d ? ymd(d) : ''; }
+        const s = String(v);
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+        const m = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+        if (m) return m[3] + '-' + pad(+m[2]) + '-' + pad(+m[1]);
+        const d = new Date(s); return isNaN(d) ? '' : ymd(d);
+    }
+    function fmtDateTR(ymdStr) {
+        if (!ymdStr) return '—';
+        const p = String(ymdStr).slice(0, 10).split('-');
+        if (p.length === 3) return p[2] + '.' + p[1] + '.' + p[0];
+        return ymdStr;
     }
     function fmtDuration(ms) {
         if (ms == null || isNaN(ms) || ms < 0) return '—';
@@ -49,283 +57,392 @@
         const d = Math.floor(h / 24);
         return d + ' g ' + (h % 24) + ' sa';
     }
+    function money(v) { const n = Number(v); return (isNaN(n) ? 0 : n).toLocaleString('tr-TR'); }
 
-    const STATUS_LABEL = { Following: 'Bekliyor', InProgress: 'İşlemde', Solved: 'Tamamlandı' };
-    const statusLabel = s => STATUS_LABEL[s] || 'Bekliyor';
-    const typeLabel = r => ((r.type || 'complaint') === 'request' ? 'Talep' : 'Şikayet');
+    // ── Domain-specific label maps ─────────────────────────────
+    const GL_STATUS = { Following: 'Bekliyor', InProgress: 'İşlemde', Solved: 'Tamamlandı' };
+    const glStatus = s => GL_STATUS[s] || 'Bekliyor';
+    const glType = r => ((r.type || 'complaint') === 'request' ? 'Talep' : 'Şikayet');
     const OVERDUE_MIN = 15;
-    function isOverdue(r) {
+    function glOverdue(r) {
         if ((r.status || 'Following') === 'Solved') return false;
-        const c = tsToDate(r.createdAt);
-        if (!c) return false;
+        const c = tsToDate(r.createdAt); if (!c) return false;
         return (Date.now() - c.getTime()) / 60000 > OVERDUE_MIN;
     }
-    function durationOf(r) {
+    function glDuration(r) {
         const created = tsToDate(r.createdAt), done = tsToDate(r.completedAt);
         if ((r.status || '') === 'Solved' && created && done) return done - created;
         if (created) return Date.now() - created;
         return null;
     }
+    const RES_TYPE = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
+    const resType = r => RES_TYPE[r.type] || (r.type || 'Diğer');
+    const RES_STATUS = { Pending: 'Bekliyor', Confirmed: 'Onaylı', Cancelled: 'İptal' };
+    const resStatus = r => RES_STATUS[r.status] || 'Bekliyor';
+    const ORD_STATUS = { pending: 'Bekliyor', completed: 'Tamamlandı', cancelled: 'İptal', accepted: 'Onaylandı' };
+    const ordStatus = r => ORD_STATUS[r.status] || (r.status || 'Bekliyor');
+    const DIR_STATUS = { in_house: 'Otelde', pre_arrival: 'Ön Geliş', checked_out: 'Çıkış Yaptı' };
+    const dirStatus = r => DIR_STATUS[r.status] || (r.status || '—');
+    function ordItems(r) {
+        if (!Array.isArray(r.items)) return '';
+        return r.items.map(it => (it.name || '?') + (it.qty > 1 ? ' ×' + it.qty : '')).join(', ');
+    }
+
+    // ── Facet helpers ──────────────────────────────────────────
+    // kind: 'chips' (multi) | 'text'. valueOf(r) → display value used to match/group.
+    // fixed: optional ordered [value,...] for chip lists that should always show.
+    // extra(): optional extra chip values (e.g. config departments/topics).
+    // match(r,set): optional custom matcher (e.g. overdue).
+    function facet(o) { return o; }
+
+    // ── Domains ────────────────────────────────────────────────
+    const DOMAINS = {
+        guestLogs: {
+            label: 'Misafir Kayıtları (Talep / Şikayet)',
+            collection: 'guestLogs', order: ['createdAt', 'desc'],
+            dateOf: r => r.date || '',
+            facets: [
+                facet({ key: 'type', label: 'Kayıt Türü', kind: 'chips', fixed: ['Şikayet', 'Talep'], valueOf: glType }),
+                facet({
+                    key: 'dept', label: 'Departman', kind: 'chips', valueOf: r => r.department || '—',
+                    extra: () => (window.IssueConfig ? IssueConfig.departments().map(d => d.name) : [])
+                }),
+                facet({
+                    key: 'topic', label: 'Konu (şikayet)', kind: 'chips',
+                    valueOf: r => (r.type || 'complaint') === 'complaint' ? (r.topic || 'Genel') : '—',
+                    extra: () => (window.IssueConfig ? IssueConfig.topics() : [])
+                }),
+                facet({
+                    key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'İşlemde', 'Tamamlandı', 'Geciken'],
+                    valueOf: r => glStatus(r.status),
+                    match: (r, set) => {
+                        if (!set.size) return true;
+                        if (set.has(glStatus(r.status))) return true;
+                        if (set.has('Geciken') && glOverdue(r)) return true;
+                        return false;
+                    }
+                }),
+                facet({ key: 'staff', label: 'Personel', kind: 'chips', valueOf: r => r.staffInitial || '—' }),
+                facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
+                facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
+            ],
+            columns: [
+                { label: 'Tarih', get: r => fmtDateTR(r.date) },
+                { label: 'Oda', get: r => r.room || '—' },
+                { label: 'Misafir', get: r => r.guestName || '—' },
+                { label: 'Tür', get: glType },
+                { label: 'Departman', get: r => r.department || '—' },
+                { label: 'Konu', get: r => (r.type || 'complaint') === 'complaint' ? (r.topic || 'Genel') : '—' },
+                { label: 'Açıklama', get: r => r.complaint || '', wide: true },
+                { label: 'Çözüm', get: r => (r.type || 'complaint') === 'request' ? '' : (r.solution || ''), wide: true },
+                { label: 'Personel', get: r => r.staffInitial || '—' },
+                { label: 'Durum', get: r => glStatus(r.status) + (glOverdue(r) ? ' ⚠' : '') },
+                { label: 'Süre', get: r => fmtDuration(glDuration(r)) }
+            ],
+            summary: rows => {
+                let c = 0, rq = 0, w = 0, p = 0, s = 0, od = 0;
+                rows.forEach(r => {
+                    if ((r.type || 'complaint') === 'request') rq++; else c++;
+                    const st = r.status || 'Following';
+                    if (st === 'Solved') s++; else { if (st === 'InProgress') p++; else w++; if (glOverdue(r)) od++; }
+                });
+                return [['Toplam', rows.length, 'i'], ['Şikayet', c, 'c'], ['Talep', rq, 'r'], ['Bekliyor', w, 'w'],
+                ['İşlemde', p, 'p'], ['Tamamlandı', s, 's'], ['Geciken', od, 'o'], ['Çözüm', '%' + (rows.length ? Math.round(s / rows.length * 100) : 0), 'k']];
+            }
+        },
+
+        reservations: {
+            label: 'Concierge Rezervasyonları',
+            collection: 'reservations', order: ['date', 'desc'],
+            dateOf: r => normDate(r.date),
+            facets: [
+                facet({ key: 'type', label: 'Hizmet', kind: 'chips', valueOf: resType }),
+                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Onaylı', 'İptal'], valueOf: resStatus }),
+                facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
+                facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
+            ],
+            columns: [
+                { label: 'Tarih', get: r => fmtDateTR(normDate(r.date)) },
+                { label: 'Saat', get: r => r.time || '—' },
+                { label: 'Hizmet', get: resType },
+                { label: 'Misafir', get: r => r.guestName || '—' },
+                { label: 'Oda', get: r => r.room || '—' },
+                { label: 'Durum', get: resStatus },
+                { label: 'Fiyat', get: r => money(r.totalPrice), c: true },
+                { label: 'Kapora', get: r => money(r.deposit), c: true },
+                { label: 'Bakiye', get: r => money((Number(r.totalPrice) || 0) - (Number(r.deposit) || 0)), c: true },
+                { label: 'Voucher', get: r => r.voucherNo || '—' },
+                { label: 'Not', get: r => r.notes || '', wide: true }
+            ],
+            summary: rows => {
+                let conf = 0, pend = 0, canc = 0, rev = 0, dep = 0;
+                rows.forEach(r => {
+                    if (r.status === 'Confirmed') conf++; else if (r.status === 'Cancelled') canc++; else pend++;
+                    if (r.status !== 'Cancelled') { rev += Number(r.totalPrice) || 0; dep += Number(r.deposit) || 0; }
+                });
+                return [['Toplam', rows.length, 'i'], ['Onaylı', conf, 's'], ['Bekleyen', pend, 'w'], ['İptal', canc, 'o'],
+                ['Ciro', money(rev), 'k'], ['Kapora', money(dep), 'p'], ['Kalan', money(rev - dep), 'c']];
+            }
+        },
+
+        guestOrders: {
+            label: 'Misafir Siparişleri (QR)',
+            collection: 'guestOrders', order: ['createdAt', 'desc'],
+            dateOf: r => normDate(r.createdAt),
+            facets: [
+                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Tamamlandı', 'İptal'], valueOf: ordStatus }),
+                facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
+                facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
+            ],
+            columns: [
+                { label: 'Tarih', get: r => fmtDateTR(normDate(r.createdAt)) },
+                { label: 'Oda', get: r => r.room || '—' },
+                { label: 'Misafir', get: r => r.guestName || '—' },
+                { label: 'Ürünler', get: ordItems, wide: true },
+                { label: 'Adet', get: r => r.itemCount || (Array.isArray(r.items) ? r.items.reduce((s, i) => s + (i.qty || 1), 0) : 0), c: true },
+                { label: 'Tutar', get: r => money(r.total) + (r.currency ? ' ' + r.currency : ''), c: true },
+                { label: 'Durum', get: ordStatus }
+            ],
+            summary: rows => {
+                let pend = 0, done = 0, canc = 0, qty = 0, rev = 0;
+                rows.forEach(r => {
+                    if (r.status === 'completed') done++; else if (r.status === 'cancelled') canc++; else pend++;
+                    qty += r.itemCount || 0;
+                    if (r.status !== 'cancelled') rev += Number(r.total) || 0;
+                });
+                return [['Toplam', rows.length, 'i'], ['Bekleyen', pend, 'w'], ['Tamamlanan', done, 's'], ['İptal', canc, 'o'],
+                ['Ürün Adedi', qty, 'p'], ['Ciro', money(rev), 'k']];
+            }
+        },
+
+        guestDirectory: {
+            label: 'Misafirler (Rehber)',
+            collection: 'guestDirectory', order: null,
+            dateOf: r => normDate(r.checkIn),
+            facets: [
+                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Otelde', 'Ön Geliş', 'Çıkış Yaptı'], valueOf: dirStatus }),
+                facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
+                facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.name || '' })
+            ],
+            columns: [
+                { label: 'Misafir', get: r => r.name || '—' },
+                { label: 'Oda', get: r => r.room || '—' },
+                { label: 'Durum', get: dirStatus },
+                { label: 'Giriş', get: r => fmtDateTR(normDate(r.checkIn)) },
+                { label: 'Çıkış', get: r => fmtDateTR(normDate(r.checkOut)) }
+            ],
+            summary: rows => {
+                let ih = 0, pa = 0, co = 0;
+                rows.forEach(r => { if (r.status === 'in_house') ih++; else if (r.status === 'pre_arrival') pa++; else co++; });
+                return [['Toplam', rows.length, 'i'], ['Otelde', ih, 's'], ['Ön Geliş', pa, 'w'], ['Çıkış Yaptı', co, 'c']];
+            }
+        }
+    };
+    const DOMAIN_ORDER = ['guestLogs', 'reservations', 'guestOrders', 'guestDirectory'];
 
     // ── State ──────────────────────────────────────────────────
+    let domainKey = 'guestLogs';
+    let D = DOMAINS.guestLogs;
     let records = [];
+    let unsub = null;
     let ready = false;
-    const F = {
-        type: 'all',
-        preset: 'all',
-        from: '', to: '',
-        depts: new Set(),
-        topics: new Set(),
-        statuses: new Set(),
-        staff: '',
-        room: '',
-        guest: '',
-        groupBy: 'none'
-    };
+    const cache = {};               // domainKey -> records
+    let preset = 'all', cFrom = '', cTo = '';
+    let groupBy = 'none';
+    let sel = {};                   // facet.key -> Set (chips) | string (text)
 
-    // Resolve the active date window from the preset (or custom inputs).
+    function resetFilters() {
+        preset = 'all'; cFrom = ''; cTo = ''; groupBy = 'none';
+        sel = {};
+        D.facets.forEach(f => { sel[f.key] = (f.kind === 'chips') ? new Set() : ''; });
+    }
+
+    // ── Date window ────────────────────────────────────────────
     function dateWindow() {
-        const now = new Date();
-        const t = todayStr();
-        const startOfMonth = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
-        switch (F.preset) {
+        const now = new Date(); const t = todayStr();
+        const som = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+        switch (preset) {
             case 'today': return { from: t, to: t };
             case 'yesterday': { const y = new Date(now); y.setDate(now.getDate() - 1); return { from: ymd(y), to: ymd(y) }; }
             case '7': { const a = new Date(now); a.setDate(now.getDate() - 6); return { from: ymd(a), to: t }; }
             case '30': { const a = new Date(now); a.setDate(now.getDate() - 29); return { from: ymd(a), to: t }; }
-            case 'thismonth': return { from: startOfMonth, to: t };
-            case 'lastmonth': {
-                const a = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                const b = new Date(now.getFullYear(), now.getMonth(), 0);
-                return { from: ymd(a), to: ymd(b) };
-            }
-            case 'custom': return { from: F.from || '', to: F.to || '' };
+            case 'thismonth': return { from: som, to: t };
+            case 'lastmonth': { const a = new Date(now.getFullYear(), now.getMonth() - 1, 1); const b = new Date(now.getFullYear(), now.getMonth(), 0); return { from: ymd(a), to: ymd(b) }; }
+            case 'custom': return { from: cFrom || '', to: cTo || '' };
             default: return { from: '', to: '' };
         }
     }
     function rangeLabel() {
         const w = dateWindow();
-        if (F.preset === 'all') return 'Tüm Zamanlar';
-        if (!w.from && !w.to) return 'Tüm Zamanlar';
+        if (preset === 'all' || (!w.from && !w.to)) return 'Tüm Zamanlar';
         if (w.from === w.to) return fmtDateTR(w.from);
         return fmtDateTR(w.from) + ' – ' + fmtDateTR(w.to);
     }
 
-    // ── Filtering ──────────────────────────────────────────────
+    // ── Filtering / grouping ───────────────────────────────────
     function filtered() {
         const w = dateWindow();
-        const room = F.room.trim().toLowerCase();
-        const guest = F.guest.trim().toLowerCase();
         return records.filter(r => {
-            if (F.type !== 'all' && (r.type || 'complaint') !== F.type) return false;
-            if (w.from && (r.date || '') < w.from) return false;
-            if (w.to && (r.date || '') > w.to) return false;
-            if (F.depts.size && !F.depts.has(r.department || '—')) return false;
-            if (F.topics.size) {
-                if ((r.type || 'complaint') !== 'complaint') return false;
-                if (!F.topics.has(r.topic || 'Genel')) return false;
+            const d = D.dateOf(r);
+            if (w.from && d && d < w.from) return false;
+            if (w.to && d && d > w.to) return false;
+            if (w.from && !d) return false; // a date filter excludes undated rows
+            for (const f of D.facets) {
+                const s = sel[f.key];
+                if (f.kind === 'chips') {
+                    if (f.match) { if (!f.match(r, s)) return false; }
+                    else if (s.size && !s.has(f.valueOf(r))) return false;
+                } else { // text
+                    const q = (s || '').trim().toLowerCase();
+                    if (q && !String(f.valueOf(r) || '').toLowerCase().includes(q)) return false;
+                }
             }
-            if (F.statuses.size) {
-                const st = r.status || 'Following';
-                let ok = F.statuses.has(st);
-                if (!ok && F.statuses.has('Overdue') && isOverdue(r)) ok = true;
-                if (!ok) return false;
-            }
-            if (F.staff && (r.staffInitial || '') !== F.staff) return false;
-            if (room && !String(r.room || '').toLowerCase().includes(room)) return false;
-            if (guest && !String(r.guestName || '').toLowerCase().includes(guest)) return false;
             return true;
-        }).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+        }).sort((a, b) => String(D.dateOf(b)).localeCompare(String(D.dateOf(a))));
     }
-
-    function summary(rows) {
-        const s = { total: rows.length, complaint: 0, request: 0, following: 0, inprogress: 0, solved: 0, overdue: 0 };
-        rows.forEach(r => {
-            if ((r.type || 'complaint') === 'request') s.request++; else s.complaint++;
-            const st = r.status || 'Following';
-            if (st === 'Solved') s.solved++;
-            else { if (st === 'InProgress') s.inprogress++; else s.following++; if (isOverdue(r)) s.overdue++; }
-        });
-        s.solveRate = s.total ? Math.round((s.solved / s.total) * 100) : 0;
-        return s;
-    }
-
-    // ── Grouping ───────────────────────────────────────────────
-    function groupKey(r) {
-        switch (F.groupBy) {
-            case 'department': return r.department || '—';
-            case 'topic': return (r.type || 'complaint') === 'complaint' ? (r.topic || 'Genel') : '— (talep)';
-            case 'status': return statusLabel(r.status || 'Following');
-            case 'type': return typeLabel(r);
-            case 'staff': return r.staffInitial || '—';
-            case 'room': return r.room || '—';
-            case 'guestName': return r.guestName || '—';
-            case 'date': return r.date || '—';
-            default: return '';
-        }
+    // group options = chip facets + Güne göre
+    function groupFacet() {
+        if (groupBy === 'none') return null;
+        if (groupBy === '__date__') return { keyOf: r => D.dateOf(r) || '—', label: k => fmtDateTR(k) };
+        const f = D.facets.find(x => x.key === groupBy);
+        if (!f) return null;
+        return { keyOf: r => f.valueOf(r), label: k => k };
     }
     function grouped(rows) {
-        if (F.groupBy === 'none') return [{ key: '', rows: rows }];
+        const gf = groupFacet();
+        if (!gf) return [{ key: '', label: '', rows }];
         const map = new Map();
-        rows.forEach(r => { const k = groupKey(r); if (!map.has(k)) map.set(k, []); map.get(k).push(r); });
-        const arr = [...map.entries()].map(([key, rs]) => ({ key, rows: rs }));
-        // Largest groups first; dates ascending by label for readability.
-        if (F.groupBy === 'date') arr.sort((a, b) => String(b.key).localeCompare(String(a.key)));
-        else arr.sort((a, b) => b.rows.length - a.rows.length || String(a.key).localeCompare(String(b.key), 'tr'));
+        rows.forEach(r => { const k = gf.keyOf(r); if (!map.has(k)) map.set(k, []); map.get(k).push(r); });
+        const arr = [...map.entries()].map(([k, rs]) => ({ key: k, label: gf.label(k), rows: rs }));
+        if (groupBy === '__date__') arr.sort((a, b) => String(b.key).localeCompare(String(a.key)));
+        else arr.sort((a, b) => b.rows.length - a.rows.length || String(a.label).localeCompare(String(b.label), 'tr'));
         return arr;
     }
 
-    // ── Columns / row values ───────────────────────────────────
-    const COLS = ['Tarih', 'Oda', 'Misafir', 'Tür', 'Departman', 'Konu', 'Açıklama', 'Çözüm', 'Personel', 'Durum', 'Süre'];
-    function rowValues(r) {
-        const isReq = (r.type || 'complaint') === 'request';
-        return [
-            fmtDateTR(r.date),
-            r.room || '—',
-            r.guestName || '—',
-            typeLabel(r),
-            r.department || '—',
-            isReq ? '—' : (r.topic || 'Genel'),
-            r.complaint || '',
-            isReq ? '' : (r.solution || ''),
-            r.staffInitial || '—',
-            statusLabel(r.status || 'Following') + (isOverdue(r) ? ' ⚠' : ''),
-            fmtDuration(durationOf(r))
-        ];
+    // ── Distinct chip values ───────────────────────────────────
+    function chipValues(f) {
+        if (f.fixed) return f.fixed.slice();
+        const set = new Set();
+        if (f.extra) try { f.extra().forEach(v => v && set.add(v)); } catch (e) { }
+        records.forEach(r => { const v = f.valueOf(r); if (v && v !== '—') set.add(v); });
+        return [...set].sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+    }
+
+    // ── Render sidebar facets ──────────────────────────────────
+    function renderFacets() {
+        const host = $('repFacets');
+        host.innerHTML = D.facets.map(f => {
+            if (f.kind === 'chips') {
+                const vals = chipValues(f);
+                const inner = vals.length
+                    ? vals.map(v => `<button data-facet="${esc(f.key)}" data-v="${esc(v)}"${sel[f.key].has(v) ? ' class="active"' : ''}>${esc(v)}</button>`).join('')
+                    : '<span class="rep-none">Veri yok</span>';
+                return `<div class="rep-f"><label class="rep-l">${esc(f.label)}</label><div class="rep-chips">${inner}</div></div>`;
+            }
+            return `<div class="rep-f"><label class="rep-l">${esc(f.label)}</label><input type="text" class="rep-in" data-facet="${esc(f.key)}" value="${esc(sel[f.key] || '')}" placeholder="${esc(f.label)} ile filtrele"></div>`;
+        }).join('');
+        host.querySelectorAll('button[data-facet]').forEach(b => {
+            b.onclick = () => {
+                const s = sel[b.getAttribute('data-facet')], v = b.getAttribute('data-v');
+                if (s.has(v)) { s.delete(v); b.classList.remove('active'); } else { s.add(v); b.classList.add('active'); }
+                render();
+            };
+        });
+        host.querySelectorAll('input[data-facet]').forEach(inp => {
+            inp.oninput = () => { sel[inp.getAttribute('data-facet')] = inp.value; render(); };
+        });
+        // group-by options
+        const gb = $('repGroupBy');
+        const opts = ['<option value="none">Gruplama Yok (düz liste)</option>']
+            .concat(D.facets.filter(f => f.kind === 'chips').map(f => `<option value="${esc(f.key)}">${esc(f.label)}e göre</option>`))
+            .concat(['<option value="__date__">Güne göre</option>']);
+        gb.innerHTML = opts.join('');
+        gb.value = groupBy;
     }
 
     // ── Render preview ─────────────────────────────────────────
     function render() {
         const rows = filtered();
-        const s = summary(rows);
+        const cols = D.columns;
+        $('repTitle').textContent = D.label;
+        const gName = $('repGroupBy').selectedOptions[0] ? $('repGroupBy').selectedOptions[0].textContent : '';
+        $('repRangeLabel').textContent = rangeLabel() + (groupBy !== 'none' ? ' · ' + gName : '') + ' · ' + rows.length + ' kayıt';
 
-        const groupName = $('repGroupBy').selectedOptions[0] ? $('repGroupBy').selectedOptions[0].textContent : '';
-        $('repTitle').textContent = (F.type === 'request' ? 'Talepler' : F.type === 'complaint' ? 'Şikayetler' : 'Tüm Kayıtlar');
-        $('repRangeLabel').textContent = rangeLabel() + (F.groupBy !== 'none' ? ' · ' + groupName : '');
+        $('repStats').innerHTML = D.summary(rows).map(([l, v, c]) =>
+            `<div class="rep-stat s-${c}"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
 
-        // Stat cards
-        $('repStats').innerHTML = [
-            ['Toplam', s.total, 'i'],
-            ['Şikayet', s.complaint, 'c'],
-            ['Talep', s.request, 'r'],
-            ['Bekliyor', s.following, 'w'],
-            ['İşlemde', s.inprogress, 'p'],
-            ['Tamamlandı', s.solved, 's'],
-            ['Geciken', s.overdue, 'o'],
-            ['Çözüm Oranı', '%' + s.solveRate, 'k']
-        ].map(([l, v, c]) => `<div class="rep-stat s-${c}"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
-
-        // Table (grouped or flat). Cap preview rows for performance.
         const groups = grouped(rows);
-        const MAX = 400;
-        let shown = 0, truncated = false;
-        let html = '';
+        const MAX = 400; let shown = 0, truncated = false, html = '';
         if (!rows.length) {
             html = `<div class="rep-empty">Seçili filtrelerle kayıt bulunamadı.</div>`;
         } else {
-            html = `<table class="rep-table"><thead><tr>${COLS.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>`;
+            html = `<table class="rep-table"><thead><tr>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>`;
             for (const g of groups) {
-                if (g.key !== '') {
-                    html += `<tr class="rep-grp"><td colspan="${COLS.length}">${esc(g.key)} <span>${g.rows.length} kayıt</span></td></tr>`;
-                }
+                if (g.key !== '') html += `<tr class="rep-grp"><td colspan="${cols.length}">${esc(g.label)} <span>${g.rows.length} kayıt</span></td></tr>`;
                 for (const r of g.rows) {
                     if (shown >= MAX) { truncated = true; break; }
-                    const vals = rowValues(r);
-                    const od = isOverdue(r);
-                    html += `<tr${od ? ' class="rep-od"' : ''}>` + vals.map((v, i) =>
-                        `<td class="${i === 6 || i === 7 ? 'rep-wrap' : ''}">${esc(v)}</td>`).join('') + `</tr>`;
+                    html += '<tr>' + cols.map(c => `<td class="${c.wide ? 'rep-wrap' : ''}${c.c ? ' rep-c' : ''}">${esc(c.get(r))}</td>`).join('') + '</tr>';
                     shown++;
                 }
                 if (truncated) break;
             }
-            html += `</tbody></table>`;
-            if (truncated) html += `<div class="rep-more">Önizlemede ilk ${MAX} kayıt gösteriliyor · Excel/Yazdır tüm ${rows.length} kaydı içerir.</div>`;
+            html += '</tbody></table>';
+            if (truncated) html += `<div class="rep-more">Önizlemede ilk ${MAX} kayıt · Excel/Yazdır tüm ${rows.length} kaydı içerir.</div>`;
         }
         $('repTableScroll').innerHTML = html;
     }
 
-    // ── Filter description (for exports) ───────────────────────
+    // ── Filter description (exports) ───────────────────────────
     function filterDesc() {
-        const parts = [];
-        parts.push('Tür: ' + (F.type === 'request' ? 'Talep' : F.type === 'complaint' ? 'Şikayet' : 'Tümü'));
-        parts.push('Tarih: ' + rangeLabel());
-        if (F.depts.size) parts.push('Departman: ' + [...F.depts].join(', '));
-        if (F.topics.size) parts.push('Konu: ' + [...F.topics].join(', '));
-        if (F.statuses.size) parts.push('Durum: ' + [...F.statuses].map(x => x === 'Overdue' ? 'Geciken' : statusLabel(x)).join(', '));
-        if (F.staff) parts.push('Personel: ' + F.staff);
-        if (F.room) parts.push('Oda: ' + F.room);
-        if (F.guest) parts.push('Misafir: ' + F.guest);
-        const gName = $('repGroupBy').selectedOptions[0] ? $('repGroupBy').selectedOptions[0].textContent : '';
-        if (F.groupBy !== 'none') parts.push('Gruplama: ' + gName);
+        const parts = ['Kaynak: ' + D.label, 'Tarih: ' + rangeLabel()];
+        D.facets.forEach(f => {
+            const s = sel[f.key];
+            if (f.kind === 'chips') { if (s.size) parts.push(f.label + ': ' + [...s].join(', ')); }
+            else if ((s || '').trim()) parts.push(f.label + ': ' + s.trim());
+        });
+        if (groupBy !== 'none') { const g = $('repGroupBy').selectedOptions[0]; if (g) parts.push('Gruplama: ' + g.textContent); }
         return parts;
     }
 
-    // ── Excel export (HTML→.xls, profesyonel tablolu) ──────────
+    // ── Excel export (HTML→.xls) ───────────────────────────────
     function exportExcel() {
         const rows = filtered();
         if (!rows.length) { toast('Bu rapor için veri yok.', true); return; }
-        const s = summary(rows);
+        const cols = D.columns;
         const groups = grouped(rows);
-        const title = $('repTitle').textContent;
-
-        const sumRows = [
-            ['Toplam Kayıt', s.total], ['Şikayet', s.complaint], ['Talep', s.request],
-            ['Bekliyor', s.following], ['İşlemde', s.inprogress], ['Tamamlandı', s.solved],
-            ['Geciken', s.overdue], ['Çözüm Oranı', '%' + s.solveRate]
-        ];
-
-        const colW = [70, 50, 150, 60, 110, 110, 280, 280, 70, 90, 80];
-        const headTr = '<tr>' + COLS.map((c, i) => `<th style="width:${colW[i]}px">${esc(c)}</th>`).join('') + '</tr>';
-
+        const sumRows = D.summary(rows).map(([l, v]) => [l, v]);
+        const head = '<tr>' + cols.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
         let body = '';
         for (const g of groups) {
-            if (g.key !== '') {
-                body += `<tr><td class="grp" colspan="${COLS.length}">${esc(g.key)}  (${g.rows.length} kayıt)</td></tr>`;
-            }
-            for (const r of g.rows) {
-                const vals = rowValues(r);
-                body += '<tr>' + vals.map((v, i) => `<td class="${i === 6 || i === 7 ? 'wide' : (i === 0 || i === 1 || i === 9 || i === 10 ? 'c' : '')}">${esc(v)}</td>`).join('') + '</tr>';
-            }
-            if (F.groupBy !== 'none' && g.key !== '') {
-                body += `<tr><td class="sub" colspan="${COLS.length}">Ara toplam: ${g.rows.length}</td></tr>`;
-            }
+            if (g.key !== '') body += `<tr><td class="grp" colspan="${cols.length}">${esc(g.label)}  (${g.rows.length} kayıt)</td></tr>`;
+            for (const r of g.rows) body += '<tr>' + cols.map(c => `<td class="${c.wide ? 'wide' : ''}${c.c ? ' c' : ''}">${esc(c.get(r))}</td>`).join('') + '</tr>';
+            if (groupBy !== 'none' && g.key !== '') body += `<tr><td class="sub" colspan="${cols.length}">Ara toplam: ${g.rows.length}</td></tr>`;
         }
-
         const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8">
 <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Rapor</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
-  table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;font-size:10pt;margin-bottom:14px}
-  td,th{border:0.5pt solid #c9ced6;padding:6px 8px;vertical-align:middle;mso-data-placement:same-cell}
-  th{background:#111827;color:#fff;font-weight:bold;text-align:center}
-  .c{text-align:center}
-  .wide{width:280px;white-space:normal;word-wrap:break-word}
-  .grp{background:#e8edf7;color:#1e3a8a;font-weight:bold;font-size:11pt}
-  .sub{background:#f4f6fa;color:#475569;font-style:italic;text-align:right;font-size:9pt}
-  .t-title{font-size:17pt;font-weight:bold;color:#111827}
-  .t-sub{font-size:9pt;color:#64748b}
-  .sumt td{border:0.5pt solid #c9ced6}
-  .sumk{background:#f8fafc;font-weight:bold;width:170px}
-  .sumv{text-align:center;font-weight:bold;width:90px}
-  .sumh{background:#2563eb;color:#fff;font-weight:bold;text-align:center}
+ table{border-collapse:collapse;font-family:'Segoe UI',Arial,sans-serif;font-size:10pt;margin-bottom:14px}
+ td,th{border:0.5pt solid #c9ced6;padding:6px 8px;vertical-align:middle}
+ th{background:#111827;color:#fff;font-weight:bold;text-align:center}
+ .c{text-align:center}.wide{width:280px;white-space:normal;word-wrap:break-word}
+ .grp{background:#e8edf7;color:#1e3a8a;font-weight:bold;font-size:11pt}
+ .sub{background:#f4f6fa;color:#475569;font-style:italic;text-align:right;font-size:9pt}
+ .t-title{font-size:17pt;font-weight:bold;color:#111827}.t-sub{font-size:9pt;color:#64748b}
+ .sumk{background:#f8fafc;font-weight:bold;width:180px}.sumv{text-align:center;font-weight:bold;width:110px}
+ .sumh{background:#2563eb;color:#fff;font-weight:bold;text-align:center}
 </style></head><body>
-<div class="t-title">${esc(title)} — StayOS Rapor</div>
+<div class="t-title">${esc(D.label)} — StayOS Rapor</div>
 <div class="t-sub">${esc(filterDesc().join('  ·  '))}</div>
-<div class="t-sub">Oluşturulma: ${esc(fmtDateTR(todayStr()))}</div>
-<br>
-<table class="sumt"><tr><td class="sumh" colspan="2">ÖZET</td></tr>
-${sumRows.map(([k, v]) => `<tr><td class="sumk">${esc(k)}</td><td class="sumv">${esc(v)}</td></tr>`).join('')}
-</table>
-<table><thead>${headTr}</thead><tbody>${body}</tbody></table>
+<div class="t-sub">Oluşturulma: ${esc(fmtDateTR(todayStr()))}</div><br>
+<table><tr><td class="sumh" colspan="2">ÖZET</td></tr>${sumRows.map(([k, v]) => `<tr><td class="sumk">${esc(k)}</td><td class="sumv">${esc(v)}</td></tr>`).join('')}</table>
+<table><thead>${head}</thead><tbody>${body}</tbody></table>
 </body></html>`;
-
         const blob = new Blob(['﻿', html], { type: 'application/vnd.ms-excel;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = 'StayOS_Rapor_' + todayStr() + '.xls';
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        a.href = url; a.download = 'StayOS_' + domainKey + '_' + todayStr() + '.xls';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
         toast('Excel raporu indirildi.');
     }
 
@@ -333,166 +450,100 @@ ${sumRows.map(([k, v]) => `<tr><td class="sumk">${esc(k)}</td><td class="sumv">$
     function printReport() {
         const rows = filtered();
         if (!rows.length) { toast('Bu rapor için veri yok.', true); return; }
-        const s = summary(rows);
+        const cols = D.columns;
         const groups = grouped(rows);
-        const title = $('repTitle').textContent;
-
+        const stats = D.summary(rows);
         let body = '';
         for (const g of groups) {
-            if (g.key !== '') body += `<tr><td class="grp" colspan="${COLS.length}">${esc(g.key)} — ${g.rows.length} kayıt</td></tr>`;
-            for (const r of g.rows) {
-                const vals = rowValues(r);
-                body += '<tr>' + vals.map((v, i) => `<td class="${i === 6 || i === 7 ? 'wide' : ''}">${esc(v)}</td>`).join('') + '</tr>';
-            }
+            if (g.key !== '') body += `<tr><td class="grp" colspan="${cols.length}">${esc(g.label)} — ${g.rows.length} kayıt</td></tr>`;
+            for (const r of g.rows) body += '<tr>' + cols.map(c => `<td class="${c.wide ? 'wide' : ''}">${esc(c.get(r))}</td>`).join('') + '</tr>';
         }
-        const stats = [
-            ['Toplam', s.total], ['Şikayet', s.complaint], ['Talep', s.request],
-            ['Bekliyor', s.following], ['İşlemde', s.inprogress], ['Tamamlandı', s.solved],
-            ['Geciken', s.overdue], ['Çözüm', '%' + s.solveRate]
-        ];
         const w = window.open('', '_blank');
         if (!w) { toast('Açılır pencere engellendi.', true); return; }
-        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>${esc(title)} — StayOS</title>
+        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>${esc(D.label)} — StayOS</title>
 <style>
-  *{box-sizing:border-box}
-  body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111827}
-  h1{font-size:20px;margin:0 0 2px}
-  .sub{font-size:11px;color:#64748b;margin-bottom:14px;line-height:1.5}
-  .stats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-  .stat{border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px;min-width:90px}
-  .stat b{display:block;font-size:18px}
-  .stat span{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px}
-  table{border-collapse:collapse;width:100%;font-size:10px}
-  td,th{border:1px solid #d1d5db;padding:5px 7px;text-align:left;vertical-align:top}
-  th{background:#111827;color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.4px}
-  .grp{background:#e8edf7;color:#1e3a8a;font-weight:bold}
-  .wide{max-width:240px}
-  tr{page-break-inside:avoid}
-  @media print{body{margin:10px}.noprint{display:none}}
+ *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111827}
+ h1{font-size:20px;margin:0 0 2px}.sub{font-size:11px;color:#64748b;margin-bottom:14px;line-height:1.5}
+ .stats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+ .stat{border:1px solid #e5e7eb;border-radius:8px;padding:8px 12px;min-width:90px}
+ .stat b{display:block;font-size:18px}.stat span{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px}
+ table{border-collapse:collapse;width:100%;font-size:10px}
+ td,th{border:1px solid #d1d5db;padding:5px 7px;text-align:left;vertical-align:top}
+ th{background:#111827;color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.4px}
+ .grp{background:#e8edf7;color:#1e3a8a;font-weight:bold}.wide{max-width:240px}
+ tr{page-break-inside:avoid}@media print{body{margin:10px}}
 </style></head><body>
-<h1>${esc(title)} — StayOS Rapor</h1>
+<h1>${esc(D.label)} — StayOS Rapor</h1>
 <div class="sub">${esc(filterDesc().join(' · '))}<br>Oluşturulma: ${esc(fmtDateTR(todayStr()))}</div>
 <div class="stats">${stats.map(([l, v]) => `<div class="stat"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
-<table><thead><tr>${COLS.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
+<table><thead><tr>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
 <script>window.onload=function(){setTimeout(function(){window.print();},300);}<\/script>
 </body></html>`);
         w.document.close();
     }
 
-    // ── Build chips & selects ──────────────────────────────────
-    function distinctDepts() {
-        const set = new Set();
-        (window.IssueConfig ? IssueConfig.departments() : []).forEach(d => set.add(d.name));
-        records.forEach(r => { if (r.department) set.add(r.department); });
-        return [...set].sort((a, b) => a.localeCompare(b, 'tr'));
-    }
-    function distinctTopics() {
-        const set = new Set();
-        (window.IssueConfig ? IssueConfig.topics() : []).forEach(t => set.add(t));
-        records.forEach(r => { if ((r.type || 'complaint') === 'complaint' && r.topic) set.add(r.topic); });
-        return [...set].sort((a, b) => a.localeCompare(b, 'tr'));
-    }
-    function distinctStaff() {
-        const set = new Set();
-        records.forEach(r => { if (r.staffInitial) set.add(r.staffInitial); });
-        return [...set].sort((a, b) => a.localeCompare(b, 'tr'));
-    }
-    function distinctGuests() {
-        const set = new Set();
-        records.forEach(r => { if (r.guestName) set.add(r.guestName); });
-        return [...set].sort((a, b) => a.localeCompare(b, 'tr'));
-    }
-
-    function chipHtml(values, activeSet) {
-        return values.map(v => `<button data-v="${esc(v)}"${activeSet.has(v) ? ' class="active"' : ''}>${esc(v)}</button>`).join('');
-    }
-    function buildDynamic() {
-        const depts = distinctDepts();
-        $('repDepts').innerHTML = depts.length ? chipHtml(depts, F.depts) : '<span class="rep-none">Departman yok</span>';
-        const topics = distinctTopics();
-        $('repTopics').innerHTML = topics.length ? chipHtml(topics, F.topics) : '<span class="rep-none">Henüz konu yok</span>';
-        const staff = distinctStaff();
-        $('repStaff').innerHTML = '<option value="">Tümü</option>' + staff.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
-        if (F.staff) $('repStaff').value = F.staff;
-        $('repGuestList').innerHTML = distinctGuests().map(g => `<option value="${esc(g)}">`).join('');
-        wireChipGroup('repDepts', F.depts);
-        wireChipGroup('repTopics', F.topics);
-    }
-    function wireChipGroup(id, set) {
-        const host = $(id); if (!host) return;
-        host.querySelectorAll('button[data-v]').forEach(b => {
-            b.onclick = () => {
-                const v = b.getAttribute('data-v');
-                if (set.has(v)) { set.delete(v); b.classList.remove('active'); }
-                else { set.add(v); b.classList.add('active'); }
-                render();
-            };
+    // ── Domain switching / data ────────────────────────────────
+    function subscribe() {
+        if (unsub) { try { unsub(); } catch (e) { } unsub = null; }
+        let q = db.collection(D.collection).where('tenantId', '==', TENANT_ID);
+        if (D.order) { try { q = q.orderBy(D.order[0], D.order[1]); } catch (e) { } }
+        ready = false;
+        // Show cached immediately for snappy switches.
+        if (cache[domainKey]) { records = cache[domainKey]; ready = true; renderFacets(); render(); }
+        unsub = q.onSnapshot(snap => {
+            records = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+            cache[domainKey] = records;
+            ready = true;
+            renderFacets(); render();
+        }, err => {
+            console.error('reports load failed', err);
+            // Fallback without orderBy (e.g. missing composite index).
+            if (D.order) {
+                if (unsub) { try { unsub(); } catch (e) { } }
+                unsub = db.collection(D.collection).where('tenantId', '==', TENANT_ID).onSnapshot(s2 => {
+                    records = s2.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                    cache[domainKey] = records; ready = true; renderFacets(); render();
+                }, e2 => { console.error(e2); toast('Veriler yüklenemedi.', true); });
+            } else { toast('Veriler yüklenemedi.', true); }
         });
     }
 
-    // ── Wire static controls ───────────────────────────────────
+    function setDomain(key) {
+        if (!DOMAINS[key]) return;
+        domainKey = key; D = DOMAINS[key];
+        resetFilters();
+        $('repDatePreset').value = 'all'; $('repCustomDates').style.display = 'none';
+        $('repFrom').value = ''; $('repTo').value = '';
+        records = cache[key] || [];
+        renderFacets(); render();
+        subscribe();
+    }
+
+    // ── Wire ───────────────────────────────────────────────────
     function wire() {
-        // type segmented
-        $('repType').querySelectorAll('button').forEach(b => {
-            b.onclick = () => {
-                F.type = b.getAttribute('data-v');
-                $('repType').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
-                $('repTopicWrap').style.display = (F.type === 'request') ? 'none' : '';
-                render();
-            };
-        });
-        // date preset
-        $('repDatePreset').onchange = e => {
-            F.preset = e.target.value;
-            $('repCustomDates').style.display = (F.preset === 'custom') ? '' : 'none';
-            render();
-        };
-        $('repFrom').onchange = e => { F.from = e.target.value; render(); };
-        $('repTo').onchange = e => { F.to = e.target.value; render(); };
-        // status chips
-        wireChipGroup('repStatus', F.statuses);
-        // staff / room / guest / group
-        $('repStaff').onchange = e => { F.staff = e.target.value; render(); };
-        $('repRoom').oninput = e => { F.room = e.target.value; render(); };
-        $('repGuest').oninput = e => { F.guest = e.target.value; render(); };
-        $('repGroupBy').onchange = e => { F.groupBy = e.target.value; render(); };
-        // reset
-        $('repReset').onclick = () => {
-            F.type = 'all'; F.preset = 'all'; F.from = ''; F.to = '';
-            F.depts.clear(); F.topics.clear(); F.statuses.clear();
-            F.staff = ''; F.room = ''; F.guest = ''; F.groupBy = 'none';
-            $('repDatePreset').value = 'all'; $('repCustomDates').style.display = 'none';
-            $('repStaff').value = ''; $('repRoom').value = ''; $('repGuest').value = '';
-            $('repGroupBy').value = 'none'; $('repFrom').value = ''; $('repTo').value = '';
-            $('repType').querySelectorAll('button').forEach(x => x.classList.toggle('active', x.getAttribute('data-v') === 'all'));
-            $('repTopicWrap').style.display = '';
-            $('repStatus').querySelectorAll('button').forEach(x => x.classList.remove('active'));
-            buildDynamic(); render();
-        };
+        $('repDomain').innerHTML = DOMAIN_ORDER.map(k => `<option value="${k}">${esc(DOMAINS[k].label)}</option>`).join('');
+        $('repDomain').onchange = e => setDomain(e.target.value);
+        $('repDatePreset').onchange = e => { preset = e.target.value; $('repCustomDates').style.display = (preset === 'custom') ? '' : 'none'; render(); };
+        $('repFrom').onchange = e => { cFrom = e.target.value; render(); };
+        $('repTo').onchange = e => { cTo = e.target.value; render(); };
+        $('repGroupBy').onchange = e => { groupBy = e.target.value; render(); };
+        $('repReset').onclick = () => { setDomain(domainKey); };
         $('repExcel').onclick = exportExcel;
         $('repPrint').onclick = printReport;
     }
 
-    // ── Boot ───────────────────────────────────────────────────
     function start() {
         wire();
         if (window.IssueConfig) {
-            IssueConfig.load().then(() => { if (ready) buildDynamic(); });
-            IssueConfig.listen(() => { if (ready) buildDynamic(); });
-            IssueConfig.listenTopics(() => { if (ready) buildDynamic(); });
+            IssueConfig.load().then(() => { if (domainKey === 'guestLogs') renderFacets(); });
+            IssueConfig.listen(() => { if (domainKey === 'guestLogs' && ready) renderFacets(); });
+            IssueConfig.listenTopics(() => { if (domainKey === 'guestLogs' && ready) renderFacets(); });
         }
-        db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snap => {
-            records = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-            ready = true;
-            buildDynamic();
-            render();
-        }, err => { console.error('reports load failed', err); toast('Kayıtlar yüklenemedi.', true); });
+        setDomain('guestLogs');
     }
-
     function boot() {
-        if (typeof auth !== 'undefined' && auth.onAuthStateChanged) {
-            auth.onAuthStateChanged(u => { if (u) start(); });
-        } else { start(); }
+        if (typeof auth !== 'undefined' && auth.onAuthStateChanged) auth.onAuthStateChanged(u => { if (u) start(); });
+        else start();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
