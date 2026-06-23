@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Restoran · StayOS</title>
+    <link rel="stylesheet" href="css/modules/restaurant.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/core/embed.css">
+    <script src="js/core/embed.js"></script>
+</head>
+
+<body class="rst-body">
+    <div class="rst-app">
+        <!-- Sub navigation -->
+        <nav class="rst-subnav" id="rstSubnav">
+            <button class="rst-tab active" data-view="pos">Sipariş</button>
+            <button class="rst-tab" data-view="floor">Salon</button>
+            <button class="rst-tab" data-view="menu">Menü</button>
+            <button class="rst-tab" data-view="settings">Ayarlar</button>
+        </nav>
+
+        <main class="rst-main">
+            <!-- ── SİPARİŞ (POS) — sonraki parça ── -->
+            <section class="rst-view active" id="view-pos">
+                <div class="rst-soon">
+                    <div class="rst-soon-ico">🧾</div>
+                    <h2>Sipariş Ekranı (POS)</h2>
+                    <p>Masa seç → menüden ürün ekle → mutfağa gönder → adisyon &amp; ödeme.<br>Bu ekran bir sonraki adımda geliyor. Önce menünü ve ayarlarını hazırla.</p>
+                </div>
+            </section>
+
+            <!-- ── SALON — sonraki parça ── -->
+            <section class="rst-view" id="view-floor">
+                <div class="rst-soon">
+                    <div class="rst-soon-ico">🍽️</div>
+                    <h2>Salon &amp; Masa Düzeni</h2>
+                    <p>Masaları ve durumlarını (boş/dolu/adisyon) buradan yöneteceksin.<br>Bu ekran Salon parçasında gelecek.</p>
+                </div>
+            </section>
+
+            <!-- ── MENÜ YÖNETİMİ ── -->
+            <section class="rst-view" id="view-menu">
+                <div class="rst-card">
+                    <div class="rst-card-head">
+                        <div>
+                            <h2>Menü</h2>
+                            <p class="rst-sub">Restoranın menüsü: kategori, ürün, fiyat, KDV ve istasyon (mutfak/bar).</p>
+                        </div>
+                        <div class="rst-head-actions">
+                            <button class="rst-btn ghost" id="menuSeedBtn">Örnek Menü Yükle</button>
+                            <button class="rst-btn primary" id="menuAddBtn">+ Ürün Ekle</button>
+                        </div>
+                    </div>
+                    <div id="menuList" class="rst-menu-list"><!-- rendered by restaurant.js --></div>
+                </div>
+            </section>
+
+            <!-- ── AYARLAR ── -->
+            <section class="rst-view" id="view-settings">
+                <div class="rst-card">
+                    <div class="rst-card-head">
+                        <div>
+                            <h2>Restoran Ayarları</h2>
+                            <p class="rst-sub">Vergi, para birimi, fiş ve oda hesabı ayarları.</p>
+                        </div>
+                        <button class="rst-btn primary" id="cfgSaveBtn">Kaydet</button>
+                    </div>
+
+                    <div class="rst-form">
+                        <div class="rst-frow">
+                            <div class="rst-fg">
+                                <label>Restoran Adı</label>
+                                <input type="text" id="cfgName" maxlength="60" placeholder="Örn. Teras Restaurant">
+                            </div>
+                            <div class="rst-fg">
+                                <label>Para Birimi</label>
+                                <input type="text" id="cfgCurrency" maxlength="4" placeholder="₺">
+                            </div>
+                        </div>
+
+                        <div class="rst-frow">
+                            <div class="rst-fg">
+                                <label>KDV Oranı (%)</label>
+                                <input type="number" id="cfgVat" min="0" max="100" step="1" placeholder="10">
+                            </div>
+                            <div class="rst-fg">
+                                <label>KDV Uygulaması</label>
+                                <select id="cfgVatMode">
+                                    <option value="included">Fiyata Dahil</option>
+                                    <option value="excluded">Fiyata Hariç (üzerine eklenir)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="rst-fg">
+                            <label class="rst-l-info">
+                                Servis Ücreti (%)
+                                <button type="button" class="rst-info" id="svcInfo" aria-label="Bilgi">i</button>
+                            </label>
+                            <input type="number" id="cfgService" value="0" disabled>
+                            <div class="rst-note" id="svcNote" style="display:none;">
+                                Yiyecek ve içecek hizmeti sunan işletmelerde servis, kuver ve masa ücreti alınması,
+                                6502 sayılı Tüketicinin Korunması Hakkında Kanun'un verdiği yetkiye dayanılarak hazırlanan
+                                Fiyat Etiketi Yönetmeliği'nde yapılan düzenleme ile yasaklanmıştır.
+                            </div>
+                        </div>
+
+                        <label class="rst-switch">
+                            <input type="checkbox" id="cfgRoomCharge" checked>
+                            <span>Oda hesabına yazmaya izin ver (uygulama içi folio)</span>
+                        </label>
+
+                        <div class="rst-frow">
+                            <div class="rst-fg">
+                                <label>Fiş Başlığı</label>
+                                <input type="text" id="cfgReceiptHeader" maxlength="80" placeholder="Otel / restoran adı">
+                            </div>
+                            <div class="rst-fg">
+                                <label>Fiş Alt Bilgisi</label>
+                                <input type="text" id="cfgReceiptFooter" maxlength="120" placeholder="Teşekkürler, yine bekleriz">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Menu item modal -->
+    <div id="menuModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3 id="menuModalTitle">Ürün Ekle</h3>
+                <button class="rst-modal-x" id="menuModalClose">&times;</button>
+            </div>
+            <form id="menuForm" class="rst-form">
+                <div class="rst-frow">
+                    <div class="rst-fg span2">
+                        <label>Ürün Adı</label>
+                        <input type="text" id="miName" maxlength="80" placeholder="Örn. Köfte" required>
+                    </div>
+                </div>
+                <div class="rst-frow">
+                    <div class="rst-fg">
+                        <label>Kategori</label>
+                        <input type="text" id="miCategory" list="miCatList" maxlength="40" placeholder="Örn. Ana Yemek" required>
+                        <datalist id="miCatList"></datalist>
+                    </div>
+                    <div class="rst-fg">
+                        <label>İstasyon</label>
+                        <select id="miStation">
+                            <option value="kitchen">Mutfak</option>
+                            <option value="bar">Bar</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="rst-frow">
+                    <div class="rst-fg">
+                        <label>Fiyat</label>
+                        <input type="number" id="miPrice" min="0" step="0.01" placeholder="0.00" required>
+                    </div>
+                    <div class="rst-fg">
+                        <label>KDV (%) <span class="rst-hint">boş = varsayılan</span></label>
+                        <input type="number" id="miVat" min="0" max="100" step="1" placeholder="varsayılan">
+                    </div>
+                </div>
+                <div class="rst-frow">
+                    <div class="rst-fg">
+                        <label>İkon</label>
+                        <input type="text" id="miIcon" maxlength="4" placeholder="🍽️" style="text-align:center;">
+                    </div>
+                    <div class="rst-fg">
+                        <label>Hazırlık (dk)</label>
+                        <input type="number" id="miPrep" min="0" step="1" placeholder="örn. 15">
+                    </div>
+                </div>
+                <div class="rst-fg span2">
+                    <label>Açıklama (opsiyonel)</label>
+                    <input type="text" id="miDesc" maxlength="160" placeholder="Kısa açıklama">
+                </div>
+                <label class="rst-switch">
+                    <input type="checkbox" id="miActive" checked>
+                    <span>Aktif (menüde görünür)</span>
+                </label>
+                <div class="rst-modal-actions">
+                    <button type="submit" class="rst-btn primary">Kaydet</button>
+                    <button type="button" class="rst-btn danger" id="menuDeleteBtn" style="display:none;">Sil</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="rst-toast"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="js/core/firebase-config.js"></script>
+    <script src="js/core/maintenance-guard.js"></script>
+    <script src="js/core/modules.js"></script>
+    <script src="js/modules/restaurant.js"></script>
+</body>
+
+</html>

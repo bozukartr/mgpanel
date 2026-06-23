@@ -19,7 +19,8 @@
         concierge: { page: 'concierge.html', module: 'concierge' },
         kayitlar:  { page: 'panel.html',      module: 'guestIssues' },
         raporlar:  { page: 'reports.html',     module: 'guestIssues' },
-        crm:       { page: 'crm.html',         module: 'crm' }
+        crm:       { page: 'crm.html',         module: 'crm' },
+        restoran:  { page: 'restaurant.html',  module: 'restaurant' }
     };
     function moduleOn(key) {
         if (!key) return true;
