@@ -23,7 +23,8 @@
     const MAP = [
         { key: 'concierge',  page: 'concierge.html', sel: 'a[href="concierge.html"]' },
         { key: 'crm',        page: 'crm.html',       sel: 'a[href="crm.html"]' },
-        { key: 'guestIssues', page: 'panel.html',    sel: 'a[href="panel.html"]' }
+        { key: 'guestIssues', page: 'panel.html',    sel: 'a[href="panel.html"]' },
+        { key: 'restaurant', page: 'restaurant.html', sel: 'a[href="restaurant.html"]' }
     ];
 
     // 1) Guard the current page — redirect to the first enabled module.
