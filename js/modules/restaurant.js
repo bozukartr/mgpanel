@@ -71,7 +71,12 @@
 
     // ── Menu (restMenu) ────────────────────────────────────────
     const STATION = { kitchen: 'Mutfak', bar: 'Bar' };
-    function money(v) { const n = Number(v); return (cfg.currency || '₺') + (isNaN(n) ? '0' : n.toLocaleString('tr-TR')); }
+    function money(v) {
+        const n = Number(v);
+        return (cfg.currency || '₺') + (isNaN(n) ? '0' : n.toLocaleString('tr-TR', { maximumFractionDigits: 2 }));
+    }
+    function round2(x) { return Math.round((Number(x) || 0) * 100) / 100; }
+    const loggedUser = (typeof localStorage !== 'undefined' && localStorage.getItem('hotelUsername')) || 'Personel';
 
     function categoriesOrdered() {
         const seen = [];
@@ -206,6 +211,283 @@
         }, err => console.error('menu listen', err));
     }
 
+    // ════════════════════════════════════════════════════════════
+    //  SALON (masalar) + POS (sipariş / adisyon)
+    // ════════════════════════════════════════════════════════════
+    const TBL_COL = 'restTables';
+    const CHK_COL = 'restChecks';
+    let tables = [];
+    let openChecks = [];      // status 'open'|'sent' (doluluk)
+    let editMode = false;
+    let editingTableId = null;
+    let currentCheck = null;  // POS'ta düzenlenen adisyon
+    let posCat = '';
+
+    // ── Totals (KDV dahil/hariç, kalem bazlı oran) ─────────────
+    function computeTotals(items) {
+        const mode = cfg.vatMode || 'included';
+        let subtotal = 0, vat = 0, total = 0;
+        (items || []).forEach(it => {
+            const rate = (it.vatRate != null && it.vatRate !== '') ? Number(it.vatRate) : (Number(cfg.vatRate) || 0);
+            const line = (Number(it.unitPrice) || 0) * (it.qty || 1);
+            if (mode === 'included') {
+                const lvat = rate > 0 ? line * rate / (100 + rate) : 0;
+                vat += lvat; subtotal += line - lvat; total += line;
+            } else {
+                const lvat = line * rate / 100;
+                subtotal += line; vat += lvat; total += line + lvat;
+            }
+        });
+        return { subtotal: round2(subtotal), vat: round2(vat), total: round2(total) };
+    }
+
+    // ── Tables ─────────────────────────────────────────────────
+    function tblByOrder(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name).localeCompare(String(b.name), 'tr', { numeric: true }); }
+    function sectionsOrdered() {
+        const seen = [];
+        tables.slice().sort(tblByOrder).forEach(t => { const s = (t.section || 'Genel'); if (!seen.includes(s)) seen.push(s); });
+        return seen;
+    }
+    function checkForTable(id) { return openChecks.find(c => c.tableId === id); }
+
+    function renderFloor() {
+        const wrap = $('floorGrid'); if (!wrap) return;
+        const dl = $('tblSecList'); if (dl) dl.innerHTML = sectionsOrdered().map(s => `<option value="${esc(s)}">`).join('');
+        if (!tables.length) {
+            wrap.innerHTML = `<div class="rst-empty">Henüz masa yok.<br>“+ Masa” ile salon düzenini oluştur.</div>`;
+            return;
+        }
+        wrap.innerHTML = sectionsOrdered().map(sec => {
+            const ts = tables.filter(t => (t.section || 'Genel') === sec).sort(tblByOrder);
+            return `<div class="rst-sec">
+                <div class="rst-sec-h">${esc(sec)}</div>
+                <div class="rst-tables">${ts.map(tableHtml).join('')}</div>
+            </div>`;
+        }).join('');
+        wrap.querySelectorAll('[data-tbl]').forEach(el => {
+            el.onclick = () => {
+                const t = tables.find(x => x.id === el.getAttribute('data-tbl'));
+                if (!t) return;
+                if (editMode) openTableModal(t); else openPos(t);
+            };
+        });
+    }
+    function tableHtml(t) {
+        const chk = checkForTable(t.id);
+        const occ = !!chk;
+        const sent = chk && chk.status === 'sent';
+        const cls = occ ? (sent ? 'sent' : 'busy') : 'free';
+        const meta = occ ? money(chk.total) : (t.capacity ? t.capacity + ' kişilik' : 'Boş');
+        return `<button class="rst-table ${cls}" data-tbl="${esc(t.id)}">
+            ${editMode ? '<span class="rst-table-edit">✎</span>' : ''}
+            <span class="rst-table-n">${esc(t.name)}</span>
+            <span class="rst-table-s">${esc(meta)}</span>
+            ${occ ? `<span class="rst-table-badge">${sent ? 'Mutfakta' : 'Açık'}</span>` : ''}
+        </button>`;
+    }
+
+    function openTableModal(t) {
+        editingTableId = t ? t.id : null;
+        $('tableModalTitle').textContent = t ? 'Masayı Düzenle' : 'Masa Ekle';
+        $('tblName').value = t ? (t.name || '') : '';
+        $('tblCap').value = t && t.capacity ? t.capacity : '';
+        $('tblSection').value = t ? (t.section || '') : '';
+        $('tableDeleteBtn').style.display = t ? 'inline-flex' : 'none';
+        $('tableModal').classList.add('open');
+    }
+    function closeTableModal() { $('tableModal').classList.remove('open'); editingTableId = null; }
+    function saveTable(e) {
+        e.preventDefault();
+        const name = $('tblName').value.trim();
+        if (!name) { toast('Masa adı zorunlu.', true); return; }
+        const data = {
+            tenantId: TENANT_ID, name: name.slice(0, 20),
+            capacity: Math.max(0, parseInt($('tblCap').value, 10) || 0),
+            section: ($('tblSection').value || 'Genel').trim().slice(0, 30) || 'Genel',
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        let p;
+        if (editingTableId) p = db.collection(TBL_COL).doc(editingTableId).update(data);
+        else {
+            data.sortOrder = tables.reduce((m, t) => Math.max(m, t.sortOrder || 0), 0) + 10;
+            data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            p = db.collection(TBL_COL).add(data);
+        }
+        p.then(() => { toast(editingTableId ? 'Masa güncellendi.' : 'Masa eklendi.'); closeTableModal(); })
+            .catch(err => { console.error(err); toast('Kaydedilemedi.', true); });
+    }
+    function removeTable() {
+        if (!editingTableId) return;
+        if (checkForTable(editingTableId)) { toast('Açık adisyonu olan masa silinemez.', true); return; }
+        if (!confirm('Bu masayı silmek istediğine emin misin?')) return;
+        db.collection(TBL_COL).doc(editingTableId).delete()
+            .then(() => { toast('Masa silindi.'); closeTableModal(); })
+            .catch(err => { console.error(err); toast('Silinemedi.', true); });
+    }
+
+    function listenTables() {
+        db.collection(TBL_COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
+            tables = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+            renderFloor();
+        }, err => console.error('tables', err));
+    }
+    function listenChecks() {
+        db.collection(CHK_COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
+            openChecks = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+                .filter(c => c.status === 'open' || c.status === 'sent');
+            renderFloor();
+        }, err => console.error('checks', err));
+    }
+
+    // ── POS ────────────────────────────────────────────────────
+    function openPos(table) {
+        const existing = checkForTable(table.id);
+        currentCheck = existing
+            ? JSON.parse(JSON.stringify(existing))
+            : { id: null, tableId: table.id, tableName: table.name, section: table.section || 'Genel', status: 'open', pax: 1, items: [] };
+        $('posTable').textContent = 'Masa ' + table.name;
+        $('posPax').textContent = currentCheck.pax || 1;
+        posCat = '';
+        renderPosMenu();
+        renderPosCheck();
+        $('posOverlay').classList.add('open');
+    }
+    function closePos() { saveCheck(); $('posOverlay').classList.remove('open'); currentCheck = null; }
+
+    function renderPosMenu() {
+        const cats = []; menu.filter(i => i.active !== false).sort(byOrder).forEach(i => { const c = i.category || 'Diğer'; if (!cats.includes(c)) cats.push(c); });
+        if (!posCat || !cats.includes(posCat)) posCat = cats[0] || '';
+        $('posCats').innerHTML = cats.map(c => `<button class="rst-pcat ${c === posCat ? 'active' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')
+            || '<span class="rst-none">Menü boş — önce Menü sekmesinden ürün ekle.</span>';
+        $('posCats').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { posCat = b.getAttribute('data-c'); renderPosMenu(); });
+        const items = menu.filter(i => i.active !== false && (i.category || 'Diğer') === posCat).sort(byOrder);
+        $('posItems').innerHTML = items.map(i => `<button class="rst-pitem" data-mi="${esc(i.id)}">
+            <span class="pi-ic">${esc(i.icon || '🍽️')}</span>
+            <span class="pi-n">${esc(i.name)}</span>
+            <span class="pi-p">${esc(money(i.price))}</span>
+        </button>`).join('');
+        $('posItems').querySelectorAll('[data-mi]').forEach(b => b.onclick = () => { const mi = menu.find(x => x.id === b.getAttribute('data-mi')); if (mi) addLine(mi); });
+    }
+
+    function addLine(mi) {
+        const ex = currentCheck.items.find(l => l.menuId === mi.id && !l.sent && !(l.note));
+        if (ex) ex.qty++;
+        else currentCheck.items.push({
+            lineId: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+            menuId: mi.id, name: mi.name, icon: mi.icon || '🍽️',
+            unitPrice: Number(mi.price) || 0, qty: 1,
+            vatRate: (mi.vatRate != null ? mi.vatRate : null), station: mi.station || 'kitchen', note: '', sent: false
+        });
+        recalcSave();
+    }
+    function changeQty(lineId, d) {
+        const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
+        l.qty += d; if (l.qty <= 0) currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId);
+        recalcSave();
+    }
+    function removeLine(lineId) { currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId); recalcSave(); }
+    function noteLine(lineId) {
+        const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
+        const n = prompt('Not (örn. az pişmiş, sossuz):', l.note || '');
+        if (n !== null) { l.note = String(n).slice(0, 80); recalcSave(); }
+    }
+    function recalcSave() {
+        const t = computeTotals(currentCheck.items);
+        currentCheck.subtotal = t.subtotal; currentCheck.vat = t.vat; currentCheck.total = t.total;
+        renderPosCheck(); saveCheck();
+    }
+    function saveCheck() {
+        if (!currentCheck) return;
+        if (!currentCheck.items.length && !currentCheck.id) return; // boş adisyon yaratma
+        const payload = {
+            tenantId: TENANT_ID, tableId: currentCheck.tableId, tableName: currentCheck.tableName,
+            section: currentCheck.section || 'Genel', status: currentCheck.status || 'open', pax: currentCheck.pax || 1,
+            items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if (currentCheck.id) {
+            db.collection(CHK_COL).doc(currentCheck.id).update(payload).catch(err => console.error(err));
+        } else {
+            payload.openedBy = loggedUser;
+            payload.openedAt = firebase.firestore.FieldValue.serverTimestamp();
+            db.collection(CHK_COL).add(payload).then(ref => { currentCheck.id = ref.id; }).catch(err => console.error(err));
+        }
+    }
+    function sendKitchen() {
+        if (!currentCheck || !currentCheck.items.length) { toast('Adisyon boş.', true); return; }
+        currentCheck.items.forEach(l => l.sent = true);
+        currentCheck.status = 'sent';
+        recalcSave();
+        toast('Mutfağa gönderildi.');
+    }
+    function voidCheck() {
+        if (!currentCheck) return;
+        if (!currentCheck.id) { $('posOverlay').classList.remove('open'); currentCheck = null; return; }
+        if (!confirm('Masa boşaltılsın mı? Adisyon iptal edilecek.')) return;
+        db.collection(CHK_COL).doc(currentCheck.id).update({ status: 'void', updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+            .then(() => { toast('Masa boşaltıldı.'); $('posOverlay').classList.remove('open'); currentCheck = null; })
+            .catch(err => { console.error(err); toast('İşlem başarısız.', true); });
+    }
+    function setPax(d) {
+        if (!currentCheck) return;
+        currentCheck.pax = Math.max(1, (currentCheck.pax || 1) + d);
+        $('posPax').textContent = currentCheck.pax;
+        if (currentCheck.id || currentCheck.items.length) saveCheck();
+    }
+
+    function renderPosCheck() {
+        const lines = $('posLines');
+        if (!currentCheck.items.length) {
+            lines.innerHTML = `<div class="rst-check-empty">Soldan ürün ekleyin.</div>`;
+        } else {
+            lines.innerHTML = currentCheck.items.map(l => `<div class="rst-line ${l.sent ? 'sent' : ''}">
+                <div class="rst-line-main">
+                    <div class="rst-line-n">${esc(l.icon)} ${esc(l.name)}${l.sent ? ' <span class="rst-line-snt">✓</span>' : ''}</div>
+                    ${l.note ? `<div class="rst-line-note">“${esc(l.note)}”</div>` : ''}
+                </div>
+                <div class="rst-line-qty">
+                    <button data-q="-" data-l="${esc(l.lineId)}">−</button>
+                    <span>${l.qty}</span>
+                    <button data-q="+" data-l="${esc(l.lineId)}">+</button>
+                </div>
+                <div class="rst-line-tot">${esc(money(round2((l.unitPrice || 0) * l.qty)))}</div>
+                <div class="rst-line-acts">
+                    <button data-note="${esc(l.lineId)}" title="Not">✎</button>
+                    <button data-del="${esc(l.lineId)}" title="Sil">🗑</button>
+                </div>
+            </div>`).join('');
+            lines.querySelectorAll('[data-q]').forEach(b => b.onclick = () => changeQty(b.getAttribute('data-l'), b.getAttribute('data-q') === '+' ? 1 : -1));
+            lines.querySelectorAll('[data-note]').forEach(b => b.onclick = () => noteLine(b.getAttribute('data-note')));
+            lines.querySelectorAll('[data-del]').forEach(b => b.onclick = () => removeLine(b.getAttribute('data-del')));
+        }
+        const t = computeTotals(currentCheck.items);
+        const vatLabel = (cfg.vatMode === 'excluded') ? 'KDV (hariç)' : 'KDV (dahil)';
+        $('posTotals').innerHTML = `
+            <div class="rst-tot-row"><span>Ara Toplam</span><b>${esc(money(t.subtotal))}</b></div>
+            <div class="rst-tot-row"><span>${vatLabel}</span><b>${esc(money(t.vat))}</b></div>
+            <div class="rst-tot-row big"><span>Toplam</span><b>${esc(money(t.total))}</b></div>`;
+    }
+
+    function wireFloorPos() {
+        $('tblAddBtn').onclick = () => openTableModal(null);
+        $('tblEditToggle').onclick = () => {
+            editMode = !editMode;
+            $('tblEditToggle').classList.toggle('active', editMode);
+            $('tblEditToggle').textContent = editMode ? 'Bitti' : 'Düzenle';
+            renderFloor();
+        };
+        $('tableModalClose').onclick = closeTableModal;
+        $('tableForm').onsubmit = saveTable;
+        $('tableDeleteBtn').onclick = removeTable;
+        $('tableModal').addEventListener('click', e => { if (e.target === $('tableModal')) closeTableModal(); });
+        $('posBack').onclick = closePos;
+        $('posVoid').onclick = voidCheck;
+        $('posSend').onclick = sendKitchen;
+        $('posPay').onclick = () => toast('Ödeme adımı bir sonraki parçada (Adisyon & Ödeme) eklenecek.');
+        $('posPaxMinus').onclick = () => setPax(-1);
+        $('posPaxPlus').onclick = () => setPax(1);
+    }
+
     // ── Boot ───────────────────────────────────────────────────
     function boot() {
         wireTabs();
@@ -217,7 +499,8 @@
         $('menuForm').onsubmit = saveMenu;
         $('menuDeleteBtn').onclick = removeMenu;
         $('menuModal').addEventListener('click', e => { if (e.target === $('menuModal')) closeModal(); });
-        const go = () => { loadConfig(); listenMenu(); };
+        wireFloorPos();
+        const go = () => { loadConfig(); listenMenu(); listenTables(); listenChecks(); };
         if (typeof auth !== 'undefined' && auth.onAuthStateChanged) auth.onAuthStateChanged(u => { if (u) go(); });
         else go();
     }

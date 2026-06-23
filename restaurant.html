@@ -17,29 +17,25 @@
     <div class="rst-app">
         <!-- Sub navigation -->
         <nav class="rst-subnav" id="rstSubnav">
-            <button class="rst-tab active" data-view="pos">Sipariş</button>
-            <button class="rst-tab" data-view="floor">Salon</button>
+            <button class="rst-tab active" data-view="floor">Salon</button>
             <button class="rst-tab" data-view="menu">Menü</button>
             <button class="rst-tab" data-view="settings">Ayarlar</button>
         </nav>
 
         <main class="rst-main">
-            <!-- ── SİPARİŞ (POS) — sonraki parça ── -->
-            <section class="rst-view active" id="view-pos">
-                <div class="rst-soon">
-                    <div class="rst-soon-ico">🧾</div>
-                    <h2>Sipariş Ekranı (POS)</h2>
-                    <p>Masa seç → menüden ürün ekle → mutfağa gönder → adisyon &amp; ödeme.<br>Bu ekran bir sonraki adımda geliyor. Önce menünü ve ayarlarını hazırla.</p>
+            <!-- ── SALON ── -->
+            <section class="rst-view active" id="view-floor">
+                <div class="rst-floor-head">
+                    <div>
+                        <h2>Salon</h2>
+                        <p class="rst-sub">Masaya dokun → sipariş al. “Düzenle” ile masa ekle/değiştir.</p>
+                    </div>
+                    <div class="rst-head-actions">
+                        <button class="rst-btn ghost" id="tblEditToggle">Düzenle</button>
+                        <button class="rst-btn primary" id="tblAddBtn">+ Masa</button>
+                    </div>
                 </div>
-            </section>
-
-            <!-- ── SALON — sonraki parça ── -->
-            <section class="rst-view" id="view-floor">
-                <div class="rst-soon">
-                    <div class="rst-soon-ico">🍽️</div>
-                    <h2>Salon &amp; Masa Düzeni</h2>
-                    <p>Masaları ve durumlarını (boş/dolu/adisyon) buradan yöneteceksin.<br>Bu ekran Salon parçasında gelecek.</p>
-                </div>
+                <div id="floorGrid" class="rst-floor"></div>
             </section>
 
             <!-- ── MENÜ YÖNETİMİ ── -->
@@ -128,6 +124,69 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- POS order overlay (opened from a table) -->
+    <div id="posOverlay" class="rst-pos">
+        <header class="rst-pos-head">
+            <button class="rst-pos-back" id="posBack">‹ Salon</button>
+            <div class="rst-pos-title"><b id="posTable">Masa</b><span id="posMeta"></span></div>
+            <div class="rst-pos-pax">
+                <button type="button" id="posPaxMinus" aria-label="azalt">−</button>
+                <span id="posPax">1</span>
+                <button type="button" id="posPaxPlus" aria-label="arttır">+</button>
+                <small>kişi</small>
+            </div>
+        </header>
+        <div class="rst-pos-body">
+            <div class="rst-pos-menu">
+                <div class="rst-pos-cats" id="posCats"></div>
+                <div class="rst-pos-items" id="posItems"></div>
+            </div>
+            <aside class="rst-pos-check">
+                <div class="rst-check-title">Adisyon</div>
+                <div class="rst-check-lines" id="posLines"></div>
+                <div class="rst-check-foot">
+                    <div class="rst-check-totals" id="posTotals"></div>
+                    <div class="rst-check-actions">
+                        <button class="rst-btn danger" id="posVoid">Masayı Boşalt</button>
+                        <button class="rst-btn ghost" id="posSend">Mutfağa Gönder</button>
+                        <button class="rst-btn primary" id="posPay">Ödeme</button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Table modal -->
+    <div id="tableModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3 id="tableModalTitle">Masa Ekle</h3>
+                <button class="rst-modal-x" id="tableModalClose">&times;</button>
+            </div>
+            <form id="tableForm" class="rst-form">
+                <div class="rst-frow">
+                    <div class="rst-fg">
+                        <label>Masa Adı / No</label>
+                        <input type="text" id="tblName" maxlength="20" placeholder="Örn. 5 / Teras-2" required>
+                    </div>
+                    <div class="rst-fg">
+                        <label>Kapasite</label>
+                        <input type="number" id="tblCap" min="1" step="1" placeholder="4">
+                    </div>
+                </div>
+                <div class="rst-fg">
+                    <label>Bölüm</label>
+                    <input type="text" id="tblSection" list="tblSecList" maxlength="30" placeholder="Örn. İç Salon / Teras">
+                    <datalist id="tblSecList"></datalist>
+                </div>
+                <div class="rst-modal-actions">
+                    <button type="submit" class="rst-btn primary">Kaydet</button>
+                    <button type="button" class="rst-btn danger" id="tableDeleteBtn" style="display:none;">Sil</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Menu item modal -->
