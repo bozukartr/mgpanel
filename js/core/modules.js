@@ -28,7 +28,7 @@
     ];
 
     // 1) Guard the current page — redirect to the first enabled module.
-    //    Extension-agnostic (cleanUrls) and treats panel-mobile as panel.
+    //    Extension-agnostic (cleanUrls); -mobile suffix stripping kept defensively.
     const base = (window.location.pathname || '').toLowerCase().replace(/\/$/, '').split('/').pop().replace(/\.html$/, '').replace(/-mobile$/, '');
     const current = MAP.find(x => base === x.page.replace(/\.html$/, ''));
     // App Shell iframe'i içinde gömülüyken yönlendirmeyi kabuk yapar; burada sadece nav gizlenir.

@@ -256,7 +256,7 @@
 
     // Opens the record referenced by a notification. A registered opener for the
     // notification's type wins; otherwise pages that show requests
-    // (panel/panel-mobile) override RT.onOpen; otherwise we navigate there.
+    // (panel.html) override RT.onOpen; otherwise we navigate there.
     RT.openRecord = function (recordId, type) {
         if (type && RT.openers[type]) { RT.openers[type](recordId); return; }
         // Guest-order notifications live in the Concierge drawer; from any other
