@@ -180,14 +180,34 @@
                 <div class="rst-check-title">Adisyon</div>
                 <div class="rst-check-lines" id="posLines"></div>
                 <div class="rst-check-foot">
+                    <div class="rst-check-noteline" id="posNoteLine" style="display:none;"></div>
                     <div class="rst-check-totals" id="posTotals"></div>
+                    <div class="rst-check-fns">
+                        <button type="button" class="rst-fnbtn" id="posNote">Adisyon Notu</button>
+                        <button type="button" class="rst-fnbtn" id="posSplit">Adisyon Böl</button>
+                    </div>
                     <div class="rst-check-actions">
-                        <button class="rst-btn danger" id="posVoid">Masayı Boşalt</button>
-                        <button class="rst-btn ghost" id="posSend">Mutfağa Gönder</button>
+                        <button class="rst-btn danger" id="posVoid">İptal</button>
+                        <button class="rst-btn ghost" id="posSend">Gönder</button>
                         <button class="rst-btn primary" id="posPay">Ödeme</button>
                     </div>
                 </div>
             </aside>
+        </div>
+    </div>
+
+    <!-- Adisyon böl -->
+    <div id="splitModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3>Adisyon Böl</h3>
+                <button class="rst-modal-x" id="splitClose">&times;</button>
+            </div>
+            <div class="rst-split-info">Yeni adisyona taşınacak kalemleri seçin. Seçilenler ayrı bir adisyona aktarılır.</div>
+            <div class="rst-split-list" id="splitList"></div>
+            <div class="rst-modal-actions" style="padding: 4px 22px 20px;">
+                <button class="rst-btn primary" id="splitConfirm">Seçilenleri Ayır</button>
+            </div>
         </div>
     </div>
 
