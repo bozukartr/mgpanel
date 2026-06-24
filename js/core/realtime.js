@@ -267,7 +267,7 @@
         }
         if (typeof RT.onOpen === 'function') { RT.onOpen(recordId); return; }
         if (!recordId) return;
-        const target = (window.innerWidth > 768 ? 'panel.html' : 'panel-mobile.html') + '?open=' + encodeURIComponent(recordId);
+        const target = (window.innerWidth > 880 ? 'panel.html' : 'panel-mobile.html') + '?open=' + encodeURIComponent(recordId);
         window.location.href = target;
     };
     // Notifications are removed once read / interacted with (no read-archive).
