@@ -292,7 +292,7 @@
             <span class="rst-table-n">${esc(c.tableName || '—')}</span>
             ${(c.room || c.name) ? `<span class="rst-table-name">${esc(c.room ? 'Oda ' + c.room : '')}${(c.room && c.name) ? ' · ' : ''}${esc(c.name || '')}</span>` : ''}
             <span class="rst-table-s">${esc(money(c.total || 0))} · ${esc(c.pax || 1)} kişi</span>
-            <span class="rst-table-foot">${sent ? 'Mutfakta' : 'Açık'} · ${esc(elapsed(c))}</span>
+            <span class="rst-table-foot">${c.checkNo ? '#' + esc(c.checkNo) + ' · ' : ''}${sent ? 'Mutfakta' : 'Açık'} · ${esc(elapsed(c))}</span>
         </button>`;
     }
 
@@ -354,13 +354,27 @@
             closeCheckModal(); toast('Adisyon güncellendi.');
         } else {
             const TS = firebase.firestore.FieldValue.serverTimestamp();
-            db.collection(CHK_COL).add(Object.assign({
-                tenantId: TENANT_ID, status: 'open', items: [], subtotal: 0, vat: 0, total: 0, openedBy: loggedUser, openedAt: TS
-            }, data)).then(ref => {
-                closeCheckModal();
-                openPos({ id: ref.id, tableName: data.tableName, pax: data.pax, room: data.room, name: data.name, section: data.section, status: 'open', items: [] });
-            }).catch(err => { console.error(err); toast('Açılamadı.', true); });
+            nextCheckNo().catch(() => null).then(no => {
+                const payload = Object.assign({
+                    tenantId: TENANT_ID, status: 'open', items: [], subtotal: 0, vat: 0, total: 0, openedBy: loggedUser, openedAt: TS
+                }, data);
+                if (no) payload.checkNo = no;
+                db.collection(CHK_COL).add(payload).then(ref => {
+                    closeCheckModal();
+                    openPos({ id: ref.id, checkNo: no || null, tableName: data.tableName, pax: data.pax, room: data.room, name: data.name, section: data.section, status: 'open', items: [] });
+                }).catch(err => { console.error(err); toast('Açılamadı.', true); });
+            });
         }
+    }
+    // Sıralı adisyon no (tenant başına sayaç, transaction).
+    const COUNTER_COL = 'restCounters';
+    function nextCheckNo() {
+        const ref = db.collection(COUNTER_COL).doc(TENANT_ID);
+        return db.runTransaction(tx => tx.get(ref).then(doc => {
+            const n = ((doc.exists && doc.data().checkNo) || 0) + 1;
+            tx.set(ref, { tenantId: TENANT_ID, checkNo: n, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+            return n;
+        }));
     }
 
     function listenChecks() {
@@ -374,7 +388,7 @@
     // ── POS ────────────────────────────────────────────────────
     function setPosHeader() {
         $('posTable').textContent = 'Masa ' + (currentCheck.tableName || '');
-        $('posMeta').textContent = (currentCheck.room ? 'Oda ' + currentCheck.room + ' · ' : '') + (currentCheck.name ? currentCheck.name + ' · ' : '') + (currentCheck.pax || 1) + ' kişi';
+        $('posMeta').textContent = (currentCheck.checkNo ? '#' + currentCheck.checkNo + ' · ' : '') + (currentCheck.room ? 'Oda ' + currentCheck.room + ' · ' : '') + (currentCheck.name ? currentCheck.name + ' · ' : '') + (currentCheck.pax || 1) + ' kişi';
         $('posPax').textContent = currentCheck.pax || 1;
     }
     function openPos(check) {
@@ -692,48 +706,72 @@
     }
 
     // ── Fiş (80mm termal) ──────────────────────────────────────
-    function printReceipt() {
-        const p = payable();
-        const dA = discountAmount(p.gross.total);
-        const rows = currentCheck.items.map(l => {
+    function fmtTime(ts) {
+        const d = tsToDate(ts); if (!d) return '';
+        const p = n => n < 10 ? '0' + n : '' + n;
+        return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+    function receiptRows(items) {
+        return (items || []).map(l => {
             const lt = money(round2((l.unitPrice || 0) * l.qty));
             return `<tr><td>${esc(l.qty)}×</td><td>${esc(l.name)}</td><td class="r">${esc(lt)}</td></tr>`
                 + (l.note ? `<tr><td></td><td colspan="2" class="note">» ${esc(l.note)}</td></tr>` : '');
         }).join('');
-        const pays = (pay && pay.payments || []).map(pm => `<tr><td colspan="2">${esc(PM_LABEL[pm.method] || pm.method)}${pm.room ? ' (Oda ' + esc(pm.room) + ')' : ''}</td><td class="r">${esc(money(pm.amount))}</td></tr>`).join('');
+    }
+    // Tek fiş çıktısı (canlı ödeme + arşiv yeniden yazdırma için ortak).
+    function printReceiptDoc(c) {
         const w = window.open('', '_blank', 'width=380,height=640');
         if (!w) { toast('Açılır pencere engellendi.', true); return; }
+        const pays = (c.payments || []).map(pm => `<tr><td colspan="2">${esc(PM_LABEL[pm.method] || pm.method)}${pm.room ? ' (Oda ' + esc(pm.room) + ')' : ''}</td><td class="r">${esc(money(pm.amount))}</td></tr>`).join('');
         w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Fiş</title>
 <style>
  @page{size:80mm auto;margin:0}
  *{box-sizing:border-box}
  body{width:80mm;margin:0;padding:8px 10px;font-family:'Courier New',monospace;font-size:12px;color:#000}
- .c{text-align:center}.r{text-align:right}.b{font-weight:bold}
+ .r{text-align:right}
  h1{font-size:15px;margin:0 0 2px;text-align:center}
- .sub{text-align:center;font-size:11px;margin-bottom:6px}
+ .sub{text-align:center;font-size:11px;margin-bottom:3px}
  hr{border:none;border-top:1px dashed #000;margin:6px 0}
  table{width:100%;border-collapse:collapse}
  td{padding:1px 0;vertical-align:top;font-size:12px}
  .note{font-size:10px;color:#333}
- .tot td{font-size:12px}.tot .big{font-size:15px;font-weight:bold}
+ .tot .big{font-size:15px;font-weight:bold}
  .ft{text-align:center;font-size:11px;margin-top:8px}
 </style></head><body>
 <h1>${esc(cfg.receiptHeader || cfg.name || 'Restoran')}</h1>
-<div class="sub">Masa ${esc(currentCheck.tableName || '')} · ${esc(currentCheck.pax || 1)} kişi · ${esc(loggedUser)}</div>
+<div class="sub">${c.checkNo ? 'Adisyon #' + esc(c.checkNo) + ' · ' : ''}Masa ${esc(c.tableName || '')}${c.room ? ' · Oda ' + esc(c.room) : ''} · ${esc(c.pax || 1)} kişi</div>
+<div class="sub">${esc(c.by || loggedUser)}${c.when ? ' · ' + esc(c.when) : ''}</div>
 <hr>
-<table>${rows}</table>
+<table>${receiptRows(c.items)}</table>
 <hr>
 <table class="tot">
- <tr><td colspan="2">Ara Toplam</td><td class="r">${esc(money(p.gross.subtotal))}</td></tr>
- <tr><td colspan="2">KDV</td><td class="r">${esc(money(p.gross.vat))}</td></tr>
- ${dA ? `<tr><td colspan="2">İndirim</td><td class="r">-${esc(money(dA))}</td></tr>` : ''}
- <tr class="big"><td colspan="2">TOPLAM</td><td class="r">${esc(money(p.payable))}</td></tr>
+ <tr><td colspan="2">Ara Toplam</td><td class="r">${esc(money(c.subtotal || 0))}</td></tr>
+ <tr><td colspan="2">KDV</td><td class="r">${esc(money(c.vat || 0))}</td></tr>
+ ${c.discountAmount ? `<tr><td colspan="2">İndirim</td><td class="r">-${esc(money(c.discountAmount))}</td></tr>` : ''}
+ <tr class="big"><td colspan="2">TOPLAM</td><td class="r">${esc(money(c.payable || 0))}</td></tr>
 </table>
 ${pays ? '<hr><table>' + pays + '</table>' : ''}
 <div class="ft">${esc(cfg.receiptFooter || 'Bizi tercih ettiğiniz için teşekkürler.')}</div>
 <scr` + `ipt>window.onload=function(){setTimeout(function(){window.print();},250);}</scr` + `ipt>
 </body></html>`);
         w.document.close();
+    }
+    function printReceipt() {
+        const p = payable();
+        printReceiptDoc({
+            checkNo: currentCheck.checkNo, tableName: currentCheck.tableName, room: currentCheck.room, pax: currentCheck.pax,
+            by: loggedUser, items: currentCheck.items, subtotal: p.gross.subtotal, vat: p.gross.vat, payable: p.payable,
+            discountAmount: discountAmount(p.gross.total), payments: (pay && pay.payments) || []
+        });
+    }
+    function printStored(check) {
+        printReceiptDoc({
+            checkNo: check.checkNo, tableName: check.tableName, room: check.room, pax: check.pax,
+            by: check.closedBy || check.openedBy, when: fmtTime(check.closedAt),
+            items: check.items, subtotal: check.subtotal || 0, vat: check.vat || 0,
+            payable: (check.payable != null ? check.payable : check.total) || 0,
+            discountAmount: (check.discount && check.discount.amount) || 0, payments: check.payments || []
+        });
     }
 
     // ── Folio (Oda Hesapları) ──────────────────────────────────
@@ -779,11 +817,84 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         batch.commit().then(() => toast('Oda hesabı kapatıldı.')).catch(err => { console.error(err); toast('İşlem başarısız.', true); });
     }
 
+    // ── Arşiv (kapanmış adisyonlar) ────────────────────────────
+    let arcChecks = [];
+    function todayYmd() { const d = new Date(); const p = n => n < 10 ? '0' + n : '' + n; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+    function payLabels(c) { return [...new Set((c.payments || []).map(p => PM_LABEL[p.method] || p.method))].join(', ') || '—'; }
+    function checkTotal(c) { return Number(c.payable != null ? c.payable : c.total) || 0; }
+    function loadArchive() {
+        const day = $('arcDate').value || todayYmd();
+        const p = day.split('-');
+        const s = new Date(+p[0], +p[1] - 1, +p[2], 0, 0, 0, 0);
+        const e = new Date(+p[0], +p[1] - 1, +p[2], 23, 59, 59, 999);
+        $('arcList').innerHTML = `<div class="rst-empty">Yükleniyor…</div>`;
+        const handle = docs => {
+            arcChecks = docs.map(d => Object.assign({ id: d.id }, d.data()))
+                .filter(c => c.status === 'paid')
+                .sort((a, b) => (b.checkNo || 0) - (a.checkNo || 0));
+            renderArc();
+        };
+        db.collection(CHK_COL).where('tenantId', '==', TENANT_ID).where('closedAt', '>=', s).where('closedAt', '<=', e).get()
+            .then(snap => handle(snap.docs))
+            .catch(() => {
+                db.collection(CHK_COL).where('tenantId', '==', TENANT_ID).get()
+                    .then(snap => handle(snap.docs.filter(d => { const dt = tsToDate((d.data() || {}).closedAt); return dt && dt >= s && dt <= e; })))
+                    .catch(err => { console.error(err); $('arcList').innerHTML = `<div class="rst-empty">Yüklenemedi.</div>`; });
+            });
+    }
+    function renderArc() {
+        const rev = round2(arcChecks.reduce((s, c) => s + checkTotal(c), 0));
+        const pax = arcChecks.reduce((s, c) => s + (Number(c.pax) || 0), 0);
+        $('arcStats').innerHTML = [['Adisyon', arcChecks.length], ['Kişi', pax], ['Ciro', money(rev)], ['Ort. Adisyon', money(arcChecks.length ? rev / arcChecks.length : 0)]]
+            .map(([l, v]) => `<div class="rst-kpi"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
+        const wrap = $('arcList');
+        if (!arcChecks.length) { wrap.innerHTML = `<div class="rst-empty">Bu gün için kapanmış adisyon yok.</div>`; return; }
+        wrap.innerHTML = `<div class="rst-arc-tbl">
+            <div class="rst-arc-h"><span>No</span><span>Masa</span><span>Oda / İsim</span><span class="c">Kişi</span><span>Ödeme</span><span class="c">Saat</span><span class="r">Tutar</span></div>
+            ${arcChecks.map(arcRow).join('')}</div>`;
+        wrap.querySelectorAll('[data-arc]').forEach(el => el.onclick = () => openArc(el.getAttribute('data-arc')));
+    }
+    function arcRow(c) {
+        const t = tsToDate(c.closedAt); const p2 = n => n < 10 ? '0' + n : '' + n;
+        const hm = t ? p2(t.getHours()) + ':' + p2(t.getMinutes()) : '—';
+        return `<button class="rst-arc-r" data-arc="${esc(c.id)}">
+            <span class="no">#${esc(c.checkNo || '—')}</span>
+            <span>${esc(c.tableName || '—')}</span>
+            <span>${esc(c.room ? 'Oda ' + c.room : (c.name || '—'))}</span>
+            <span class="c">${esc(c.pax || 1)}</span>
+            <span>${esc(payLabels(c))}</span>
+            <span class="c">${esc(hm)}</span>
+            <span class="r">${esc(money(checkTotal(c)))}</span>
+        </button>`;
+    }
+    function openArc(id) {
+        const c = arcChecks.find(x => x.id === id); if (!c) return;
+        $('arcModalTitle').textContent = 'Adisyon #' + (c.checkNo || '—') + ' · Masa ' + (c.tableName || '');
+        const items = (c.items || []).map(l => `<div class="rst-folio-row"><span>${esc(l.qty)}× ${esc(l.name)}${l.note ? ' · ' + esc(l.note) : ''}</span><b>${esc(money(round2((l.unitPrice || 0) * l.qty)))}</b></div>`).join('');
+        const pays = (c.payments || []).map(pm => `<div class="rst-folio-row"><span>${esc(PM_LABEL[pm.method] || pm.method)}${pm.room ? ' · Oda ' + esc(pm.room) : ''}</span><b>${esc(money(pm.amount))}</b></div>`).join('');
+        const dA = (c.discount && c.discount.amount) || 0;
+        $('arcDetail').innerHTML = `
+            <div class="rst-arc-meta">${esc(c.room ? 'Oda ' + c.room + ' · ' : '')}${esc(c.name || '')}${c.name ? ' · ' : ''}${esc(c.pax || 1)} kişi · ${esc(c.closedBy || c.openedBy || '')} · ${esc(fmtTime(c.closedAt))}</div>
+            <div class="rst-arc-sec">${items || '<div class="rst-folio-row"><span>—</span></div>'}</div>
+            <div class="rst-arc-tot">
+                <div class="rst-tot-row"><span>Ara Toplam</span><b>${esc(money(c.subtotal || 0))}</b></div>
+                <div class="rst-tot-row"><span>KDV</span><b>${esc(money(c.vat || 0))}</b></div>
+                ${dA ? `<div class="rst-tot-row"><span>İndirim</span><b>-${esc(money(dA))}</b></div>` : ''}
+                <div class="rst-tot-row big"><span>Toplam</span><b>${esc(money(checkTotal(c)))}</b></div>
+            </div>
+            ${pays ? `<div class="rst-arc-sec">${pays}</div>` : ''}`;
+        $('arcPrint').onclick = () => printStored(c);
+        $('arcModal').classList.add('open');
+    }
+
     function wireFloorPos() {
         $('newCheckBtn').onclick = () => openCheckModal(null);
         $('checkModalClose').onclick = closeCheckModal;
         $('checkForm').onsubmit = submitCheck;
         $('ckRoom').oninput = onRoomInput;
+        $('arcDate').onchange = loadArchive;
+        $('arcClose').onclick = () => $('arcModal').classList.remove('open');
+        $('arcModal').addEventListener('click', e => { if (e.target === $('arcModal')) $('arcModal').classList.remove('open'); });
         $('checkModal').addEventListener('click', e => { if (e.target === $('checkModal')) closeCheckModal(); });
         $('posBack').onclick = closePos;
         $('posVoid').onclick = voidCheck;
@@ -818,7 +929,10 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('menuDeleteBtn').onclick = removeMenu;
         $('menuModal').addEventListener('click', e => { if (e.target === $('menuModal')) closeModal(); });
         wireFloorPos();
-        const go = () => { loadConfig(); listenMenu(); listenChecks(); listenInhouse(); listenFolio(); };
+        const go = () => {
+            loadConfig(); listenMenu(); listenChecks(); listenInhouse(); listenFolio();
+            if ($('arcDate')) { $('arcDate').value = todayYmd(); loadArchive(); }
+        };
         if (typeof auth !== 'undefined' && auth.onAuthStateChanged) auth.onAuthStateChanged(u => { if (u) go(); });
         else go();
     }
