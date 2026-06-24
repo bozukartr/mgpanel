@@ -231,7 +231,7 @@
         let subtotal = 0, vat = 0, total = 0;
         (items || []).forEach(it => {
             const rate = (it.vatRate != null && it.vatRate !== '') ? Number(it.vatRate) : (Number(cfg.vatRate) || 0);
-            const line = (Number(it.unitPrice) || 0) * (it.qty || 1);
+            const line = (it.ikram ? 0 : (Number(it.unitPrice) || 0)) * (it.qty || 1);
             if (mode === 'included') {
                 const lvat = rate > 0 ? line * rate / (100 + rate) : 0;
                 vat += lvat; subtotal += line - lvat; total += line;
@@ -250,13 +250,14 @@
         openChecks.forEach(c => { const s = (c.section || 'Genel'); if (!seen.includes(s)) seen.push(s); });
         return seen.sort((a, b) => a.localeCompare(b, 'tr'));
     }
+    function elapsedMin(c) { const t = tsToDate(c.openedAt); return t ? Math.floor((Date.now() - t.getTime()) / 60000) : 0; }
     function elapsed(c) {
-        const t = tsToDate(c.openedAt); if (!t) return '';
-        const m = Math.floor((Date.now() - t.getTime()) / 60000);
+        const m = elapsedMin(c);
         if (m < 1) return 'az önce';
         if (m < 60) return m + ' dk';
         return Math.floor(m / 60) + ' sa ' + (m % 60) + ' dk';
     }
+    function ageClass(c) { const m = elapsedMin(c); return m >= 60 ? ' age-late' : (m >= 30 ? ' age-warn' : ''); }
 
     function renderKpis() {
         const k = $('floorKpis'); if (!k) return;
@@ -288,7 +289,7 @@
     }
     function checkCardHtml(c) {
         const sent = c.status === 'sent';
-        return `<button class="rst-table ${sent ? 'sent' : 'busy'}" data-chk="${esc(c.id)}">
+        return `<button class="rst-table ${sent ? 'sent' : 'busy'}${ageClass(c)}" data-chk="${esc(c.id)}">
             <span class="rst-table-n">${esc(c.tableName || '—')}</span>
             ${(c.room || c.name) ? `<span class="rst-table-name">${esc(c.room ? 'Oda ' + c.room : '')}${(c.room && c.name) ? ' · ' : ''}${esc(c.name || '')}</span>` : ''}
             <span class="rst-table-s">${esc(money(c.total || 0))} · ${esc(c.pax || 1)} kişi</span>
@@ -458,8 +459,61 @@
     function removeLine(lineId) { currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId); recalcSave(); }
     function noteLine(lineId) {
         const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
-        const n = prompt('Not (örn. az pişmiş, sossuz):', l.note || '');
+        const n = prompt('Kalem notu (örn. az pişmiş, sossuz):', l.note || '');
         if (n !== null) { l.note = String(n).slice(0, 80); recalcSave(); }
+    }
+    function setQtyLine(lineId) {
+        const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
+        const v = prompt('Miktar:', String(l.qty || 1));
+        if (v === null) return;
+        const q = Math.max(0, parseInt(v, 10) || 0);
+        if (q <= 0) currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId);
+        else l.qty = q;
+        recalcSave();
+    }
+    function ikramLine(lineId) {
+        const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
+        l.ikram = !l.ikram;
+        recalcSave();
+    }
+    function checkNote() {
+        if (!currentCheck) return;
+        const n = prompt('Adisyon notu (mutfağa/servise iletilir):', currentCheck.note || '');
+        if (n === null) return;
+        currentCheck.note = String(n).slice(0, 160);
+        renderPosCheck(); scheduleSave();
+    }
+    // ── Adisyon böl ────────────────────────────────────────────
+    function openSplit() {
+        if (!currentCheck || currentCheck.items.length < 2) { toast('Bölmek için en az 2 kalem gerekir.', true); return; }
+        $('splitList').innerHTML = currentCheck.items.map(l => `
+            <label class="rst-split-row">
+                <input type="checkbox" data-sl="${esc(l.lineId)}">
+                <span class="sl-n">${esc(l.qty)}× ${esc(l.name)}${l.ikram ? ' · İkram' : ''}</span>
+                <span class="sl-p">${esc(money(l.ikram ? 0 : round2((l.unitPrice || 0) * l.qty)))}</span>
+            </label>`).join('');
+        $('splitModal').classList.add('open');
+    }
+    function doSplit() {
+        const ids = [...document.querySelectorAll('#splitList input[data-sl]:checked')].map(c => c.getAttribute('data-sl'));
+        if (!ids.length) { toast('Kalem seçin.', true); return; }
+        if (ids.length >= currentCheck.items.length) { toast('Tüm kalemler seçilemez.', true); return; }
+        const moved = currentCheck.items.filter(l => ids.indexOf(l.lineId) !== -1).map(l => Object.assign({}, l, { sent: false }));
+        const remaining = currentCheck.items.filter(l => ids.indexOf(l.lineId) === -1);
+        const mt = computeTotals(moved);
+        const TS = firebase.firestore.FieldValue.serverTimestamp();
+        nextCheckNo().catch(() => null).then(no => {
+            const payload = {
+                tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: (currentCheck.name ? currentCheck.name + ' ' : '') + '(B)',
+                room: '', section: currentCheck.section || 'Genel', status: 'open', pax: 1, note: '',
+                items: moved, subtotal: mt.subtotal, vat: mt.vat, total: mt.total, openedBy: loggedUser, openedAt: TS
+            };
+            if (no) payload.checkNo = no;
+            db.collection(CHK_COL).add(payload).catch(err => console.error(err));
+            currentCheck.items = remaining; recalcSave(); flushSave();
+            $('splitModal').classList.remove('open');
+            toast('Adisyon bölündü' + (no ? ' → #' + no : '') + '.');
+        });
     }
     function recalcSave() {
         const t = computeTotals(currentCheck.items);
@@ -475,7 +529,7 @@
         if (!currentCheck.items.length && !currentCheck.id) return; // boş adisyon yaratma
         const payload = {
             tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '', room: currentCheck.room || '',
-            section: currentCheck.section || 'Genel', status: currentCheck.status || 'open', pax: currentCheck.pax || 1,
+            section: currentCheck.section || 'Genel', status: currentCheck.status || 'open', pax: currentCheck.pax || 1, note: currentCheck.note || '',
             items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -517,26 +571,32 @@
         if (!currentCheck.items.length) {
             lines.innerHTML = `<div class="rst-check-empty">Soldan ürün ekleyin.</div>`;
         } else {
-            lines.innerHTML = currentCheck.items.map(l => `<div class="rst-line ${l.sent ? 'sent' : ''}">
+            lines.innerHTML = currentCheck.items.map(l => `<div class="rst-line ${l.sent ? 'sent' : ''}${l.ikram ? ' ikram' : ''}">
                 <div class="rst-line-main">
-                    <div class="rst-line-n">${esc(l.name)}${l.sent ? ' <span class="rst-line-snt">✓</span>' : ''}</div>
+                    <div class="rst-line-n">${esc(l.name)}${l.sent ? ' <span class="rst-line-snt">✓</span>' : ''}${l.ikram ? ' <span class="rst-line-ik">İKRAM</span>' : ''}</div>
                     ${l.note ? `<div class="rst-line-note">“${esc(l.note)}”</div>` : ''}
+                    <div class="rst-line-ops">
+                        <button data-set="${esc(l.lineId)}">Miktar</button>
+                        <button data-note="${esc(l.lineId)}">Not</button>
+                        <button data-ik="${esc(l.lineId)}">${l.ikram ? 'İkramı geri al' : 'İkram'}</button>
+                        <button data-del="${esc(l.lineId)}" class="del">Sil</button>
+                    </div>
                 </div>
                 <div class="rst-line-qty">
                     <button data-q="-" data-l="${esc(l.lineId)}">−</button>
-                    <span>${l.qty}</span>
+                    <span data-set="${esc(l.lineId)}">${l.qty}</span>
                     <button data-q="+" data-l="${esc(l.lineId)}">+</button>
                 </div>
-                <div class="rst-line-tot">${esc(money(round2((l.unitPrice || 0) * l.qty)))}</div>
-                <div class="rst-line-acts">
-                    <button data-note="${esc(l.lineId)}" title="Not">Not</button>
-                    <button data-del="${esc(l.lineId)}" title="Kaldır">✕</button>
-                </div>
+                <div class="rst-line-tot">${esc(money(l.ikram ? 0 : round2((l.unitPrice || 0) * l.qty)))}</div>
             </div>`).join('');
             lines.querySelectorAll('[data-q]').forEach(b => b.onclick = () => changeQty(b.getAttribute('data-l'), b.getAttribute('data-q') === '+' ? 1 : -1));
             lines.querySelectorAll('[data-note]').forEach(b => b.onclick = () => noteLine(b.getAttribute('data-note')));
             lines.querySelectorAll('[data-del]').forEach(b => b.onclick = () => removeLine(b.getAttribute('data-del')));
+            lines.querySelectorAll('[data-set]').forEach(b => b.onclick = () => setQtyLine(b.getAttribute('data-set')));
+            lines.querySelectorAll('[data-ik]').forEach(b => b.onclick = () => ikramLine(b.getAttribute('data-ik')));
         }
+        const noteEl = $('posNoteLine');
+        if (noteEl) { noteEl.style.display = currentCheck.note ? 'block' : 'none'; noteEl.textContent = currentCheck.note ? 'Not: ' + currentCheck.note : ''; }
         const t = computeTotals(currentCheck.items);
         const vatLabel = (cfg.vatMode === 'excluded') ? 'KDV (hariç)' : 'KDV (dahil)';
         $('posTotals').innerHTML = `
@@ -713,8 +773,8 @@
     }
     function receiptRows(items) {
         return (items || []).map(l => {
-            const lt = money(round2((l.unitPrice || 0) * l.qty));
-            return `<tr><td>${esc(l.qty)}×</td><td>${esc(l.name)}</td><td class="r">${esc(lt)}</td></tr>`
+            const lt = money(l.ikram ? 0 : round2((l.unitPrice || 0) * l.qty));
+            return `<tr><td>${esc(l.qty)}×</td><td>${esc(l.name)}${l.ikram ? ' (İkram)' : ''}</td><td class="r">${esc(lt)}</td></tr>`
                 + (l.note ? `<tr><td></td><td colspan="2" class="note">» ${esc(l.note)}</td></tr>` : '');
         }).join('');
     }
@@ -743,6 +803,7 @@
 <div class="sub">${esc(c.by || loggedUser)}${c.when ? ' · ' + esc(c.when) : ''}</div>
 <hr>
 <table>${receiptRows(c.items)}</table>
+${c.note ? '<div class="note">Not: ' + esc(c.note) + '</div>' : ''}
 <hr>
 <table class="tot">
  <tr><td colspan="2">Ara Toplam</td><td class="r">${esc(money(c.subtotal || 0))}</td></tr>
@@ -760,13 +821,13 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         const p = payable();
         printReceiptDoc({
             checkNo: currentCheck.checkNo, tableName: currentCheck.tableName, room: currentCheck.room, pax: currentCheck.pax,
-            by: loggedUser, items: currentCheck.items, subtotal: p.gross.subtotal, vat: p.gross.vat, payable: p.payable,
+            by: loggedUser, items: currentCheck.items, note: currentCheck.note, subtotal: p.gross.subtotal, vat: p.gross.vat, payable: p.payable,
             discountAmount: discountAmount(p.gross.total), payments: (pay && pay.payments) || []
         });
     }
     function printStored(check) {
         printReceiptDoc({
-            checkNo: check.checkNo, tableName: check.tableName, room: check.room, pax: check.pax,
+            checkNo: check.checkNo, tableName: check.tableName, room: check.room, pax: check.pax, note: check.note,
             by: check.closedBy || check.openedBy, when: fmtTime(check.closedAt),
             items: check.items, subtotal: check.subtotal || 0, vat: check.vat || 0,
             payable: (check.payable != null ? check.payable : check.total) || 0,
@@ -900,6 +961,11 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
         $('posPay').onclick = () => { flushSave(); openPay(); };
+        $('posNote').onclick = checkNote;
+        $('posSplit').onclick = openSplit;
+        $('splitClose').onclick = () => $('splitModal').classList.remove('open');
+        $('splitConfirm').onclick = doSplit;
+        $('splitModal').addEventListener('click', e => { if (e.target === $('splitModal')) $('splitModal').classList.remove('open'); });
         $('posPaxMinus').onclick = () => setPax(-1);
         $('posPaxPlus').onclick = () => setPax(1);
         $('posMove').onclick = () => { if (currentCheck) openCheckModal(currentCheck); };
