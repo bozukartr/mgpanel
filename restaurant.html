@@ -17,23 +17,22 @@
     <div class="rst-app">
         <!-- Sub navigation -->
         <nav class="rst-subnav" id="rstSubnav">
-            <button class="rst-tab active" data-view="floor">Salon</button>
+            <button class="rst-tab active" data-view="floor">Adisyonlar</button>
             <button class="rst-tab" data-view="folio">Oda Hesapları</button>
             <button class="rst-tab" data-view="menu">Menü</button>
             <button class="rst-tab" data-view="settings">Ayarlar</button>
         </nav>
 
         <main class="rst-main">
-            <!-- ── SALON ── -->
+            <!-- ── AÇIK ADİSYONLAR ── -->
             <section class="rst-view active" id="view-floor">
                 <div class="rst-floor-head">
                     <div>
-                        <h2>Salon</h2>
-                        <p class="rst-sub">Masaya dokun → sipariş al. “Düzenle” ile masa ekle/değiştir.</p>
+                        <h2>Açık Adisyonlar</h2>
+                        <p class="rst-sub">“Yeni Adisyon” ile masa no ve kişi sayısı girip adisyon aç; karta dokun → sipariş.</p>
                     </div>
                     <div class="rst-head-actions">
-                        <button class="rst-btn ghost" id="tblEditToggle">Düzenle</button>
-                        <button class="rst-btn primary" id="tblAddBtn">+ Masa</button>
+                        <button class="rst-btn primary" id="newCheckBtn">+ Yeni Adisyon</button>
                     </div>
                 </div>
                 <div id="floorKpis" class="rst-kpis"></div>
@@ -144,7 +143,7 @@
         <header class="rst-pos-head">
             <button class="rst-pos-back" id="posBack">‹ Salon</button>
             <div class="rst-pos-title"><b id="posTable">Masa</b><span id="posMeta"></span></div>
-            <button class="rst-pos-back" id="posMove">Masa Taşı</button>
+            <button class="rst-pos-back" id="posMove">Düzenle</button>
             <div class="rst-pos-pax">
                 <button type="button" id="posPaxMinus" aria-label="azalt">−</button>
                 <span id="posPax">1</span>
@@ -176,32 +175,35 @@
         </div>
     </div>
 
-    <!-- Table modal -->
-    <div id="tableModal" class="rst-modal">
+    <!-- Adisyon aç / düzenle -->
+    <div id="checkModal" class="rst-modal">
         <div class="rst-modal-card">
             <div class="rst-modal-head">
-                <h3 id="tableModalTitle">Masa Ekle</h3>
-                <button class="rst-modal-x" id="tableModalClose">&times;</button>
+                <h3 id="checkModalTitle">Yeni Adisyon</h3>
+                <button class="rst-modal-x" id="checkModalClose">&times;</button>
             </div>
-            <form id="tableForm" class="rst-form">
+            <form id="checkForm" class="rst-form">
                 <div class="rst-frow">
                     <div class="rst-fg">
-                        <label>Masa Adı / No</label>
-                        <input type="text" id="tblName" maxlength="20" placeholder="Örn. 5 / Teras-2" required>
+                        <label>Masa No</label>
+                        <input type="text" id="ckTable" maxlength="20" placeholder="Örn. 12 / Teras-3" required>
                     </div>
                     <div class="rst-fg">
-                        <label>Kapasite</label>
-                        <input type="number" id="tblCap" min="1" step="1" placeholder="4">
+                        <label>Kişi Sayısı</label>
+                        <input type="number" id="ckPax" min="1" step="1" value="2">
                     </div>
                 </div>
                 <div class="rst-fg">
-                    <label>Bölüm</label>
-                    <input type="text" id="tblSection" list="tblSecList" maxlength="30" placeholder="Örn. İç Salon / Teras">
-                    <datalist id="tblSecList"></datalist>
+                    <label>İsim / Açıklama <span class="rst-hint">opsiyonel</span></label>
+                    <input type="text" id="ckName" maxlength="40" placeholder="Örn. Ahmet B. · Rezervasyon">
+                </div>
+                <div class="rst-fg">
+                    <label>Bölüm <span class="rst-hint">opsiyonel</span></label>
+                    <input type="text" id="ckSection" list="ckSecList" maxlength="30" placeholder="Örn. İç Salon / Teras / Bahçe">
+                    <datalist id="ckSecList"></datalist>
                 </div>
                 <div class="rst-modal-actions">
-                    <button type="submit" class="rst-btn primary">Kaydet</button>
-                    <button type="button" class="rst-btn danger" id="tableDeleteBtn" style="display:none;">Sil</button>
+                    <button type="submit" class="rst-btn primary" id="ckSubmit">Adisyonu Aç</button>
                 </div>
             </form>
         </div>
@@ -249,17 +251,6 @@
                 <button type="button" class="rst-btn ghost" id="payReceipt">Fiş Yazdır</button>
                 <button type="button" class="rst-btn primary" id="paySettle" disabled>Tahsil Et &amp; Kapat</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Table transfer (masa taşı) -->
-    <div id="moveModal" class="rst-modal">
-        <div class="rst-modal-card">
-            <div class="rst-modal-head">
-                <h3>Masa Taşı — hedef masa</h3>
-                <button class="rst-modal-x" id="moveClose">&times;</button>
-            </div>
-            <div class="rst-room-list" id="moveList"></div>
         </div>
     </div>
 
