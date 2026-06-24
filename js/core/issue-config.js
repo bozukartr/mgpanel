@@ -8,7 +8,7 @@
  * up (talep / şikayet / her ikisi). Topics are an optional sub-category used to
  * group complaints (and to make "tekrarlayan sorun" detection precise).
  *
- * Loaded on panel.html, panel-mobile.html and admin.html before the modules
+ * Loaded on panel.html and admin.html before the modules
  * that consume it. Falls back to a 5-department Turkish default set when the
  * hotel hasn't customized anything yet.
  */
