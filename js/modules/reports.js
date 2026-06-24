@@ -310,9 +310,61 @@
                 rows.forEach(r => { if (r.status === 'in_house') ih++; else if (r.status === 'pre_arrival') pa++; else co++; });
                 return [['Toplam', rows.length, 'i'], ['Otelde', ih, 's'], ['Ön Geliş', pa, 'w'], ['Çıkış Yaptı', co, 'c']];
             }
+        },
+
+        restSales: {
+            label: 'Restoran Satışları (kalem bazlı)',
+            collection: 'restChecks', order: ['closedAt', 'desc'],
+            // Sadece kapanmış (ödenmiş) adisyonları ürün satırlarına böl.
+            transform: checks => {
+                const PM = { cash: 'Nakit', card: 'Kart', room: 'Oda Hesabı' };
+                const out = [];
+                checks.forEach(c => {
+                    if (c.status !== 'paid' || !Array.isArray(c.items)) return;
+                    const pmList = [...new Set((c.payments || []).map(p => PM[p.method] || p.method))].join(', ') || '—';
+                    const d = normDate(c.closedAt || c.openedAt);
+                    c.items.forEach(it => out.push({
+                        _date: d, table: c.tableName || '—', section: c.section || 'Genel', waiter: c.openedBy || '—',
+                        category: it.category || 'Diğer', name: it.name || '—', qty: it.qty || 1,
+                        price: Number(it.unitPrice) || 0, lineTotal: (Number(it.unitPrice) || 0) * (it.qty || 1),
+                        payment: pmList, checkId: c.id
+                    }));
+                });
+                return out;
+            },
+            dateOf: r => r._date || '',
+            facets: [
+                facet({ key: 'category', label: 'Kategori', kind: 'chips', valueOf: r => r.category || 'Diğer' }),
+                facet({ key: 'product', label: 'Ürün', kind: 'text', valueOf: r => r.name || '' }),
+                facet({ key: 'waiter', label: 'Garson', kind: 'chips', valueOf: r => r.waiter || '—' }),
+                facet({ key: 'payment', label: 'Ödeme', kind: 'chips', valueOf: r => r.payment || '—' }),
+                facet({ key: 'table', label: 'Masa', kind: 'text', valueOf: r => r.table || '' })
+            ],
+            columns: [
+                { label: 'Tarih', get: r => fmtDateTR(r._date) },
+                { label: 'Masa', get: r => r.table || '—' },
+                { label: 'Garson', get: r => r.waiter || '—' },
+                { label: 'Kategori', get: r => r.category || 'Diğer' },
+                { label: 'Ürün', get: r => r.name || '—', wide: true },
+                { label: 'Adet', get: r => r.qty, c: true },
+                { label: 'Birim', get: r => money(r.price), c: true },
+                { label: 'Tutar', get: r => money(r.lineTotal), c: true },
+                { label: 'Ödeme', get: r => r.payment || '—' }
+            ],
+            summary: rows => {
+                let qty = 0, rev = 0; const checks = new Set();
+                rows.forEach(r => { qty += r.qty || 0; rev += r.lineTotal || 0; if (r.checkId) checks.add(r.checkId); });
+                const adisyon = checks.size;
+                return [['Satır', rows.length, 'i'], ['Adet', qty, 'p'], ['Adisyon', adisyon, 'c'],
+                ['Ciro', money(rev), 'k'], ['Ort. Adisyon', money(adisyon ? rev / adisyon : 0), 's']];
+            },
+            groupAgg: rows => {
+                let q = 0, rev = 0; rows.forEach(r => { q += r.qty || 0; rev += r.lineTotal || 0; });
+                return rows.length + ' kalem · ' + q + ' adet · ' + money(rev) + ' ciro';
+            }
         }
     };
-    const DOMAIN_ORDER = ['guestLogs', 'reservations', 'guestOrders', 'orderItems', 'guestDirectory'];
+    const DOMAIN_ORDER = ['guestLogs', 'reservations', 'guestOrders', 'orderItems', 'guestDirectory', 'restSales'];
 
     // ── State ──────────────────────────────────────────────────
     let domainKey = 'guestLogs';
