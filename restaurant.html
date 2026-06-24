@@ -203,27 +203,43 @@
 
     <!-- Payment modal -->
     <div id="payModal" class="rst-modal">
-        <div class="rst-modal-card">
-            <div class="rst-modal-head">
-                <h3>Ödeme · <span id="payTable">Masa</span></h3>
+        <div class="rst-modal-card rst-pay-card">
+            <div class="rst-pay-head">
+                <div>
+                    <div class="rst-pay-table" id="payTable">Masa</div>
+                    <div class="rst-pay-due-l">Ödenecek</div>
+                    <div class="rst-pay-due" id="payDue">—</div>
+                </div>
                 <button class="rst-modal-x" id="payClose">&times;</button>
             </div>
-            <div class="rst-pay">
-                <div class="rst-pay-sum" id="paySum"></div>
-                <div class="rst-pay-disc">
-                    <button type="button" class="rst-btn ghost" id="payDiscBtn">İndirim / İkram</button>
-                    <span class="rst-pay-disc-l" id="payDiscLabel"></span>
+            <div class="rst-pay-breakdown" id="paySum"></div>
+            <div class="rst-pay-grid">
+                <div class="rst-keypad">
+                    <div class="rst-entry">
+                        <span>Girilen Tutar</span>
+                        <b id="payEntry">0</b>
+                    </div>
+                    <div class="rst-keys" id="payKeys">
+                        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+                        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+                        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+                        <button data-k="0">0</button><button data-k="00">00</button><button data-k="back" class="act">⌫</button>
+                        <button data-k="full" class="wide">Tam Tutar</button><button data-k="clear" class="act">Temizle</button>
+                    </div>
                 </div>
-                <div class="rst-pay-add">
-                    <span class="rst-pay-add-l">Ödeme ekle:</span>
-                    <button type="button" class="rst-btn ghost" data-pm="cash">Nakit</button>
-                    <button type="button" class="rst-btn ghost" data-pm="card">Kart</button>
-                    <button type="button" class="rst-btn ghost" data-pm="room">Oda Hesabı</button>
+                <div class="rst-pay-side">
+                    <div class="rst-pay-methods">
+                        <button type="button" data-pm="cash">Nakit</button>
+                        <button type="button" data-pm="card">Kart</button>
+                        <button type="button" data-pm="room">Oda Hesabına Yaz</button>
+                    </div>
+                    <button type="button" class="rst-pay-disc-btn" id="payDiscBtn">İndirim / İkram ekle</button>
+                    <div class="rst-pay-disc-l" id="payDiscLabel"></div>
+                    <div class="rst-pay-list" id="payList"></div>
+                    <div class="rst-pay-remain" id="payRemain"></div>
                 </div>
-                <div class="rst-pay-list" id="payList"></div>
-                <div class="rst-pay-remain" id="payRemain"></div>
             </div>
-            <div class="rst-modal-actions">
+            <div class="rst-pay-foot">
                 <button type="button" class="rst-btn ghost" id="payReceipt">Fiş Yazdır</button>
                 <button type="button" class="rst-btn primary" id="paySettle" disabled>Tahsil Et &amp; Kapat</button>
             </div>
@@ -279,15 +295,9 @@
                         <input type="number" id="miVat" min="0" max="100" step="1" placeholder="varsayılan">
                     </div>
                 </div>
-                <div class="rst-frow">
-                    <div class="rst-fg">
-                        <label>İkon</label>
-                        <input type="text" id="miIcon" maxlength="4" placeholder="🍽️" style="text-align:center;">
-                    </div>
-                    <div class="rst-fg">
-                        <label>Hazırlık (dk)</label>
-                        <input type="number" id="miPrep" min="0" step="1" placeholder="örn. 15">
-                    </div>
+                <div class="rst-fg">
+                    <label>Hazırlık Süresi (dk) <span class="rst-hint">opsiyonel</span></label>
+                    <input type="number" id="miPrep" min="0" step="1" placeholder="örn. 15">
                 </div>
                 <div class="rst-fg span2">
                     <label>Açıklama (opsiyonel)</label>

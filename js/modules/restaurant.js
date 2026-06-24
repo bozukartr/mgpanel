@@ -106,7 +106,6 @@
         const vat = (i.vatRate != null && i.vatRate !== '') ? i.vatRate + '% KDV' : '';
         const sub = [STATION[i.station] || 'Mutfak', vat].filter(Boolean).join(' · ');
         return `<div class="rst-item ${active ? '' : 'off'}" data-edit="${esc(i.id)}">
-            <div class="rst-item-ic">${esc(i.icon || '🍽️')}</div>
             <div class="rst-item-b">
                 <div class="rst-item-n">${esc(i.name)}</div>
                 <div class="rst-item-s">${esc(sub)}</div>
@@ -125,7 +124,6 @@
         $('miStation').value = it ? (it.station || 'kitchen') : 'kitchen';
         $('miPrice').value = it && it.price != null ? it.price : '';
         $('miVat').value = it && it.vatRate != null ? it.vatRate : '';
-        $('miIcon').value = it ? (it.icon || '') : '';
         $('miPrep').value = it && it.prepMin ? it.prepMin : '';
         $('miDesc').value = it ? (it.description || '') : '';
         $('miActive').checked = it ? (it.active !== false) : true;
@@ -147,7 +145,6 @@
             station: $('miStation').value === 'bar' ? 'bar' : 'kitchen',
             price: Math.max(0, parseFloat($('miPrice').value) || 0),
             vatRate: vatStr === '' ? null : Math.max(0, Math.min(100, parseInt(vatStr, 10) || 0)),
-            icon: ($('miIcon').value.trim() || '🍽️').slice(0, 4),
             prepMin: Math.max(0, parseInt($('miPrep').value, 10) || 0),
             description: $('miDesc').value.trim().slice(0, 160),
             active: $('miActive').checked,
@@ -362,7 +359,6 @@
         $('posCats').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { posCat = b.getAttribute('data-c'); renderPosMenu(); });
         const items = menu.filter(i => i.active !== false && (i.category || 'Diğer') === posCat).sort(byOrder);
         $('posItems').innerHTML = items.map(i => `<button class="rst-pitem" data-mi="${esc(i.id)}">
-            <span class="pi-ic">${esc(i.icon || '🍽️')}</span>
             <span class="pi-n">${esc(i.name)}</span>
             <span class="pi-p">${esc(money(i.price))}</span>
         </button>`).join('');
@@ -374,7 +370,7 @@
         if (ex) ex.qty++;
         else currentCheck.items.push({
             lineId: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-            menuId: mi.id, name: mi.name, icon: mi.icon || '🍽️', category: mi.category || 'Diğer',
+            menuId: mi.id, name: mi.name, category: mi.category || 'Diğer',
             unitPrice: Number(mi.price) || 0, qty: 1,
             vatRate: (mi.vatRate != null ? mi.vatRate : null), station: mi.station || 'kitchen', note: '', sent: false
         });
@@ -442,7 +438,7 @@
         } else {
             lines.innerHTML = currentCheck.items.map(l => `<div class="rst-line ${l.sent ? 'sent' : ''}">
                 <div class="rst-line-main">
-                    <div class="rst-line-n">${esc(l.icon)} ${esc(l.name)}${l.sent ? ' <span class="rst-line-snt">✓</span>' : ''}</div>
+                    <div class="rst-line-n">${esc(l.name)}${l.sent ? ' <span class="rst-line-snt">✓</span>' : ''}</div>
                     ${l.note ? `<div class="rst-line-note">“${esc(l.note)}”</div>` : ''}
                 </div>
                 <div class="rst-line-qty">
@@ -452,8 +448,8 @@
                 </div>
                 <div class="rst-line-tot">${esc(money(round2((l.unitPrice || 0) * l.qty)))}</div>
                 <div class="rst-line-acts">
-                    <button data-note="${esc(l.lineId)}" title="Not">✎</button>
-                    <button data-del="${esc(l.lineId)}" title="Sil">🗑</button>
+                    <button data-note="${esc(l.lineId)}" title="Not">Not</button>
+                    <button data-del="${esc(l.lineId)}" title="Kaldır">✕</button>
                 </div>
             </div>`).join('');
             lines.querySelectorAll('[data-q]').forEach(b => b.onclick = () => changeQty(b.getAttribute('data-l'), b.getAttribute('data-q') === '+' ? 1 : -1));
@@ -490,25 +486,32 @@
     }
     function paidSum() { return round2((pay.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)); }
 
+    let payEntry = '';   // tuş takımıyla girilen tutar (string)
+
     function openPay() {
         if (!currentCheck || !currentCheck.items.length) { toast('Adisyon boş.', true); return; }
         pay = { discount: currentCheck.discount || null, payments: [] };
+        payEntry = '';
         $('payTable').textContent = 'Masa ' + (currentCheck.tableName || '');
         renderPay();
         $('payModal').classList.add('open');
     }
-    function closePay() { $('payModal').classList.remove('open'); pay = null; }
+    function closePay() { $('payModal').classList.remove('open'); pay = null; payEntry = ''; }
+
+    function remaining() { const p = payable(); return round2(p.payable - paidSum()); }
+    function entryVal() { return round2(parseFloat(payEntry || '0') || 0); }
 
     function renderPay() {
         const p = payable();
         const dA = discountAmount(p.gross.total);
+        $('payDue').textContent = money(p.payable);
         $('paySum').innerHTML = `
             <div class="rst-tot-row"><span>Ara Toplam</span><b>${esc(money(p.gross.subtotal))}</b></div>
             <div class="rst-tot-row"><span>${cfg.vatMode === 'excluded' ? 'KDV (hariç)' : 'KDV (dahil)'}</span><b>${esc(money(p.gross.vat))}</b></div>
-            ${dA ? `<div class="rst-tot-row"><span>İndirim/İkram</span><b>−${esc(money(dA))}</b></div>` : ''}
-            <div class="rst-tot-row big"><span>Ödenecek</span><b>${esc(money(p.payable))}</b></div>`;
+            ${dA ? `<div class="rst-tot-row"><span>İndirim/İkram</span><b>−${esc(money(dA))}</b></div>` : ''}`;
+        $('payEntry').textContent = money(entryVal());
         $('payDiscLabel').textContent = pay.discount
-            ? (pay.discount.type === 'percent' ? '%' + pay.discount.value : money(pay.discount.value)) + (pay.discount.reason ? ' · ' + pay.discount.reason : '')
+            ? 'İndirim: ' + (pay.discount.type === 'percent' ? '%' + pay.discount.value : money(pay.discount.value)) + (pay.discount.reason ? ' · ' + pay.discount.reason : '')
             : '';
         const list = $('payList');
         list.innerHTML = (pay.payments || []).map((pm, i) => `<div class="rst-payrow">
@@ -517,26 +520,32 @@
             <button data-rmpay="${i}" title="Kaldır">✕</button>
         </div>`).join('');
         list.querySelectorAll('[data-rmpay]').forEach(b => b.onclick = () => { pay.payments.splice(+b.getAttribute('data-rmpay'), 1); renderPay(); });
-        const remain = round2(p.payable - paidSum());
+        const remain = remaining();
         $('payRemain').innerHTML = remain > 0.005
             ? `<span>Kalan</span><b class="due">${esc(money(remain))}</b>`
-            : `<span>Üstü / Tamam</span><b class="ok">${esc(money(Math.abs(remain)))}</b>`;
-        $('paySettle').disabled = !(paidSum() > 0 && remain <= 0.005);
+            : `<span>${paidSum() > p.payable + 0.005 ? 'Para Üstü' : 'Tamam'}</span><b class="ok">${esc(money(Math.abs(remain)))}</b>`;
+        // Kapanış: ödenecek 0 (tam ikram) veya kalan tamamen ödendiyse.
+        $('paySettle').disabled = !(p.payable <= 0.005 || (paidSum() > 0 && remain <= 0.005));
     }
 
+    function keypad(k) {
+        if (k === 'clear') payEntry = '';
+        else if (k === 'back') payEntry = payEntry.slice(0, -1);
+        else if (k === 'full') payEntry = String(Math.max(0, remaining()));
+        else if (k === '00') { if (payEntry && payEntry !== '0') payEntry += '00'; }
+        else { if (!(payEntry === '' && k === '0')) payEntry = (payEntry + k).slice(0, 9); }
+        $('payEntry').textContent = money(entryVal());
+    }
     function addPayment(method) {
-        const p = payable();
-        const remain = round2(p.payable - paidSum());
-        const def = remain > 0 ? remain : 0;
-        if (method === 'room') { pickRoom(def); return; }
-        const v = prompt(PM_LABEL[method] + ' tutarı:', String(def));
-        if (v === null) return;
-        const amt = round2(parseFloat(String(v).replace(',', '.')) || 0);
-        if (amt <= 0) return;
+        const remain = remaining();
+        const amt = entryVal() > 0 ? entryVal() : (remain > 0 ? remain : 0);
+        if (amt <= 0) { toast('Tutar girin.', true); return; }
+        if (method === 'room') { pickRoom(amt); return; }
         pay.payments.push({ method, amount: amt });
+        payEntry = '';
         renderPay();
     }
-    function pickRoom(defAmt) {
+    function pickRoom(amt) {
         if (!inhouse.length) { toast('Otelde misafir görünmüyor.', true); return; }
         const list = $('roomList');
         list.innerHTML = inhouse.map(g => `<button class="rst-room" data-g="${esc(g.id)}">
@@ -544,11 +553,8 @@
         list.querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
             const g = inhouse.find(x => x.id === b.getAttribute('data-g'));
             $('roomModal').classList.remove('open');
-            const v = prompt('Oda hesabına yazılacak tutar:', String(defAmt));
-            if (v === null) return;
-            const amt = round2(parseFloat(String(v).replace(',', '.')) || 0);
-            if (amt <= 0) return;
             pay.payments.push({ method: 'room', amount: amt, room: g.room || '', guestName: g.name || '', guestId: g.id });
+            payEntry = '';
             renderPay();
         });
         $('roomModal').classList.add('open');
@@ -720,6 +726,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('payReceipt').onclick = printReceipt;
         $('paySettle').onclick = settle;
         document.querySelectorAll('#payModal [data-pm]').forEach(b => b.onclick = () => addPayment(b.getAttribute('data-pm')));
+        document.querySelectorAll('#payKeys [data-k]').forEach(b => b.onclick = () => keypad(b.getAttribute('data-k')));
         $('roomClose').onclick = () => $('roomModal').classList.remove('open');
         $('roomModal').addEventListener('click', e => { if (e.target === $('roomModal')) $('roomModal').classList.remove('open'); });
     }
