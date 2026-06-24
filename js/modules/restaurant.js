@@ -219,6 +219,7 @@
     let editingTableId = null;
     let currentCheck = null;  // POS'ta düzenlenen adisyon
     let posCat = '';
+    let posSearch = '';
 
     // ── Totals (KDV dahil/hariç, kalem bazlı oran) ─────────────
     function computeTotals(items) {
@@ -247,7 +248,22 @@
     }
     function checkForTable(id) { return openChecks.find(c => c.tableId === id); }
 
+    function renderKpis() {
+        const k = $('floorKpis'); if (!k) return;
+        const total = tables.length;
+        const occ = openChecks.length;
+        const openTotal = round2(openChecks.reduce((s, c) => s + (Number(c.total) || 0), 0));
+        const sent = openChecks.filter(c => c.status === 'sent').length;
+        const cards = [
+            ['Açık Masa', occ + (total ? ' / ' + total : '')],
+            ['Mutfakta', sent],
+            ['Boş Masa', Math.max(0, total - occ)],
+            ['Açık Adisyon Tutarı', money(openTotal)]
+        ];
+        k.innerHTML = cards.map(([l, v]) => `<div class="rst-kpi"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
+    }
     function renderFloor() {
+        renderKpis();
         const wrap = $('floorGrid'); if (!wrap) return;
         const dl = $('tblSecList'); if (dl) dl.innerHTML = sectionsOrdered().map(s => `<option value="${esc(s)}">`).join('');
         if (!tables.length) {
@@ -341,28 +357,73 @@
         const existing = checkForTable(table.id);
         currentCheck = existing
             ? JSON.parse(JSON.stringify(existing))
-            : { id: null, tableId: table.id, tableName: table.name, section: table.section || 'Genel', status: 'open', pax: 1, items: [] };
+            : { id: null, tableId: table.id, tableName: table.name, section: table.section || 'Genel', status: 'open', pax: table.capacity || 1, items: [] };
         $('posTable').textContent = 'Masa ' + table.name;
         $('posPax').textContent = currentCheck.pax || 1;
-        posCat = '';
+        posCat = ''; posSearch = '';
+        if ($('posSearch')) $('posSearch').value = '';
         renderPosMenu();
         renderPosCheck();
         $('posOverlay').classList.add('open');
     }
-    function closePos() { saveCheck(); $('posOverlay').classList.remove('open'); currentCheck = null; }
+    function closePos() { flushSave(); $('posOverlay').classList.remove('open'); currentCheck = null; }
 
     function renderPosMenu() {
         const cats = []; menu.filter(i => i.active !== false).sort(byOrder).forEach(i => { const c = i.category || 'Diğer'; if (!cats.includes(c)) cats.push(c); });
         if (!posCat || !cats.includes(posCat)) posCat = cats[0] || '';
-        $('posCats').innerHTML = cats.map(c => `<button class="rst-pcat ${c === posCat ? 'active' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')
-            || '<span class="rst-none">Menü boş — önce Menü sekmesinden ürün ekle.</span>';
+        const searching = posSearch.trim().length > 0;
+        $('posCats').innerHTML = (searching ? '' : cats.map(c => `<button class="rst-pcat ${c === posCat ? 'active' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join(''))
+            || (searching ? '' : '<span class="rst-none">Menü boş — önce Menü sekmesinden ürün ekle.</span>');
         $('posCats').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { posCat = b.getAttribute('data-c'); renderPosMenu(); });
-        const items = menu.filter(i => i.active !== false && (i.category || 'Diğer') === posCat).sort(byOrder);
-        $('posItems').innerHTML = items.map(i => `<button class="rst-pitem" data-mi="${esc(i.id)}">
-            <span class="pi-n">${esc(i.name)}</span>
-            <span class="pi-p">${esc(money(i.price))}</span>
-        </button>`).join('');
+        const q = posSearch.trim().toLowerCase();
+        const items = searching
+            ? menu.filter(i => i.active !== false && (i.name || '').toLowerCase().includes(q)).sort(byOrder).slice(0, 60)
+            : menu.filter(i => i.active !== false && (i.category || 'Diğer') === posCat).sort(byOrder);
+        $('posItems').innerHTML = items.length
+            ? items.map(i => `<button class="rst-pitem" data-mi="${esc(i.id)}">
+                <span class="pi-n">${esc(i.name)}</span>
+                <span class="pi-p">${esc(money(i.price))}</span>
+            </button>`).join('')
+            : `<span class="rst-none">${searching ? 'Eşleşen ürün yok.' : ''}</span>`;
         $('posItems').querySelectorAll('[data-mi]').forEach(b => b.onclick = () => { const mi = menu.find(x => x.id === b.getAttribute('data-mi')); if (mi) addLine(mi); });
+    }
+
+    // Açık fiyatlı / hızlı ürün (menüde olmayan satış)
+    function addQuickItem() {
+        const name = (prompt('Ürün adı:') || '').trim();
+        if (!name) return;
+        const pv = prompt('Fiyat:', '');
+        if (pv === null) return;
+        const price = round2(parseFloat(String(pv).replace(',', '.')) || 0);
+        if (price <= 0) { toast('Geçerli fiyat girin.', true); return; }
+        currentCheck.items.push({
+            lineId: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+            menuId: null, name: name.slice(0, 60), category: 'Açık Ürün',
+            unitPrice: price, qty: 1, vatRate: null, station: 'kitchen', note: '', sent: false
+        });
+        recalcSave();
+    }
+
+    // Masa taşı (adisyonu başka masaya aktar)
+    function openMove() {
+        if (!currentCheck) return;
+        const list = $('moveList');
+        const targets = tables.filter(t => t.id !== currentCheck.tableId).sort(tblByOrder);
+        if (!targets.length) { toast('Taşınacak başka masa yok.', true); return; }
+        list.innerHTML = targets.map(t => {
+            const busy = checkForTable(t.id);
+            return `<button class="rst-room" data-mv="${esc(t.id)}"${busy ? ' disabled style="opacity:.45;cursor:not-allowed"' : ''}>
+                <b>Masa ${esc(t.name)}</b><span>${busy ? 'Dolu' : (t.section || 'Genel')}</span></button>`;
+        }).join('');
+        list.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => {
+            const t = tables.find(x => x.id === b.getAttribute('data-mv')); if (!t) return;
+            currentCheck.tableId = t.id; currentCheck.tableName = t.name; currentCheck.section = t.section || 'Genel';
+            $('posTable').textContent = 'Masa ' + t.name;
+            $('moveModal').classList.remove('open');
+            flushSave();
+            toast('Adisyon Masa ' + t.name + ' taşındı.');
+        });
+        $('moveModal').classList.add('open');
     }
 
     function addLine(mi) {
@@ -390,8 +451,12 @@
     function recalcSave() {
         const t = computeTotals(currentCheck.items);
         currentCheck.subtotal = t.subtotal; currentCheck.vat = t.vat; currentCheck.total = t.total;
-        renderPosCheck(); saveCheck();
+        renderPosCheck(); scheduleSave();
     }
+    // Hızlı arka arkaya değişikliklerde tek yazma (write churn / yarış azaltma).
+    let saveTimer = null;
+    function scheduleSave() { if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = null; saveCheck(); }, 450); }
+    function flushSave() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } saveCheck(); }
     function saveCheck() {
         if (!currentCheck) return;
         if (!currentCheck.items.length && !currentCheck.id) return; // boş adisyon yaratma
@@ -411,10 +476,13 @@
     }
     function sendKitchen() {
         if (!currentCheck || !currentCheck.items.length) { toast('Adisyon boş.', true); return; }
+        const fresh = currentCheck.items.filter(l => !l.sent).length;
         currentCheck.items.forEach(l => l.sent = true);
         currentCheck.status = 'sent';
-        recalcSave();
-        toast('Mutfağa gönderildi.');
+        const t = computeTotals(currentCheck.items);
+        currentCheck.subtotal = t.subtotal; currentCheck.vat = t.vat; currentCheck.total = t.total;
+        renderPosCheck(); flushSave();
+        toast(fresh ? fresh + ' kalem mutfağa gönderildi.' : 'Mutfağa gönderildi.');
     }
     function voidCheck() {
         if (!currentCheck) return;
@@ -428,7 +496,7 @@
         if (!currentCheck) return;
         currentCheck.pax = Math.max(1, (currentCheck.pax || 1) + d);
         $('posPax').textContent = currentCheck.pax;
-        if (currentCheck.id || currentCheck.items.length) saveCheck();
+        if (currentCheck.id || currentCheck.items.length) scheduleSave();
     }
 
     function renderPosCheck() {
@@ -499,7 +567,7 @@
     function closePay() { $('payModal').classList.remove('open'); pay = null; payEntry = ''; }
 
     function remaining() { const p = payable(); return round2(p.payable - paidSum()); }
-    function entryVal() { return round2(parseFloat(payEntry || '0') || 0); }
+    function entryVal() { return round2(parseFloat(String(payEntry || '0').replace(',', '.')) || 0); }
 
     function renderPay() {
         const p = payable();
@@ -532,8 +600,12 @@
         if (k === 'clear') payEntry = '';
         else if (k === 'back') payEntry = payEntry.slice(0, -1);
         else if (k === 'full') payEntry = String(Math.max(0, remaining()));
-        else if (k === '00') { if (payEntry && payEntry !== '0') payEntry += '00'; }
-        else { if (!(payEntry === '' && k === '0')) payEntry = (payEntry + k).slice(0, 9); }
+        else if (k === ',') { if (payEntry.indexOf(',') === -1) payEntry = (payEntry || '0') + ','; }
+        else {
+            const dec = payEntry.split(',')[1];
+            if (dec && dec.length >= 2) return;           // en fazla 2 ondalık
+            if (!(payEntry === '' && k === '0')) payEntry = (payEntry + k).slice(0, 12);
+        }
         $('payEntry').textContent = money(entryVal());
     }
     function addPayment(method) {
@@ -716,9 +788,14 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('posBack').onclick = closePos;
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
-        $('posPay').onclick = () => { saveCheck(); openPay(); };
+        $('posPay').onclick = () => { flushSave(); openPay(); };
         $('posPaxMinus').onclick = () => setPax(-1);
         $('posPaxPlus').onclick = () => setPax(1);
+        $('posMove').onclick = openMove;
+        $('posQuick').onclick = addQuickItem;
+        $('posSearch').oninput = e => { posSearch = e.target.value; renderPosMenu(); };
+        $('moveClose').onclick = () => $('moveModal').classList.remove('open');
+        $('moveModal').addEventListener('click', e => { if (e.target === $('moveModal')) $('moveModal').classList.remove('open'); });
         // Payment modal
         $('payClose').onclick = closePay;
         $('payModal').addEventListener('click', e => { if (e.target === $('payModal')) closePay(); });

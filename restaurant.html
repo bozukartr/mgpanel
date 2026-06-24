@@ -36,6 +36,7 @@
                         <button class="rst-btn primary" id="tblAddBtn">+ Masa</button>
                     </div>
                 </div>
+                <div id="floorKpis" class="rst-kpis"></div>
                 <div id="floorGrid" class="rst-floor"></div>
             </section>
 
@@ -143,6 +144,7 @@
         <header class="rst-pos-head">
             <button class="rst-pos-back" id="posBack">‹ Salon</button>
             <div class="rst-pos-title"><b id="posTable">Masa</b><span id="posMeta"></span></div>
+            <button class="rst-pos-back" id="posMove">Masa Taşı</button>
             <div class="rst-pos-pax">
                 <button type="button" id="posPaxMinus" aria-label="azalt">−</button>
                 <span id="posPax">1</span>
@@ -152,6 +154,10 @@
         </header>
         <div class="rst-pos-body">
             <div class="rst-pos-menu">
+                <div class="rst-pos-tools">
+                    <input type="text" id="posSearch" class="rst-pos-search" placeholder="Ürün ara…" autocomplete="off">
+                    <button type="button" class="rst-btn ghost" id="posQuick">Açık Ürün</button>
+                </div>
                 <div class="rst-pos-cats" id="posCats"></div>
                 <div class="rst-pos-items" id="posItems"></div>
             </div>
@@ -223,7 +229,7 @@
                         <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
                         <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
                         <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
-                        <button data-k="0">0</button><button data-k="00">00</button><button data-k="back" class="act">⌫</button>
+                        <button data-k="0">0</button><button data-k=",">,</button><button data-k="back" class="act">⌫</button>
                         <button data-k="full" class="wide">Tam Tutar</button><button data-k="clear" class="act">Temizle</button>
                     </div>
                 </div>
@@ -243,6 +249,17 @@
                 <button type="button" class="rst-btn ghost" id="payReceipt">Fiş Yazdır</button>
                 <button type="button" class="rst-btn primary" id="paySettle" disabled>Tahsil Et &amp; Kapat</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Table transfer (masa taşı) -->
+    <div id="moveModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3>Masa Taşı — hedef masa</h3>
+                <button class="rst-modal-x" id="moveClose">&times;</button>
+            </div>
+            <div class="rst-room-list" id="moveList"></div>
         </div>
     </div>
 
