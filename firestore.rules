@@ -90,6 +90,11 @@ service cloud.firestore {
       allow read:  if signedIn();
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
+    // Sıralı adisyon numarası sayacı (her personel artırabilir).
+    match /restCounters/{tid} {
+      allow read:  if isStaff() && tid == callerTenant();
+      allow write: if isStaff() && tid == callerTenant();
+    }
     // Menu, tables, checks (adisyon), cashier sessions, room-account folio.
     // Any staff member in the hotel may read/manage these (waiters open checks).
     match /restMenu/{id} {

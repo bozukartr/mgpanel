@@ -18,6 +18,7 @@
         <!-- Sub navigation -->
         <nav class="rst-subnav" id="rstSubnav">
             <button class="rst-tab active" data-view="floor">Adisyonlar</button>
+            <button class="rst-tab" data-view="archive">Arşiv</button>
             <button class="rst-tab" data-view="folio">Oda Hesapları</button>
             <button class="rst-tab" data-view="menu">Menü</button>
             <button class="rst-tab" data-view="settings">Ayarlar</button>
@@ -37,6 +38,21 @@
                 </div>
                 <div id="floorKpis" class="rst-kpis"></div>
                 <div id="floorGrid" class="rst-floor"></div>
+            </section>
+
+            <!-- ── ARŞİV ── -->
+            <section class="rst-view" id="view-archive">
+                <div class="rst-floor-head">
+                    <div>
+                        <h2>Adisyon Arşivi</h2>
+                        <p class="rst-sub">Gün seç → kapanmış adisyonları görüntüle, kontrol et, fiş yeniden yazdır.</p>
+                    </div>
+                    <div class="rst-head-actions">
+                        <input type="date" id="arcDate" class="rst-date-in">
+                    </div>
+                </div>
+                <div id="arcStats" class="rst-kpis"></div>
+                <div id="arcList" class="rst-arc"></div>
             </section>
 
             <!-- ── ODA HESAPLARI (folio) ── -->
@@ -212,6 +228,20 @@
                     <button type="submit" class="rst-btn primary" id="ckSubmit">Adisyonu Aç</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Archive detail modal -->
+    <div id="arcModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3 id="arcModalTitle">Adisyon</h3>
+                <button class="rst-modal-x" id="arcClose">&times;</button>
+            </div>
+            <div class="rst-arc-detail" id="arcDetail"></div>
+            <div class="rst-modal-actions" style="padding: 4px 22px 20px;">
+                <button class="rst-btn primary" id="arcPrint">Fiş Yeniden Yazdır</button>
+            </div>
         </div>
     </div>
 
