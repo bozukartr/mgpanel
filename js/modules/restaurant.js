@@ -211,15 +211,19 @@
     // ════════════════════════════════════════════════════════════
     //  SALON (masalar) + POS (sipariş / adisyon)
     // ════════════════════════════════════════════════════════════
-    const TBL_COL = 'restTables';
     const CHK_COL = 'restChecks';
-    let tables = [];
-    let openChecks = [];      // status 'open'|'sent' (doluluk)
-    let editMode = false;
-    let editingTableId = null;
-    let currentCheck = null;  // POS'ta düzenlenen adisyon
+    let openChecks = [];        // status 'open'|'sent' (açık adisyonlar)
+    let editingCheckId = null;  // checkModal düzenleme hedefi (null = yeni)
+    let currentCheck = null;    // POS'ta düzenlenen adisyon
     let posCat = '';
     let posSearch = '';
+    function tsToDate(v) {
+        if (!v) return null;
+        if (v.toDate) { try { return v.toDate(); } catch (e) { return null; } }
+        if (v.seconds) return new Date(v.seconds * 1000);
+        if (typeof v === 'number') return new Date(v);
+        return null;
+    }
 
     // ── Totals (KDV dahil/hariç, kalem bazlı oran) ─────────────
     function computeTotals(items) {
@@ -239,111 +243,102 @@
         return { subtotal: round2(subtotal), vat: round2(vat), total: round2(total) };
     }
 
-    // ── Tables ─────────────────────────────────────────────────
-    function tblByOrder(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name).localeCompare(String(b.name), 'tr', { numeric: true }); }
-    function sectionsOrdered() {
+    // ── Açık adisyonlar (Micros tarzı: masa no + kişi ile aç) ──
+    function chkByOrder(a, b) { return String(a.tableName || '').localeCompare(String(b.tableName || ''), 'tr', { numeric: true }); }
+    function sectionsOfChecks() {
         const seen = [];
-        tables.slice().sort(tblByOrder).forEach(t => { const s = (t.section || 'Genel'); if (!seen.includes(s)) seen.push(s); });
-        return seen;
+        openChecks.forEach(c => { const s = (c.section || 'Genel'); if (!seen.includes(s)) seen.push(s); });
+        return seen.sort((a, b) => a.localeCompare(b, 'tr'));
     }
-    function checkForTable(id) { return openChecks.find(c => c.tableId === id); }
+    function elapsed(c) {
+        const t = tsToDate(c.openedAt); if (!t) return '';
+        const m = Math.floor((Date.now() - t.getTime()) / 60000);
+        if (m < 1) return 'az önce';
+        if (m < 60) return m + ' dk';
+        return Math.floor(m / 60) + ' sa ' + (m % 60) + ' dk';
+    }
 
     function renderKpis() {
         const k = $('floorKpis'); if (!k) return;
-        const total = tables.length;
         const occ = openChecks.length;
-        const openTotal = round2(openChecks.reduce((s, c) => s + (Number(c.total) || 0), 0));
+        const pax = openChecks.reduce((s, c) => s + (Number(c.pax) || 0), 0);
         const sent = openChecks.filter(c => c.status === 'sent').length;
-        const cards = [
-            ['Açık Masa', occ + (total ? ' / ' + total : '')],
-            ['Mutfakta', sent],
-            ['Boş Masa', Math.max(0, total - occ)],
-            ['Açık Adisyon Tutarı', money(openTotal)]
-        ];
+        const openTotal = round2(openChecks.reduce((s, c) => s + (Number(c.total) || 0), 0));
+        const cards = [['Açık Adisyon', occ], ['Toplam Kişi', pax], ['Mutfakta', sent], ['Açık Tutar', money(openTotal)]];
         k.innerHTML = cards.map(([l, v]) => `<div class="rst-kpi"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
     }
     function renderFloor() {
         renderKpis();
         const wrap = $('floorGrid'); if (!wrap) return;
-        const dl = $('tblSecList'); if (dl) dl.innerHTML = sectionsOrdered().map(s => `<option value="${esc(s)}">`).join('');
-        if (!tables.length) {
-            wrap.innerHTML = `<div class="rst-empty">Henüz masa yok.<br>“+ Masa” ile salon düzenini oluştur.</div>`;
+        const dl = $('ckSecList'); if (dl) dl.innerHTML = sectionsOfChecks().map(s => `<option value="${esc(s)}">`).join('');
+        if (!openChecks.length) {
+            wrap.innerHTML = `<div class="rst-empty">Açık adisyon yok.<br>“+ Yeni Adisyon” ile masa no ve kişi sayısı girip başlayın.</div>`;
             return;
         }
-        wrap.innerHTML = sectionsOrdered().map(sec => {
-            const ts = tables.filter(t => (t.section || 'Genel') === sec).sort(tblByOrder);
+        wrap.innerHTML = sectionsOfChecks().map(sec => {
+            const cs = openChecks.filter(c => (c.section || 'Genel') === sec).sort(chkByOrder);
             return `<div class="rst-sec">
                 <div class="rst-sec-h">${esc(sec)}</div>
-                <div class="rst-tables">${ts.map(tableHtml).join('')}</div>
+                <div class="rst-tables">${cs.map(checkCardHtml).join('')}</div>
             </div>`;
         }).join('');
-        wrap.querySelectorAll('[data-tbl]').forEach(el => {
-            el.onclick = () => {
-                const t = tables.find(x => x.id === el.getAttribute('data-tbl'));
-                if (!t) return;
-                if (editMode) openTableModal(t); else openPos(t);
-            };
+        wrap.querySelectorAll('[data-chk]').forEach(el => {
+            el.onclick = () => { const c = openChecks.find(x => x.id === el.getAttribute('data-chk')); if (c) openPos(c); };
         });
     }
-    function tableHtml(t) {
-        const chk = checkForTable(t.id);
-        const occ = !!chk;
-        const sent = chk && chk.status === 'sent';
-        const cls = occ ? (sent ? 'sent' : 'busy') : 'free';
-        const meta = occ ? money(chk.total) : (t.capacity ? t.capacity + ' kişilik' : 'Boş');
-        return `<button class="rst-table ${cls}" data-tbl="${esc(t.id)}">
-            ${editMode ? '<span class="rst-table-edit">✎</span>' : ''}
-            <span class="rst-table-n">${esc(t.name)}</span>
-            <span class="rst-table-s">${esc(meta)}</span>
-            ${occ ? `<span class="rst-table-badge">${sent ? 'Mutfakta' : 'Açık'}</span>` : ''}
+    function checkCardHtml(c) {
+        const sent = c.status === 'sent';
+        return `<button class="rst-table ${sent ? 'sent' : 'busy'}" data-chk="${esc(c.id)}">
+            <span class="rst-table-n">${esc(c.tableName || '—')}</span>
+            ${c.name ? `<span class="rst-table-name">${esc(c.name)}</span>` : ''}
+            <span class="rst-table-s">${esc(money(c.total || 0))} · ${esc(c.pax || 1)} kişi</span>
+            <span class="rst-table-foot">${sent ? 'Mutfakta' : 'Açık'} · ${esc(elapsed(c))}</span>
         </button>`;
     }
 
-    function openTableModal(t) {
-        editingTableId = t ? t.id : null;
-        $('tableModalTitle').textContent = t ? 'Masayı Düzenle' : 'Masa Ekle';
-        $('tblName').value = t ? (t.name || '') : '';
-        $('tblCap').value = t && t.capacity ? t.capacity : '';
-        $('tblSection').value = t ? (t.section || '') : '';
-        $('tableDeleteBtn').style.display = t ? 'inline-flex' : 'none';
-        $('tableModal').classList.add('open');
+    // Adisyon aç / düzenle
+    function openCheckModal(check) {
+        editingCheckId = check ? check.id : null;
+        $('checkModalTitle').textContent = check ? 'Adisyonu Düzenle' : 'Yeni Adisyon';
+        $('ckSubmit').textContent = check ? 'Kaydet' : 'Adisyonu Aç';
+        $('ckTable').value = check ? (check.tableName || '') : '';
+        $('ckPax').value = check ? (check.pax || 1) : 2;
+        $('ckName').value = check ? (check.name || '') : '';
+        $('ckSection').value = check ? (check.section || '') : '';
+        $('checkModal').classList.add('open');
+        setTimeout(() => { try { $('ckTable').focus(); } catch (e) {} }, 50);
     }
-    function closeTableModal() { $('tableModal').classList.remove('open'); editingTableId = null; }
-    function saveTable(e) {
+    function closeCheckModal() { $('checkModal').classList.remove('open'); editingCheckId = null; }
+    function submitCheck(e) {
         e.preventDefault();
-        const name = $('tblName').value.trim();
-        if (!name) { toast('Masa adı zorunlu.', true); return; }
+        const tableName = $('ckTable').value.trim();
+        if (!tableName) { toast('Masa no zorunlu.', true); return; }
         const data = {
-            tenantId: TENANT_ID, name: name.slice(0, 20),
-            capacity: Math.max(0, parseInt($('tblCap').value, 10) || 0),
-            section: ($('tblSection').value || 'Genel').trim().slice(0, 30) || 'Genel',
+            tableName: tableName.slice(0, 20),
+            pax: Math.max(1, parseInt($('ckPax').value, 10) || 1),
+            name: $('ckName').value.trim().slice(0, 40),
+            section: ($('ckSection').value || 'Genel').trim().slice(0, 30) || 'Genel',
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        let p;
-        if (editingTableId) p = db.collection(TBL_COL).doc(editingTableId).update(data);
-        else {
-            data.sortOrder = tables.reduce((m, t) => Math.max(m, t.sortOrder || 0), 0) + 10;
-            data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-            p = db.collection(TBL_COL).add(data);
+        if (editingCheckId) {
+            if (currentCheck && currentCheck.id === editingCheckId) {
+                currentCheck.tableName = data.tableName; currentCheck.pax = data.pax; currentCheck.name = data.name; currentCheck.section = data.section;
+                setPosHeader(); flushSave();
+            } else {
+                db.collection(CHK_COL).doc(editingCheckId).update(data).catch(err => console.error(err));
+            }
+            closeCheckModal(); toast('Adisyon güncellendi.');
+        } else {
+            const TS = firebase.firestore.FieldValue.serverTimestamp();
+            db.collection(CHK_COL).add(Object.assign({
+                tenantId: TENANT_ID, status: 'open', items: [], subtotal: 0, vat: 0, total: 0, openedBy: loggedUser, openedAt: TS
+            }, data)).then(ref => {
+                closeCheckModal();
+                openPos({ id: ref.id, tableName: data.tableName, pax: data.pax, name: data.name, section: data.section, status: 'open', items: [] });
+            }).catch(err => { console.error(err); toast('Açılamadı.', true); });
         }
-        p.then(() => { toast(editingTableId ? 'Masa güncellendi.' : 'Masa eklendi.'); closeTableModal(); })
-            .catch(err => { console.error(err); toast('Kaydedilemedi.', true); });
-    }
-    function removeTable() {
-        if (!editingTableId) return;
-        if (checkForTable(editingTableId)) { toast('Açık adisyonu olan masa silinemez.', true); return; }
-        if (!confirm('Bu masayı silmek istediğine emin misin?')) return;
-        db.collection(TBL_COL).doc(editingTableId).delete()
-            .then(() => { toast('Masa silindi.'); closeTableModal(); })
-            .catch(err => { console.error(err); toast('Silinemedi.', true); });
     }
 
-    function listenTables() {
-        db.collection(TBL_COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
-            tables = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-            renderFloor();
-        }, err => console.error('tables', err));
-    }
     function listenChecks() {
         db.collection(CHK_COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
             openChecks = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
@@ -353,13 +348,15 @@
     }
 
     // ── POS ────────────────────────────────────────────────────
-    function openPos(table) {
-        const existing = checkForTable(table.id);
-        currentCheck = existing
-            ? JSON.parse(JSON.stringify(existing))
-            : { id: null, tableId: table.id, tableName: table.name, section: table.section || 'Genel', status: 'open', pax: table.capacity || 1, items: [] };
-        $('posTable').textContent = 'Masa ' + table.name;
+    function setPosHeader() {
+        $('posTable').textContent = 'Masa ' + (currentCheck.tableName || '');
+        $('posMeta').textContent = (currentCheck.name ? currentCheck.name + ' · ' : '') + (currentCheck.pax || 1) + ' kişi';
         $('posPax').textContent = currentCheck.pax || 1;
+    }
+    function openPos(check) {
+        currentCheck = JSON.parse(JSON.stringify(check));
+        if (!currentCheck.items) currentCheck.items = [];
+        setPosHeader();
         posCat = ''; posSearch = '';
         if ($('posSearch')) $('posSearch').value = '';
         renderPosMenu();
@@ -404,28 +401,6 @@
         recalcSave();
     }
 
-    // Masa taşı (adisyonu başka masaya aktar)
-    function openMove() {
-        if (!currentCheck) return;
-        const list = $('moveList');
-        const targets = tables.filter(t => t.id !== currentCheck.tableId).sort(tblByOrder);
-        if (!targets.length) { toast('Taşınacak başka masa yok.', true); return; }
-        list.innerHTML = targets.map(t => {
-            const busy = checkForTable(t.id);
-            return `<button class="rst-room" data-mv="${esc(t.id)}"${busy ? ' disabled style="opacity:.45;cursor:not-allowed"' : ''}>
-                <b>Masa ${esc(t.name)}</b><span>${busy ? 'Dolu' : (t.section || 'Genel')}</span></button>`;
-        }).join('');
-        list.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => {
-            const t = tables.find(x => x.id === b.getAttribute('data-mv')); if (!t) return;
-            currentCheck.tableId = t.id; currentCheck.tableName = t.name; currentCheck.section = t.section || 'Genel';
-            $('posTable').textContent = 'Masa ' + t.name;
-            $('moveModal').classList.remove('open');
-            flushSave();
-            toast('Adisyon Masa ' + t.name + ' taşındı.');
-        });
-        $('moveModal').classList.add('open');
-    }
-
     function addLine(mi) {
         const ex = currentCheck.items.find(l => l.menuId === mi.id && !l.sent && !(l.note));
         if (ex) ex.qty++;
@@ -461,7 +436,7 @@
         if (!currentCheck) return;
         if (!currentCheck.items.length && !currentCheck.id) return; // boş adisyon yaratma
         const payload = {
-            tenantId: TENANT_ID, tableId: currentCheck.tableId, tableName: currentCheck.tableName,
+            tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '',
             section: currentCheck.section || 'Genel', status: currentCheck.status || 'open', pax: currentCheck.pax || 1,
             items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -487,15 +462,15 @@
     function voidCheck() {
         if (!currentCheck) return;
         if (!currentCheck.id) { $('posOverlay').classList.remove('open'); currentCheck = null; return; }
-        if (!confirm('Masa boşaltılsın mı? Adisyon iptal edilecek.')) return;
+        if (!confirm('Adisyon iptal edilsin mi? (Masa boşalır)')) return;
         db.collection(CHK_COL).doc(currentCheck.id).update({ status: 'void', updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
-            .then(() => { toast('Masa boşaltıldı.'); $('posOverlay').classList.remove('open'); currentCheck = null; })
+            .then(() => { toast('Adisyon iptal edildi.'); $('posOverlay').classList.remove('open'); currentCheck = null; })
             .catch(err => { console.error(err); toast('İşlem başarısız.', true); });
     }
     function setPax(d) {
         if (!currentCheck) return;
         currentCheck.pax = Math.max(1, (currentCheck.pax || 1) + d);
-        $('posPax').textContent = currentCheck.pax;
+        setPosHeader();
         if (currentCheck.id || currentCheck.items.length) scheduleSave();
     }
 
@@ -677,7 +652,7 @@
         };
         if (!checkId) { // adisyon henüz yazılmadıysa (teorik) — oluştur
             db.collection(CHK_COL).add(Object.assign({
-                tenantId: TENANT_ID, tableId: currentCheck.tableId, tableName: currentCheck.tableName,
+                tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '',
                 section: currentCheck.section || 'Genel', pax: currentCheck.pax || 1, items: currentCheck.items, openedBy: loggedUser, openedAt: TS
             }, payload)).then(ref => { currentCheck.id = ref.id; finish(); }).catch(err => { console.error(err); toast('Kapatılamadı.', true); });
         } else {
@@ -774,28 +749,19 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
     }
 
     function wireFloorPos() {
-        $('tblAddBtn').onclick = () => openTableModal(null);
-        $('tblEditToggle').onclick = () => {
-            editMode = !editMode;
-            $('tblEditToggle').classList.toggle('active', editMode);
-            $('tblEditToggle').textContent = editMode ? 'Bitti' : 'Düzenle';
-            renderFloor();
-        };
-        $('tableModalClose').onclick = closeTableModal;
-        $('tableForm').onsubmit = saveTable;
-        $('tableDeleteBtn').onclick = removeTable;
-        $('tableModal').addEventListener('click', e => { if (e.target === $('tableModal')) closeTableModal(); });
+        $('newCheckBtn').onclick = () => openCheckModal(null);
+        $('checkModalClose').onclick = closeCheckModal;
+        $('checkForm').onsubmit = submitCheck;
+        $('checkModal').addEventListener('click', e => { if (e.target === $('checkModal')) closeCheckModal(); });
         $('posBack').onclick = closePos;
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
         $('posPay').onclick = () => { flushSave(); openPay(); };
         $('posPaxMinus').onclick = () => setPax(-1);
         $('posPaxPlus').onclick = () => setPax(1);
-        $('posMove').onclick = openMove;
+        $('posMove').onclick = () => { if (currentCheck) openCheckModal(currentCheck); };
         $('posQuick').onclick = addQuickItem;
         $('posSearch').oninput = e => { posSearch = e.target.value; renderPosMenu(); };
-        $('moveClose').onclick = () => $('moveModal').classList.remove('open');
-        $('moveModal').addEventListener('click', e => { if (e.target === $('moveModal')) $('moveModal').classList.remove('open'); });
         // Payment modal
         $('payClose').onclick = closePay;
         $('payModal').addEventListener('click', e => { if (e.target === $('payModal')) closePay(); });
@@ -820,7 +786,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('menuDeleteBtn').onclick = removeMenu;
         $('menuModal').addEventListener('click', e => { if (e.target === $('menuModal')) closeModal(); });
         wireFloorPos();
-        const go = () => { loadConfig(); listenMenu(); listenTables(); listenChecks(); listenInhouse(); listenFolio(); };
+        const go = () => { loadConfig(); listenMenu(); listenChecks(); listenInhouse(); listenFolio(); };
         if (typeof auth !== 'undefined' && auth.onAuthStateChanged) auth.onAuthStateChanged(u => { if (u) go(); });
         else go();
     }
