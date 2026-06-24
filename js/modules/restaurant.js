@@ -374,7 +374,7 @@
         if (ex) ex.qty++;
         else currentCheck.items.push({
             lineId: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-            menuId: mi.id, name: mi.name, icon: mi.icon || '🍽️',
+            menuId: mi.id, name: mi.name, icon: mi.icon || '🍽️', category: mi.category || 'Diğer',
             unitPrice: Number(mi.price) || 0, qty: 1,
             vatRate: (mi.vatRate != null ? mi.vatRate : null), station: mi.station || 'kitchen', note: '', sent: false
         });
@@ -468,6 +468,233 @@
             <div class="rst-tot-row big"><span>Toplam</span><b>${esc(money(t.total))}</b></div>`;
     }
 
+    // ════════════════════════════════════════════════════════════
+    //  ÖDEME + FOLIO (oda hesabı) + FİŞ
+    // ════════════════════════════════════════════════════════════
+    const FOLIO_COL = 'folioCharges';
+    let inhouse = [];          // oteldeki misafirler (oda hesabı için)
+    let folio = [];            // açık folio kayıtları
+    let pay = null;            // ödeme oturumu: { discount, payments[] }
+
+    const PM_LABEL = { cash: 'Nakit', card: 'Kart', room: 'Oda Hesabı' };
+
+    function discountAmount(total) {
+        if (!pay || !pay.discount) return 0;
+        const d = pay.discount;
+        if (d.type === 'percent') return round2(total * (Number(d.value) || 0) / 100);
+        return round2(Math.min(Number(d.value) || 0, total));
+    }
+    function payable() {
+        const t = computeTotals(currentCheck.items);
+        return { gross: t, payable: round2(t.total - discountAmount(t.total)) };
+    }
+    function paidSum() { return round2((pay.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)); }
+
+    function openPay() {
+        if (!currentCheck || !currentCheck.items.length) { toast('Adisyon boş.', true); return; }
+        pay = { discount: currentCheck.discount || null, payments: [] };
+        $('payTable').textContent = 'Masa ' + (currentCheck.tableName || '');
+        renderPay();
+        $('payModal').classList.add('open');
+    }
+    function closePay() { $('payModal').classList.remove('open'); pay = null; }
+
+    function renderPay() {
+        const p = payable();
+        const dA = discountAmount(p.gross.total);
+        $('paySum').innerHTML = `
+            <div class="rst-tot-row"><span>Ara Toplam</span><b>${esc(money(p.gross.subtotal))}</b></div>
+            <div class="rst-tot-row"><span>${cfg.vatMode === 'excluded' ? 'KDV (hariç)' : 'KDV (dahil)'}</span><b>${esc(money(p.gross.vat))}</b></div>
+            ${dA ? `<div class="rst-tot-row"><span>İndirim/İkram</span><b>−${esc(money(dA))}</b></div>` : ''}
+            <div class="rst-tot-row big"><span>Ödenecek</span><b>${esc(money(p.payable))}</b></div>`;
+        $('payDiscLabel').textContent = pay.discount
+            ? (pay.discount.type === 'percent' ? '%' + pay.discount.value : money(pay.discount.value)) + (pay.discount.reason ? ' · ' + pay.discount.reason : '')
+            : '';
+        const list = $('payList');
+        list.innerHTML = (pay.payments || []).map((pm, i) => `<div class="rst-payrow">
+            <span class="rst-payrow-m">${esc(PM_LABEL[pm.method] || pm.method)}${pm.room ? ' · Oda ' + esc(pm.room) : ''}</span>
+            <span class="rst-payrow-a">${esc(money(pm.amount))}</span>
+            <button data-rmpay="${i}" title="Kaldır">✕</button>
+        </div>`).join('');
+        list.querySelectorAll('[data-rmpay]').forEach(b => b.onclick = () => { pay.payments.splice(+b.getAttribute('data-rmpay'), 1); renderPay(); });
+        const remain = round2(p.payable - paidSum());
+        $('payRemain').innerHTML = remain > 0.005
+            ? `<span>Kalan</span><b class="due">${esc(money(remain))}</b>`
+            : `<span>Üstü / Tamam</span><b class="ok">${esc(money(Math.abs(remain)))}</b>`;
+        $('paySettle').disabled = !(paidSum() > 0 && remain <= 0.005);
+    }
+
+    function addPayment(method) {
+        const p = payable();
+        const remain = round2(p.payable - paidSum());
+        const def = remain > 0 ? remain : 0;
+        if (method === 'room') { pickRoom(def); return; }
+        const v = prompt(PM_LABEL[method] + ' tutarı:', String(def));
+        if (v === null) return;
+        const amt = round2(parseFloat(String(v).replace(',', '.')) || 0);
+        if (amt <= 0) return;
+        pay.payments.push({ method, amount: amt });
+        renderPay();
+    }
+    function pickRoom(defAmt) {
+        if (!inhouse.length) { toast('Otelde misafir görünmüyor.', true); return; }
+        const list = $('roomList');
+        list.innerHTML = inhouse.map(g => `<button class="rst-room" data-g="${esc(g.id)}">
+            <b>${esc(g.name || '—')}</b><span>Oda ${esc(g.room || '—')}</span></button>`).join('');
+        list.querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
+            const g = inhouse.find(x => x.id === b.getAttribute('data-g'));
+            $('roomModal').classList.remove('open');
+            const v = prompt('Oda hesabına yazılacak tutar:', String(defAmt));
+            if (v === null) return;
+            const amt = round2(parseFloat(String(v).replace(',', '.')) || 0);
+            if (amt <= 0) return;
+            pay.payments.push({ method: 'room', amount: amt, room: g.room || '', guestName: g.name || '', guestId: g.id });
+            renderPay();
+        });
+        $('roomModal').classList.add('open');
+    }
+    function setDiscount() {
+        const raw = prompt('İndirim/İkram — yüzde için "%" ile (örn %10), tutar için sayı (örn 50). Kaldırmak için 0:', pay.discount ? (pay.discount.type === 'percent' ? '%' + pay.discount.value : pay.discount.value) : '');
+        if (raw === null) return;
+        const s = String(raw).trim();
+        if (!s || s === '0') { pay.discount = null; renderPay(); return; }
+        let type = 'amount', value;
+        if (s.indexOf('%') !== -1) { type = 'percent'; value = parseFloat(s.replace('%', '').replace(',', '.')) || 0; }
+        else value = parseFloat(s.replace(',', '.')) || 0;
+        if (value <= 0) { pay.discount = null; renderPay(); return; }
+        const reason = prompt('Sebep (opsiyonel):', pay.discount ? (pay.discount.reason || '') : '') || '';
+        pay.discount = { type, value, reason: reason.slice(0, 60) };
+        renderPay();
+    }
+
+    function settle() {
+        const p = payable();
+        const dA = discountAmount(p.gross.total);
+        const TS = firebase.firestore.FieldValue.serverTimestamp();
+        const checkId = currentCheck.id;
+        const payload = {
+            status: 'paid',
+            discount: pay.discount ? { type: pay.discount.type, value: pay.discount.value, reason: pay.discount.reason || '', amount: dA } : null,
+            payments: pay.payments.map(pm => ({ method: pm.method, amount: pm.amount, room: pm.room || '', guestName: pm.guestName || '', at: Date.now(), by: loggedUser })),
+            subtotal: p.gross.subtotal, vat: p.gross.vat, total: p.gross.total, payable: p.payable,
+            closedBy: loggedUser, closedAt: TS, updatedAt: TS
+        };
+        const finish = () => {
+            // Oda hesabı ödemeleri → folio kaydı
+            const roomPays = pay.payments.filter(pm => pm.method === 'room' && pm.amount > 0);
+            const batch = db.batch();
+            roomPays.forEach(pm => {
+                const ref = db.collection(FOLIO_COL).doc();
+                batch.set(ref, {
+                    tenantId: TENANT_ID, room: pm.room || '', guestName: pm.guestName || '',
+                    source: 'restaurant', checkId: (currentCheck && currentCheck.id) || checkId || '', tableName: currentCheck.tableName || '',
+                    amount: pm.amount, status: 'open', createdAt: TS, by: loggedUser
+                });
+            });
+            if (roomPays.length) batch.commit().catch(err => console.error(err));
+            toast('Adisyon kapatıldı.');
+            closePay();
+            $('posOverlay').classList.remove('open');
+            currentCheck = null;
+        };
+        if (!checkId) { // adisyon henüz yazılmadıysa (teorik) — oluştur
+            db.collection(CHK_COL).add(Object.assign({
+                tenantId: TENANT_ID, tableId: currentCheck.tableId, tableName: currentCheck.tableName,
+                section: currentCheck.section || 'Genel', pax: currentCheck.pax || 1, items: currentCheck.items, openedBy: loggedUser, openedAt: TS
+            }, payload)).then(ref => { currentCheck.id = ref.id; finish(); }).catch(err => { console.error(err); toast('Kapatılamadı.', true); });
+        } else {
+            db.collection(CHK_COL).doc(checkId).update(payload).then(finish).catch(err => { console.error(err); toast('Kapatılamadı.', true); });
+        }
+    }
+
+    // ── Fiş (80mm termal) ──────────────────────────────────────
+    function printReceipt() {
+        const p = payable();
+        const dA = discountAmount(p.gross.total);
+        const rows = currentCheck.items.map(l => {
+            const lt = money(round2((l.unitPrice || 0) * l.qty));
+            return `<tr><td>${esc(l.qty)}×</td><td>${esc(l.name)}</td><td class="r">${esc(lt)}</td></tr>`
+                + (l.note ? `<tr><td></td><td colspan="2" class="note">» ${esc(l.note)}</td></tr>` : '');
+        }).join('');
+        const pays = (pay && pay.payments || []).map(pm => `<tr><td colspan="2">${esc(PM_LABEL[pm.method] || pm.method)}${pm.room ? ' (Oda ' + esc(pm.room) + ')' : ''}</td><td class="r">${esc(money(pm.amount))}</td></tr>`).join('');
+        const w = window.open('', '_blank', 'width=380,height=640');
+        if (!w) { toast('Açılır pencere engellendi.', true); return; }
+        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Fiş</title>
+<style>
+ @page{size:80mm auto;margin:0}
+ *{box-sizing:border-box}
+ body{width:80mm;margin:0;padding:8px 10px;font-family:'Courier New',monospace;font-size:12px;color:#000}
+ .c{text-align:center}.r{text-align:right}.b{font-weight:bold}
+ h1{font-size:15px;margin:0 0 2px;text-align:center}
+ .sub{text-align:center;font-size:11px;margin-bottom:6px}
+ hr{border:none;border-top:1px dashed #000;margin:6px 0}
+ table{width:100%;border-collapse:collapse}
+ td{padding:1px 0;vertical-align:top;font-size:12px}
+ .note{font-size:10px;color:#333}
+ .tot td{font-size:12px}.tot .big{font-size:15px;font-weight:bold}
+ .ft{text-align:center;font-size:11px;margin-top:8px}
+</style></head><body>
+<h1>${esc(cfg.receiptHeader || cfg.name || 'Restoran')}</h1>
+<div class="sub">Masa ${esc(currentCheck.tableName || '')} · ${esc(currentCheck.pax || 1)} kişi · ${esc(loggedUser)}</div>
+<hr>
+<table>${rows}</table>
+<hr>
+<table class="tot">
+ <tr><td colspan="2">Ara Toplam</td><td class="r">${esc(money(p.gross.subtotal))}</td></tr>
+ <tr><td colspan="2">KDV</td><td class="r">${esc(money(p.gross.vat))}</td></tr>
+ ${dA ? `<tr><td colspan="2">İndirim</td><td class="r">-${esc(money(dA))}</td></tr>` : ''}
+ <tr class="big"><td colspan="2">TOPLAM</td><td class="r">${esc(money(p.payable))}</td></tr>
+</table>
+${pays ? '<hr><table>' + pays + '</table>' : ''}
+<div class="ft">${esc(cfg.receiptFooter || 'Bizi tercih ettiğiniz için teşekkürler.')}</div>
+<scr` + `ipt>window.onload=function(){setTimeout(function(){window.print();},250);}</scr` + `ipt>
+</body></html>`);
+        w.document.close();
+    }
+
+    // ── Folio (Oda Hesapları) ──────────────────────────────────
+    function listenInhouse() {
+        db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
+            inhouse = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(g => g.status === 'in_house');
+        }, err => console.error('inhouse', err));
+    }
+    function listenFolio() {
+        db.collection(FOLIO_COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
+            folio = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(f => f.status === 'open');
+            renderFolio();
+        }, err => console.error('folio', err));
+    }
+    function renderFolio() {
+        const wrap = $('folioList'); if (!wrap) return;
+        if (!folio.length) { wrap.innerHTML = `<div class="rst-empty">Açık oda hesabı yok.</div>`; return; }
+        const byRoom = {};
+        folio.forEach(f => { const k = (f.room || '—') + '|' + (f.guestName || ''); (byRoom[k] = byRoom[k] || []).push(f); });
+        wrap.innerHTML = Object.keys(byRoom).sort().map(k => {
+            const arr = byRoom[k]; const room = arr[0].room || '—'; const guest = arr[0].guestName || '';
+            const tot = round2(arr.reduce((s, f) => s + (Number(f.amount) || 0), 0));
+            const items = arr.map(f => `<div class="rst-folio-row"><span>${esc(f.tableName ? 'Masa ' + f.tableName : 'Restoran')}</span><b>${esc(money(f.amount))}</b></div>`).join('');
+            return `<div class="rst-folio-card">
+                <div class="rst-folio-head">
+                    <div><div class="rst-folio-room">Oda ${esc(room)}</div><div class="rst-folio-guest">${esc(guest)}</div></div>
+                    <div class="rst-folio-tot">${esc(money(tot))}</div>
+                </div>
+                <div class="rst-folio-rows">${items}</div>
+                <button class="rst-btn primary rst-folio-settle" data-settle="${esc(k)}">Tahsil Et &amp; Kapat</button>
+            </div>`;
+        }).join('');
+        wrap.querySelectorAll('[data-settle]').forEach(b => b.onclick = () => settleFolio(b.getAttribute('data-settle')));
+    }
+    function settleFolio(key) {
+        const arr = folio.filter(f => ((f.room || '—') + '|' + (f.guestName || '')) === key);
+        if (!arr.length) return;
+        const tot = round2(arr.reduce((s, f) => s + (Number(f.amount) || 0), 0));
+        if (!confirm('Oda ' + (arr[0].room || '—') + ' hesabı (' + money(tot) + ') tahsil edilip kapatılsın mı?')) return;
+        const TS = firebase.firestore.FieldValue.serverTimestamp();
+        const batch = db.batch();
+        arr.forEach(f => batch.update(db.collection(FOLIO_COL).doc(f.id), { status: 'settled', settledAt: TS, settledBy: loggedUser }));
+        batch.commit().then(() => toast('Oda hesabı kapatıldı.')).catch(err => { console.error(err); toast('İşlem başarısız.', true); });
+    }
+
     function wireFloorPos() {
         $('tblAddBtn').onclick = () => openTableModal(null);
         $('tblEditToggle').onclick = () => {
@@ -483,9 +710,18 @@
         $('posBack').onclick = closePos;
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
-        $('posPay').onclick = () => toast('Ödeme adımı bir sonraki parçada (Adisyon & Ödeme) eklenecek.');
+        $('posPay').onclick = () => { saveCheck(); openPay(); };
         $('posPaxMinus').onclick = () => setPax(-1);
         $('posPaxPlus').onclick = () => setPax(1);
+        // Payment modal
+        $('payClose').onclick = closePay;
+        $('payModal').addEventListener('click', e => { if (e.target === $('payModal')) closePay(); });
+        $('payDiscBtn').onclick = setDiscount;
+        $('payReceipt').onclick = printReceipt;
+        $('paySettle').onclick = settle;
+        document.querySelectorAll('#payModal [data-pm]').forEach(b => b.onclick = () => addPayment(b.getAttribute('data-pm')));
+        $('roomClose').onclick = () => $('roomModal').classList.remove('open');
+        $('roomModal').addEventListener('click', e => { if (e.target === $('roomModal')) $('roomModal').classList.remove('open'); });
     }
 
     // ── Boot ───────────────────────────────────────────────────
@@ -500,7 +736,7 @@
         $('menuDeleteBtn').onclick = removeMenu;
         $('menuModal').addEventListener('click', e => { if (e.target === $('menuModal')) closeModal(); });
         wireFloorPos();
-        const go = () => { loadConfig(); listenMenu(); listenTables(); listenChecks(); };
+        const go = () => { loadConfig(); listenMenu(); listenTables(); listenChecks(); listenInhouse(); listenFolio(); };
         if (typeof auth !== 'undefined' && auth.onAuthStateChanged) auth.onAuthStateChanged(u => { if (u) go(); });
         else go();
     }

@@ -18,6 +18,7 @@
         <!-- Sub navigation -->
         <nav class="rst-subnav" id="rstSubnav">
             <button class="rst-tab active" data-view="floor">Salon</button>
+            <button class="rst-tab" data-view="folio">Oda Hesapları</button>
             <button class="rst-tab" data-view="menu">Menü</button>
             <button class="rst-tab" data-view="settings">Ayarlar</button>
         </nav>
@@ -36,6 +37,17 @@
                     </div>
                 </div>
                 <div id="floorGrid" class="rst-floor"></div>
+            </section>
+
+            <!-- ── ODA HESAPLARI (folio) ── -->
+            <section class="rst-view" id="view-folio">
+                <div class="rst-floor-head">
+                    <div>
+                        <h2>Oda Hesapları</h2>
+                        <p class="rst-sub">Restorandan odaya yazılan açık hesaplar. Misafir çıkışında “Tahsil Et” ile kapatın.</p>
+                    </div>
+                </div>
+                <div id="folioList" class="rst-folio"></div>
             </section>
 
             <!-- ── MENÜ YÖNETİMİ ── -->
@@ -186,6 +198,46 @@
                     <button type="button" class="rst-btn danger" id="tableDeleteBtn" style="display:none;">Sil</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Payment modal -->
+    <div id="payModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3>Ödeme · <span id="payTable">Masa</span></h3>
+                <button class="rst-modal-x" id="payClose">&times;</button>
+            </div>
+            <div class="rst-pay">
+                <div class="rst-pay-sum" id="paySum"></div>
+                <div class="rst-pay-disc">
+                    <button type="button" class="rst-btn ghost" id="payDiscBtn">İndirim / İkram</button>
+                    <span class="rst-pay-disc-l" id="payDiscLabel"></span>
+                </div>
+                <div class="rst-pay-add">
+                    <span class="rst-pay-add-l">Ödeme ekle:</span>
+                    <button type="button" class="rst-btn ghost" data-pm="cash">Nakit</button>
+                    <button type="button" class="rst-btn ghost" data-pm="card">Kart</button>
+                    <button type="button" class="rst-btn ghost" data-pm="room">Oda Hesabı</button>
+                </div>
+                <div class="rst-pay-list" id="payList"></div>
+                <div class="rst-pay-remain" id="payRemain"></div>
+            </div>
+            <div class="rst-modal-actions">
+                <button type="button" class="rst-btn ghost" id="payReceipt">Fiş Yazdır</button>
+                <button type="button" class="rst-btn primary" id="paySettle" disabled>Tahsil Et &amp; Kapat</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room picker (oda hesabı) -->
+    <div id="roomModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3>Oda Seç</h3>
+                <button class="rst-modal-x" id="roomClose">&times;</button>
+            </div>
+            <div class="rst-room-list" id="roomList"></div>
         </div>
     </div>
 
