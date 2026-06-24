@@ -70,6 +70,8 @@ button, input, select, textarea { font-family: inherit; }
 .rst-note { font-size: 12.5px; color: var(--rst-warn); background: var(--rst-warn-soft); border: 1px solid #f6dcc6; border-radius: 12px; padding: 12px 14px; line-height: 1.55; }
 .rst-switch { display: flex; align-items: center; gap: 12px; font-size: 14.5px; font-weight: 500; color: var(--rst-ink); cursor: pointer; }
 .rst-switch input { width: 20px; height: 20px; accent-color: var(--rst-accent); cursor: pointer; }
+.rst-ck-guest { font-size: 12.5px; font-weight: 600; color: var(--rst-faint); min-height: 16px; }
+.rst-ck-guest.ok { color: var(--rst-ok); }
 
 /* ── Menü (admin) — text-led, ikonsuz ── */
 .rst-menu-list { max-width: 1040px; margin: 0 auto; }

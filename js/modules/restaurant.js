@@ -290,10 +290,29 @@
         const sent = c.status === 'sent';
         return `<button class="rst-table ${sent ? 'sent' : 'busy'}" data-chk="${esc(c.id)}">
             <span class="rst-table-n">${esc(c.tableName || '—')}</span>
-            ${c.name ? `<span class="rst-table-name">${esc(c.name)}</span>` : ''}
+            ${(c.room || c.name) ? `<span class="rst-table-name">${esc(c.room ? 'Oda ' + c.room : '')}${(c.room && c.name) ? ' · ' : ''}${esc(c.name || '')}</span>` : ''}
             <span class="rst-table-s">${esc(money(c.total || 0))} · ${esc(c.pax || 1)} kişi</span>
             <span class="rst-table-foot">${sent ? 'Mutfakta' : 'Açık'} · ${esc(elapsed(c))}</span>
         </button>`;
+    }
+
+    // Konaklayan (in-house) misafiri odasından bul
+    function guestByRoom(room) {
+        const r = String(room || '').trim().toLowerCase();
+        if (!r) return null;
+        return inhouse.find(g => String(g.room || '').trim().toLowerCase() === r) || null;
+    }
+    function fillRoomDatalist() {
+        const dl = $('ckRoomList'); if (!dl) return;
+        dl.innerHTML = inhouse.filter(g => g.room)
+            .sort((a, b) => String(a.room).localeCompare(String(b.room), 'tr', { numeric: true }))
+            .map(g => `<option value="${esc(g.room)}">${esc(g.name || '')}</option>`).join('');
+    }
+    function onRoomInput() {
+        const g = guestByRoom($('ckRoom').value);
+        $('ckGuestHint').textContent = g ? '✓ ' + (g.name || 'Misafir') + ' (otelde)' : '';
+        $('ckGuestHint').className = 'rst-ck-guest' + (g ? ' ok' : '');
+        if (g && !$('ckName').value.trim()) $('ckName').value = g.name || '';
     }
 
     // Adisyon aç / düzenle
@@ -303,8 +322,10 @@
         $('ckSubmit').textContent = check ? 'Kaydet' : 'Adisyonu Aç';
         $('ckTable').value = check ? (check.tableName || '') : '';
         $('ckPax').value = check ? (check.pax || 1) : 2;
+        $('ckRoom').value = check ? (check.room || '') : '';
         $('ckName').value = check ? (check.name || '') : '';
         $('ckSection').value = check ? (check.section || '') : '';
+        fillRoomDatalist(); onRoomInput();
         $('checkModal').classList.add('open');
         setTimeout(() => { try { $('ckTable').focus(); } catch (e) {} }, 50);
     }
@@ -313,16 +334,19 @@
         e.preventDefault();
         const tableName = $('ckTable').value.trim();
         if (!tableName) { toast('Masa no zorunlu.', true); return; }
+        const room = $('ckRoom').value.trim().slice(0, 20);
+        const g = guestByRoom(room);
         const data = {
             tableName: tableName.slice(0, 20),
             pax: Math.max(1, parseInt($('ckPax').value, 10) || 1),
-            name: $('ckName').value.trim().slice(0, 40),
+            room: room,
+            name: ($('ckName').value.trim() || (g ? g.name : '') || '').slice(0, 40),
             section: ($('ckSection').value || 'Genel').trim().slice(0, 30) || 'Genel',
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         if (editingCheckId) {
             if (currentCheck && currentCheck.id === editingCheckId) {
-                currentCheck.tableName = data.tableName; currentCheck.pax = data.pax; currentCheck.name = data.name; currentCheck.section = data.section;
+                currentCheck.tableName = data.tableName; currentCheck.pax = data.pax; currentCheck.room = data.room; currentCheck.name = data.name; currentCheck.section = data.section;
                 setPosHeader(); flushSave();
             } else {
                 db.collection(CHK_COL).doc(editingCheckId).update(data).catch(err => console.error(err));
@@ -334,7 +358,7 @@
                 tenantId: TENANT_ID, status: 'open', items: [], subtotal: 0, vat: 0, total: 0, openedBy: loggedUser, openedAt: TS
             }, data)).then(ref => {
                 closeCheckModal();
-                openPos({ id: ref.id, tableName: data.tableName, pax: data.pax, name: data.name, section: data.section, status: 'open', items: [] });
+                openPos({ id: ref.id, tableName: data.tableName, pax: data.pax, room: data.room, name: data.name, section: data.section, status: 'open', items: [] });
             }).catch(err => { console.error(err); toast('Açılamadı.', true); });
         }
     }
@@ -350,7 +374,7 @@
     // ── POS ────────────────────────────────────────────────────
     function setPosHeader() {
         $('posTable').textContent = 'Masa ' + (currentCheck.tableName || '');
-        $('posMeta').textContent = (currentCheck.name ? currentCheck.name + ' · ' : '') + (currentCheck.pax || 1) + ' kişi';
+        $('posMeta').textContent = (currentCheck.room ? 'Oda ' + currentCheck.room + ' · ' : '') + (currentCheck.name ? currentCheck.name + ' · ' : '') + (currentCheck.pax || 1) + ' kişi';
         $('posPax').textContent = currentCheck.pax || 1;
     }
     function openPos(check) {
@@ -436,7 +460,7 @@
         if (!currentCheck) return;
         if (!currentCheck.items.length && !currentCheck.id) return; // boş adisyon yaratma
         const payload = {
-            tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '',
+            tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '', room: currentCheck.room || '',
             section: currentCheck.section || 'Genel', status: currentCheck.status || 'open', pax: currentCheck.pax || 1,
             items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -587,7 +611,14 @@
         const remain = remaining();
         const amt = entryVal() > 0 ? entryVal() : (remain > 0 ? remain : 0);
         if (amt <= 0) { toast('Tutar girin.', true); return; }
-        if (method === 'room') { pickRoom(amt); return; }
+        if (method === 'room') {
+            // Adisyon bir odaya bağlıysa doğrudan o odaya yaz; değilse oda seç.
+            if (currentCheck && currentCheck.room) {
+                pay.payments.push({ method: 'room', amount: amt, room: currentCheck.room, guestName: currentCheck.name || '' });
+                payEntry = ''; renderPay();
+            } else { pickRoom(amt); }
+            return;
+        }
         pay.payments.push({ method, amount: amt });
         payEntry = '';
         renderPay();
@@ -652,7 +683,7 @@
         };
         if (!checkId) { // adisyon henüz yazılmadıysa (teorik) — oluştur
             db.collection(CHK_COL).add(Object.assign({
-                tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '',
+                tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '', room: currentCheck.room || '',
                 section: currentCheck.section || 'Genel', pax: currentCheck.pax || 1, items: currentCheck.items, openedBy: loggedUser, openedAt: TS
             }, payload)).then(ref => { currentCheck.id = ref.id; finish(); }).catch(err => { console.error(err); toast('Kapatılamadı.', true); });
         } else {
@@ -752,6 +783,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('newCheckBtn').onclick = () => openCheckModal(null);
         $('checkModalClose').onclick = closeCheckModal;
         $('checkForm').onsubmit = submitCheck;
+        $('ckRoom').oninput = onRoomInput;
         $('checkModal').addEventListener('click', e => { if (e.target === $('checkModal')) closeCheckModal(); });
         $('posBack').onclick = closePos;
         $('posVoid').onclick = voidCheck;
