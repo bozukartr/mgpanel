@@ -112,7 +112,19 @@ button, input, select, textarea { font-family: inherit; }
 .rst-table.sent .rst-table-badge { background: #bfe6c8; color: #14532d; }
 .rst-table-edit { position: absolute; top: 9px; left: 11px; font-size: 13px; color: var(--rst-faint); }
 
+/* ── Salon KPI şeridi ── */
+.rst-kpis { max-width: 1100px; margin: 0 auto 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; }
+.rst-kpi { background: var(--rst-card); border: 1px solid var(--rst-line); border-radius: 14px; padding: 15px 17px; display: flex; flex-direction: column; gap: 3px; box-shadow: var(--rst-shadow); }
+.rst-kpi .v { font-size: 23px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.6px; line-height: 1.1; }
+.rst-kpi .l { font-size: 12px; font-weight: 600; color: var(--rst-mut); }
+.rst-kpis:empty { display: none; }
+
 /* ── POS overlay ── */
+.rst-pos-tools { display: flex; gap: 10px; }
+.rst-pos-search { flex: 1; padding: 12px 16px; border: 1px solid var(--rst-line); border-radius: 12px; font-size: 15px; color: var(--rst-ink); background: #fff; outline: none; transition: border-color .15s, box-shadow .15s; }
+.rst-pos-search:focus { border-color: var(--rst-accent-2); box-shadow: 0 0 0 3px rgba(180,83,9,.12); }
+.rst-pos-tools .rst-btn { white-space: nowrap; }
+#posMove { font-size: 13.5px; padding: 9px 14px; }
 .rst-pos { position: fixed; inset: 0; background: var(--rst-bg); z-index: 200; display: none; flex-direction: column; }
 .rst-pos.open { display: flex; }
 .rst-pos-head { display: flex; align-items: center; gap: 16px; padding: 14px 18px; background: var(--rst-card); border-bottom: 1px solid var(--rst-line); }
@@ -254,6 +266,9 @@ button, input, select, textarea { font-family: inherit; }
     .rst-check-actions #posPay { padding: 15px; }
 }
 @media (max-width: 600px) {
+    .rst-pos-head { flex-wrap: wrap; row-gap: 8px; }
+    .rst-pos-title { order: -1; flex-basis: 100%; }
+    .rst-kpi .v { font-size: 20px; }
     .rst-main { padding: 16px 14px 32px; }
     .rst-card { padding: 16px; }
     .rst-frow { grid-template-columns: 1fr; }
