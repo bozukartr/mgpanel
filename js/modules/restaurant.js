@@ -217,6 +217,7 @@
     let currentCheck = null;    // POS'ta düzenlenen adisyon
     let posCat = '';
     let posSearch = '';
+    let selectedLineId = null;  // POS'ta seçili kalem (bağlamsal işlem çubuğu)
     function tsToDate(v) {
         if (!v) return null;
         if (v.toDate) { try { return v.toDate(); } catch (e) { return null; } }
@@ -395,6 +396,7 @@
     function openPos(check) {
         currentCheck = JSON.parse(JSON.stringify(check));
         if (!currentCheck.items) currentCheck.items = [];
+        selectedLineId = null;
         setPosHeader();
         posCat = ''; posSearch = '';
         if ($('posSearch')) $('posSearch').value = '';
@@ -432,43 +434,40 @@
         if (pv === null) return;
         const price = round2(parseFloat(String(pv).replace(',', '.')) || 0);
         if (price <= 0) { toast('Geçerli fiyat girin.', true); return; }
+        const id = 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
         currentCheck.items.push({
-            lineId: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+            lineId: id,
             menuId: null, name: name.slice(0, 60), category: 'Açık Ürün',
             unitPrice: price, qty: 1, vatRate: null, station: 'kitchen', note: '', sent: false
         });
+        selectedLineId = id;
         recalcSave();
     }
 
     function addLine(mi) {
         const ex = currentCheck.items.find(l => l.menuId === mi.id && !l.sent && !(l.note));
-        if (ex) ex.qty++;
-        else currentCheck.items.push({
-            lineId: 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-            menuId: mi.id, name: mi.name, category: mi.category || 'Diğer',
-            unitPrice: Number(mi.price) || 0, qty: 1,
-            vatRate: (mi.vatRate != null ? mi.vatRate : null), station: mi.station || 'kitchen', note: '', sent: false
-        });
+        if (ex) { ex.qty++; selectedLineId = ex.lineId; }
+        else {
+            const id = 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+            currentCheck.items.push({
+                lineId: id,
+                menuId: mi.id, name: mi.name, category: mi.category || 'Diğer',
+                unitPrice: Number(mi.price) || 0, qty: 1,
+                vatRate: (mi.vatRate != null ? mi.vatRate : null), station: mi.station || 'kitchen', note: '', sent: false
+            });
+            selectedLineId = id;
+        }
         recalcSave();
     }
     function changeQty(lineId, d) {
         const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
-        l.qty += d; if (l.qty <= 0) currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId);
+        l.qty += d;
+        if (l.qty <= 0) { currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId); if (selectedLineId === lineId) selectedLineId = null; }
         recalcSave();
     }
-    function removeLine(lineId) { currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId); recalcSave(); }
-    function noteLine(lineId) {
-        const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
-        const n = prompt('Kalem notu (örn. az pişmiş, sossuz):', l.note || '');
-        if (n !== null) { l.note = String(n).slice(0, 80); recalcSave(); }
-    }
-    function setQtyLine(lineId) {
-        const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
-        const v = prompt('Miktar:', String(l.qty || 1));
-        if (v === null) return;
-        const q = Math.max(0, parseInt(v, 10) || 0);
-        if (q <= 0) currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId);
-        else l.qty = q;
+    function removeLine(lineId) {
+        currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId);
+        if (selectedLineId === lineId) selectedLineId = null;
         recalcSave();
     }
     function ikramLine(lineId) {
@@ -476,12 +475,50 @@
         l.ikram = !l.ikram;
         recalcSave();
     }
-    function checkNote() {
+    // Kaleme dokun → bağlamsal işlem çubuğu o kaleme yönelir
+    function selectLine(lineId) {
+        selectedLineId = (selectedLineId === lineId) ? null : lineId;
+        renderPosCheck();
+    }
+
+    // ── Not penceresi (kalem / adisyon) — prompt yerine dokunmatik UI ──
+    const NOTE_CHIPS = ['Az pişmiş', 'Orta', 'İyi pişmiş', 'Sossuz', 'Acılı', 'Acısız', 'Soğansız', 'Ekstra', 'Buzsuz', 'Servise dikkat'];
+    let noteTarget = null;      // { kind:'line'|'check', lineId }
+    function openNoteModal(kind, lineId) {
         if (!currentCheck) return;
-        const n = prompt('Adisyon notu (mutfağa/servise iletilir):', currentCheck.note || '');
-        if (n === null) return;
-        currentCheck.note = String(n).slice(0, 160);
-        renderPosCheck(); scheduleSave();
+        if (kind === 'line') { if (!lineId) return; const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return; }
+        noteTarget = { kind: kind, lineId: lineId || null };
+        const cur = kind === 'check'
+            ? (currentCheck.note || '')
+            : ((currentCheck.items.find(x => x.lineId === lineId) || {}).note || '');
+        $('noteTitle').textContent = kind === 'check' ? 'Adisyon Notu' : 'Kalem Notu';
+        const ta = $('noteText');
+        ta.maxLength = kind === 'check' ? 160 : 80;
+        ta.value = cur;
+        $('noteChips').style.display = kind === 'line' ? 'flex' : 'none';
+        $('noteChips').innerHTML = kind === 'line'
+            ? NOTE_CHIPS.map(c => `<button type="button" class="rst-chip" data-chip="${esc(c)}">${esc(c)}</button>`).join('')
+            : '';
+        $('noteChips').querySelectorAll('[data-chip]').forEach(b => b.onclick = () => {
+            const v = ta.value.trim();
+            ta.value = (v ? v + ', ' : '') + b.getAttribute('data-chip');
+            ta.focus();
+        });
+        $('noteModal').classList.add('open');
+        setTimeout(() => { try { ta.focus(); } catch (e) {} }, 50);
+    }
+    function closeNoteModal() { $('noteModal').classList.remove('open'); noteTarget = null; }
+    function saveNote() {
+        if (!noteTarget || !currentCheck) { closeNoteModal(); return; }
+        const v = $('noteText').value.trim();
+        if (noteTarget.kind === 'check') {
+            currentCheck.note = v.slice(0, 160);
+        } else {
+            const l = currentCheck.items.find(x => x.lineId === noteTarget.lineId);
+            if (l) l.note = v.slice(0, 80);
+        }
+        closeNoteModal();
+        recalcSave();
     }
     // ── Adisyon böl ────────────────────────────────────────────
     function openSplit() {
@@ -566,35 +603,34 @@
         if (currentCheck.id || currentCheck.items.length) scheduleSave();
     }
 
+    function renderLineBar() {
+        const bar = $('posLineBar'); if (!bar) return;
+        const l = selectedLineId ? currentCheck.items.find(x => x.lineId === selectedLineId) : null;
+        if (!l) { bar.style.display = 'none'; return; }
+        bar.style.display = 'block';
+        $('posSelName').textContent = l.name + (l.ikram ? ' · İkram' : '');
+        $('posSelQty').textContent = l.qty;
+        $('posSelIkram').classList.toggle('on', !!l.ikram);
+        $('posSelIkram').textContent = l.ikram ? 'İkramı geri al' : 'İkram';
+    }
+
     function renderPosCheck() {
         const lines = $('posLines');
+        if (selectedLineId && !currentCheck.items.some(x => x.lineId === selectedLineId)) selectedLineId = null;
         if (!currentCheck.items.length) {
             lines.innerHTML = `<div class="rst-check-empty">Soldan ürün ekleyin.</div>`;
         } else {
-            lines.innerHTML = currentCheck.items.map(l => `<div class="rst-line ${l.sent ? 'sent' : ''}${l.ikram ? ' ikram' : ''}">
-                <div class="rst-line-main">
-                    <div class="rst-line-n">${esc(l.name)}${l.sent ? ' <span class="rst-line-snt">✓</span>' : ''}${l.ikram ? ' <span class="rst-line-ik">İKRAM</span>' : ''}</div>
-                    ${l.note ? `<div class="rst-line-note">“${esc(l.note)}”</div>` : ''}
-                    <div class="rst-line-ops">
-                        <button data-set="${esc(l.lineId)}">Miktar</button>
-                        <button data-note="${esc(l.lineId)}">Not</button>
-                        <button data-ik="${esc(l.lineId)}">${l.ikram ? 'İkramı geri al' : 'İkram'}</button>
-                        <button data-del="${esc(l.lineId)}" class="del">Sil</button>
-                    </div>
-                </div>
-                <div class="rst-line-qty">
-                    <button data-q="-" data-l="${esc(l.lineId)}">−</button>
-                    <span data-set="${esc(l.lineId)}">${l.qty}</span>
-                    <button data-q="+" data-l="${esc(l.lineId)}">+</button>
-                </div>
-                <div class="rst-line-tot">${esc(money(l.ikram ? 0 : round2((l.unitPrice || 0) * l.qty)))}</div>
-            </div>`).join('');
-            lines.querySelectorAll('[data-q]').forEach(b => b.onclick = () => changeQty(b.getAttribute('data-l'), b.getAttribute('data-q') === '+' ? 1 : -1));
-            lines.querySelectorAll('[data-note]').forEach(b => b.onclick = () => noteLine(b.getAttribute('data-note')));
-            lines.querySelectorAll('[data-del]').forEach(b => b.onclick = () => removeLine(b.getAttribute('data-del')));
-            lines.querySelectorAll('[data-set]').forEach(b => b.onclick = () => setQtyLine(b.getAttribute('data-set')));
-            lines.querySelectorAll('[data-ik]').forEach(b => b.onclick = () => ikramLine(b.getAttribute('data-ik')));
+            lines.innerHTML = currentCheck.items.map(l => `<button type="button" class="rst-line ${l.sent ? 'sent' : ''}${l.ikram ? ' ikram' : ''}${l.lineId === selectedLineId ? ' sel' : ''}" data-line="${esc(l.lineId)}">
+                <span class="rst-line-q">${esc(l.qty)}×</span>
+                <span class="rst-line-main">
+                    <span class="rst-line-n">${esc(l.name)}${l.sent ? ' <span class="rst-line-snt">✓</span>' : ''}${l.ikram ? ' <span class="rst-line-ik">İKRAM</span>' : ''}</span>
+                    ${l.note ? `<span class="rst-line-note">“${esc(l.note)}”</span>` : ''}
+                </span>
+                <span class="rst-line-tot">${esc(money(l.ikram ? 0 : round2((l.unitPrice || 0) * l.qty)))}</span>
+            </button>`).join('');
+            lines.querySelectorAll('[data-line]').forEach(b => b.onclick = () => selectLine(b.getAttribute('data-line')));
         }
+        renderLineBar();
         const noteEl = $('posNoteLine');
         if (noteEl) { noteEl.style.display = currentCheck.note ? 'block' : 'none'; noteEl.textContent = currentCheck.note ? 'Not: ' + currentCheck.note : ''; }
         const t = computeTotals(currentCheck.items);
@@ -961,8 +997,19 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
         $('posPay').onclick = () => { flushSave(); openPay(); };
-        $('posNote').onclick = checkNote;
+        $('posNote').onclick = () => openNoteModal('check');
         $('posSplit').onclick = openSplit;
+        // Bağlamsal kalem işlem çubuğu
+        $('posSelMinus').onclick = () => { if (selectedLineId) changeQty(selectedLineId, -1); };
+        $('posSelPlus').onclick = () => { if (selectedLineId) changeQty(selectedLineId, 1); };
+        $('posSelIkram').onclick = () => { if (selectedLineId) ikramLine(selectedLineId); };
+        $('posSelNote').onclick = () => { if (selectedLineId) openNoteModal('line', selectedLineId); };
+        $('posSelDel').onclick = () => { if (selectedLineId) removeLine(selectedLineId); };
+        // Not penceresi
+        $('noteClose').onclick = closeNoteModal;
+        $('noteCancel').onclick = closeNoteModal;
+        $('noteSave').onclick = saveNote;
+        $('noteModal').addEventListener('click', e => { if (e.target === $('noteModal')) closeNoteModal(); });
         $('splitClose').onclick = () => $('splitModal').classList.remove('open');
         $('splitConfirm').onclick = doSplit;
         $('splitModal').addEventListener('click', e => { if (e.target === $('splitModal')) $('splitModal').classList.remove('open'); });
@@ -1001,6 +1048,19 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         };
         if (typeof auth !== 'undefined' && auth.onAuthStateChanged) auth.onAuthStateChanged(u => { if (u) go(); });
         else go();
+        // Salon kartlarındaki süre/uyarı renklerini canlı tut (yeniden render olmadan)
+        setInterval(tickFloor, 30000);
+    }
+    function tickFloor() {
+        if ($('posOverlay') && $('posOverlay').classList.contains('open')) return;
+        const fv = $('view-floor'); if (!fv || !fv.classList.contains('active')) return;
+        document.querySelectorAll('#floorGrid [data-chk]').forEach(el => {
+            const c = openChecks.find(x => x.id === el.getAttribute('data-chk')); if (!c) return;
+            el.classList.remove('age-warn', 'age-late');
+            const ac = ageClass(c).trim(); if (ac) el.classList.add(ac);
+            const foot = el.querySelector('.rst-table-foot');
+            if (foot) foot.textContent = (c.checkNo ? '#' + c.checkNo + ' · ' : '') + (c.status === 'sent' ? 'Mutfakta' : 'Açık') + ' · ' + elapsed(c);
+        });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
