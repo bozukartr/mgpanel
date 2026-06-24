@@ -307,6 +307,12 @@
     .adm-tabs { top: 58px; }
     .adm-brand .brand-text { display: none; }
 }
+@media (max-width: 560px) {
+    /* Dar telefonda yoğunluk rötuşu (artık ayrı mobil sayfa yok) */
+    .admin-wrapper { padding: 0 12px 40px; }
+    .adm-view .admin-card { padding: 16px; border-radius: 14px; }
+    .adm-tab { padding: 12px 12px; font-size: 13.5px; }
+}
 
 /* ── Per-user module access (user modal) ── */
 .mod-perms { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
