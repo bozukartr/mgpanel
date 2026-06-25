@@ -31,6 +31,7 @@
             const v = b.getAttribute('data-view');
             nav.querySelectorAll('.rst-tab').forEach(x => x.classList.toggle('active', x === b));
             document.querySelectorAll('.rst-view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
+            if (v === 'stock') renderStock();
         });
     }
 
@@ -101,15 +102,30 @@
         }).join('');
         wrap.querySelectorAll('[data-edit]').forEach(r => r.onclick = () => openModal(r.getAttribute('data-edit')));
     }
+    function marginPct(i) {
+        const p = Number(i.price) || 0, c = Number(i.cost) || 0;
+        if (p <= 0 || c <= 0) return null;
+        return Math.round((p - c) / p * 100);
+    }
+    function stockState(i) {
+        if (!i.trackStock) return null;
+        const s = Number(i.stock) || 0, min = Number(i.stockMin) || 0;
+        if (s <= 0) return { cls: 'out', label: 'Tükendi' };
+        if (min > 0 && s <= min) return { cls: 'low', label: 'Az: ' + s };
+        return { cls: 'ok', label: 'Stok: ' + s };
+    }
     function rowHtml(i) {
         const active = i.active !== false;
         const vat = (i.vatRate != null && i.vatRate !== '') ? i.vatRate + '% KDV' : '';
-        const sub = [STATION[i.station] || 'Mutfak', vat].filter(Boolean).join(' · ');
+        const mp = marginPct(i);
+        const sub = [STATION[i.station] || 'Mutfak', vat, (mp != null ? 'Maliyet ' + money(i.cost) + ' · Kâr %' + mp : '')].filter(Boolean).join(' · ');
+        const st = stockState(i);
         return `<div class="rst-item ${active ? '' : 'off'}" data-edit="${esc(i.id)}">
             <div class="rst-item-b">
                 <div class="rst-item-n">${esc(i.name)}</div>
                 <div class="rst-item-s">${esc(sub)}</div>
             </div>
+            ${st ? `<span class="rst-stk ${st.cls}">${esc(st.label)}</span>` : ''}
             <div class="rst-item-p">${esc(money(i.price))}</div>
             <span class="rst-flag ${active ? 'on' : 'no'}">${active ? 'Aktif' : 'Pasif'}</span>
         </div>`;
@@ -123,9 +139,14 @@
         $('miCategory').value = it ? (it.category || '') : '';
         $('miStation').value = it ? (it.station || 'kitchen') : 'kitchen';
         $('miPrice').value = it && it.price != null ? it.price : '';
+        $('miCost').value = it && it.cost != null ? it.cost : '';
         $('miVat').value = it && it.vatRate != null ? it.vatRate : '';
         $('miPrep').value = it && it.prepMin ? it.prepMin : '';
         $('miDesc').value = it ? (it.description || '') : '';
+        $('miTrackStock').checked = it ? !!it.trackStock : false;
+        $('miStock').value = it && it.stock != null ? it.stock : '';
+        $('miStockMin').value = it && it.stockMin != null ? it.stockMin : '';
+        $('miStockRow').style.display = $('miTrackStock').checked ? '' : 'none';
         $('miActive').checked = it ? (it.active !== false) : true;
         $('menuDeleteBtn').style.display = it ? 'inline-flex' : 'none';
         $('menuModal').classList.add('open');
@@ -144,9 +165,13 @@
             category: category.slice(0, 40),
             station: $('miStation').value === 'bar' ? 'bar' : 'kitchen',
             price: Math.max(0, parseFloat($('miPrice').value) || 0),
+            cost: Math.max(0, parseFloat($('miCost').value) || 0),
             vatRate: vatStr === '' ? null : Math.max(0, Math.min(100, parseInt(vatStr, 10) || 0)),
             prepMin: Math.max(0, parseInt($('miPrep').value, 10) || 0),
             description: $('miDesc').value.trim().slice(0, 160),
+            trackStock: $('miTrackStock').checked,
+            stock: $('miTrackStock').checked ? Math.max(0, parseInt($('miStock').value, 10) || 0) : 0,
+            stockMin: Math.max(0, parseInt($('miStockMin').value, 10) || 0),
             active: $('miActive').checked,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -205,7 +230,69 @@
         db.collection(MENU_COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
             menu = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
             renderMenu();
+            if ($('view-stock') && $('view-stock').classList.contains('active')) renderStock();
+            if ($('posOverlay') && $('posOverlay').classList.contains('open')) renderPosMenu();
         }, err => console.error('menu listen', err));
+    }
+
+    // ── Stok / Maliyet ──────────────────────────────────────────
+    function decrementStock(items) {
+        const dec = {};
+        (items || []).forEach(l => {
+            if (!l.menuId) return;
+            const mi = menu.find(m => m.id === l.menuId);
+            if (mi && mi.trackStock) dec[l.menuId] = (dec[l.menuId] || 0) + (Number(l.qty) || 0);
+        });
+        const ids = Object.keys(dec);
+        if (!ids.length) return;
+        const batch = db.batch();
+        ids.forEach(id => batch.update(db.collection(MENU_COL).doc(id), {
+            stock: firebase.firestore.FieldValue.increment(-dec[id]),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }));
+        batch.commit().catch(err => console.error('stock', err));
+    }
+    function renderStock() {
+        const wrap = $('stockList'); if (!wrap) return;
+        const kpi = $('stockKpis');
+        const tracked = menu.filter(i => i.trackStock).sort(byOrder);
+        if (!tracked.length) {
+            if (kpi) kpi.innerHTML = '';
+            wrap.innerHTML = `<div class="rst-empty">Stok takibi açık ürün yok.<br>Menü sekmesinden bir ürünü düzenleyip “Stok takibi”ni açın.</div>`;
+            return;
+        }
+        const lowCount = tracked.filter(i => { const s = Number(i.stock) || 0, m = Number(i.stockMin) || 0; return s <= 0 || (m > 0 && s <= m); }).length;
+        const value = round2(tracked.reduce((s, i) => s + (Number(i.stock) || 0) * (Number(i.cost) || 0), 0));
+        if (kpi) kpi.innerHTML = [['Takipli Ürün', tracked.length], ['Kritik / Tükenen', lowCount], ['Stok Değeri', money(value)]]
+            .map(([l, v]) => `<div class="rst-kpi"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
+        wrap.innerHTML = tracked.map(i => {
+            const st = stockState(i);
+            return `<div class="rst-stock-row">
+                <div class="rst-stock-main">
+                    <div class="rst-stock-n">${esc(i.name)}</div>
+                    <div class="rst-stock-meta">${esc(i.category || 'Diğer')}${i.cost ? ' · Maliyet ' + esc(money(i.cost)) : ''}${i.stockMin ? ' · Kritik ' + esc(i.stockMin) : ''}</div>
+                </div>
+                <span class="rst-stk ${st.cls}">${esc(st.label)}</span>
+                <div class="rst-stock-act">
+                    <input type="number" min="1" step="1" class="rst-stock-in" data-sin="${esc(i.id)}" placeholder="adet">
+                    <button type="button" class="rst-btn ghost" data-sadd="${esc(i.id)}">Mal Girişi</button>
+                    <button type="button" class="rst-btn ghost" data-sset="${esc(i.id)}">Sayım</button>
+                </div>
+            </div>`;
+        }).join('');
+        wrap.querySelectorAll('[data-sadd]').forEach(b => b.onclick = () => stockEntry(b.getAttribute('data-sadd'), false));
+        wrap.querySelectorAll('[data-sset]').forEach(b => b.onclick = () => stockEntry(b.getAttribute('data-sset'), true));
+    }
+    function stockEntry(id, isSet) {
+        const inp = document.querySelector('.rst-stock-in[data-sin="' + id + '"]');
+        const v = parseInt(inp && inp.value, 10);
+        if (isNaN(v) || v < 0) { toast('Geçerli adet girin.', true); return; }
+        const upd = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+        upd.stock = isSet ? v : firebase.firestore.FieldValue.increment(v);
+        db.collection(MENU_COL).doc(id).update(upd)
+            .then(() => toast(isSet ? 'Stok sayımı güncellendi.' : 'Mal girişi yapıldı.'))
+            .catch(err => { console.error(err); toast('İşlem başarısız.', true); });
+        if (inp) inp.value = '';
     }
 
     // ════════════════════════════════════════════════════════════
@@ -418,10 +505,13 @@
             ? menu.filter(i => i.active !== false && (i.name || '').toLowerCase().includes(q)).sort(byOrder).slice(0, 60)
             : menu.filter(i => i.active !== false && (i.category || 'Diğer') === posCat).sort(byOrder);
         $('posItems').innerHTML = items.length
-            ? items.map(i => `<button class="rst-pitem" data-mi="${esc(i.id)}">
+            ? items.map(i => { const st = stockState(i); return `<button class="rst-pitem${st && st.cls === 'out' ? ' out' : ''}" data-mi="${esc(i.id)}">
                 <span class="pi-n">${esc(i.name)}</span>
-                <span class="pi-p">${esc(money(i.price))}</span>
-            </button>`).join('')
+                <span class="pi-foot">
+                    <span class="pi-p">${esc(money(i.price))}</span>
+                    ${st && st.cls !== 'ok' ? `<span class="pi-stk ${st.cls}">${esc(st.label)}</span>` : ''}
+                </span>
+            </button>`; }).join('')
             : `<span class="rst-none">${searching ? 'Eşleşen ürün yok.' : ''}</span>`;
         $('posItems').querySelectorAll('[data-mi]').forEach(b => b.onclick = () => { const mi = menu.find(x => x.id === b.getAttribute('data-mi')); if (mi) addLine(mi); });
     }
@@ -457,6 +547,7 @@
             });
             selectedLineId = id;
         }
+        if (mi.trackStock && (Number(mi.stock) || 0) <= 0) toast(mi.name + ' stokta görünmüyor (yine de eklendi).', true);
         recalcSave();
     }
     function changeQty(lineId, d) {
@@ -837,6 +928,7 @@
                 });
             });
             if (roomPays.length) batch.commit().catch(err => console.error(err));
+            decrementStock(currentCheck.items);
             toast('Adisyon kapatıldı.');
             closePay();
             $('posOverlay').classList.remove('open');
@@ -1097,6 +1189,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('menuSeedBtn').onclick = seedDefaults;
         $('menuModalClose').onclick = closeModal;
         $('menuForm').onsubmit = saveMenu;
+        $('miTrackStock').onchange = () => { $('miStockRow').style.display = $('miTrackStock').checked ? '' : 'none'; };
         $('menuDeleteBtn').onclick = removeMenu;
         $('menuModal').addEventListener('click', e => { if (e.target === $('menuModal')) closeModal(); });
         wireFloorPos();
