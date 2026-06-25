@@ -359,9 +359,10 @@
         const k = $('floorKpis'); if (!k) return;
         const occ = openChecks.length;
         const pax = openChecks.reduce((s, c) => s + (Number(c.pax) || 0), 0);
-        const sent = openChecks.filter(c => c.status === 'sent').length;
+        const kitchen = openChecks.filter(c => checkState(c).key === 'kitchen').length;
+        const serving = openChecks.filter(c => checkState(c).key === 'served').length;
         const openTotal = round2(openChecks.reduce((s, c) => s + (Number(c.total) || 0), 0));
-        const cards = [['Açık Adisyon', occ], ['Toplam Kişi', pax], ['Mutfakta', sent], ['Açık Tutar', money(openTotal)]];
+        const cards = [['Açık Adisyon', occ], ['Toplam Kişi', pax], ['Mutfakta', kitchen], ['Serviste', serving], ['Açık Tutar', money(openTotal)]];
         k.innerHTML = cards.map(([l, v]) => `<div class="rst-kpi"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
     }
     function renderFloor() {
@@ -383,13 +384,30 @@
             el.onclick = () => { const c = openChecks.find(x => x.id === el.getAttribute('data-chk')); if (c) openPos(c); };
         });
     }
+    // Kalemlerden türetilen adisyon durumu (renk + etiket). Öncelik: bekleyen > mutfak > servis.
+    function checkState(c) {
+        const items = c.items || [];
+        if (!items.length) return { key: 'open', label: 'Açık' };
+        const pending = items.some(i => !i.sent && !i.served);
+        const kitchen = items.some(i => i.sent && !i.served);
+        if (pending) return { key: 'open', label: 'Yeni' };
+        if (kitchen) return { key: 'kitchen', label: 'Mutfakta' };
+        return { key: 'served', label: 'Serviste' };
+    }
     function checkCardHtml(c) {
-        const sent = c.status === 'sent';
-        return `<button class="rst-table ${sent ? 'sent' : 'busy'}${ageClass(c)}" data-chk="${esc(c.id)}">
-            <span class="rst-table-n">${esc(c.tableName || '—')}</span>
-            ${(c.room || c.name) ? `<span class="rst-table-name">${esc(c.room ? 'Oda ' + c.room : '')}${(c.room && c.name) ? ' · ' : ''}${esc(c.name || '')}</span>` : ''}
-            <span class="rst-table-s">${esc(money(c.total || 0))} · ${esc(c.pax || 1)} kişi</span>
-            <span class="rst-table-foot">${c.checkNo ? '#' + esc(c.checkNo) + ' · ' : ''}${sent ? 'Mutfakta' : 'Açık'} · ${esc(elapsed(c))}</span>
+        const st = checkState(c);
+        const sub = [c.room ? 'Oda ' + c.room : '', c.name || ''].filter(Boolean).join(' · ');
+        return `<button class="rst-tcard st-${st.key}${ageClass(c)}" data-chk="${esc(c.id)}">
+            <span class="rst-tcard-rail"></span>
+            <span class="rst-tcard-top">
+                <span class="rst-tcard-no">${esc(c.tableName || '—')}</span>
+                <span class="rst-tcard-amt">${esc(money(c.total || 0))}</span>
+            </span>
+            ${sub ? `<span class="rst-tcard-sub">${esc(sub)}</span>` : ''}
+            <span class="rst-tcard-foot">
+                <span class="rst-tcard-pill">${esc(st.label)}</span>
+                <span class="rst-tcard-meta">${c.checkNo ? '#' + esc(c.checkNo) + ' · ' : ''}${esc(c.pax || 1)} kişi · ${esc(elapsed(c))}</span>
+            </span>
         </button>`;
     }
 
@@ -741,6 +759,25 @@
         renderPosCheck(); flushSave();
         toast(fresh ? fresh + ' kalem mutfağa gönderildi.' : 'Mutfağa gönderildi.');
     }
+    // Mutfağa göndermeden doğrudan servis (içecek, hazır ürün vb.) veya teslim edildi işareti.
+    function serveLine(lineId) {
+        const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
+        if (l.served) { l.served = false; l.sent = false; l.ready = false; }
+        else { l.served = true; l.sent = true; l.ready = true; }
+        if (currentCheck.items.some(x => x.sent || x.served)) currentCheck.status = 'sent';
+        recalcSave();
+    }
+    function serveAll() {
+        if (!currentCheck || !currentCheck.items.length) { toast('Adisyon boş.', true); return; }
+        const n = currentCheck.items.filter(l => !l.served).length;
+        if (!n) { toast('Tüm kalemler zaten servis edildi.'); return; }
+        currentCheck.items.forEach(l => { l.sent = true; l.served = true; l.ready = true; });
+        currentCheck.status = 'sent';
+        const t = computeTotals(currentCheck.items);
+        currentCheck.subtotal = t.subtotal; currentCheck.vat = t.vat; currentCheck.total = t.total;
+        renderPosCheck(); flushSave();
+        toast(n + ' kalem servis edildi.');
+    }
     // ── Mutfak Ekranı (KDS) ─────────────────────────────────────
     let kdsFilter = 'all';
     function kdsSentMs(c) { const d = tsToDate(c.sentAt) || tsToDate(c.openedAt); return d ? d.getTime() : 0; }
@@ -819,6 +856,8 @@
         $('posSelQty').textContent = l.qty;
         $('posSelIkram').classList.toggle('on', !!l.ikram);
         $('posSelIkram').textContent = l.ikram ? 'İkramı geri al' : 'İkram';
+        const sv = $('posSelServe');
+        if (sv) { sv.classList.toggle('on', !!l.served); sv.textContent = l.served ? 'Servisi geri al' : 'Servis'; }
     }
 
     function renderPosCheck() {
@@ -827,14 +866,18 @@
         if (!currentCheck.items.length) {
             lines.innerHTML = `<div class="rst-check-empty">Soldan ürün ekleyin.</div>`;
         } else {
-            lines.innerHTML = currentCheck.items.map(l => `<button type="button" class="rst-line ${l.sent ? 'sent' : ''}${l.ikram ? ' ikram' : ''}${l.lineId === selectedLineId ? ' sel' : ''}" data-line="${esc(l.lineId)}">
+            lines.innerHTML = currentCheck.items.map(l => {
+                const badge = l.served ? '<span class="rst-line-tag srv">SERVİS</span>'
+                    : (l.sent ? '<span class="rst-line-tag knt">MUTFAK</span>' : '');
+                return `<button type="button" class="rst-line ${l.sent ? 'sent' : ''}${l.served ? ' served' : ''}${l.ikram ? ' ikram' : ''}${l.lineId === selectedLineId ? ' sel' : ''}" data-line="${esc(l.lineId)}">
                 <span class="rst-line-q">${esc(l.qty)}×</span>
                 <span class="rst-line-main">
-                    <span class="rst-line-n">${esc(l.name)}${l.sent ? ' <span class="rst-line-snt">✓</span>' : ''}${l.ikram ? ' <span class="rst-line-ik">İKRAM</span>' : ''}</span>
+                    <span class="rst-line-n">${esc(l.name)}${badge}${l.ikram ? ' <span class="rst-line-ik">İKRAM</span>' : ''}</span>
                     ${l.note ? `<span class="rst-line-note">“${esc(l.note)}”</span>` : ''}
                 </span>
                 <span class="rst-line-tot">${esc(money(l.ikram ? 0 : round2((l.unitPrice || 0) * l.qty)))}</span>
-            </button>`).join('');
+            </button>`;
+            }).join('');
             lines.querySelectorAll('[data-line]').forEach(b => b.onclick = () => selectLine(b.getAttribute('data-line')));
         }
         renderLineBar();
@@ -1204,6 +1247,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('posBack').onclick = closePos;
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
+        $('posServe').onclick = serveAll;
         $('posPay').onclick = () => { flushSave(); openPay(); };
         $('posNote').onclick = () => openNoteModal('check');
         $('posSplit').onclick = openSplit;
@@ -1217,6 +1261,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         // Bağlamsal kalem işlem çubuğu
         $('posSelMinus').onclick = () => { if (selectedLineId) changeQty(selectedLineId, -1); };
         $('posSelPlus').onclick = () => { if (selectedLineId) changeQty(selectedLineId, 1); };
+        $('posSelServe').onclick = () => { if (selectedLineId) serveLine(selectedLineId); };
         $('posSelIkram').onclick = () => { if (selectedLineId) ikramLine(selectedLineId); };
         $('posSelNote').onclick = () => { if (selectedLineId) openNoteModal('line', selectedLineId); };
         $('posSelDel').onclick = () => { if (selectedLineId) removeLine(selectedLineId); };
@@ -1271,13 +1316,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         if ($('posOverlay') && $('posOverlay').classList.contains('open')) return;
         if ($('view-kds') && $('view-kds').classList.contains('active')) { renderKDS(); return; }
         const fv = $('view-floor'); if (!fv || !fv.classList.contains('active')) return;
-        document.querySelectorAll('#floorGrid [data-chk]').forEach(el => {
-            const c = openChecks.find(x => x.id === el.getAttribute('data-chk')); if (!c) return;
-            el.classList.remove('age-warn', 'age-late');
-            const ac = ageClass(c).trim(); if (ac) el.classList.add(ac);
-            const foot = el.querySelector('.rst-table-foot');
-            if (foot) foot.textContent = (c.checkNo ? '#' + c.checkNo + ' · ' : '') + (c.status === 'sent' ? 'Mutfakta' : 'Açık') + ' · ' + elapsed(c);
-        });
+        renderFloor();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
