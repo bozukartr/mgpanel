@@ -552,6 +552,57 @@
             toast('Adisyon bölündü' + (no ? ' → #' + no : '') + '.');
         });
     }
+    // ── Adisyon birleştir ──────────────────────────────────────
+    function openMerge() {
+        if (!currentCheck) return;
+        if (!currentCheck.id) { toast('Önce adisyona ürün ekleyin.', true); return; }
+        const others = openChecks.filter(c => c.id !== currentCheck.id);
+        if (!others.length) { toast('Birleştirilecek başka açık adisyon yok.', true); return; }
+        $('mergeList').innerHTML = others.sort(chkByOrder).map(c => `
+            <button type="button" class="rst-split-row rst-merge-row" data-mg="${esc(c.id)}">
+                <span class="sl-n"><b>Masa ${esc(c.tableName || '—')}</b>${c.checkNo ? ' · #' + esc(c.checkNo) : ''} · ${esc(c.pax || 1)} kişi · ${esc((c.items || []).length)} kalem</span>
+                <span class="sl-p">${esc(money(c.total || 0))}</span>
+            </button>`).join('');
+        $('mergeList').querySelectorAll('[data-mg]').forEach(b => b.onclick = () => doMerge(b.getAttribute('data-mg')));
+        $('mergeModal').classList.add('open');
+    }
+    function doMerge(otherId) {
+        const other = openChecks.find(c => c.id === otherId);
+        if (!other || !currentCheck) return;
+        if (!confirm('Masa ' + (other.tableName || '') + (other.checkNo ? ' (#' + other.checkNo + ')' : '') + ' adisyonu bu adisyona birleştirilsin mi? Diğer adisyon kapanır.')) return;
+        const moved = (other.items || []).map(l => Object.assign({}, l));
+        currentCheck.items = currentCheck.items.concat(moved);
+        currentCheck.pax = (Number(currentCheck.pax) || 1) + (Number(other.pax) || 0);
+        const notes = [currentCheck.note, other.note].filter(Boolean);
+        if (notes.length) currentCheck.note = notes.join(' · ').slice(0, 160);
+        db.collection(CHK_COL).doc(otherId).delete().catch(err => console.error(err));
+        recalcSave(); flushSave();
+        $('mergeModal').classList.remove('open');
+        toast('Adisyonlar birleştirildi.');
+    }
+
+    // ── Masaya taşı ─────────────────────────────────────────────
+    function openTransfer() {
+        if (!currentCheck) return;
+        $('transferTable').value = currentCheck.tableName || '';
+        $('transferSection').value = currentCheck.section || '';
+        const dl = $('ckSecList'); if (dl) dl.innerHTML = sectionsOfChecks().map(s => `<option value="${esc(s)}">`).join('');
+        $('transferModal').classList.add('open');
+        setTimeout(() => { try { $('transferTable').focus(); } catch (e) {} }, 50);
+    }
+    function doTransfer(e) {
+        if (e) e.preventDefault();
+        if (!currentCheck) return;
+        const t = $('transferTable').value.trim();
+        if (!t) { toast('Masa no zorunlu.', true); return; }
+        currentCheck.tableName = t.slice(0, 20);
+        currentCheck.section = ($('transferSection').value || 'Genel').trim().slice(0, 30) || 'Genel';
+        setPosHeader();
+        if (currentCheck.id || currentCheck.items.length) flushSave();
+        $('transferModal').classList.remove('open');
+        toast('Adisyon Masa ' + currentCheck.tableName + ' konumuna taşındı.');
+    }
+
     function recalcSave() {
         const t = computeTotals(currentCheck.items);
         currentCheck.subtotal = t.subtotal; currentCheck.vat = t.vat; currentCheck.total = t.total;
@@ -999,6 +1050,13 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('posPay').onclick = () => { flushSave(); openPay(); };
         $('posNote').onclick = () => openNoteModal('check');
         $('posSplit').onclick = openSplit;
+        $('posMerge').onclick = openMerge;
+        $('posTransfer').onclick = openTransfer;
+        $('mergeClose').onclick = () => $('mergeModal').classList.remove('open');
+        $('mergeModal').addEventListener('click', e => { if (e.target === $('mergeModal')) $('mergeModal').classList.remove('open'); });
+        $('transferClose').onclick = () => $('transferModal').classList.remove('open');
+        $('transferForm').onsubmit = doTransfer;
+        $('transferModal').addEventListener('click', e => { if (e.target === $('transferModal')) $('transferModal').classList.remove('open'); });
         // Bağlamsal kalem işlem çubuğu
         $('posSelMinus').onclick = () => { if (selectedLineId) changeQty(selectedLineId, -1); };
         $('posSelPlus').onclick = () => { if (selectedLineId) changeQty(selectedLineId, 1); };

@@ -197,8 +197,8 @@ button, input, select, textarea { font-family: inherit; }
 
 /* check function bar + note */
 .rst-check-noteline { font-size: 12px; color: var(--rst-accent); background: var(--rst-soft); border-radius: 8px; padding: 7px 10px; margin-bottom: 10px; line-height: 1.4; }
-.rst-check-fns { display: flex; gap: 8px; margin-bottom: 10px; }
-.rst-fnbtn { flex: 1; border: 1px solid var(--rst-line); background: #fff; border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 600; color: var(--rst-mut); cursor: pointer; }
+.rst-check-fns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.rst-fnbtn { flex: 1 1 calc(50% - 4px); border: 1px solid var(--rst-line); background: #fff; border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 600; color: var(--rst-mut); cursor: pointer; white-space: nowrap; }
 .rst-fnbtn:hover { border-color: #d8d1c8; color: var(--rst-ink); }
 
 /* split + salon age */
@@ -208,6 +208,9 @@ button, input, select, textarea { font-family: inherit; }
 .rst-split-row input { width: 19px; height: 19px; accent-color: var(--rst-accent); }
 .rst-split-row .sl-n { font-size: 14px; }
 .rst-split-row .sl-p { font-size: 14px; font-weight: 700; }
+.rst-merge-row { grid-template-columns: 1fr auto; width: 100%; border: none; border-bottom: 1px solid var(--rst-line-2); background: #fff; font-family: inherit; text-align: left; cursor: pointer; }
+.rst-merge-row:hover { background: var(--rst-soft); }
+.rst-merge-row .sl-n b { color: var(--rst-ink); }
 .rst-table.age-warn { border-color: #eab308; }
 .rst-table.age-late { border-color: #dc6a4f; }
 

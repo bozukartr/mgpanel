@@ -198,6 +198,8 @@
                     <div class="rst-check-fns">
                         <button type="button" class="rst-fnbtn" id="posNote">Adisyon Notu</button>
                         <button type="button" class="rst-fnbtn" id="posSplit">Adisyon Böl</button>
+                        <button type="button" class="rst-fnbtn" id="posMerge">Birleştir</button>
+                        <button type="button" class="rst-fnbtn" id="posTransfer">Masaya Taşı</button>
                     </div>
                     <div class="rst-check-actions">
                         <button class="rst-btn danger" id="posVoid">İptal</button>
@@ -221,6 +223,43 @@
             <div class="rst-modal-actions" style="padding: 4px 22px 20px;">
                 <button class="rst-btn primary" id="splitConfirm">Seçilenleri Ayır</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Adisyon birleştir -->
+    <div id="mergeModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3>Adisyon Birleştir</h3>
+                <button class="rst-modal-x" id="mergeClose">&times;</button>
+            </div>
+            <div class="rst-split-info">Bu adisyona aktarılacak diğer açık adisyonu seçin. Seçilen adisyonun tüm kalemleri buraya taşınır ve o adisyon kapanır.</div>
+            <div class="rst-split-list" id="mergeList"></div>
+        </div>
+    </div>
+
+    <!-- Masaya taşı -->
+    <div id="transferModal" class="rst-modal">
+        <div class="rst-modal-card">
+            <div class="rst-modal-head">
+                <h3>Masaya Taşı</h3>
+                <button class="rst-modal-x" id="transferClose">&times;</button>
+            </div>
+            <form id="transferForm" class="rst-form">
+                <div class="rst-frow">
+                    <div class="rst-fg">
+                        <label>Yeni Masa No</label>
+                        <input type="text" id="transferTable" maxlength="20" placeholder="Örn. 14 / Teras-2" required>
+                    </div>
+                    <div class="rst-fg">
+                        <label>Bölüm <span class="rst-hint">opsiyonel</span></label>
+                        <input type="text" id="transferSection" list="ckSecList" maxlength="30" placeholder="Örn. Teras / Bahçe">
+                    </div>
+                </div>
+                <div class="rst-modal-actions">
+                    <button type="submit" class="rst-btn primary" id="transferConfirm">Taşı</button>
+                </div>
+            </form>
         </div>
     </div>
 
