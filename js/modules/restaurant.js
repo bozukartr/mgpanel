@@ -31,8 +31,7 @@
             const v = b.getAttribute('data-view');
             nav.querySelectorAll('.rst-tab').forEach(x => x.classList.toggle('active', x === b));
             document.querySelectorAll('.rst-view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
-            if (v === 'stock') renderStock();
-            if (v === 'kds') renderKDS();
+            renderView(v);
         });
         const kf = $('kdsFilter');
         if (kf) kf.addEventListener('click', e => {
@@ -41,6 +40,16 @@
             kf.querySelectorAll('.rst-kds-fbtn').forEach(x => x.classList.toggle('active', x === b));
             renderKDS();
         });
+    }
+
+    // Aktif sekmeyi taze veriyle render et (modül içi işlemler sekme değiştirmeden yansısın).
+    function renderView(v) {
+        if (v === 'floor') renderFloor();
+        else if (v === 'kds') renderKDS();
+        else if (v === 'stock') renderStock();
+        else if (v === 'menu') renderMenu();
+        else if (v === 'folio') renderFolio();
+        else if (v === 'archive') loadArchive();
     }
 
     // ── Settings (restConfig) ──────────────────────────────────
@@ -507,10 +516,17 @@
         $('posMeta').textContent = (currentCheck.checkNo ? '#' + currentCheck.checkNo + ' · ' : '') + (currentCheck.room ? 'Oda ' + currentCheck.room + ' · ' : '') + (currentCheck.name ? currentCheck.name + ' · ' : '') + (currentCheck.pax || 1) + ' kişi';
         $('posPax').textContent = currentCheck.pax || 1;
     }
+    function setPosPane(pane) {
+        const ov = $('posOverlay'); if (!ov) return;
+        ov.classList.toggle('show-check', pane === 'check');
+        const sw = $('posSwitch');
+        if (sw) sw.querySelectorAll('.rst-ps-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-pane') === pane));
+    }
     function openPos(check) {
         currentCheck = JSON.parse(JSON.stringify(check));
         if (!currentCheck.items) currentCheck.items = [];
         selectedLineId = null;
+        setPosPane('menu');
         setPosHeader();
         posCat = ''; posSearch = '';
         if ($('posSearch')) $('posSearch').value = '';
@@ -889,6 +905,8 @@
             <div class="rst-tot-row"><span>Ara Toplam</span><b>${esc(money(t.subtotal))}</b></div>
             <div class="rst-tot-row"><span>${vatLabel}</span><b>${esc(money(t.vat))}</b></div>
             <div class="rst-tot-row big"><span>Toplam</span><b>${esc(money(t.total))}</b></div>`;
+        const sc = $('posSwitchCount'); if (sc) sc.textContent = currentCheck.items.length;
+        const stl = $('posSwitchTotal'); if (stl) stl.textContent = money(t.total);
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1245,6 +1263,8 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('arcModal').addEventListener('click', e => { if (e.target === $('arcModal')) $('arcModal').classList.remove('open'); });
         $('checkModal').addEventListener('click', e => { if (e.target === $('checkModal')) closeCheckModal(); });
         $('posBack').onclick = closePos;
+        const sw = $('posSwitch');
+        if (sw) sw.addEventListener('click', e => { const t = e.target.closest('.rst-ps-tab'); if (t) setPosPane(t.getAttribute('data-pane')); });
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
         $('posServe').onclick = serveAll;
