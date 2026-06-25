@@ -378,3 +378,35 @@ button, input, select, textarea { font-family: inherit; }
     .rst-stock-act { width: 100%; }
     .rst-stock-in { flex: 1; width: auto; }
 }
+
+/* ── Mutfak Ekranı (KDS) ── */
+.rst-kds-filter { gap: 6px; }
+.rst-kds-fbtn { border: 1px solid var(--rst-line); background: #fff; color: var(--rst-mut); padding: 9px 16px; border-radius: 999px; font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.rst-kds-fbtn.active { background: var(--rst-accent); border-color: var(--rst-accent); color: #fff; }
+
+.rst-kds-board { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-items: start; }
+.rst-kds-ticket { background: var(--rst-card); border: 1.5px solid var(--rst-line); border-radius: 16px; padding: 14px; box-shadow: var(--rst-shadow); display: flex; flex-direction: column; gap: 10px; }
+.rst-kds-ticket.warn { border-color: #eab308; }
+.rst-kds-ticket.late { border-color: #dc6a4f; box-shadow: 0 0 0 3px rgba(220,106,79,.12); }
+.rst-kds-ticket.done { border-color: #9ed3ad; }
+.rst-kds-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rst-kds-head b { font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
+.rst-kds-time { font-size: 12.5px; font-weight: 700; color: var(--rst-mut); white-space: nowrap; }
+.rst-kds-ticket.late .rst-kds-time { color: #dc6a4f; }
+.rst-kds-sub { font-size: 12px; color: var(--rst-faint); margin-top: -4px; }
+.rst-kds-note { font-size: 12.5px; color: var(--rst-accent); background: var(--rst-soft); border-radius: 8px; padding: 6px 9px; line-height: 1.4; }
+.rst-kds-items { display: flex; flex-direction: column; gap: 6px; }
+.rst-kds-item { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; width: 100%; text-align: left; border: 1px solid var(--rst-line-2); background: #fff; border-radius: 10px; padding: 9px 11px; cursor: pointer; font-family: inherit; }
+.rst-kds-item:hover { border-color: #d8d1c8; }
+.rst-kds-item.ready { background: var(--rst-ok-soft); border-color: #9ed3ad; }
+.rst-kds-item .ki-q { font-size: 15px; font-weight: 800; color: var(--rst-accent); }
+.rst-kds-item.ready .ki-q { color: var(--rst-ok); }
+.rst-kds-item .ki-n { font-size: 14px; font-weight: 600; color: var(--rst-ink); min-width: 0; }
+.rst-kds-item.ready .ki-n { text-decoration: line-through; color: var(--rst-mut); }
+.ki-tag { font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 999px; vertical-align: middle; }
+.ki-tag.bar { background: #e0e7ff; color: #4338ca; }
+.ki-tag.ik { background: var(--rst-soft); color: var(--rst-accent); }
+.ki-note { display: block; font-size: 11.5px; color: var(--rst-accent); margin-top: 1px; }
+.ki-chk { font-size: 15px; font-weight: 800; color: var(--rst-ok); min-width: 12px; }
+.rst-kds-serve { width: 100%; }
+.rst-kds-ticket.done .rst-kds-serve { background: var(--rst-ok); border-color: var(--rst-ok); }
