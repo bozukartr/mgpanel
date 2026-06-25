@@ -21,6 +21,7 @@
             <button class="rst-tab" data-view="archive">Arşiv</button>
             <button class="rst-tab" data-view="folio">Oda Hesapları</button>
             <button class="rst-tab" data-view="menu">Menü</button>
+            <button class="rst-tab" data-view="stock">Stok</button>
             <button class="rst-tab" data-view="settings">Ayarlar</button>
         </nav>
 
@@ -81,6 +82,18 @@
                     </div>
                     <div id="menuList" class="rst-menu-list"><!-- rendered by restaurant.js --></div>
                 </div>
+            </section>
+
+            <!-- ── STOK / MALİYET ── -->
+            <section class="rst-view" id="view-stock">
+                <div class="rst-floor-head">
+                    <div>
+                        <h2>Stok &amp; Maliyet</h2>
+                        <p class="rst-sub">Stok takibi açık ürünler. Satışta otomatik düşülür; “Mal Girişi” ile ekleyin, “Sayım” ile düzeltin. Maliyet menüden girilir.</p>
+                    </div>
+                </div>
+                <div id="stockKpis" class="rst-kpis"></div>
+                <div id="stockList" class="rst-stock"></div>
             </section>
 
             <!-- ── AYARLAR ── -->
@@ -421,21 +434,41 @@
                 </div>
                 <div class="rst-frow">
                     <div class="rst-fg">
-                        <label>Fiyat</label>
+                        <label>Satış Fiyatı</label>
                         <input type="number" id="miPrice" min="0" step="0.01" placeholder="0.00" required>
                     </div>
+                    <div class="rst-fg">
+                        <label>Birim Maliyet <span class="rst-hint">opsiyonel</span></label>
+                        <input type="number" id="miCost" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+                <div class="rst-frow">
                     <div class="rst-fg">
                         <label>KDV (%) <span class="rst-hint">boş = varsayılan</span></label>
                         <input type="number" id="miVat" min="0" max="100" step="1" placeholder="varsayılan">
                     </div>
-                </div>
-                <div class="rst-fg">
-                    <label>Hazırlık Süresi (dk) <span class="rst-hint">opsiyonel</span></label>
-                    <input type="number" id="miPrep" min="0" step="1" placeholder="örn. 15">
+                    <div class="rst-fg">
+                        <label>Hazırlık Süresi (dk) <span class="rst-hint">opsiyonel</span></label>
+                        <input type="number" id="miPrep" min="0" step="1" placeholder="örn. 15">
+                    </div>
                 </div>
                 <div class="rst-fg span2">
                     <label>Açıklama (opsiyonel)</label>
                     <input type="text" id="miDesc" maxlength="160" placeholder="Kısa açıklama">
+                </div>
+                <label class="rst-switch">
+                    <input type="checkbox" id="miTrackStock">
+                    <span>Stok takibi (satışta otomatik düşülür)</span>
+                </label>
+                <div class="rst-frow" id="miStockRow" style="display:none;">
+                    <div class="rst-fg">
+                        <label>Stok Adedi</label>
+                        <input type="number" id="miStock" min="0" step="1" placeholder="0">
+                    </div>
+                    <div class="rst-fg">
+                        <label>Kritik Stok <span class="rst-hint">uyarı eşiği</span></label>
+                        <input type="number" id="miStockMin" min="0" step="1" placeholder="örn. 5">
+                    </div>
                 </div>
                 <label class="rst-switch">
                     <input type="checkbox" id="miActive" checked>
