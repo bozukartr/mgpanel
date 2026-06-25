@@ -151,6 +151,11 @@ button, input, select, textarea { font-family: inherit; }
 .rst-pos-pax button:active { background: var(--rst-line-2); }
 .rst-pos-pax span { min-width: 26px; text-align: center; font-weight: 800; font-size: 16px; color: var(--rst-ink); }
 
+/* Mobil pano geçişi (Menü / Adisyon) — masaüstünde gizli */
+.rst-pos-switch { display: none; }
+.rst-ps-tab { flex: 1; min-width: 0; border: 1px solid var(--rst-line); background: var(--rst-bg); border-radius: 11px; padding: 11px 8px; font-size: 13.5px; font-weight: 700; color: var(--rst-mut); cursor: pointer; font-family: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, border-color .15s, color .15s; }
+.rst-ps-tab.active { background: var(--rst-accent); border-color: var(--rst-accent); color: #fff; }
+
 .rst-pos-body { flex: 1; display: flex; min-height: 0; }
 .rst-pos-menu { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 12px; gap: 10px; }
 .rst-pos-cats { display: flex; gap: 7px; flex-wrap: wrap; }
@@ -345,10 +350,13 @@ button, input, select, textarea { font-family: inherit; }
     .rst-pay-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 820px) {
-    .rst-pos-body { flex-direction: column; }
-    .rst-pos-menu { padding: 14px; flex: none; }
-    .rst-pos-items { max-height: 38vh; }
-    .rst-pos-check { width: 100%; border-left: none; border-top: 1px solid var(--rst-line); flex: 1; min-height: 40vh; }
+    /* POS: tek seferde bir pano — Menü veya Adisyon (tam ekran), üstte geçiş çubuğu */
+    .rst-pos-switch { display: flex; gap: 6px; padding: 9px 12px; background: var(--rst-card); border-bottom: 1px solid var(--rst-line); }
+    .rst-pos-menu, .rst-pos-check { width: 100%; flex: 1; }
+    .rst-pos-check { border-left: none; box-shadow: none; }
+    .rst-pos:not(.show-check) .rst-pos-check { display: none; }
+    .rst-pos.show-check .rst-pos-menu { display: none; }
+    .rst-pos-items { max-height: none; }
     .rst-check-actions #posPay { padding: 15px; }
 }
 @media (max-width: 600px) {
