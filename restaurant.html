@@ -18,7 +18,6 @@
         <!-- Sub navigation -->
         <nav class="rst-subnav" id="rstSubnav">
             <button class="rst-tab active" data-view="floor">Adisyonlar</button>
-            <button class="rst-tab" data-view="kds">Mutfak</button>
             <button class="rst-tab" data-view="archive">Arşiv</button>
             <button class="rst-tab" data-view="folio">Oda Hesapları</button>
             <button class="rst-tab" data-view="menu">Menü</button>
@@ -30,32 +29,13 @@
             <!-- ── AÇIK ADİSYONLAR ── -->
             <section class="rst-view active" id="view-floor">
                 <div class="rst-floor-head">
-                    <div>
-                        <h2>Açık Adisyonlar</h2>
-                        <p class="rst-sub">“Yeni Adisyon” ile masa no ve kişi sayısı girip adisyon aç; karta dokun → sipariş.</p>
-                    </div>
-                    <div class="rst-head-actions">
-                        <button class="rst-btn primary" id="newCheckBtn">+ Yeni Adisyon</button>
+                    <h2>Adisyonlar</h2>
+                    <div class="rst-floor-tools">
+                        <input type="search" id="floorSearch" class="rst-floor-search" placeholder="Ara: isim, masa, oda…" autocomplete="off">
+                        <button class="rst-btn primary" id="newCheckBtn">+ Adisyon Aç</button>
                     </div>
                 </div>
-                <div id="floorKpis" class="rst-kpis"></div>
                 <div id="floorGrid" class="rst-floor"></div>
-            </section>
-
-            <!-- ── MUTFAK EKRANI (KDS) ── -->
-            <section class="rst-view" id="view-kds">
-                <div class="rst-floor-head">
-                    <div>
-                        <h2>Mutfak Ekranı</h2>
-                        <p class="rst-sub">Mutfağa/bara gönderilen siparişler. Kaleme dokun → hazır; “Servis Et” ile siparişi ekrandan kaldır.</p>
-                    </div>
-                    <div class="rst-head-actions rst-kds-filter" id="kdsFilter">
-                        <button class="rst-kds-fbtn active" data-st="all">Tümü</button>
-                        <button class="rst-kds-fbtn" data-st="kitchen">Mutfak</button>
-                        <button class="rst-kds-fbtn" data-st="bar">Bar</button>
-                    </div>
-                </div>
-                <div id="kdsBoard" class="rst-kds-board"></div>
             </section>
 
             <!-- ── ARŞİV ── -->
@@ -168,6 +148,12 @@
                             <span>Oda hesabına yazmaya izin ver (uygulama içi folio)</span>
                         </label>
 
+                        <div class="rst-fg">
+                            <label>Sipariş İptal Kodu (4 hane) <span class="rst-hint">yetkili personel (Manager/SPV) belirler</span></label>
+                            <input type="text" id="cfgCancelCode" inputmode="numeric" maxlength="4" placeholder="örn. 1234" autocomplete="off">
+                            <div class="rst-note">Mutfağa gönderilmiş (Sipariş Gönder yapılmış) bir ürünü iptal etmek veya azaltmak için bu kod istenir. Yalnızca yetkili personel bilmelidir.</div>
+                        </div>
+
                         <div class="rst-frow">
                             <div class="rst-fg">
                                 <label>Fiş Başlığı</label>
@@ -238,24 +224,9 @@
                     </div>
                     <div class="rst-check-actions">
                         <button class="rst-btn danger" id="posVoid">İptal</button>
-                        <button class="rst-btn send" id="posSend">Mutfağa Gönder</button>
+                        <button class="rst-btn send" id="posSend">Sipariş Gönder</button>
                         <button class="rst-btn serve" id="posServe">Servis Et</button>
                         <button class="rst-btn primary" id="posPay">Ödeme Al</button>
-                    </div>
-                    <!-- Mobil: yüzen işlem menüsü (FAB) — alanı boşaltır -->
-                    <div class="rst-fab" id="posFab">
-                        <div class="rst-fab-scrim" id="posFabScrim"></div>
-                        <div class="rst-fab-items">
-                            <button type="button" class="rst-fab-act danger" data-fab="void">İptal</button>
-                            <button type="button" class="rst-fab-act" data-fab="transfer">Masaya Taşı</button>
-                            <button type="button" class="rst-fab-act" data-fab="merge">Birleştir</button>
-                            <button type="button" class="rst-fab-act" data-fab="split">Adisyon Böl</button>
-                            <button type="button" class="rst-fab-act" data-fab="note">Adisyon Notu</button>
-                            <button type="button" class="rst-fab-act serve" data-fab="serve">Servis Et</button>
-                            <button type="button" class="rst-fab-act send" data-fab="send">Mutfağa Gönder</button>
-                            <button type="button" class="rst-fab-act pay" data-fab="pay">Ödeme Al</button>
-                        </div>
-                        <button type="button" class="rst-fab-main" id="posFabMain" aria-label="İşlemler">≡</button>
                     </div>
                 </div>
             </aside>

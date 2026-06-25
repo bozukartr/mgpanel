@@ -100,22 +100,27 @@ button, input, select, textarea { font-family: inherit; }
 .rst-floor-head { margin-bottom: 18px; }
 .rst-sec { margin-bottom: 26px; }
 .rst-sec-h { font-size: 12px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--rst-faint); margin-bottom: 12px; padding-left: 2px; }
-.rst-tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 13px; }
+/* Salon araç çubuğu: global arama + Adisyon Aç */
+.rst-floor-tools { display: flex; gap: 10px; align-items: center; }
+.rst-floor-search { width: 280px; max-width: 52vw; padding: 12px 16px; border: 1px solid var(--rst-line); border-radius: 12px; font-size: 15px; color: var(--rst-ink); background: #fff; outline: none; font-family: inherit; transition: border-color .15s, box-shadow .15s; }
+.rst-floor-search:focus { border-color: var(--rst-accent-2); box-shadow: 0 0 0 3px rgba(180,83,9,.12); }
+.rst-floor-search::placeholder { color: var(--rst-faint); }
+.rst-tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr)); gap: 15px; }
 .rst-tcard {
-    position: relative; overflow: hidden; border: 1px solid var(--rst-line); background: var(--rst-card); border-radius: 16px;
-    padding: 15px 16px 14px 19px; display: flex; flex-direction: column; gap: 7px; cursor: pointer; min-height: 104px;
+    position: relative; overflow: hidden; border: 1px solid var(--rst-line); background: var(--rst-card); border-radius: 18px;
+    padding: 19px 20px 17px 24px; display: flex; flex-direction: column; gap: 9px; cursor: pointer; min-height: 124px;
     transition: transform .08s, box-shadow .18s, border-color .15s; font-family: inherit; box-shadow: var(--rst-shadow); text-align: left;
 }
 .rst-tcard:hover { box-shadow: 0 2px 4px rgba(28,25,23,.05), 0 14px 32px rgba(28,25,23,.09); transform: translateY(-1px); }
 .rst-tcard:active { transform: scale(.98); }
-.rst-tcard-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--rst-faint); }
+.rst-tcard-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--rst-faint); }
 .rst-tcard-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.rst-tcard-no { font-size: 23px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.6px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rst-tcard-amt { font-size: 16px; font-weight: 800; color: var(--rst-accent); white-space: nowrap; }
-.rst-tcard-sub { font-size: 12.5px; font-weight: 600; color: var(--rst-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rst-tcard-no { font-size: 27px; font-weight: 800; color: var(--rst-ink); letter-spacing: -.7px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rst-tcard-amt { font-size: 19px; font-weight: 800; color: var(--rst-accent); white-space: nowrap; }
+.rst-tcard-sub { font-size: 13.5px; font-weight: 600; color: var(--rst-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rst-tcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
-.rst-tcard-pill { font-size: 10.5px; font-weight: 800; letter-spacing: .3px; padding: 3px 10px; border-radius: 999px; background: var(--rst-line-2); color: var(--rst-mut); text-transform: uppercase; white-space: nowrap; }
-.rst-tcard-meta { font-size: 10.5px; font-weight: 700; color: var(--rst-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rst-tcard-pill { font-size: 11px; font-weight: 800; letter-spacing: .3px; padding: 4px 11px; border-radius: 999px; background: var(--rst-line-2); color: var(--rst-mut); text-transform: uppercase; white-space: nowrap; }
+.rst-tcard-meta { font-size: 11px; font-weight: 700; color: var(--rst-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* durum renkleri: yeni (terracotta) · mutfak (amber) · serviste (yeşil) */
 .rst-tcard.st-open .rst-tcard-rail { background: var(--rst-accent); }
 .rst-tcard.st-open .rst-tcard-pill { background: var(--rst-soft); color: var(--rst-accent); }
@@ -245,40 +250,6 @@ button, input, select, textarea { font-family: inherit; }
 .rst-check-actions #posVoid { font-size: 13.5px; }
 .rst-check-actions #posPay { grid-column: 1 / -1; padding: 17px; font-size: 17px; font-weight: 800; letter-spacing: -.2px; }
 
-/* ── Mobil yüzen işlem menüsü (FAB speed-dial) ── */
-.rst-fab { display: none; }
-.rst-fab-main {
-    position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
-    width: 62px; height: 62px; border-radius: 50%; border: none; background: var(--rst-accent); color: #fff;
-    font-size: 27px; line-height: 1; cursor: pointer; z-index: 30; font-family: inherit;
-    box-shadow: 0 10px 26px rgba(154,52,18,.42); transition: transform .22s, background .2s;
-}
-.rst-fab-main:active { transform: translateX(-50%) scale(.94); }
-.rst-fab.open .rst-fab-main { transform: translateX(-50%) rotate(90deg); background: var(--rst-ink); box-shadow: 0 10px 26px rgba(28,25,23,.3); }
-.rst-fab-scrim { position: absolute; inset: 0; background: rgba(250,248,246,.78); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 20; }
-.rst-fab.open .rst-fab-scrim { opacity: 1; pointer-events: auto; }
-.rst-fab-items { position: absolute; left: 0; right: 0; bottom: 94px; display: flex; flex-direction: column; align-items: center; gap: 11px; z-index: 25; padding: 0 16px; }
-.rst-fab-act {
-    opacity: 0; transform: translateY(16px) scale(.96); pointer-events: none;
-    transition: opacity .18s ease, transform .2s cubic-bezier(.2,.9,.3,1.3);
-    border: 1px solid var(--rst-line); background: #fff; color: var(--rst-ink); font-weight: 800; font-size: 16px;
-    padding: 16px 28px; border-radius: 999px; box-shadow: 0 4px 14px rgba(28,25,23,.1); cursor: pointer; font-family: inherit;
-    min-width: 230px; text-align: center;
-}
-.rst-fab.open .rst-fab-act { opacity: 1; transform: none; pointer-events: auto; }
-.rst-fab.open .rst-fab-act:nth-child(8) { transition-delay: .02s; }
-.rst-fab.open .rst-fab-act:nth-child(7) { transition-delay: .05s; }
-.rst-fab.open .rst-fab-act:nth-child(6) { transition-delay: .08s; }
-.rst-fab.open .rst-fab-act:nth-child(5) { transition-delay: .10s; }
-.rst-fab.open .rst-fab-act:nth-child(4) { transition-delay: .12s; }
-.rst-fab.open .rst-fab-act:nth-child(3) { transition-delay: .14s; }
-.rst-fab.open .rst-fab-act:nth-child(2) { transition-delay: .16s; }
-.rst-fab.open .rst-fab-act:nth-child(1) { transition-delay: .18s; }
-.rst-fab-act.pay { background: var(--rst-accent); border-color: var(--rst-accent); color: #fff; }
-.rst-fab-act.send { background: #fef3e2; border-color: #f3d9b6; color: #b45309; }
-.rst-fab-act.serve { background: var(--rst-ok-soft); border-color: #bfe0c9; color: var(--rst-ok); }
-.rst-fab-act.danger { color: var(--rst-danger); border-color: #f3c9c4; }
-
 /* ── Modal ── */
 .rst-modal { position: fixed; inset: 0; background: rgba(28,25,23,.55); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 300; }
 .rst-modal.open { display: flex; }
@@ -391,11 +362,6 @@ button, input, select, textarea { font-family: inherit; }
     .rst-pos:not(.show-check) .rst-pos-check { display: none; }
     .rst-pos.show-check .rst-pos-menu { display: none; }
     .rst-pos-items { max-height: none; }
-    /* Alt buton sıraları yerini yüzen menüye (FAB) bırakır → listeye bol alan */
-    .rst-pos-check { position: relative; }
-    .rst-check-fns, .rst-check-actions { display: none; }
-    .rst-check-foot { padding-bottom: 96px; }
-    .rst-fab { display: block; }
 }
 @media (max-width: 600px) {
     .rst-pos-head { flex-wrap: wrap; row-gap: 8px; }
@@ -441,34 +407,3 @@ button, input, select, textarea { font-family: inherit; }
     .rst-stock-in { flex: 1; width: auto; }
 }
 
-/* ── Mutfak Ekranı (KDS) ── */
-.rst-kds-filter { gap: 6px; }
-.rst-kds-fbtn { border: 1px solid var(--rst-line); background: #fff; color: var(--rst-mut); padding: 9px 16px; border-radius: 999px; font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.rst-kds-fbtn.active { background: var(--rst-accent); border-color: var(--rst-accent); color: #fff; }
-
-.rst-kds-board { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-items: start; }
-.rst-kds-ticket { background: var(--rst-card); border: 1.5px solid var(--rst-line); border-radius: 16px; padding: 14px; box-shadow: var(--rst-shadow); display: flex; flex-direction: column; gap: 10px; }
-.rst-kds-ticket.warn { border-color: #eab308; }
-.rst-kds-ticket.late { border-color: #dc6a4f; box-shadow: 0 0 0 3px rgba(220,106,79,.12); }
-.rst-kds-ticket.done { border-color: #9ed3ad; }
-.rst-kds-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.rst-kds-head b { font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
-.rst-kds-time { font-size: 12.5px; font-weight: 700; color: var(--rst-mut); white-space: nowrap; }
-.rst-kds-ticket.late .rst-kds-time { color: #dc6a4f; }
-.rst-kds-sub { font-size: 12px; color: var(--rst-faint); margin-top: -4px; }
-.rst-kds-note { font-size: 12.5px; color: var(--rst-accent); background: var(--rst-soft); border-radius: 8px; padding: 6px 9px; line-height: 1.4; }
-.rst-kds-items { display: flex; flex-direction: column; gap: 6px; }
-.rst-kds-item { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: start; width: 100%; text-align: left; border: 1px solid var(--rst-line-2); background: #fff; border-radius: 10px; padding: 9px 11px; cursor: pointer; font-family: inherit; }
-.rst-kds-item:hover { border-color: #d8d1c8; }
-.rst-kds-item.ready { background: var(--rst-ok-soft); border-color: #9ed3ad; }
-.rst-kds-item .ki-q { font-size: 15px; font-weight: 800; color: var(--rst-accent); }
-.rst-kds-item.ready .ki-q { color: var(--rst-ok); }
-.rst-kds-item .ki-n { font-size: 14px; font-weight: 600; color: var(--rst-ink); min-width: 0; }
-.rst-kds-item.ready .ki-n { text-decoration: line-through; color: var(--rst-mut); }
-.ki-tag { font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 999px; vertical-align: middle; }
-.ki-tag.bar { background: #e0e7ff; color: #4338ca; }
-.ki-tag.ik { background: var(--rst-soft); color: var(--rst-accent); }
-.ki-note { display: block; font-size: 11.5px; color: var(--rst-accent); margin-top: 1px; }
-.ki-chk { font-size: 15px; font-weight: 800; color: var(--rst-ok); min-width: 12px; }
-.rst-kds-serve { width: 100%; }
-.rst-kds-ticket.done .rst-kds-serve { background: var(--rst-ok); border-color: var(--rst-ok); }

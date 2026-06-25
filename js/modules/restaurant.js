@@ -19,7 +19,7 @@
         setTimeout(() => { t.className = 'rst-toast'; }, 2600);
     }
 
-    let cfg = { name: '', currency: '₺', vatRate: 10, vatMode: 'included', serviceCharge: 0, roomChargeEnabled: true, receiptHeader: '', receiptFooter: '' };
+    let cfg = { name: '', currency: '₺', vatRate: 10, vatMode: 'included', serviceCharge: 0, roomChargeEnabled: true, cancelCode: '', receiptHeader: '', receiptFooter: '' };
     let menu = [];
     let editingId = null;
 
@@ -33,19 +33,11 @@
             document.querySelectorAll('.rst-view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
             renderView(v);
         });
-        const kf = $('kdsFilter');
-        if (kf) kf.addEventListener('click', e => {
-            const b = e.target.closest('.rst-kds-fbtn'); if (!b) return;
-            kdsFilter = b.getAttribute('data-st');
-            kf.querySelectorAll('.rst-kds-fbtn').forEach(x => x.classList.toggle('active', x === b));
-            renderKDS();
-        });
     }
 
     // Aktif sekmeyi taze veriyle render et (modül içi işlemler sekme değiştirmeden yansısın).
     function renderView(v) {
         if (v === 'floor') renderFloor();
-        else if (v === 'kds') renderKDS();
         else if (v === 'stock') renderStock();
         else if (v === 'menu') renderMenu();
         else if (v === 'folio') renderFolio();
@@ -60,6 +52,7 @@
         $('cfgVatMode').value = cfg.vatMode || 'included';
         $('cfgService').value = 0;
         $('cfgRoomCharge').checked = cfg.roomChargeEnabled !== false;
+        if ($('cfgCancelCode')) $('cfgCancelCode').value = cfg.cancelCode || '';
         $('cfgReceiptHeader').value = cfg.receiptHeader || '';
         $('cfgReceiptFooter').value = cfg.receiptFooter || '';
     }
@@ -78,6 +71,7 @@
             vatMode: $('cfgVatMode').value === 'excluded' ? 'excluded' : 'included',
             serviceCharge: 0, // yasal: servis/kuver ücreti alınamaz
             roomChargeEnabled: $('cfgRoomCharge').checked,
+            cancelCode: (($('cfgCancelCode') && $('cfgCancelCode').value) || '').replace(/\D/g, '').slice(0, 4),
             receiptHeader: ($('cfgReceiptHeader').value || '').trim().slice(0, 80),
             receiptFooter: ($('cfgReceiptFooter').value || '').trim().slice(0, 120),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -364,26 +358,28 @@
     }
     function ageClass(c) { const m = elapsedMin(c); return m >= 60 ? ' age-late' : (m >= 30 ? ' age-warn' : ''); }
 
-    function renderKpis() {
-        const k = $('floorKpis'); if (!k) return;
-        const occ = openChecks.length;
-        const pax = openChecks.reduce((s, c) => s + (Number(c.pax) || 0), 0);
-        const kitchen = openChecks.filter(c => checkState(c).key === 'kitchen').length;
-        const serving = openChecks.filter(c => checkState(c).key === 'served').length;
-        const openTotal = round2(openChecks.reduce((s, c) => s + (Number(c.total) || 0), 0));
-        const cards = [['Açık Adisyon', occ], ['Toplam Kişi', pax], ['Mutfakta', kitchen], ['Serviste', serving], ['Açık Tutar', money(openTotal)]];
-        k.innerHTML = cards.map(([l, v]) => `<div class="rst-kpi"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
+    let floorSearch = '';
+    function checkMatches(c, q) {
+        if (!q) return true;
+        const hay = [c.tableName, c.name, c.room, c.section, c.checkNo ? '#' + c.checkNo : '', (c.items || []).map(i => i.name).join(' ')].join(' ').toLowerCase();
+        return hay.indexOf(q) !== -1;
     }
     function renderFloor() {
-        renderKpis();
         const wrap = $('floorGrid'); if (!wrap) return;
         const dl = $('ckSecList'); if (dl) dl.innerHTML = sectionsOfChecks().map(s => `<option value="${esc(s)}">`).join('');
-        if (!openChecks.length) {
-            wrap.innerHTML = `<div class="rst-empty">Açık adisyon yok.<br>“+ Yeni Adisyon” ile masa no ve kişi sayısı girip başlayın.</div>`;
+        const q = floorSearch.trim().toLowerCase();
+        const list = openChecks.filter(c => checkMatches(c, q));
+        if (!list.length) {
+            wrap.innerHTML = q
+                ? `<div class="rst-empty">“${esc(floorSearch.trim())}” için açık adisyon bulunamadı.</div>`
+                : `<div class="rst-empty">Açık adisyon yok.<br>“+ Adisyon Aç” ile masa no ve kişi sayısı girip başlayın.</div>`;
             return;
         }
-        wrap.innerHTML = sectionsOfChecks().map(sec => {
-            const cs = openChecks.filter(c => (c.section || 'Genel') === sec).sort(chkByOrder);
+        const secs = [];
+        list.forEach(c => { const s = c.section || 'Genel'; if (!secs.includes(s)) secs.push(s); });
+        secs.sort((a, b) => a.localeCompare(b, 'tr'));
+        wrap.innerHTML = secs.map(sec => {
+            const cs = list.filter(c => (c.section || 'Genel') === sec).sort(chkByOrder);
             return `<div class="rst-sec">
                 <div class="rst-sec-h">${esc(sec)}</div>
                 <div class="rst-tables">${cs.map(checkCardHtml).join('')}</div>
@@ -506,7 +502,6 @@
             openChecks = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
                 .filter(c => c.status === 'open' || c.status === 'sent');
             renderFloor();
-            if ($('view-kds') && $('view-kds').classList.contains('active')) renderKDS();
         }, err => console.error('checks', err));
     }
 
@@ -521,12 +516,7 @@
         ov.classList.toggle('show-check', pane === 'check');
         const sw = $('posSwitch');
         if (sw) sw.querySelectorAll('.rst-ps-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-pane') === pane));
-        closePosFab();
     }
-    // Mobil yüzen işlem menüsü (FAB) — mevcut buton davranışlarını yeniden kullanır.
-    const FAB_MAP = { pay: 'posPay', send: 'posSend', serve: 'posServe', note: 'posNote', split: 'posSplit', merge: 'posMerge', transfer: 'posTransfer', void: 'posVoid' };
-    function closePosFab() { const f = $('posFab'); if (f) f.classList.remove('open'); }
-    function togglePosFab() { const f = $('posFab'); if (f) f.classList.toggle('open'); }
     function openPos(check) {
         currentCheck = JSON.parse(JSON.stringify(check));
         if (!currentCheck.items) currentCheck.items = [];
@@ -539,7 +529,7 @@
         renderPosCheck();
         $('posOverlay').classList.add('open');
     }
-    function closePos() { closePosFab(); flushSave(); $('posOverlay').classList.remove('open'); currentCheck = null; }
+    function closePos() { flushSave(); $('posOverlay').classList.remove('open'); currentCheck = null; }
 
     function renderPosMenu() {
         const cats = []; menu.filter(i => i.active !== false).sort(byOrder).forEach(i => { const c = i.category || 'Diğer'; if (!cats.includes(c)) cats.push(c); });
@@ -600,14 +590,21 @@
     }
     function changeQty(lineId, d) {
         const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
-        l.qty += d;
-        if (l.qty <= 0) { currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId); if (selectedLineId === lineId) selectedLineId = null; }
-        recalcSave();
+        const apply = () => {
+            l.qty += d;
+            if (l.qty <= 0) { currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId); if (selectedLineId === lineId) selectedLineId = null; }
+            recalcSave();
+        };
+        if (d < 0 && l.sent) authorizeCancel(apply); else apply();
     }
     function removeLine(lineId) {
-        currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId);
-        if (selectedLineId === lineId) selectedLineId = null;
-        recalcSave();
+        const l = currentCheck.items.find(x => x.lineId === lineId);
+        const doRemove = () => {
+            currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId);
+            if (selectedLineId === lineId) selectedLineId = null;
+            recalcSave();
+        };
+        if (l && l.sent) authorizeCancel(doRemove); else doRemove();
     }
     function ikramLine(lineId) {
         const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
@@ -771,14 +768,16 @@
     }
     function sendKitchen() {
         if (!currentCheck || !currentCheck.items.length) { toast('Adisyon boş.', true); return; }
-        const fresh = currentCheck.items.filter(l => !l.sent).length;
+        const freshItems = currentCheck.items.filter(l => !l.sent);
+        const fresh = freshItems.length;
         currentCheck.items.forEach(l => l.sent = true);
         currentCheck.status = 'sent';
         if (fresh || !currentCheck.sentAt) currentCheck.sentAt = Date.now();
         const t = computeTotals(currentCheck.items);
         currentCheck.subtotal = t.subtotal; currentCheck.vat = t.vat; currentCheck.total = t.total;
         renderPosCheck(); flushSave();
-        toast(fresh ? fresh + ' kalem mutfağa gönderildi.' : 'Mutfağa gönderildi.');
+        printOrderTicket(currentCheck, fresh ? freshItems : currentCheck.items);
+        toast(fresh ? fresh + ' kalem için sipariş fişi yazdırıldı.' : 'Sipariş fişi yeniden yazdırıldı.');
     }
     // Mutfağa göndermeden doğrudan servis (içecek, hazır ürün vb.) veya teslim edildi işareti.
     function serveLine(lineId) {
@@ -799,67 +798,57 @@
         renderPosCheck(); flushSave();
         toast(n + ' kalem servis edildi.');
     }
-    // ── Mutfak Ekranı (KDS) ─────────────────────────────────────
-    let kdsFilter = 'all';
-    function kdsSentMs(c) { const d = tsToDate(c.sentAt) || tsToDate(c.openedAt); return d ? d.getTime() : 0; }
-    function kdsMinAgo(c) { const ms = kdsSentMs(c); return ms ? Math.floor((Date.now() - ms) / 60000) : 0; }
-    function kdsAgo(m) { if (m < 1) return 'az önce'; if (m < 60) return m + ' dk'; return Math.floor(m / 60) + ' sa ' + (m % 60) + ' dk'; }
-    function kdsMatch(i) { return kdsFilter === 'all' || (i.station || 'kitchen') === kdsFilter; }
-    function renderKDS() {
-        const board = $('kdsBoard'); if (!board) return;
-        const tickets = openChecks
-            .map(c => ({ c: c, items: (c.items || []).filter(i => i.sent && !i.served && kdsMatch(i)) }))
-            .filter(t => t.items.length)
-            .sort((a, b) => kdsSentMs(a.c) - kdsSentMs(b.c));
-        if (!tickets.length) { board.innerHTML = `<div class="rst-empty">Mutfakta bekleyen sipariş yok.</div>`; return; }
-        board.innerHTML = tickets.map(t => {
-            const c = t.c, m = kdsMinAgo(c), age = m >= 15 ? ' late' : (m >= 8 ? ' warn' : '');
-            const allReady = t.items.every(i => i.ready);
-            return `<div class="rst-kds-ticket${age}${allReady ? ' done' : ''}">
-                <div class="rst-kds-head">
-                    <b>Masa ${esc(c.tableName || '—')}</b>
-                    <span class="rst-kds-time">${esc(kdsAgo(m))}</span>
-                </div>
-                <div class="rst-kds-sub">${c.checkNo ? '#' + esc(c.checkNo) + ' · ' : ''}${esc(c.pax || 1)} kişi${c.name ? ' · ' + esc(c.name) : ''}</div>
-                ${c.note ? `<div class="rst-kds-note">${esc(c.note)}</div>` : ''}
-                <div class="rst-kds-items">
-                    ${t.items.map(i => `<button type="button" class="rst-kds-item${i.ready ? ' ready' : ''}" data-kc="${esc(c.id)}" data-kl="${esc(i.lineId)}">
-                        <span class="ki-q">${esc(i.qty)}×</span>
-                        <span class="ki-n">${esc(i.name)}${i.station === 'bar' ? ' <span class="ki-tag bar">BAR</span>' : ''}${i.ikram ? ' <span class="ki-tag ik">İKRAM</span>' : ''}${i.note ? `<span class="ki-note">“${esc(i.note)}”</span>` : ''}</span>
-                        <span class="ki-chk">${i.ready ? '✓' : ''}</span>
-                    </button>`).join('')}
-                </div>
-                <button type="button" class="rst-btn primary rst-kds-serve" data-ks="${esc(c.id)}">Servis Et</button>
-            </div>`;
-        }).join('');
-        board.querySelectorAll('[data-kc]').forEach(b => b.onclick = () => kdsToggleReady(b.getAttribute('data-kc'), b.getAttribute('data-kl')));
-        board.querySelectorAll('[data-ks]').forEach(b => b.onclick = () => kdsServe(b.getAttribute('data-ks')));
+    // ── Sipariş fişi (mutfağa elden verilen, fiyatsız) ──────────
+    function printOrderTicket(c, items) {
+        if (!items || !items.length) return;
+        const w = window.open('', '_blank', 'width=380,height=600');
+        if (!w) { toast('Açılır pencere engellendi (sipariş fişi).', true); return; }
+        const now = new Date(); const p = n => n < 10 ? '0' + n : '' + n;
+        const time = p(now.getDate()) + '.' + p(now.getMonth() + 1) + '.' + now.getFullYear() + ' ' + p(now.getHours()) + ':' + p(now.getMinutes());
+        const rows = items.map(l => `<tr><td class="q">${esc(l.qty)}×</td><td>${esc(l.name)}${l.station === 'bar' ? ' [BAR]' : ''}${l.ikram ? ' (İkram)' : ''}${l.note ? '<div class="note">» ' + esc(l.note) + '</div>' : ''}</td></tr>`).join('');
+        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Sipariş Fişi</title>
+<style>
+ @page{size:80mm auto;margin:0}
+ *{box-sizing:border-box}
+ body{width:80mm;margin:0;padding:8px 10px;font-family:'Courier New',monospace;font-size:13px;color:#000}
+ h1{font-size:16px;margin:0 0 2px;text-align:center;letter-spacing:1px}
+ .sub{text-align:center;font-size:12px;margin-bottom:4px}
+ hr{border:none;border-top:1px dashed #000;margin:6px 0}
+ table{width:100%;border-collapse:collapse}
+ td{padding:3px 0;vertical-align:top;font-size:14px;font-weight:bold}
+ td.q{width:34px}
+ .note{font-size:11px;font-weight:normal;color:#222}
+</style></head><body>
+<h1>SİPARİŞ FİŞİ</h1>
+<div class="sub">${c.checkNo ? 'Adisyon #' + esc(c.checkNo) + ' · ' : ''}Masa ${esc(c.tableName || '')}${c.room ? ' · Oda ' + esc(c.room) : ''} · ${esc(c.pax || 1)} kişi</div>
+<div class="sub">${esc(loggedUser)} · ${esc(time)}</div>
+<hr>
+<table>${rows}</table>
+${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
+<scr` + `ipt>window.onload=function(){setTimeout(function(){window.print();},250);}</scr` + `ipt>
+</body></html>`);
+        w.document.close();
     }
-    function kdsUpdate(checkId, mutate) {
-        const ref = db.collection(CHK_COL).doc(checkId);
-        return db.runTransaction(tx => tx.get(ref).then(doc => {
-            if (!doc.exists) return;
-            const items = (doc.data().items || []).map(it => Object.assign({}, it));
-            mutate(items);
-            tx.update(ref, { items: items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-        }));
-    }
-    function kdsToggleReady(checkId, lineId) {
-        kdsUpdate(checkId, items => { const it = items.find(x => x.lineId === lineId); if (it) it.ready = !it.ready; })
-            .catch(err => { console.error(err); toast('Güncellenemedi.', true); });
-    }
-    function kdsServe(checkId) {
-        kdsUpdate(checkId, items => items.forEach(it => { if (it.sent && !it.served && kdsMatch(it)) it.served = true; }))
-            .then(() => toast('Sipariş servis edildi.')).catch(err => { console.error(err); toast('İşlem başarısız.', true); });
+    // Gönderilen siparişi iptal/azaltma → 4 haneli yetki kodu (Manager/SPV belirler).
+    function authorizeCancel(onOk) {
+        const code = String(cfg.cancelCode || '').trim();
+        if (!code) { toast('İptal kodu tanımlı değil — Ayarlar’dan belirleyin.', true); return; }
+        const entry = prompt('Gönderilen siparişi iptal etmek için 4 haneli yetki kodu:');
+        if (entry === null) return;
+        if (String(entry).trim() === code) onOk();
+        else toast('Kod hatalı — iptal edilmedi.', true);
     }
 
     function voidCheck() {
         if (!currentCheck) return;
         if (!currentCheck.id) { $('posOverlay').classList.remove('open'); currentCheck = null; return; }
-        if (!confirm('Adisyon iptal edilsin mi? (Masa boşalır)')) return;
-        db.collection(CHK_COL).doc(currentCheck.id).update({ status: 'void', updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
-            .then(() => { toast('Adisyon iptal edildi.'); $('posOverlay').classList.remove('open'); currentCheck = null; })
-            .catch(err => { console.error(err); toast('İşlem başarısız.', true); });
+        const doVoid = () => {
+            if (!confirm('Adisyon iptal edilsin mi? (Masa boşalır)')) return;
+            db.collection(CHK_COL).doc(currentCheck.id).update({ status: 'void', updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+                .then(() => { toast('Adisyon iptal edildi.'); $('posOverlay').classList.remove('open'); currentCheck = null; })
+                .catch(err => { console.error(err); toast('İşlem başarısız.', true); });
+        };
+        if ((currentCheck.items || []).some(l => l.sent)) authorizeCancel(doVoid); else doVoid();
     }
     function setPax(d) {
         if (!currentCheck) return;
@@ -1081,6 +1070,13 @@
         const p = n => n < 10 ? '0' + n : '' + n;
         return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
     }
+    function splitName(n) {
+        const s = String(n || '').trim();
+        if (!s) return { first: '', last: '' };
+        const parts = s.split(/\s+/);
+        if (parts.length === 1) return { first: parts[0], last: '' };
+        return { first: parts.slice(0, -1).join(' '), last: parts[parts.length - 1] };
+    }
     function receiptRows(items) {
         return (items || []).map(l => {
             const lt = money(l.ikram ? 0 : round2((l.unitPrice || 0) * l.qty));
@@ -1106,6 +1102,9 @@
  td{padding:1px 0;vertical-align:top;font-size:12px}
  .note{font-size:10px;color:#333}
  .tot .big{font-size:15px;font-weight:bold}
+ .sig{margin-top:4px}
+ .sig td{font-size:12px;padding:5px 0}
+ .sig td:first-child{width:62px;color:#000}
  .ft{text-align:center;font-size:11px;margin-top:8px}
 </style></head><body>
 <h1>${esc(cfg.receiptHeader || cfg.name || 'Restoran')}</h1>
@@ -1122,6 +1121,13 @@ ${c.note ? '<div class="note">Not: ' + esc(c.note) + '</div>' : ''}
  <tr class="big"><td colspan="2">TOPLAM</td><td class="r">${esc(money(c.payable || 0))}</td></tr>
 </table>
 ${pays ? '<hr><table>' + pays + '</table>' : ''}
+<hr>
+<table class="sig">
+ <tr><td>İsim</td><td>: ${esc(splitName(c.name).first)}</td></tr>
+ <tr><td>Soyisim</td><td>: ${esc(splitName(c.name).last)}</td></tr>
+ <tr><td>Oda No</td><td>: ${esc(c.room || '')}</td></tr>
+ <tr><td>İmza</td><td>: ____________________</td></tr>
+</table>
 <div class="ft">${esc(cfg.receiptFooter || 'Bizi tercih ettiğiniz için teşekkürler.')}</div>
 <scr` + `ipt>window.onload=function(){setTimeout(function(){window.print();},250);}</scr` + `ipt>
 </body></html>`);
@@ -1130,14 +1136,14 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
     function printReceipt() {
         const p = payable();
         printReceiptDoc({
-            checkNo: currentCheck.checkNo, tableName: currentCheck.tableName, room: currentCheck.room, pax: currentCheck.pax,
+            checkNo: currentCheck.checkNo, tableName: currentCheck.tableName, room: currentCheck.room, name: currentCheck.name, pax: currentCheck.pax,
             by: loggedUser, items: currentCheck.items, note: currentCheck.note, subtotal: p.gross.subtotal, vat: p.gross.vat, payable: p.payable,
             discountAmount: discountAmount(p.gross.total), payments: (pay && pay.payments) || []
         });
     }
     function printStored(check) {
         printReceiptDoc({
-            checkNo: check.checkNo, tableName: check.tableName, room: check.room, pax: check.pax, note: check.note,
+            checkNo: check.checkNo, tableName: check.tableName, room: check.room, name: check.name, pax: check.pax, note: check.note,
             by: check.closedBy || check.openedBy, when: fmtTime(check.closedAt),
             items: check.items, subtotal: check.subtotal || 0, vat: check.vat || 0,
             payable: (check.payable != null ? check.payable : check.total) || 0,
@@ -1260,6 +1266,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
 
     function wireFloorPos() {
         $('newCheckBtn').onclick = () => openCheckModal(null);
+        const fsr = $('floorSearch'); if (fsr) fsr.oninput = e => { floorSearch = e.target.value; renderFloor(); };
         $('checkModalClose').onclick = closeCheckModal;
         $('checkForm').onsubmit = submitCheck;
         $('ckRoom').oninput = onRoomInput;
@@ -1270,11 +1277,6 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('posBack').onclick = closePos;
         const sw = $('posSwitch');
         if (sw) sw.addEventListener('click', e => { const t = e.target.closest('.rst-ps-tab'); if (t) setPosPane(t.getAttribute('data-pane')); });
-        if ($('posFabMain')) $('posFabMain').onclick = togglePosFab;
-        if ($('posFabScrim')) $('posFabScrim').onclick = closePosFab;
-        document.querySelectorAll('#posFab [data-fab]').forEach(b => b.onclick = () => {
-            const id = FAB_MAP[b.getAttribute('data-fab')]; closePosFab(); if (id && $(id)) $(id).click();
-        });
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
         $('posServe').onclick = serveAll;
@@ -1344,7 +1346,6 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
     }
     function tickFloor() {
         if ($('posOverlay') && $('posOverlay').classList.contains('open')) return;
-        if ($('view-kds') && $('view-kds').classList.contains('active')) { renderKDS(); return; }
         const fv = $('view-floor'); if (!fv || !fv.classList.contains('active')) return;
         renderFloor();
     }
