@@ -18,6 +18,7 @@
         <!-- Sub navigation -->
         <nav class="rst-subnav" id="rstSubnav">
             <button class="rst-tab active" data-view="floor">Adisyonlar</button>
+            <button class="rst-tab" data-view="kds">Mutfak</button>
             <button class="rst-tab" data-view="archive">Arşiv</button>
             <button class="rst-tab" data-view="folio">Oda Hesapları</button>
             <button class="rst-tab" data-view="menu">Menü</button>
@@ -39,6 +40,22 @@
                 </div>
                 <div id="floorKpis" class="rst-kpis"></div>
                 <div id="floorGrid" class="rst-floor"></div>
+            </section>
+
+            <!-- ── MUTFAK EKRANI (KDS) ── -->
+            <section class="rst-view" id="view-kds">
+                <div class="rst-floor-head">
+                    <div>
+                        <h2>Mutfak Ekranı</h2>
+                        <p class="rst-sub">Mutfağa/bara gönderilen siparişler. Kaleme dokun → hazır; “Servis Et” ile siparişi ekrandan kaldır.</p>
+                    </div>
+                    <div class="rst-head-actions rst-kds-filter" id="kdsFilter">
+                        <button class="rst-kds-fbtn active" data-st="all">Tümü</button>
+                        <button class="rst-kds-fbtn" data-st="kitchen">Mutfak</button>
+                        <button class="rst-kds-fbtn" data-st="bar">Bar</button>
+                    </div>
+                </div>
+                <div id="kdsBoard" class="rst-kds-board"></div>
             </section>
 
             <!-- ── ARŞİV ── -->

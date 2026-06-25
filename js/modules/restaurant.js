@@ -32,6 +32,14 @@
             nav.querySelectorAll('.rst-tab').forEach(x => x.classList.toggle('active', x === b));
             document.querySelectorAll('.rst-view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
             if (v === 'stock') renderStock();
+            if (v === 'kds') renderKDS();
+        });
+        const kf = $('kdsFilter');
+        if (kf) kf.addEventListener('click', e => {
+            const b = e.target.closest('.rst-kds-fbtn'); if (!b) return;
+            kdsFilter = b.getAttribute('data-st');
+            kf.querySelectorAll('.rst-kds-fbtn').forEach(x => x.classList.toggle('active', x === b));
+            renderKDS();
         });
     }
 
@@ -471,6 +479,7 @@
             openChecks = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
                 .filter(c => c.status === 'open' || c.status === 'sent');
             renderFloor();
+            if ($('view-kds') && $('view-kds').classList.contains('active')) renderKDS();
         }, err => console.error('checks', err));
     }
 
@@ -710,6 +719,7 @@
             tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '', room: currentCheck.room || '',
             section: currentCheck.section || 'Genel', status: currentCheck.status || 'open', pax: currentCheck.pax || 1, note: currentCheck.note || '',
             items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
+            sentAt: currentCheck.sentAt || null,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         if (currentCheck.id) {
@@ -725,11 +735,66 @@
         const fresh = currentCheck.items.filter(l => !l.sent).length;
         currentCheck.items.forEach(l => l.sent = true);
         currentCheck.status = 'sent';
+        if (fresh || !currentCheck.sentAt) currentCheck.sentAt = Date.now();
         const t = computeTotals(currentCheck.items);
         currentCheck.subtotal = t.subtotal; currentCheck.vat = t.vat; currentCheck.total = t.total;
         renderPosCheck(); flushSave();
         toast(fresh ? fresh + ' kalem mutfağa gönderildi.' : 'Mutfağa gönderildi.');
     }
+    // ── Mutfak Ekranı (KDS) ─────────────────────────────────────
+    let kdsFilter = 'all';
+    function kdsSentMs(c) { const d = tsToDate(c.sentAt) || tsToDate(c.openedAt); return d ? d.getTime() : 0; }
+    function kdsMinAgo(c) { const ms = kdsSentMs(c); return ms ? Math.floor((Date.now() - ms) / 60000) : 0; }
+    function kdsAgo(m) { if (m < 1) return 'az önce'; if (m < 60) return m + ' dk'; return Math.floor(m / 60) + ' sa ' + (m % 60) + ' dk'; }
+    function kdsMatch(i) { return kdsFilter === 'all' || (i.station || 'kitchen') === kdsFilter; }
+    function renderKDS() {
+        const board = $('kdsBoard'); if (!board) return;
+        const tickets = openChecks
+            .map(c => ({ c: c, items: (c.items || []).filter(i => i.sent && !i.served && kdsMatch(i)) }))
+            .filter(t => t.items.length)
+            .sort((a, b) => kdsSentMs(a.c) - kdsSentMs(b.c));
+        if (!tickets.length) { board.innerHTML = `<div class="rst-empty">Mutfakta bekleyen sipariş yok.</div>`; return; }
+        board.innerHTML = tickets.map(t => {
+            const c = t.c, m = kdsMinAgo(c), age = m >= 15 ? ' late' : (m >= 8 ? ' warn' : '');
+            const allReady = t.items.every(i => i.ready);
+            return `<div class="rst-kds-ticket${age}${allReady ? ' done' : ''}">
+                <div class="rst-kds-head">
+                    <b>Masa ${esc(c.tableName || '—')}</b>
+                    <span class="rst-kds-time">${esc(kdsAgo(m))}</span>
+                </div>
+                <div class="rst-kds-sub">${c.checkNo ? '#' + esc(c.checkNo) + ' · ' : ''}${esc(c.pax || 1)} kişi${c.name ? ' · ' + esc(c.name) : ''}</div>
+                ${c.note ? `<div class="rst-kds-note">${esc(c.note)}</div>` : ''}
+                <div class="rst-kds-items">
+                    ${t.items.map(i => `<button type="button" class="rst-kds-item${i.ready ? ' ready' : ''}" data-kc="${esc(c.id)}" data-kl="${esc(i.lineId)}">
+                        <span class="ki-q">${esc(i.qty)}×</span>
+                        <span class="ki-n">${esc(i.name)}${i.station === 'bar' ? ' <span class="ki-tag bar">BAR</span>' : ''}${i.ikram ? ' <span class="ki-tag ik">İKRAM</span>' : ''}${i.note ? `<span class="ki-note">“${esc(i.note)}”</span>` : ''}</span>
+                        <span class="ki-chk">${i.ready ? '✓' : ''}</span>
+                    </button>`).join('')}
+                </div>
+                <button type="button" class="rst-btn primary rst-kds-serve" data-ks="${esc(c.id)}">Servis Et</button>
+            </div>`;
+        }).join('');
+        board.querySelectorAll('[data-kc]').forEach(b => b.onclick = () => kdsToggleReady(b.getAttribute('data-kc'), b.getAttribute('data-kl')));
+        board.querySelectorAll('[data-ks]').forEach(b => b.onclick = () => kdsServe(b.getAttribute('data-ks')));
+    }
+    function kdsUpdate(checkId, mutate) {
+        const ref = db.collection(CHK_COL).doc(checkId);
+        return db.runTransaction(tx => tx.get(ref).then(doc => {
+            if (!doc.exists) return;
+            const items = (doc.data().items || []).map(it => Object.assign({}, it));
+            mutate(items);
+            tx.update(ref, { items: items, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        }));
+    }
+    function kdsToggleReady(checkId, lineId) {
+        kdsUpdate(checkId, items => { const it = items.find(x => x.lineId === lineId); if (it) it.ready = !it.ready; })
+            .catch(err => { console.error(err); toast('Güncellenemedi.', true); });
+    }
+    function kdsServe(checkId) {
+        kdsUpdate(checkId, items => items.forEach(it => { if (it.sent && !it.served && kdsMatch(it)) it.served = true; }))
+            .then(() => toast('Sipariş servis edildi.')).catch(err => { console.error(err); toast('İşlem başarısız.', true); });
+    }
+
     function voidCheck() {
         if (!currentCheck) return;
         if (!currentCheck.id) { $('posOverlay').classList.remove('open'); currentCheck = null; return; }
@@ -1204,6 +1269,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
     }
     function tickFloor() {
         if ($('posOverlay') && $('posOverlay').classList.contains('open')) return;
+        if ($('view-kds') && $('view-kds').classList.contains('active')) { renderKDS(); return; }
         const fv = $('view-floor'); if (!fv || !fv.classList.contains('active')) return;
         document.querySelectorAll('#floorGrid [data-chk]').forEach(el => {
             const c = openChecks.find(x => x.id === el.getAttribute('data-chk')); if (!c) return;
