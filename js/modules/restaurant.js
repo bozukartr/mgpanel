@@ -521,7 +521,12 @@
         ov.classList.toggle('show-check', pane === 'check');
         const sw = $('posSwitch');
         if (sw) sw.querySelectorAll('.rst-ps-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-pane') === pane));
+        closePosFab();
     }
+    // Mobil yüzen işlem menüsü (FAB) — mevcut buton davranışlarını yeniden kullanır.
+    const FAB_MAP = { pay: 'posPay', send: 'posSend', serve: 'posServe', note: 'posNote', split: 'posSplit', merge: 'posMerge', transfer: 'posTransfer', void: 'posVoid' };
+    function closePosFab() { const f = $('posFab'); if (f) f.classList.remove('open'); }
+    function togglePosFab() { const f = $('posFab'); if (f) f.classList.toggle('open'); }
     function openPos(check) {
         currentCheck = JSON.parse(JSON.stringify(check));
         if (!currentCheck.items) currentCheck.items = [];
@@ -534,7 +539,7 @@
         renderPosCheck();
         $('posOverlay').classList.add('open');
     }
-    function closePos() { flushSave(); $('posOverlay').classList.remove('open'); currentCheck = null; }
+    function closePos() { closePosFab(); flushSave(); $('posOverlay').classList.remove('open'); currentCheck = null; }
 
     function renderPosMenu() {
         const cats = []; menu.filter(i => i.active !== false).sort(byOrder).forEach(i => { const c = i.category || 'Diğer'; if (!cats.includes(c)) cats.push(c); });
@@ -1265,6 +1270,11 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('posBack').onclick = closePos;
         const sw = $('posSwitch');
         if (sw) sw.addEventListener('click', e => { const t = e.target.closest('.rst-ps-tab'); if (t) setPosPane(t.getAttribute('data-pane')); });
+        if ($('posFabMain')) $('posFabMain').onclick = togglePosFab;
+        if ($('posFabScrim')) $('posFabScrim').onclick = closePosFab;
+        document.querySelectorAll('#posFab [data-fab]').forEach(b => b.onclick = () => {
+            const id = FAB_MAP[b.getAttribute('data-fab')]; closePosFab(); if (id && $(id)) $(id).click();
+        });
         $('posVoid').onclick = voidCheck;
         $('posSend').onclick = sendKitchen;
         $('posServe').onclick = serveAll;

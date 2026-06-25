@@ -242,6 +242,21 @@
                         <button class="rst-btn serve" id="posServe">Servis Et</button>
                         <button class="rst-btn primary" id="posPay">Ödeme Al</button>
                     </div>
+                    <!-- Mobil: yüzen işlem menüsü (FAB) — alanı boşaltır -->
+                    <div class="rst-fab" id="posFab">
+                        <div class="rst-fab-scrim" id="posFabScrim"></div>
+                        <div class="rst-fab-items">
+                            <button type="button" class="rst-fab-act danger" data-fab="void">İptal</button>
+                            <button type="button" class="rst-fab-act" data-fab="transfer">Masaya Taşı</button>
+                            <button type="button" class="rst-fab-act" data-fab="merge">Birleştir</button>
+                            <button type="button" class="rst-fab-act" data-fab="split">Adisyon Böl</button>
+                            <button type="button" class="rst-fab-act" data-fab="note">Adisyon Notu</button>
+                            <button type="button" class="rst-fab-act serve" data-fab="serve">Servis Et</button>
+                            <button type="button" class="rst-fab-act send" data-fab="send">Mutfağa Gönder</button>
+                            <button type="button" class="rst-fab-act pay" data-fab="pay">Ödeme Al</button>
+                        </div>
+                        <button type="button" class="rst-fab-main" id="posFabMain" aria-label="İşlemler">≡</button>
+                    </div>
                 </div>
             </aside>
         </div>
