@@ -33,24 +33,49 @@
             </div>
         </div>
 
-        <!-- Login Form Area -->
-        <div class="login-card" id="loginCard">
-            
+        <!-- Giriş türü seçici -->
+        <div class="login-card" id="chooserCard">
+            <div class="choose-title">Giriş türünü seçin</div>
+            <button type="button" class="choose-btn" id="chooseHotel">
+                <b>StayOS Hotel</b><span>Otel Yönetimi</span>
+            </button>
+            <button type="button" class="choose-btn alt" id="chooseFnb">
+                <b>StayOS F&amp;B</b><span>Restoran &amp; Bar</span>
+            </button>
+        </div>
+
+        <!-- Hotel Login Form Area -->
+        <div class="login-card" id="loginCard" style="display:none;">
             <form id="loginForm">
                 <div class="input-group">
                     <input type="text" id="username" required placeholder=" ">
                     <label for="username">Kullanıcı Adı</label>
                 </div>
-                
                 <div class="input-group">
                     <input type="password" id="password" required placeholder=" ">
                     <label for="password">Şifre</label>
                 </div>
-                
-
-                
                 <button type="submit" class="login-btn">Devam Et</button>
+                <button type="button" class="login-back" id="hotelBack">‹ Geri</button>
                 <div id="errorMessage" class="error-message"></div>
+            </form>
+        </div>
+
+        <!-- StayOS F&B Login Area -->
+        <div class="login-card" id="fnbCard" style="display:none;">
+            <div class="choose-title">StayOS F&amp;B</div>
+            <form id="fnbForm">
+                <div class="input-group">
+                    <input type="text" id="fnbUsername" required placeholder=" " autocomplete="username">
+                    <label for="fnbUsername">Kullanıcı Adı</label>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="fnbCode" inputmode="numeric" required placeholder=" " autocomplete="current-password">
+                    <label for="fnbCode">5 Haneli Kod / Şifre</label>
+                </div>
+                <button type="submit" class="login-btn">Devam Et</button>
+                <button type="button" class="login-back" id="fnbBack">‹ Geri</button>
+                <div id="fnbError" class="error-message"></div>
             </form>
         </div>
 

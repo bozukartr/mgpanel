@@ -27,6 +27,24 @@
         return (typeof moduleEnabled === 'function') ? moduleEnabled(key) : true;
     }
 
+    // Giriş bağlamı: 'hotel' (otel modülleri) veya 'fnb' (yalnızca Restoran + Raporlar).
+    var CTX = (localStorage.getItem('loginContext') || 'hotel');
+    function ctxAllows(route) {
+        if (CTX === 'fnb') return (route === 'restoran' || route === 'raporlar');
+        return route !== 'restoran';   // hotel: Restoran F&B'ye özel
+    }
+    function defaultRoute() { return CTX === 'fnb' ? 'restoran' : 'dashboard'; }
+    function applyContext() {
+        document.querySelectorAll('[data-ctx]').forEach(function (el) {
+            var c = el.getAttribute('data-ctx');
+            if (c && c !== CTX) el.style.display = 'none';
+        });
+        if (CTX === 'fnb') {
+            var brand = document.querySelector('.sh-logo span');
+            if (brand) brand.textContent = 'StayOS F&B';
+        }
+    }
+
     var frame = $('shFrame');
     var loading = $('shLoading');
     var currentRoute = null;
@@ -44,7 +62,7 @@
     // route: hedef görünüm · query: iframe'e geçirilecek ek parametre · force: aynı route olsa da yeniden yükle
     function loadRoute(route, query, force) {
         var def = ROUTES[route];
-        if (!def || !moduleOn(def.module)) { route = 'dashboard'; def = ROUTES.dashboard; }
+        if (!def || !moduleOn(def.module) || !ctxAllows(route)) { route = defaultRoute(); def = ROUTES[route]; }
         var src = def.page + '?embed=1&v=' + SHELL_V + (query ? '&' + query : '');
         if (force || query || route !== currentRoute) {
             if (loading) loading.classList.add('show');
@@ -57,7 +75,7 @@
     // Hash değişimi → görünüm yükle
     function fromHash() {
         var h = (location.hash || '').replace('#', '').split('?')[0];
-        loadRoute(h || 'dashboard');
+        loadRoute(h || defaultRoute());
     }
     window.addEventListener('hashchange', fromHash);
 
@@ -109,6 +127,7 @@
 
     // Header
     function init() {
+        applyContext();
         var name = USERNAME ? (USERNAME.charAt(0).toUpperCase() + USERNAME.slice(1)) : 'Ekip';
         $('shUser').textContent = name;
         $('shRole').textContent = ROLE ? (ROLE.charAt(0).toUpperCase() + ROLE.slice(1)) : 'Personel';

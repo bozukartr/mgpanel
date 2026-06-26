@@ -97,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('adminUserRole').value = data.role;
         document.getElementById('adminUserDept').value = data.department;
         setUserModuleSel(data.modules);
+        applyDeptPwUI();
         userModal.style.display = 'flex';
     };
 
@@ -125,7 +126,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(`Kullanıcı limitine ulaşıldı (${lim}). Daha fazlası için paketinizi yükseltin.`, true);
                     return;
                 }
-                const password = passwordInput.value;
+                const isFnb = (department === FNB_DEPT);
+                const fnbCode = (passwordInput.value || '').trim();
+                let password = passwordInput.value;
+                if (isFnb) {
+                    if (!/^\d{5}$/.test(fnbCode)) { showToast('F&B kullanıcısı için 5 haneli (yalnızca rakam) kod girin.', true); return; }
+                    password = fnbPassword(fnbCode);   // Firebase ≥6 char gerektirir → türetilmiş şifre
+                }
                 const email = userEmail(username, TENANT_ID);
 
                 // Ensure Secondary app is fresh
@@ -139,10 +146,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const userCredential = await secondaryApp.auth().createUserWithEmailAndPassword(email, password);
                 const uid = userCredential.user.uid;
-                
+
                 await secondaryApp.auth().signOut();
 
-                await db.collection('systemUsers').doc(uid).set({
+                const newUser = {
                     uid: uid,
                     username: username,
                     email: email,
@@ -150,9 +157,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     department: department,
                     modules: getUserModuleSel(),
                     tenantId: TENANT_ID,
-                    mustChangePassword: true,
+                    mustChangePassword: !isFnb,   // F&B sabit kodla girer, değişim istenmez
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                };
+                if (isFnb) newUser.fnbCode = fnbCode;
+                await db.collection('systemUsers').doc(uid).set(newUser);
                 showToast('New Account Created: ' + username);
             }
             userModal.style.display = 'none';
@@ -164,12 +173,33 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Modal Handlers
+    // Departman = F&B seçilince şifre alanı 5 haneli (yalnızca rakam) kod olur.
+    function applyDeptPwUI() {
+        const dept = document.getElementById('adminUserDept').value;
+        const pw = document.getElementById('adminNewPassword');
+        const label = document.getElementById('adminPwLabel');
+        const hint = document.getElementById('adminPwHint');
+        if (dept === FNB_DEPT) {
+            pw.setAttribute('inputmode', 'numeric'); pw.setAttribute('maxlength', '5'); pw.setAttribute('pattern', '\\d{5}');
+            pw.placeholder = '5 haneli kod';
+            if (label) label.textContent = '5 Haneli Kod (F&B)';
+            if (hint) hint.style.display = '';
+        } else {
+            pw.removeAttribute('inputmode'); pw.removeAttribute('maxlength'); pw.removeAttribute('pattern');
+            pw.placeholder = '';
+            if (label) label.textContent = 'Şifre';
+            if (hint) hint.style.display = 'none';
+        }
+    }
+    document.getElementById('adminUserDept').addEventListener('change', applyDeptPwUI);
+
     openUserModalBtn.onclick = () => {
         userModal.style.display = 'flex';
         currentEditingUserId = null;
         userForm.reset();
         setUserModuleSel(null); // new users default to full access (all checked)
         document.getElementById('adminNewPassword').disabled = false;
+        applyDeptPwUI();
     };
 
     closeUserModalBtn.onclick = () => userModal.style.display = 'none';

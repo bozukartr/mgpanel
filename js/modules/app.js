@@ -48,6 +48,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const forcePwCard = document.getElementById('forcePwCard');
     const forcePwForm = document.getElementById('forcePwForm');
     const pwError = document.getElementById('pwError');
+    const chooserCard = document.getElementById('chooserCard');
+    const fnbCard = document.getElementById('fnbCard');
+    const fnbForm = document.getElementById('fnbForm');
+    const fnbError = document.getElementById('fnbError');
+
+    let loginContext = 'hotel';   // 'hotel' | 'fnb'
+
+    // Kartlar arası geçiş (seçici ↔ Hotel girişi ↔ F&B girişi).
+    function showCard(target) {
+        [chooserCard, loginCard, fnbCard, forcePwCard].forEach(c => {
+            if (!c) return;
+            c.classList.remove('show');
+            if (c !== target) c.style.display = 'none';
+        });
+        if (target) { target.style.display = 'block'; requestAnimationFrame(() => target.classList.add('show')); }
+    }
+    function fnbShake(msg) { fnbCard.classList.add('shake'); fnbError.textContent = msg; fnbError.classList.add('show'); setTimeout(() => fnbCard.classList.remove('shake'), 500); }
+
+    if (document.getElementById('chooseHotel')) document.getElementById('chooseHotel').onclick = () => { showCard(loginCard); setTimeout(() => { const u = document.getElementById('username'); if (u) u.focus(); }, 60); };
+    if (document.getElementById('chooseFnb')) document.getElementById('chooseFnb').onclick = () => { showCard(fnbCard); setTimeout(() => { const u = document.getElementById('fnbUsername'); if (u) u.focus(); }, 60); };
+    if (document.getElementById('hotelBack')) document.getElementById('hotelBack').onclick = () => showCard(chooserCard);
+    if (document.getElementById('fnbBack')) document.getElementById('fnbBack').onclick = () => showCard(chooserCard);
 
     // Holds the authenticated session while we force a password change.
     let pendingPwUser = null;
@@ -65,8 +87,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // Per-user module access (admin-managed). Absent = full access.
         localStorage.setItem('userModules', JSON.stringify((userData && userData.modules) || {}));
+        localStorage.setItem('loginContext', loginContext);
         logoWrapper.classList.add('expand');
         loginCard.classList.add('fade-out');
+        if (chooserCard) chooserCard.classList.add('fade-out');
+        if (fnbCard) fnbCard.classList.add('fade-out');
         forcePwCard.classList.add('fade-out');
         setTimeout(() => {
             window.location.href = 'app.html';
@@ -76,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         logoWrapper.classList.add('active');
         setTimeout(() => {
-            loginCard.classList.add('show');
+            (chooserCard || loginCard).classList.add('show');
         }, 400);
     }, 1200);
 
@@ -91,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        loginContext = 'hotel';
         const userInput = document.getElementById('username').value.trim();
         const email = userInput.includes('@') ? userInput : userEmail(userInput, resolveTenant());
         const password = document.getElementById('password').value;
@@ -142,6 +168,46 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 loginCard.classList.remove('shake');
             }, 500);
+        }
+    });
+
+    // StayOS F&B girişi: kullanıcı adı + 5 haneli kod (veya admin/yönetici şifresi).
+    // 5 haneliyse türetilmiş Firebase şifresi (FB + kod), değilse ham şifre denenir.
+    if (fnbForm) fnbForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        fnbError.classList.remove('show');
+        const userInput = document.getElementById('fnbUsername').value.trim();
+        const code = document.getElementById('fnbCode').value.trim();
+        const email = userInput.includes('@') ? userInput : userEmail(userInput, resolveTenant());
+        const attempts = [];
+        if (/^\d{5}$/.test(code)) attempts.push(fnbPassword(code));
+        attempts.push(code); // admin/yönetici normal şifresi
+        let cred = null;
+        for (const pw of attempts) {
+            try { cred = await auth.signInWithEmailAndPassword(email, pw); break; } catch (err) { /* sonraki denemeye geç */ }
+        }
+        if (!cred) { fnbShake('Kullanıcı adı veya kod yanlış'); return; }
+        try {
+            const uid = cred.user.uid;
+            const userDoc = await db.collection('systemUsers').doc(uid).get();
+            const userData = userDoc.exists ? userDoc.data() : null;
+            const dept = (userData && userData.department) || '';
+            const role = ((userData && userData.role) || '').toLowerCase();
+            if (dept !== FNB_DEPT && role !== 'admin') {
+                await auth.signOut();
+                fnbShake('Bu giriş yalnızca F&B personeli içindir.');
+                return;
+            }
+            const tenantId = (userData && userData.tenantId) ? userData.tenantId : resolveTenant();
+            localStorage.setItem('hotelTenantId', tenantId);
+            try { const tSnap = await db.collection('tenants').doc(tenantId).get(); applyTenantConfig(tSnap.exists ? tSnap.data() : null); } catch (e2) { applyTenantConfig(null); }
+            const subActive = await isSubscriptionActive(tenantId);
+            if (!subActive) { showPaymentOverlay(); return; }
+            loginContext = 'fnb';
+            finishLogin(userData, userInput);
+        } catch (err) {
+            console.error('F&B login error:', err);
+            fnbShake('Giriş başarısız.');
         }
     });
 
