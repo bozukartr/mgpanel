@@ -91,6 +91,24 @@
     function round2(x) { return Math.round((Number(x) || 0) * 100) / 100; }
     const loggedUser = (typeof localStorage !== 'undefined' && localStorage.getItem('hotelUsername')) || 'Personel';
 
+    // Rol bazlı sekme erişimi: Staff yalnızca Adisyonlar + Arşiv görür;
+    // Manager (ve Admin) diğer sekmeleri (Gün Sonu, Oda Hesapları, Menü, Stok, Ayarlar) de görür.
+    const RST_ROLE = ((typeof localStorage !== 'undefined' && localStorage.getItem('hotelRole')) || '').toLowerCase();
+    const RST_FULL_ACCESS = (RST_ROLE === 'manager' || RST_ROLE === 'admin');
+    const STAFF_TABS = ['floor', 'archive'];
+    function applyRoleTabs() {
+        if (RST_FULL_ACCESS) return;
+        const nav = $('rstSubnav'); if (!nav) return;
+        nav.querySelectorAll('.rst-tab').forEach(t => {
+            if (STAFF_TABS.indexOf(t.getAttribute('data-view')) === -1) t.style.display = 'none';
+        });
+        const active = nav.querySelector('.rst-tab.active');
+        if (active && STAFF_TABS.indexOf(active.getAttribute('data-view')) === -1) {
+            const floorTab = nav.querySelector('.rst-tab[data-view="floor"]');
+            if (floorTab) floorTab.click();
+        }
+    }
+
     function categoriesOrdered() {
         const seen = [];
         menu.slice().sort(byOrder).forEach(i => { const c = i.category || 'Diğer'; if (!seen.includes(c)) seen.push(c); });
@@ -1606,6 +1624,7 @@ ${row('İptal (void)', money(z.voidValue), z.voids + ' adisyon')}
     // ── Boot ───────────────────────────────────────────────────
     function boot() {
         wireTabs();
+        applyRoleTabs();
         $('cfgSaveBtn').onclick = saveConfig;
         $('svcInfo').onclick = () => { const n = $('svcNote'); n.style.display = n.style.display === 'none' ? 'block' : 'none'; };
         $('menuAddBtn').onclick = () => openModal(null);
