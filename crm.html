@@ -34,7 +34,12 @@
             </div>
         </header>
 
-        <main class="crm-main">
+        <div class="crm-subnav">
+            <button class="crm-subtab active" data-view="guests">Misafirler</button>
+            <button class="crm-subtab" data-view="rooms">Odalar · Housekeeping</button>
+        </div>
+
+        <main class="crm-main" id="guestsView">
             <!-- Left Panel: Guest List -->
             <aside class="guest-sidebar">
                 <div class="sidebar-header">
@@ -62,6 +67,51 @@
                 </div>
             </section>
         </main>
+
+        <!-- ── PMS: Odalar & Housekeeping ── -->
+        <section class="rooms-view" id="roomsView" style="display:none;">
+            <div class="rooms-toolbar">
+                <div class="rooms-kpis" id="roomsKpis"></div>
+                <div class="rooms-actions">
+                    <button class="crm-btn crm-btn-ghost" id="seedRoomsBtn">Varsayılan Oluştur</button>
+                    <button class="crm-btn crm-btn-primary" id="addRoomBtn">+ Oda Ekle</button>
+                </div>
+            </div>
+            <div class="rooms-filter" id="roomsFilter">
+                <button class="rf-btn active" data-st="all">Tümü</button>
+                <button class="rf-btn" data-st="clean">Temiz</button>
+                <button class="rf-btn" data-st="dirty">Kirli</button>
+                <button class="rf-btn" data-st="occupied">Dolu</button>
+                <button class="rf-btn" data-st="ooo">Arıza</button>
+            </div>
+            <div class="rooms-board" id="roomsBoard"></div>
+        </section>
+    </div>
+
+    <!-- Room add/edit Modal -->
+    <div id="roomModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
+        <div class="modal-content">
+            <h3 class="crm-modal-title" id="roomModalTitle">Oda Ekle</h3>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Oda No</label><input type="text" id="rmNo" placeholder="Örn. 101"></div>
+                <div class="crm-field"><label>Kat</label><input type="text" id="rmFloor" placeholder="Örn. 1"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Oda Tipi</label><input type="text" id="rmType" list="rmTypeList" placeholder="Standart / Suit / Deluxe"><datalist id="rmTypeList"></datalist></div>
+                <div class="crm-field"><label>Durum</label><select id="rmStatus">
+                    <option value="clean">Temiz</option>
+                    <option value="dirty">Kirli</option>
+                    <option value="occupied">Dolu</option>
+                    <option value="ooo">Arıza (servis dışı)</option>
+                </select></div>
+            </div>
+            <div class="crm-field"><label>Not</label><input type="text" id="rmNotes" placeholder="Opsiyonel"></div>
+            <div class="crm-modal-actions">
+                <button class="crm-btn crm-btn-danger" id="rmDelete" style="display:none; margin-right:auto;">Sil</button>
+                <button class="crm-btn crm-btn-ghost" id="rmCancel">Vazgeç</button>
+                <button class="crm-btn crm-btn-primary" id="rmSave">Kaydet</button>
+            </div>
+        </div>
     </div>
 
     <!-- Edit Stay Details Modal -->
@@ -85,6 +135,18 @@
                 <div class="crm-field"><label>Giriş</label><input type="tel" id="rcCheckIn" placeholder="GG/AA/YYYY"></div>
                 <div class="crm-field"><label>Çıkış</label><input type="tel" id="rcCheckOut" placeholder="GG/AA/YYYY"></div>
             </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Telefon</label><input type="tel" id="rcPhone"></div>
+                <div class="crm-field"><label>E-posta</label><input type="email" id="rcEmail"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Uyruk</label><input type="text" id="rcNationality"></div>
+                <div class="crm-field"><label>Dil</label><input type="text" id="rcLanguage"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Doğum Günü</label><input type="tel" id="rcBirthday" placeholder="GG/AA(/YYYY)"></div>
+                <div class="crm-field"><label>&nbsp;</label><label class="crm-check" style="margin:0;"><input type="checkbox" id="rcVip"> VIP misafir</label></div>
+            </div>
             <div class="crm-modal-actions">
                 <button class="crm-btn crm-btn-ghost" onclick="closeRoomChangeModal()">Vazgeç</button>
                 <button class="crm-btn crm-btn-primary" onclick="submitRoomChange()">Kaydet</button>
@@ -104,6 +166,18 @@
             <div class="crm-row2">
                 <div class="crm-field"><label>Giriş</label><input type="tel" id="agCheckIn" placeholder="GG/AA/YYYY"></div>
                 <div class="crm-field"><label>Çıkış</label><input type="tel" id="agCheckOut" placeholder="GG/AA/YYYY"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Telefon</label><input type="tel" id="agPhone" placeholder="+90 ..."></div>
+                <div class="crm-field"><label>E-posta</label><input type="email" id="agEmail" placeholder="ornek@mail.com"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Uyruk</label><input type="text" id="agNationality" placeholder="Örn. TR"></div>
+                <div class="crm-field"><label>Dil</label><input type="text" id="agLanguage" placeholder="Örn. TR / EN"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Doğum Günü</label><input type="tel" id="agBirthday" placeholder="GG/AA(/YYYY)"></div>
+                <div class="crm-field"><label>&nbsp;</label><label class="crm-check" style="margin:0;"><input type="checkbox" id="agVip"> VIP misafir</label></div>
             </div>
             <div class="crm-field">
                 <label>Durum</label>
