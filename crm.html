@@ -36,6 +36,7 @@
 
         <div class="crm-subnav">
             <button class="crm-subtab active" data-view="guests">Misafirler</button>
+            <button class="crm-subtab" data-view="bookings">Rezervasyonlar</button>
             <button class="crm-subtab" data-view="rooms">Odalar · Housekeeping</button>
         </div>
 
@@ -67,6 +68,26 @@
                 </div>
             </section>
         </main>
+
+        <!-- ── PMS: Rezervasyonlar (tape-chart) ── -->
+        <section class="bookings-view" id="bookingsView" style="display:none;">
+            <div class="bk-toolbar">
+                <div class="bk-kpis" id="bkKpis"></div>
+                <div class="bk-actions">
+                    <button class="crm-btn crm-btn-ghost" id="roomTypesBtn">Oda Tipleri &amp; Fiyat</button>
+                    <button class="crm-btn crm-btn-primary" id="addBookingBtn">+ Yeni Rezervasyon</button>
+                </div>
+            </div>
+            <div class="tape-nav">
+                <button class="bk-navbtn" id="tapePrev" title="Önceki">‹</button>
+                <span class="tape-range" id="tapeRange"></span>
+                <button class="bk-navbtn" id="tapeNext" title="Sonraki">›</button>
+                <button class="bk-navbtn today" id="tapeToday">Bugün</button>
+            </div>
+            <div class="tape-wrap"><div class="tape" id="tape"></div></div>
+            <div class="bk-list-h">Tüm Rezervasyonlar</div>
+            <div class="bk-list" id="bkList"></div>
+        </section>
 
         <!-- ── PMS: Odalar & Housekeeping ── -->
         <section class="rooms-view" id="roomsView" style="display:none;">
@@ -111,6 +132,54 @@
                 <button class="crm-btn crm-btn-ghost" id="rmCancel">Vazgeç</button>
                 <button class="crm-btn crm-btn-primary" id="rmSave">Kaydet</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Booking add/edit Modal -->
+    <div id="bookingModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
+        <div class="modal-content">
+            <h3 class="crm-modal-title" id="bookingModalTitle">Yeni Rezervasyon</h3>
+            <div class="crm-field"><label>Misafir Adı</label><input type="text" id="bkName" list="bkGuestList" placeholder="Ad Soyad"><datalist id="bkGuestList"></datalist></div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Telefon</label><input type="tel" id="bkPhone"></div>
+                <div class="crm-field"><label>E-posta</label><input type="email" id="bkEmail"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Oda Tipi</label><select id="bkType"></select></div>
+                <div class="crm-field"><label>Kişi</label><input type="number" id="bkPax" min="1" value="2"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Giriş</label><input type="tel" id="bkCheckIn" placeholder="GG/AA/YYYY"></div>
+                <div class="crm-field"><label>Çıkış</label><input type="tel" id="bkCheckOut" placeholder="GG/AA/YYYY"></div>
+            </div>
+            <div class="crm-row2">
+                <div class="crm-field"><label>Oda No</label><select id="bkRoom"></select></div>
+                <div class="crm-field"><label>Gecelik Fiyat</label><input type="number" id="bkRate" min="0" step="1"></div>
+            </div>
+            <div class="bk-summary" id="bkSummary"></div>
+            <div class="crm-field"><label>Not</label><input type="text" id="bkNotes" placeholder="Opsiyonel"></div>
+            <div class="bk-status-actions" id="bkStatusActions" style="display:none;"></div>
+            <div class="crm-modal-actions">
+                <button class="crm-btn crm-btn-danger" id="bkDelete" style="display:none; margin-right:auto;">Sil</button>
+                <button class="crm-btn crm-btn-ghost" id="bkCancel">Vazgeç</button>
+                <button class="crm-btn crm-btn-primary" id="bkSave">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Types & Rates Modal -->
+    <div id="roomTypesModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
+        <div class="modal-content">
+            <h3 class="crm-modal-title">Oda Tipleri &amp; Fiyat</h3>
+            <p class="crm-modal-sub">Oda tipleri ve gecelik baz fiyatları. Rezervasyon fiyatı buradan otomatik gelir.</p>
+            <div id="rtList" class="rt-list"></div>
+            <div class="rt-add">
+                <input type="text" id="rtName" placeholder="Tip adı (örn. Standart)">
+                <input type="number" id="rtRate" placeholder="₺/gece" min="0">
+                <input type="number" id="rtCap" placeholder="Kişi" min="1">
+                <button class="crm-btn crm-btn-primary" id="rtAddBtn">Ekle</button>
+            </div>
+            <div class="crm-modal-actions"><button class="crm-btn crm-btn-ghost" id="rtClose">Kapat</button></div>
         </div>
     </div>
 
