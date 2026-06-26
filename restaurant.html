@@ -19,6 +19,7 @@
         <nav class="rst-subnav" id="rstSubnav">
             <button class="rst-tab active" data-view="floor">Adisyonlar</button>
             <button class="rst-tab" data-view="archive">Arşiv</button>
+            <button class="rst-tab" data-view="z">Gün Sonu</button>
             <button class="rst-tab" data-view="folio">Oda Hesapları</button>
             <button class="rst-tab" data-view="menu">Menü</button>
             <button class="rst-tab" data-view="stock">Stok</button>
@@ -51,6 +52,22 @@
                 </div>
                 <div id="arcStats" class="rst-kpis"></div>
                 <div id="arcList" class="rst-arc"></div>
+            </section>
+
+            <!-- ── GÜN SONU / Z-RAPORU ── -->
+            <section class="rst-view" id="view-z">
+                <div class="rst-floor-head">
+                    <div>
+                        <h2>Gün Sonu / Z-Raporu</h2>
+                        <p class="rst-sub">Gün seç → kapanan adisyonların özeti: ödeme dağılımı, ciro, indirim/ikram, iptal ve personel bazında. “Z Yazdır” ile çıktı alın.</p>
+                    </div>
+                    <div class="rst-head-actions">
+                        <input type="date" id="zDate" class="rst-date-in">
+                        <button class="rst-btn primary" id="zPrint">Z Yazdır</button>
+                    </div>
+                </div>
+                <div id="zKpis" class="rst-kpis"></div>
+                <div id="zBody" class="rst-z"></div>
             </section>
 
             <!-- ── ODA HESAPLARI (folio) ── -->

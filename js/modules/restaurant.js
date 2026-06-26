@@ -42,6 +42,7 @@
         else if (v === 'menu') renderMenu();
         else if (v === 'folio') renderFolio();
         else if (v === 'archive') loadArchive();
+        else if (v === 'z') loadZ();
     }
 
     // ── Settings (restConfig) ──────────────────────────────────
@@ -1264,6 +1265,135 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('arcModal').classList.add('open');
     }
 
+    // ── Gün Sonu / Z-Raporu ────────────────────────────────────
+    let zData = null;
+    function loadZ() {
+        const day = ($('zDate') && $('zDate').value) || todayYmd();
+        const p = day.split('-');
+        const s = new Date(+p[0], +p[1] - 1, +p[2], 0, 0, 0, 0);
+        const e = new Date(+p[0], +p[1] - 1, +p[2], 23, 59, 59, 999);
+        if ($('zBody')) $('zBody').innerHTML = `<div class="rst-empty">Yükleniyor…</div>`;
+        const mapDocs = snap => snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        const paidQ = db.collection(CHK_COL).where('tenantId', '==', TENANT_ID).where('closedAt', '>=', s).where('closedAt', '<=', e).get()
+            .then(snap => mapDocs(snap).filter(c => c.status === 'paid'))
+            .catch(() => db.collection(CHK_COL).where('tenantId', '==', TENANT_ID).get()
+                .then(snap => mapDocs(snap).filter(c => { const dt = tsToDate(c.closedAt); return c.status === 'paid' && dt && dt >= s && dt <= e; })));
+        const voidQ = db.collection(CHK_COL).where('tenantId', '==', TENANT_ID).where('status', '==', 'void').get()
+            .then(snap => mapDocs(snap).filter(c => { const dt = tsToDate(c.updatedAt) || tsToDate(c.closedAt); return dt && dt >= s && dt <= e; }))
+            .catch(() => []);
+        Promise.all([paidQ, voidQ]).then(([paid, voids]) => { zData = computeZ(paid, voids, day); renderZ(); })
+            .catch(err => { console.error(err); if ($('zBody')) $('zBody').innerHTML = `<div class="rst-empty">Yüklenemedi.</div>`; });
+    }
+    function computeZ(paid, voids, day) {
+        const z = { day: day, checks: paid.length, pax: 0, gross: 0, subtotal: 0, vat: 0, discount: 0, ikramValue: 0, ikramCount: 0, pay: { cash: 0, card: 0, room: 0 }, payCount: { cash: 0, card: 0, room: 0 }, staff: {}, voids: voids.length, voidValue: 0 };
+        paid.forEach(c => {
+            z.pax += Number(c.pax) || 0;
+            z.gross += checkTotal(c);
+            z.subtotal += Number(c.subtotal) || 0;
+            z.vat += Number(c.vat) || 0;
+            z.discount += (c.discount && c.discount.amount) || 0;
+            (c.items || []).forEach(l => { if (l.ikram) { z.ikramValue += round2((l.unitPrice || 0) * (l.qty || 1)); z.ikramCount += 1; } });
+            (c.payments || []).forEach(pm => { const m = pm.method || 'cash'; if (z.pay[m] == null) { z.pay[m] = 0; z.payCount[m] = 0; } z.pay[m] += Number(pm.amount) || 0; z.payCount[m] += 1; });
+            const who = c.closedBy || c.openedBy || '—';
+            if (!z.staff[who]) z.staff[who] = { count: 0, revenue: 0 };
+            z.staff[who].count += 1; z.staff[who].revenue += checkTotal(c);
+        });
+        voids.forEach(c => { z.voidValue += Number(c.total) || 0; });
+        z.gross = round2(z.gross); z.subtotal = round2(z.subtotal); z.vat = round2(z.vat); z.discount = round2(z.discount); z.ikramValue = round2(z.ikramValue); z.voidValue = round2(z.voidValue);
+        Object.keys(z.pay).forEach(m => z.pay[m] = round2(z.pay[m]));
+        return z;
+    }
+    function zPayTotal(z) { return round2(Object.keys(z.pay).reduce((s, m) => s + z.pay[m], 0)); }
+    function zStaffSorted(z) { return Object.keys(z.staff).sort((a, b) => z.staff[b].revenue - z.staff[a].revenue); }
+    function renderZ() {
+        const z = zData; if (!z) return;
+        if ($('zKpis')) $('zKpis').innerHTML = [['Net Ciro', money(z.gross)], ['Adisyon', z.checks], ['Kişi', z.pax], ['Ort. Adisyon', money(z.checks ? z.gross / z.checks : 0)]]
+            .map(([l, v]) => `<div class="rst-kpi"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
+        const body = $('zBody'); if (!body) return;
+        if (!z.checks && !z.voids) { body.innerHTML = `<div class="rst-empty">Bu gün için kapanmış adisyon yok.</div>`; return; }
+        const extra = Object.keys(z.pay).filter(m => ['cash', 'card', 'room'].indexOf(m) === -1);
+        const payRow = (label, amt, cnt) => `<div class="rst-z-row"><span>${esc(label)}</span><span class="rst-z-cnt">${cnt} ödeme</span><b>${esc(money(amt))}</b></div>`;
+        body.innerHTML = `
+          <div class="rst-z-grid">
+            <div class="rst-z-card">
+              <h3>Ödeme Dağılımı</h3>
+              ${payRow('Nakit', z.pay.cash, z.payCount.cash)}
+              ${payRow('Kart', z.pay.card, z.payCount.card)}
+              ${payRow('Oda Hesabı', z.pay.room, z.payCount.room)}
+              ${extra.map(m => payRow(PM_LABEL[m] || m, z.pay[m], z.payCount[m])).join('')}
+              <div class="rst-z-row total"><span>Toplam Tahsilat</span><span></span><b>${esc(money(zPayTotal(z)))}</b></div>
+            </div>
+            <div class="rst-z-card">
+              <h3>Özet</h3>
+              <div class="rst-z-row"><span>Ara Toplam</span><span></span><b>${esc(money(z.subtotal))}</b></div>
+              <div class="rst-z-row"><span>KDV</span><span></span><b>${esc(money(z.vat))}</b></div>
+              <div class="rst-z-row"><span>İndirim</span><span></span><b>${z.discount ? '-' : ''}${esc(money(z.discount))}</b></div>
+              <div class="rst-z-row"><span>İkram</span><span class="rst-z-cnt">${z.ikramCount} kalem</span><b>${z.ikramValue ? '-' : ''}${esc(money(z.ikramValue))}</b></div>
+              <div class="rst-z-row"><span>İptal (void)</span><span class="rst-z-cnt">${z.voids} adisyon</span><b>${esc(money(z.voidValue))}</b></div>
+              <div class="rst-z-row total"><span>Net Ciro</span><span></span><b>${esc(money(z.gross))}</b></div>
+            </div>
+          </div>
+          <div class="rst-z-card">
+            <h3>Personel Bazında Ciro</h3>
+            <div class="rst-z-staff-h"><span>Personel</span><span class="c">Adisyon</span><span class="r">Ciro</span></div>
+            ${zStaffSorted(z).map(w => `<div class="rst-z-staff"><span>${esc(w)}</span><span class="c">${z.staff[w].count}</span><span class="r">${esc(money(round2(z.staff[w].revenue)))}</span></div>`).join('') || '<div class="rst-z-staff"><span>—</span><span class="c">0</span><span class="r">—</span></div>'}
+          </div>`;
+    }
+    function printZ() {
+        if (!zData || (!zData.checks && !zData.voids)) { toast('Bu gün için veri yok.', true); return; }
+        const z = zData;
+        const w = window.open('', '_blank', 'width=380,height=680');
+        if (!w) { toast('Açılır pencere engellendi.', true); return; }
+        const dp = z.day.split('-'); const dayTr = dp.length === 3 ? dp[2] + '.' + dp[1] + '.' + dp[0] : z.day;
+        const row = (l, v, sub) => `<tr><td>${esc(l)}${sub ? ' <small>(' + esc(sub) + ')</small>' : ''}</td><td class="r">${esc(v)}</td></tr>`;
+        const extra = Object.keys(z.pay).filter(m => ['cash', 'card', 'room'].indexOf(m) === -1);
+        const staff = zStaffSorted(z).map(wn => row(wn, money(round2(z.staff[wn].revenue)), z.staff[wn].count + ' adisyon')).join('');
+        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Z Raporu</title>
+<style>
+ @page{size:80mm auto;margin:0}*{box-sizing:border-box}
+ body{width:80mm;margin:0;padding:8px 10px;font-family:'Courier New',monospace;font-size:12px;color:#000}
+ h1{font-size:15px;margin:0 0 2px;text-align:center}
+ .sub{text-align:center;font-size:11px;margin-bottom:3px}
+ hr{border:none;border-top:1px dashed #000;margin:6px 0}
+ table{width:100%;border-collapse:collapse}
+ td{padding:2px 0;font-size:12px;vertical-align:top}.r{text-align:right}
+ .sec{font-weight:bold;font-size:11px;margin:6px 0 2px;text-transform:uppercase;letter-spacing:.5px}
+ .big td{font-size:14px;font-weight:bold}
+ small{font-size:10px;color:#333}
+</style></head><body>
+<h1>${esc(cfg.receiptHeader || cfg.name || 'Restoran')}</h1>
+<div class="sub">GÜN SONU / Z-RAPORU</div>
+<div class="sub">${esc(dayTr)} · ${esc(loggedUser)}</div>
+<hr>
+<div class="sec">Ödeme Dağılımı</div>
+<table>
+${row('Nakit', money(z.pay.cash))}
+${row('Kart', money(z.pay.card))}
+${row('Oda Hesabı', money(z.pay.room))}
+${extra.map(m => row(PM_LABEL[m] || m, money(z.pay[m]))).join('')}
+<tr class="big"><td>Toplam Tahsilat</td><td class="r">${esc(money(zPayTotal(z)))}</td></tr>
+</table>
+<hr>
+<div class="sec">Özet</div>
+<table>
+${row('Adisyon', z.checks)}
+${row('Kişi', z.pax)}
+${row('Ara Toplam', money(z.subtotal))}
+${row('KDV', money(z.vat))}
+${row('İndirim', '-' + money(z.discount))}
+${row('İkram', '-' + money(z.ikramValue), z.ikramCount + ' kalem')}
+${row('İptal (void)', money(z.voidValue), z.voids + ' adisyon')}
+<tr class="big"><td>NET CİRO</td><td class="r">${esc(money(z.gross))}</td></tr>
+</table>
+<hr>
+<div class="sec">Personel Bazında</div>
+<table>${staff || row('—', '—')}</table>
+<div class="sub" style="margin-top:8px">Bu rapor bilgilendirme amaçlıdır.</div>
+<scr` + `ipt>window.onload=function(){setTimeout(function(){window.print();},250);}</scr` + `ipt>
+</body></html>`);
+        w.document.close();
+    }
+
     function wireFloorPos() {
         $('newCheckBtn').onclick = () => openCheckModal(null);
         const fsr = $('floorSearch'); if (fsr) fsr.oninput = e => { floorSearch = e.target.value; renderFloor(); };
@@ -1271,6 +1401,8 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         $('checkForm').onsubmit = submitCheck;
         $('ckRoom').oninput = onRoomInput;
         $('arcDate').onchange = loadArchive;
+        if ($('zDate')) $('zDate').onchange = loadZ;
+        if ($('zPrint')) $('zPrint').onclick = printZ;
         $('arcClose').onclick = () => $('arcModal').classList.remove('open');
         $('arcModal').addEventListener('click', e => { if (e.target === $('arcModal')) $('arcModal').classList.remove('open'); });
         $('checkModal').addEventListener('click', e => { if (e.target === $('checkModal')) closeCheckModal(); });
@@ -1338,6 +1470,7 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
         const go = () => {
             loadConfig(); listenMenu(); listenChecks(); listenInhouse(); listenFolio();
             if ($('arcDate')) { $('arcDate').value = todayYmd(); loadArchive(); }
+            if ($('zDate')) $('zDate').value = todayYmd();
         };
         if (typeof auth !== 'undefined' && auth.onAuthStateChanged) auth.onAuthStateChanged(u => { if (u) go(); });
         else go();
