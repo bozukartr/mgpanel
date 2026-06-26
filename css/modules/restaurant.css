@@ -429,3 +429,29 @@ button, input, select, textarea { font-family: inherit; }
     .rst-z-grid { grid-template-columns: 1fr; }
     .rst-z-staff-h, .rst-z-staff { grid-template-columns: 1fr 64px 100px; }
 }
+
+/* ── Adisyon Böl (kısmi adet + eşit böl) ── */
+.rst-split-tabs { display: flex; gap: 6px; padding: 14px 22px 4px; }
+.rst-split-tab { flex: 1; border: 1px solid var(--rst-line); background: #fff; color: var(--rst-mut); padding: 10px; border-radius: 10px; font-weight: 700; font-size: 13.5px; cursor: pointer; font-family: inherit; }
+.rst-split-tab.active { background: var(--rst-accent); border-color: var(--rst-accent); color: #fff; }
+.rst-split-row2 { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--rst-line-2); }
+.rst-split-row2:last-child { border-bottom: none; }
+.rst-sl-info { min-width: 0; }
+.rst-sl-n { font-size: 14.5px; font-weight: 600; color: var(--rst-ink); display: block; }
+.rst-sl-p { font-size: 12px; color: var(--rst-faint); }
+.rst-sl-qty { display: flex; align-items: center; gap: 5px; background: #fff; border: 1px solid var(--rst-line); border-radius: 10px; padding: 2px 6px; flex-shrink: 0; }
+.rst-sl-qty button { width: 30px; height: 30px; border: none; background: transparent; font-size: 18px; cursor: pointer; color: var(--rst-ink); border-radius: 8px; }
+.rst-sl-qty button:active { background: var(--rst-line-2); }
+.rst-sl-mv { min-width: 18px; text-align: center; font-weight: 800; font-size: 15px; color: var(--rst-accent); }
+.rst-sl-qty small { color: var(--rst-faint); font-weight: 700; font-size: 12px; }
+.rst-split-sum { padding: 12px 22px 0; font-size: 13px; color: var(--rst-mut); }
+.rst-split-sum b { color: var(--rst-ink); }
+.rst-eq-n { display: flex; gap: 8px; padding: 14px 22px 4px; flex-wrap: wrap; }
+.rst-eq-btn { width: 46px; height: 46px; border: 1px solid var(--rst-line); background: #fff; border-radius: 12px; font-size: 17px; font-weight: 800; color: var(--rst-ink); cursor: pointer; font-family: inherit; }
+.rst-eq-btn.active { background: var(--rst-accent); border-color: var(--rst-accent); color: #fff; }
+.rst-eq-preview { padding: 8px 22px 4px; display: flex; flex-direction: column; gap: 8px; max-height: 42vh; overflow-y: auto; }
+.rst-eq-part { border: 1px solid var(--rst-line); border-radius: 12px; padding: 11px 13px; background: var(--rst-bg); }
+.rst-eq-part-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.rst-eq-part-h b { font-size: 14px; color: var(--rst-ink); }
+.rst-eq-part-h span { font-size: 15px; font-weight: 800; color: var(--rst-accent); white-space: nowrap; }
+.rst-eq-part-items { font-size: 12.5px; color: var(--rst-mut); margin-top: 3px; line-height: 1.4; }

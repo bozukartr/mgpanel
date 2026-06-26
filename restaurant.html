@@ -257,10 +257,25 @@
                 <h3>Adisyon Böl</h3>
                 <button class="rst-modal-x" id="splitClose">&times;</button>
             </div>
-            <div class="rst-split-info">Yeni adisyona taşınacak kalemleri seçin. Seçilenler ayrı bir adisyona aktarılır.</div>
-            <div class="rst-split-list" id="splitList"></div>
-            <div class="rst-modal-actions" style="padding: 4px 22px 20px;">
-                <button class="rst-btn primary" id="splitConfirm">Seçilenleri Ayır</button>
+            <div class="rst-split-tabs">
+                <button type="button" class="rst-split-tab active" data-smode="manual">Kalem Seç</button>
+                <button type="button" class="rst-split-tab" data-smode="equal">Eşit Böl</button>
+            </div>
+            <div id="splitManual">
+                <div class="rst-split-info">Ayrılacak adetleri seçin — çok adetli kalemden kısmi (örn. 2 şişten 1) ayırabilirsiniz. Seçilenler yeni bir adisyona taşınır.</div>
+                <div class="rst-split-list" id="splitList"></div>
+                <div class="rst-split-sum" id="splitSum"></div>
+                <div class="rst-modal-actions" style="padding: 10px 22px 20px;">
+                    <button class="rst-btn primary" id="splitConfirm">Seçilenleri Ayır</button>
+                </div>
+            </div>
+            <div id="splitEqual" style="display:none;">
+                <div class="rst-split-info">Adisyonu kaç eşit parçaya bölelim? Siparişler parçalara tutarca dengeli dağıtılır.</div>
+                <div class="rst-eq-n" id="splitEqN"></div>
+                <div class="rst-eq-preview" id="splitEqPreview"></div>
+                <div class="rst-modal-actions" style="padding: 10px 22px 20px;">
+                    <button class="rst-btn primary" id="splitEqConfirm">Eşit Böl</button>
+                </div>
             </div>
         </div>
     </div>
