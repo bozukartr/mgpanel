@@ -24,6 +24,7 @@
         { key: 'concierge',  page: 'concierge.html', sel: 'a[href="concierge.html"]' },
         { key: 'crm',        page: 'crm.html',       sel: 'a[href="crm.html"]' },
         { key: 'guestIssues', page: 'panel.html',    sel: 'a[href="panel.html"]' },
+        { key: 'reports',    page: 'reports.html',   sel: 'a[href="reports.html"]' },
         { key: 'restaurant', page: 'restaurant.html', sel: 'a[href="restaurant.html"]' }
     ];
 
