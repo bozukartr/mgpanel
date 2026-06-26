@@ -658,36 +658,150 @@
         recalcSave();
     }
     // ── Adisyon böl ────────────────────────────────────────────
+    let splitMove = {};   // lineId -> ayrılacak adet
+    let splitN = 2;       // eşit böl parça sayısı
+    function newLineId() { return 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+    function splitUnitPrice(l) { return l.ikram ? 0 : round2(Number(l.unitPrice) || 0); }
+    function totalUnits() { return currentCheck.items.reduce((s, l) => s + (l.qty || 1), 0); }
+
     function openSplit() {
-        if (!currentCheck || currentCheck.items.length < 2) { toast('Bölmek için en az 2 kalem gerekir.', true); return; }
-        $('splitList').innerHTML = currentCheck.items.map(l => `
-            <label class="rst-split-row">
-                <input type="checkbox" data-sl="${esc(l.lineId)}">
-                <span class="sl-n">${esc(l.qty)}× ${esc(l.name)}${l.ikram ? ' · İkram' : ''}</span>
-                <span class="sl-p">${esc(money(l.ikram ? 0 : round2((l.unitPrice || 0) * l.qty)))}</span>
-            </label>`).join('');
+        if (!currentCheck || !currentCheck.items.length) { toast('Bölünecek kalem yok.', true); return; }
+        if (totalUnits() < 2) { toast('Bölmek için en az 2 adet gerekir.', true); return; }
+        splitMove = {}; splitN = 2;
+        setSplitMode('manual');
+        renderSplitManual();
+        renderSplitEqual();
         $('splitModal').classList.add('open');
     }
-    function doSplit() {
-        const ids = [...document.querySelectorAll('#splitList input[data-sl]:checked')].map(c => c.getAttribute('data-sl'));
-        if (!ids.length) { toast('Kalem seçin.', true); return; }
-        if (ids.length >= currentCheck.items.length) { toast('Tüm kalemler seçilemez.', true); return; }
-        const moved = currentCheck.items.filter(l => ids.indexOf(l.lineId) !== -1).map(l => Object.assign({}, l, { sent: false }));
-        const remaining = currentCheck.items.filter(l => ids.indexOf(l.lineId) === -1);
-        const mt = computeTotals(moved);
-        const TS = firebase.firestore.FieldValue.serverTimestamp();
-        nextCheckNo().catch(() => null).then(no => {
-            const payload = {
-                tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: (currentCheck.name ? currentCheck.name + ' ' : '') + '(B)',
-                room: '', section: currentCheck.section || 'Genel', status: 'open', pax: 1, note: '',
-                items: moved, subtotal: mt.subtotal, vat: mt.vat, total: mt.total, openedBy: loggedUser, openedAt: TS
-            };
-            if (no) payload.checkNo = no;
-            db.collection(CHK_COL).add(payload).catch(err => console.error(err));
-            currentCheck.items = remaining; recalcSave(); flushSave();
-            $('splitModal').classList.remove('open');
-            toast('Adisyon bölündü' + (no ? ' → #' + no : '') + '.');
+    function setSplitMode(m) {
+        document.querySelectorAll('.rst-split-tab').forEach(t => t.classList.toggle('active', t.getAttribute('data-smode') === m));
+        if ($('splitManual')) $('splitManual').style.display = m === 'manual' ? '' : 'none';
+        if ($('splitEqual')) $('splitEqual').style.display = m === 'equal' ? '' : 'none';
+    }
+    // ── Kalem seç (kısmi adet) ──
+    function renderSplitManual() {
+        $('splitList').innerHTML = currentCheck.items.map(l => {
+            const mv = splitMove[l.lineId] || 0;
+            return `<div class="rst-split-row2" data-sl="${esc(l.lineId)}">
+                <div class="rst-sl-info">
+                    <span class="rst-sl-n">${esc(l.name)}${l.ikram ? ' <span class="rst-line-ik">İKRAM</span>' : ''}</span>
+                    <span class="rst-sl-p">${esc(money(splitUnitPrice(l)))} × ${esc(l.qty)}</span>
+                </div>
+                <div class="rst-sl-qty">
+                    <button type="button" data-sd="-1" aria-label="azalt">−</button>
+                    <span class="rst-sl-mv">${mv}</span><small>/ ${esc(l.qty)}</small>
+                    <button type="button" data-sd="1" aria-label="arttır">+</button>
+                </div>
+            </div>`;
+        }).join('');
+        $('splitList').querySelectorAll('.rst-split-row2').forEach(row => {
+            const id = row.getAttribute('data-sl');
+            row.querySelectorAll('[data-sd]').forEach(b => b.onclick = () => {
+                const l = currentCheck.items.find(x => x.lineId === id); if (!l) return;
+                const next = Math.max(0, Math.min(l.qty || 1, (splitMove[id] || 0) + (+b.getAttribute('data-sd'))));
+                splitMove[id] = next;
+                row.querySelector('.rst-sl-mv').textContent = next;
+                updateSplitSum();
+            });
         });
+        updateSplitSum();
+    }
+    function updateSplitSum() {
+        let mVal = 0, mUnits = 0;
+        currentCheck.items.forEach(l => { const mv = splitMove[l.lineId] || 0; mVal += mv * splitUnitPrice(l); mUnits += mv; });
+        const remain = totalUnits() - mUnits;
+        if ($('splitSum')) $('splitSum').innerHTML = `Taşınan: <b>${mUnits} adet · ${esc(money(round2(mVal)))}</b> &nbsp;·&nbsp; Kalan: <b>${remain} adet</b>`;
+    }
+    function doSplit() {
+        const moves = currentCheck.items.map(l => ({ l: l, mv: Math.max(0, Math.min(l.qty || 1, splitMove[l.lineId] || 0)) })).filter(x => x.mv > 0);
+        if (!moves.length) { toast('Ayrılacak adet seçin.', true); return; }
+        const mUnits = moves.reduce((s, x) => s + x.mv, 0);
+        if (mUnits >= totalUnits()) { toast('Tüm adetler ayrılamaz — en az 1 adet kalmalı.', true); return; }
+        const moved = [];
+        moves.forEach(({ l, mv }) => {
+            if (mv >= (l.qty || 1)) { moved.push(Object.assign({}, l)); l.qty = 0; }
+            else { moved.push(Object.assign({}, l, { lineId: newLineId(), qty: mv })); l.qty -= mv; }
+        });
+        currentCheck.items = currentCheck.items.filter(l => (l.qty || 0) > 0);
+        createSplitChecks([{ items: moved, suffix: '(B)' }]).then(nos => {
+            recalcSave(); flushSave();
+            $('splitModal').classList.remove('open');
+            toast('Adisyon bölündü' + (nos[0] ? ' → #' + nos[0] : '') + '.');
+        });
+    }
+    // ── Eşit böl (N parça, dengeli dağıtım) ──
+    function aggregateUnits(units) {
+        const map = new Map();
+        units.forEach(u => {
+            const key = [u.menuId || '', u.name, u.note || '', u.ikram ? 1 : 0, u.unitPrice || 0].join('|');
+            if (!map.has(key)) map.set(key, Object.assign({}, u, { qty: 0, lineId: newLineId() }));
+            map.get(key).qty += 1;
+        });
+        return [...map.values()];
+    }
+    function distributeEqual(items, n) {
+        const units = [];
+        items.forEach(l => { const q = l.qty || 1; for (let i = 0; i < q; i++) units.push(Object.assign({}, l, { qty: 1 })); });
+        units.sort((a, b) => splitUnitPrice(b) - splitUnitPrice(a)); // pahalıdan ucuza (LPT dengeleme)
+        const buckets = Array.from({ length: n }, () => ({ units: [], total: 0 }));
+        units.forEach(u => {
+            let mi = 0; for (let i = 1; i < n; i++) if (buckets[i].total < buckets[mi].total) mi = i;
+            buckets[mi].units.push(u); buckets[mi].total += splitUnitPrice(u);
+        });
+        return buckets.map(b => ({ items: aggregateUnits(b.units) }));
+    }
+    function renderSplitEqual() {
+        const tu = totalUnits();
+        const maxN = Math.max(2, Math.min(6, tu));
+        if (splitN > maxN) splitN = maxN; if (splitN < 2) splitN = 2;
+        const ns = []; for (let i = 2; i <= maxN; i++) ns.push(i);
+        $('splitEqN').innerHTML = ns.map(n => `<button type="button" class="rst-eq-btn${n === splitN ? ' active' : ''}" data-n="${n}">${n}</button>`).join('');
+        $('splitEqN').querySelectorAll('[data-n]').forEach(b => b.onclick = () => { splitN = +b.getAttribute('data-n'); renderSplitEqual(); });
+        const parts = distributeEqual(currentCheck.items, splitN);
+        $('splitEqPreview').innerHTML = parts.map((p, i) => {
+            const tot = computeTotals(p.items).total;
+            const list = p.items.map(it => esc(it.qty) + '× ' + esc(it.name)).join(', ') || '—';
+            return `<div class="rst-eq-part">
+                <div class="rst-eq-part-h"><b>Parça ${i + 1}${i === 0 ? ' (mevcut adisyon)' : ''}</b><span>${esc(money(tot))}</span></div>
+                <div class="rst-eq-part-items">${list}</div>
+            </div>`;
+        }).join('');
+    }
+    function doSplitEqual() {
+        if (totalUnits() < splitN) { toast('Adet sayısı parça sayısından az.', true); return; }
+        const parts = distributeEqual(currentCheck.items, splitN);
+        const newParts = parts.slice(1).map((p, idx) => ({ items: p.items, suffix: '(' + (idx + 2) + '/' + splitN + ')' }));
+        currentCheck.items = parts[0].items;
+        createSplitChecks(newParts).then(() => {
+            recalcSave(); flushSave();
+            $('splitModal').classList.remove('open');
+            toast(splitN + ' eşit parçaya bölündü.');
+        });
+    }
+    // Verilen parçalar için yeni adisyon(lar) oluştur (sıralı checkNo). Kalem
+    // durum bayrakları (sent/served) korunur — bölünce mutfağa tekrar düşmez.
+    function createSplitChecks(parts) {
+        const TS = firebase.firestore.FieldValue.serverTimestamp();
+        const nos = [];
+        let chain = Promise.resolve();
+        parts.forEach(part => {
+            chain = chain.then(() => nextCheckNo().catch(() => null)).then(no => {
+                nos.push(no);
+                const items = part.items;
+                const t = computeTotals(items);
+                const anySent = items.some(x => x.sent);
+                const payload = {
+                    tenantId: TENANT_ID, tableName: currentCheck.tableName || '',
+                    name: (currentCheck.name ? currentCheck.name + ' ' : '') + part.suffix,
+                    room: '', section: currentCheck.section || 'Genel', status: anySent ? 'sent' : 'open', pax: 1, note: '',
+                    items: items, subtotal: t.subtotal, vat: t.vat, total: t.total, openedBy: loggedUser, openedAt: TS
+                };
+                if (anySent) payload.sentAt = Date.now();
+                if (no) payload.checkNo = no;
+                return db.collection(CHK_COL).add(payload);
+            });
+        });
+        return chain.then(() => nos);
     }
     // ── Adisyon birleştir ──────────────────────────────────────
     function openMerge() {
@@ -1436,6 +1550,8 @@ ${row('İptal (void)', money(z.voidValue), z.voids + ' adisyon')}
         $('noteModal').addEventListener('click', e => { if (e.target === $('noteModal')) closeNoteModal(); });
         $('splitClose').onclick = () => $('splitModal').classList.remove('open');
         $('splitConfirm').onclick = doSplit;
+        if ($('splitEqConfirm')) $('splitEqConfirm').onclick = doSplitEqual;
+        document.querySelectorAll('.rst-split-tab').forEach(t => t.onclick = () => setSplitMode(t.getAttribute('data-smode')));
         $('splitModal').addEventListener('click', e => { if (e.target === $('splitModal')) $('splitModal').classList.remove('open'); });
         $('posPaxMinus').onclick = () => setPax(-1);
         $('posPaxPlus').onclick = () => setPax(1);
