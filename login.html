@@ -66,14 +66,15 @@
             <div class="choose-title">StayOS F&amp;B</div>
             <form id="fnbForm">
                 <div class="input-group">
-                    <input type="text" id="fnbUsername" required placeholder=" " autocomplete="username">
+                    <input type="password" id="fnbCode" inputmode="numeric" required placeholder=" " autocomplete="off">
+                    <label for="fnbCode" id="fnbCodeLabel">5 Haneli Kod</label>
+                </div>
+                <div class="input-group" id="fnbUserGroup" style="display:none;">
+                    <input type="text" id="fnbUsername" placeholder=" " autocomplete="username">
                     <label for="fnbUsername">Kullanıcı Adı</label>
                 </div>
-                <div class="input-group">
-                    <input type="password" id="fnbCode" inputmode="numeric" required placeholder=" " autocomplete="current-password">
-                    <label for="fnbCode">5 Haneli Kod / Şifre</label>
-                </div>
                 <button type="submit" class="login-btn">Devam Et</button>
+                <button type="button" class="login-back" id="fnbMgrToggle">Yönetici girişi (kullanıcı adı + şifre)</button>
                 <button type="button" class="login-back" id="fnbBack">‹ Geri</button>
                 <div id="fnbError" class="error-message"></div>
             </form>

@@ -70,6 +70,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('chooseFnb')) document.getElementById('chooseFnb').onclick = () => { showCard(fnbCard); setTimeout(() => { const u = document.getElementById('fnbUsername'); if (u) u.focus(); }, 60); };
     if (document.getElementById('hotelBack')) document.getElementById('hotelBack').onclick = () => showCard(chooserCard);
     if (document.getElementById('fnbBack')) document.getElementById('fnbBack').onclick = () => showCard(chooserCard);
+    if (document.getElementById('fnbMgrToggle')) document.getElementById('fnbMgrToggle').onclick = () => {
+        const g = document.getElementById('fnbUserGroup');
+        const lbl = document.getElementById('fnbCodeLabel');
+        const tgl = document.getElementById('fnbMgrToggle');
+        const show = g.style.display === 'none';
+        g.style.display = show ? '' : 'none';
+        if (lbl) lbl.textContent = show ? 'Şifre / Kod' : '5 Haneli Kod';
+        tgl.textContent = show ? 'Yalnızca kod ile giriş' : 'Yönetici girişi (kullanıcı adı + şifre)';
+        if (show) setTimeout(() => { const u = document.getElementById('fnbUsername'); if (u) u.focus(); }, 50);
+    };
 
     // Holds the authenticated session while we force a password change.
     let pendingPwUser = null;
@@ -176,17 +186,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fnbForm) fnbForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         fnbError.classList.remove('show');
-        const userInput = document.getElementById('fnbUsername').value.trim();
+        const userInput = (document.getElementById('fnbUsername').value || '').trim();
         const code = document.getElementById('fnbCode').value.trim();
-        const email = userInput.includes('@') ? userInput : userEmail(userInput, resolveTenant());
-        const attempts = [];
-        if (/^\d{5}$/.test(code)) attempts.push(fnbPassword(code));
-        attempts.push(code); // admin/yönetici normal şifresi
+        const tenant = resolveTenant();
+        let email, attempts = [];
+        if (userInput) {
+            // Yönetici/personel: kullanıcı adı + şifre (5 haneliyse türetilmiş de denenir).
+            email = userInput.includes('@') ? userInput : userEmail(userInput, tenant);
+            if (/^\d{5}$/.test(code)) attempts.push(fnbPassword(code));
+            attempts.push(code);
+        } else {
+            // PIN-only: yalnızca 5 haneli kod → koddan türetilmiş hesap (kullanıcı adı gerekmez).
+            if (!/^\d{5}$/.test(code)) { fnbShake('5 haneli kodu girin'); return; }
+            email = fnbEmail(code, tenant);
+            attempts.push(fnbPassword(code));
+        }
         let cred = null;
         for (const pw of attempts) {
             try { cred = await auth.signInWithEmailAndPassword(email, pw); break; } catch (err) { /* sonraki denemeye geç */ }
         }
-        if (!cred) { fnbShake('Kullanıcı adı veya kod yanlış'); return; }
+        if (!cred) { fnbShake(userInput ? 'Kullanıcı adı veya şifre yanlış' : 'Kod yanlış'); return; }
         try {
             const uid = cred.user.uid;
             const userDoc = await db.collection('systemUsers').doc(uid).get();
