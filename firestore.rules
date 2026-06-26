@@ -83,26 +83,6 @@ service cloud.firestore {
       allow update: if readOwnTenant() && writeOwnTenant();
       allow delete: if readOwnTenant();
     }
-    // --- PMS: oda envanteri & housekeeping (tenant-scoped) ---
-    match /rooms/{id} {
-      allow read:   if readOwnTenant();
-      allow create: if writeOwnTenant();
-      allow update: if readOwnTenant() && writeOwnTenant();
-      allow delete: if readOwnTenant();
-    }
-    // --- PMS: oda tipleri & fiyat + rezervasyonlar (tenant-scoped) ---
-    match /roomTypes/{id} {
-      allow read:   if readOwnTenant();
-      allow create: if writeOwnTenant();
-      allow update: if readOwnTenant() && writeOwnTenant();
-      allow delete: if readOwnTenant();
-    }
-    match /bookings/{id} {
-      allow read:   if readOwnTenant();
-      allow create: if writeOwnTenant();
-      allow update: if readOwnTenant() && writeOwnTenant();
-      allow delete: if readOwnTenant();
-    }
 
     // --- Restaurant (POS) module, all tenant-scoped to the caller's hotel ---
     // Per-hotel restaurant settings (tax, currency, receipt). Admin writes.
