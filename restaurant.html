@@ -238,6 +238,7 @@
                         <button type="button" class="rst-fnbtn" id="posSplit">Adisyon Böl</button>
                         <button type="button" class="rst-fnbtn" id="posMerge">Birleştir</button>
                         <button type="button" class="rst-fnbtn" id="posTransfer">Masaya Taşı</button>
+                        <button type="button" class="rst-fnbtn rst-fnbtn-print" id="posPrintShares" style="display:none;">Payların Fişi</button>
                     </div>
                     <div class="rst-check-actions">
                         <button class="rst-btn danger" id="posVoid">İptal</button>
@@ -273,7 +274,8 @@
                 <div class="rst-split-info">Adisyonu kaç eşit parçaya bölelim? Siparişler parçalara tutarca dengeli dağıtılır.</div>
                 <div class="rst-eq-n" id="splitEqN"></div>
                 <div class="rst-eq-preview" id="splitEqPreview"></div>
-                <div class="rst-modal-actions" style="padding: 10px 22px 20px;">
+                <label class="rst-eq-print"><input type="checkbox" id="splitEqPrint" checked> Bölünce payların fişlerini arka arkaya yazdır</label>
+                <div class="rst-modal-actions" style="padding: 6px 22px 20px;">
                     <button class="rst-btn primary" id="splitEqConfirm">Eşit Böl</button>
                 </div>
             </div>
