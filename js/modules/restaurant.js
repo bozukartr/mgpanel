@@ -666,7 +666,7 @@
 
     function openSplit() {
         if (!currentCheck || !currentCheck.items.length) { toast('Bölünecek kalem yok.', true); return; }
-        if (totalUnits() < 2) { toast('Bölmek için en az 2 adet gerekir.', true); return; }
+        if (computeTotals(currentCheck.items).total <= 0) { toast('Bölünecek tutar yok.', true); return; }
         splitMove = {}; splitN = 2;
         setSplitMode('manual');
         renderSplitManual();
@@ -729,54 +729,68 @@
             toast('Adisyon bölündü' + (nos[0] ? ' → #' + nos[0] : '') + '.');
         });
     }
-    // ── Eşit böl (N parça, dengeli dağıtım) ──
-    function aggregateUnits(units) {
-        const map = new Map();
-        units.forEach(u => {
-            const key = [u.menuId || '', u.name, u.note || '', u.ikram ? 1 : 0, u.unitPrice || 0].join('|');
-            if (!map.has(key)) map.set(key, Object.assign({}, u, { qty: 0, lineId: newLineId() }));
-            map.get(key).qty += 1;
-        });
-        return [...map.values()];
+    // ── Eşit böl (TUTAR bazlı — toplam N eşit paya bölünür) ──
+    function equalShares(total, n) {
+        const base = Math.floor((total / n) * 100) / 100;
+        const shares = []; for (let i = 0; i < n; i++) shares.push(base);
+        shares[n - 1] = round2(total - base * (n - 1)); // yuvarlama farkı son paya
+        return shares;
     }
-    function distributeEqual(items, n) {
-        const units = [];
-        items.forEach(l => { const q = l.qty || 1; for (let i = 0; i < q; i++) units.push(Object.assign({}, l, { qty: 1 })); });
-        units.sort((a, b) => splitUnitPrice(b) - splitUnitPrice(a)); // pahalıdan ucuza (LPT dengeleme)
-        const buckets = Array.from({ length: n }, () => ({ units: [], total: 0 }));
-        units.forEach(u => {
-            let mi = 0; for (let i = 1; i < n; i++) if (buckets[i].total < buckets[mi].total) mi = i;
-            buckets[mi].units.push(u); buckets[mi].total += splitUnitPrice(u);
-        });
-        return buckets.map(b => ({ items: aggregateUnits(b.units) }));
+    // Pay tutarını temsil eden sentetik kalem; computeTotals ile tam paya eşitlenir.
+    function shareLine(share, k, n) {
+        const r = Number(cfg.vatRate) || 0;
+        const unit = (cfg.vatMode === 'excluded' && r > 0) ? round2(share / (1 + r / 100)) : round2(share);
+        return {
+            lineId: newLineId(), menuId: null, name: 'Eşit Pay (' + k + '/' + n + ')', category: 'Bölüm',
+            unitPrice: unit, qty: 1, vatRate: (r || null), station: 'kitchen',
+            note: (currentCheck.tableName ? 'Masa ' + currentCheck.tableName + ' · ' : '') + n + ' eşit pay',
+            sent: true, served: true, ready: true
+        };
     }
     function renderSplitEqual() {
-        const tu = totalUnits();
-        const maxN = Math.max(2, Math.min(6, tu));
-        if (splitN > maxN) splitN = maxN; if (splitN < 2) splitN = 2;
-        const ns = []; for (let i = 2; i <= maxN; i++) ns.push(i);
+        if (splitN < 2) splitN = 2; if (splitN > 8) splitN = 8;
+        const ns = []; for (let i = 2; i <= 8; i++) ns.push(i);
         $('splitEqN').innerHTML = ns.map(n => `<button type="button" class="rst-eq-btn${n === splitN ? ' active' : ''}" data-n="${n}">${n}</button>`).join('');
         $('splitEqN').querySelectorAll('[data-n]').forEach(b => b.onclick = () => { splitN = +b.getAttribute('data-n'); renderSplitEqual(); });
-        const parts = distributeEqual(currentCheck.items, splitN);
-        $('splitEqPreview').innerHTML = parts.map((p, i) => {
-            const tot = computeTotals(p.items).total;
-            const list = p.items.map(it => esc(it.qty) + '× ' + esc(it.name)).join(', ') || '—';
-            return `<div class="rst-eq-part">
-                <div class="rst-eq-part-h"><b>Parça ${i + 1}${i === 0 ? ' (mevcut adisyon)' : ''}</b><span>${esc(money(tot))}</span></div>
-                <div class="rst-eq-part-items">${list}</div>
-            </div>`;
-        }).join('');
+        const total = computeTotals(currentCheck.items).total;
+        const shares = equalShares(total, splitN);
+        $('splitEqPreview').innerHTML = `<div class="rst-eq-head">Toplam <b>${esc(money(total))}</b> → ${splitN} eşit pay</div>`
+            + shares.map((s, i) => `<div class="rst-eq-part">
+                <div class="rst-eq-part-h"><b>Pay ${i + 1}${i === 0 ? ' (mevcut adisyon)' : ''}</b><span>${esc(money(s))}</span></div>
+            </div>`).join('');
     }
     function doSplitEqual() {
-        if (totalUnits() < splitN) { toast('Adet sayısı parça sayısından az.', true); return; }
-        const parts = distributeEqual(currentCheck.items, splitN);
-        const newParts = parts.slice(1).map((p, idx) => ({ items: p.items, suffix: '(' + (idx + 2) + '/' + splitN + ')' }));
-        currentCheck.items = parts[0].items;
-        createSplitChecks(newParts).then(() => {
+        const total = computeTotals(currentCheck.items).total;
+        if (total <= 0) { toast('Bölünecek tutar yok.', true); return; }
+        const n = splitN;
+        const shares = equalShares(total, n);
+        const group = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+        const doPrint = $('splitEqPrint') ? $('splitEqPrint').checked : false;
+        const table = currentCheck.tableName || '', baseName = currentCheck.name || '';
+        currentCheck.items = [shareLine(shares[0], 1, n)];
+        currentCheck.splitGroup = group;
+        currentCheck.status = 'sent';
+        const newParts = [];
+        for (let k = 1; k < n; k++) newParts.push({ items: [shareLine(shares[k], k + 1, n)], suffix: '(' + (k + 1) + '/' + n + ')', splitGroup: group });
+        createSplitChecks(newParts).then(nos => {
             recalcSave(); flushSave();
             $('splitModal').classList.remove('open');
-            toast(splitN + ' eşit parçaya bölündü.');
+            toast(n + ' eşit paya bölündü.');
+            if (doPrint) {
+                const objs = [receiptObjFromCheck(currentCheck)];
+                newParts.forEach((p, i) => objs.push(receiptObjFromCheck({ checkNo: nos[i], tableName: table, name: (baseName ? baseName + ' ' : '') + p.suffix, room: '', pax: 1, items: p.items })));
+                printReceiptList(objs);
+            }
         });
+    }
+    // Bir bölme grubundaki tüm adisyonların fişini arka arkaya yazdır.
+    function printSplitGroup() {
+        const g = currentCheck && currentCheck.splitGroup; if (!g) return;
+        const list = openChecks.filter(c => c.splitGroup === g).slice();
+        if (currentCheck.id && !list.some(c => c.id === currentCheck.id)) list.unshift(currentCheck);
+        if (!list.length) list.push(currentCheck);
+        list.sort((a, b) => (a.checkNo || 0) - (b.checkNo || 0));
+        printReceiptList(list.map(receiptObjFromCheck));
     }
     // Verilen parçalar için yeni adisyon(lar) oluştur (sıralı checkNo). Kalem
     // durum bayrakları (sent/served) korunur — bölünce mutfağa tekrar düşmez.
@@ -798,6 +812,7 @@
                 };
                 if (anySent) payload.sentAt = Date.now();
                 if (no) payload.checkNo = no;
+                if (part.splitGroup) payload.splitGroup = part.splitGroup;
                 return db.collection(CHK_COL).add(payload);
             });
         });
@@ -870,7 +885,7 @@
             tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '', room: currentCheck.room || '',
             section: currentCheck.section || 'Genel', status: currentCheck.status || 'open', pax: currentCheck.pax || 1, note: currentCheck.note || '',
             items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
-            sentAt: currentCheck.sentAt || null,
+            sentAt: currentCheck.sentAt || null, splitGroup: currentCheck.splitGroup || null,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         if (currentCheck.id) {
@@ -1008,6 +1023,7 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
         renderLineBar();
         const noteEl = $('posNoteLine');
         if (noteEl) { noteEl.style.display = currentCheck.note ? 'block' : 'none'; noteEl.textContent = currentCheck.note ? 'Not: ' + currentCheck.note : ''; }
+        const psEl = $('posPrintShares'); if (psEl) psEl.style.display = currentCheck.splitGroup ? '' : 'none';
         const t = computeTotals(currentCheck.items);
         const vatLabel = (cfg.vatMode === 'excluded') ? 'KDV (hariç)' : 'KDV (dahil)';
         $('posTotals').innerHTML = `
@@ -1200,15 +1216,12 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
         }).join('');
     }
     // Tek fiş çıktısı (canlı ödeme + arşiv yeniden yazdırma için ortak).
-    function printReceiptDoc(c) {
-        const w = window.open('', '_blank', 'width=380,height=640');
-        if (!w) { toast('Açılır pencere engellendi.', true); return; }
-        const pays = (c.payments || []).map(pm => `<tr><td colspan="2">${esc(PM_LABEL[pm.method] || pm.method)}${pm.room ? ' (Oda ' + esc(pm.room) + ')' : ''}</td><td class="r">${esc(money(pm.amount))}</td></tr>`).join('');
-        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Fiş</title>
-<style>
- @page{size:80mm auto;margin:0}
+    function receiptStyle() {
+        return `@page{size:80mm auto;margin:0}
  *{box-sizing:border-box}
- body{width:80mm;margin:0;padding:8px 10px;font-family:'Courier New',monospace;font-size:12px;color:#000}
+ body{width:80mm;margin:0;padding:0;font-family:'Courier New',monospace;font-size:12px;color:#000}
+ .rcpt{padding:8px 10px}
+ .rcpt + .rcpt{page-break-before:always;border-top:2px dashed #999}
  .r{text-align:right}
  h1{font-size:15px;margin:0 0 2px;text-align:center}
  .sub{text-align:center;font-size:11px;margin-bottom:3px}
@@ -1220,8 +1233,11 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
  .sig{margin-top:4px}
  .sig td{font-size:12px;padding:5px 0}
  .sig td:first-child{width:62px;color:#000}
- .ft{text-align:center;font-size:11px;margin-top:8px}
-</style></head><body>
+ .ft{text-align:center;font-size:11px;margin-top:8px}`;
+    }
+    function receiptInner(c) {
+        const pays = (c.payments || []).map(pm => `<tr><td colspan="2">${esc(PM_LABEL[pm.method] || pm.method)}${pm.room ? ' (Oda ' + esc(pm.room) + ')' : ''}</td><td class="r">${esc(money(pm.amount))}</td></tr>`).join('');
+        return `<div class="rcpt">
 <h1>${esc(cfg.receiptHeader || cfg.name || 'Restoran')}</h1>
 <div class="sub">${c.checkNo ? 'Adisyon #' + esc(c.checkNo) + ' · ' : ''}Masa ${esc(c.tableName || '')}${c.room ? ' · Oda ' + esc(c.room) : ''} · ${esc(c.pax || 1)} kişi</div>
 <div class="sub">${esc(c.by || loggedUser)}${c.when ? ' · ' + esc(c.when) : ''}</div>
@@ -1244,9 +1260,25 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
  <tr><td>İmza</td><td>: ____________________</td></tr>
 </table>
 <div class="ft">${esc(cfg.receiptFooter || 'Bizi tercih ettiğiniz için teşekkürler.')}</div>
+</div>`;
+    }
+    // Tek pencerede bir veya birden çok fiş (her biri ayrı sayfa/kesim).
+    function printReceiptList(list) {
+        list = (list || []).filter(Boolean);
+        if (!list.length) { toast('Yazdırılacak fiş yok.', true); return; }
+        const w = window.open('', '_blank', 'width=380,height=640');
+        if (!w) { toast('Açılır pencere engellendi.', true); return; }
+        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>Fiş</title>
+<style>${receiptStyle()}</style></head><body>${list.map(receiptInner).join('')}
 <scr` + `ipt>window.onload=function(){setTimeout(function(){window.print();},250);}</scr` + `ipt>
 </body></html>`);
         w.document.close();
+    }
+    function printReceiptDoc(c) { printReceiptList([c]); }
+    // Kayıtlı bir adisyondan fiş-yazdırma nesnesi (çoklu fiş için).
+    function receiptObjFromCheck(c) {
+        const t = computeTotals(c.items || []);
+        return { checkNo: c.checkNo, tableName: c.tableName, room: c.room, name: c.name, pax: c.pax || 1, by: loggedUser, items: c.items || [], note: c.note, subtotal: t.subtotal, vat: t.vat, payable: t.total, discountAmount: 0, payments: [] };
     }
     function printReceipt() {
         const p = payable();
@@ -1531,6 +1563,7 @@ ${row('İptal (void)', money(z.voidValue), z.voids + ' adisyon')}
         $('posSplit').onclick = openSplit;
         $('posMerge').onclick = openMerge;
         $('posTransfer').onclick = openTransfer;
+        if ($('posPrintShares')) $('posPrintShares').onclick = printSplitGroup;
         $('mergeClose').onclick = () => $('mergeModal').classList.remove('open');
         $('mergeModal').addEventListener('click', e => { if (e.target === $('mergeModal')) $('mergeModal').classList.remove('open'); });
         $('transferClose').onclick = () => $('transferModal').classList.remove('open');
