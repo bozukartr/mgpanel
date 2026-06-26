@@ -59,6 +59,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentGuestId = null;
     let filterStatus = 'arrival';
     let timelineFilter = 'all';
+    let rooms = [];
+    let roomFilter = 'all';
+    let currentView = 'guests';
+
+    // Kayıtları (log/rezervasyon) misafire bağla: önce kalıcı guestId, yoksa isim.
+    const guestMatch = (rec, guest) => {
+        if (!rec || !guest) return false;
+        if (rec.guestId && guest.id) return rec.guestId === guest.id;
+        return (rec.guestName || '').toLowerCase() === (guest.name || '').toLowerCase();
+    };
 
     // ── CORE FUNCTIONS ─────────────────────────────────────────
     const loadAllData = async () => {
@@ -92,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             renderGuestList();
             if (currentGuestId) viewGuestDetail(currentGuestId);
+            if (currentView === 'rooms' && typeof renderRooms === 'function') renderRooms();
         } catch (e) {
             console.error("Data load failed", e);
             showToast("Failed to sync data", true);
@@ -161,10 +172,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const detailEl = document.getElementById('guestDetail');
         
-        const gLogs = guestLogs.filter(l => l.guestName.toLowerCase() === guest.name.toLowerCase());
-        const gRes = reservations.filter(r => r.guestName.toLowerCase() === guest.name.toLowerCase());
-        
+        const gLogs = guestLogs.filter(l => guestMatch(l, guest));
+        const gRes = reservations.filter(r => guestMatch(r, guest));
+
         const tags = generateTags(gLogs, gRes);
+        if (guest.vip && !tags.includes('VIP')) tags.unshift('VIP');
+
+        const contactBits = [
+            guest.phone ? `<a class="cstat" href="tel:${esc(guest.phone)}">📞 ${esc(guest.phone)}</a>` : '',
+            guest.email ? `<a class="cstat" href="mailto:${esc(guest.email)}">✉ ${esc(guest.email)}</a>` : '',
+            guest.nationality ? `<span class="cstat">🌐 ${esc(guest.nationality)}</span>` : '',
+            guest.language ? `<span class="cstat">🗣 ${esc(guest.language)}</span>` : '',
+            guest.birthday ? `<span class="cstat">🎂 ${esc(guest.birthday)}</span>` : ''
+        ].filter(Boolean).join('');
 
         const interactions = [
             ...gLogs.map(l => ({ ...l, interactionType: 'issue', sortDate: l.createdAt ? (l.createdAt.toDate ? l.createdAt.toDate() : new Date(l.createdAt)) : new Date(l.date) })),
@@ -185,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="profile-main-info">
                     <h1>${esc(guest.name)}</h1>
                     <div class="guest-tags" style="margin: 8px 0;">
-                        ${tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+                        ${tags.map(t => `<span class="tag ${t === 'VIP' ? 'tag-vip' : ''}">${esc(t)}</span>`).join('')}
                     </div>
                     <div class="profile-room-badge">
                         Oda ${esc(guest.room || '—')} • Güncellendi ${new Date(guest.lastUpdated).toLocaleDateString('tr-TR')}
@@ -220,6 +240,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     ` : ''}
                 </div>
             </div>
+
+            ${contactBits ? `<div class="contact-strip">${contactBits}</div>` : ''}
 
             <div class="guest-notes-area">
                 <div class="notes-header">
@@ -394,12 +416,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reassign the duplicate's reservations to the primary name
             reservations
                 .filter(r => r.guestName && r.guestName.toLowerCase() === secName)
-                .forEach(r => batch.update(db.collection('reservations').doc(r.id), { guestName: primary.name }));
+                .forEach(r => batch.update(db.collection('reservations').doc(r.id), { guestName: primary.name, guestId: primary.id }));
 
             // Reassign the duplicate's logs to the primary name
             guestLogs
                 .filter(l => l.guestName && l.guestName.toLowerCase() === secName)
-                .forEach(l => batch.update(db.collection('guestLogs').doc(l.id), { guestName: primary.name }));
+                .forEach(l => batch.update(db.collection('guestLogs').doc(l.id), { guestName: primary.name, guestId: primary.id }));
 
             // Merge notes
             const primaryNotes = (primary.notes || '').trim();
@@ -442,7 +464,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── Manual guest add (works without a PMS) ─────────────────
     const addGuestModal = document.getElementById('addGuestModal');
     const openAddGuest = () => {
-        ['agName', 'agRoom', 'agCheckIn', 'agCheckOut'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        ['agName', 'agRoom', 'agCheckIn', 'agCheckOut', 'agPhone', 'agEmail', 'agNationality', 'agLanguage', 'agBirthday'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        const agVipEl = document.getElementById('agVip'); if (agVipEl) agVipEl.checked = false;
         document.getElementById('agStatus').value = 'in_house';
         addGuestModal.style.display = 'block';
         setTimeout(() => document.getElementById('agName')?.focus(), 80);
@@ -473,6 +496,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: status,
                 checkIn: checkIn || '',
                 checkOut: checkOut || '',
+                phone: document.getElementById('agPhone').value.trim(),
+                email: document.getElementById('agEmail').value.trim(),
+                nationality: document.getElementById('agNationality').value.trim(),
+                language: document.getElementById('agLanguage').value.trim(),
+                birthday: document.getElementById('agBirthday').value.trim(),
+                vip: !!document.getElementById('agVip').checked,
                 tenantId: TENANT_ID,
                 lastUpdated: new Date().toISOString()
             });
@@ -566,7 +595,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rcNewRoom').value = currentRoom;
         document.getElementById('rcCheckIn').value = toDisplayDate(checkIn) || '';
         document.getElementById('rcCheckOut').value = toDisplayDate(checkOut) || '';
-        
+
+        const g = guestDirectory.find(x => x.id === id) || {};
+        const setVal = (elId, v) => { const el = document.getElementById(elId); if (el) el.value = v || ''; };
+        setVal('rcPhone', g.phone); setVal('rcEmail', g.email); setVal('rcNationality', g.nationality);
+        setVal('rcLanguage', g.language); setVal('rcBirthday', g.birthday);
+        const vipBox = document.getElementById('rcVip'); if (vipBox) vipBox.checked = !!g.vip;
+
         const isPreArrivalBox = document.getElementById('rcIsPreArrival');
         if (isPreArrivalBox) {
             isPreArrivalBox.checked = (status === 'pre_arrival');
@@ -618,6 +653,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 room: newRoomForDir,
                 checkIn: checkInDate,
                 checkOut: checkOutDate,
+                phone: (document.getElementById('rcPhone')?.value || '').trim(),
+                email: (document.getElementById('rcEmail')?.value || '').trim(),
+                nationality: (document.getElementById('rcNationality')?.value || '').trim(),
+                language: (document.getElementById('rcLanguage')?.value || '').trim(),
+                birthday: (document.getElementById('rcBirthday')?.value || '').trim(),
+                vip: !!document.getElementById('rcVip')?.checked,
                 lastUpdated: new Date().toISOString()
             };
             if (isPreArrival) updates.status = 'pre_arrival';
@@ -631,6 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const logUpdate = {};
                 if (log.room !== newRoomForLogs) logUpdate.room = newRoomForLogs;
                 if (nameChanged) logUpdate.guestName = newName;
+                if (!log.guestId && rcGuestId) logUpdate.guestId = rcGuestId;
                 if (Object.keys(logUpdate).length) {
                     batch.update(db.collection('guestLogs').doc(log.id), logUpdate);
                 }
@@ -642,6 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const resUpdate = {};
                 if (res.room !== newRoomForLogs) resUpdate.room = newRoomForLogs;
                 if (nameChanged) resUpdate.guestName = newName;
+                if (!res.guestId && rcGuestId) resUpdate.guestId = rcGuestId;
                 if (Object.keys(resUpdate).length) {
                     batch.update(db.collection('reservations').doc(res.id), resUpdate);
                 }
@@ -659,5 +702,147 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.disabled = false;
         }
     };
+
+    // ── PMS: Odalar & Housekeeping ─────────────────────────────
+    const ROOM_STATUS = {
+        clean: { label: 'Temiz', cls: 'clean' },
+        dirty: { label: 'Kirli', cls: 'dirty' },
+        occupied: { label: 'Dolu', cls: 'occupied' },
+        ooo: { label: 'Arıza', cls: 'ooo' }
+    };
+    function listenRooms() {
+        db.collection('rooms').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
+            rooms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (currentView === 'rooms') renderRooms();
+        }, e => console.error('rooms listen', e));
+    }
+    const roomNoSort = (a, b) => String(a.no).localeCompare(String(b.no), 'tr', { numeric: true });
+    function occupantOf(room) {
+        const g = guestDirectory.find(x => x.status === 'in_house' && String(x.room || '').trim() === String(room.no || '').trim());
+        return g ? g.name : '';
+    }
+    function renderRooms() {
+        const board = document.getElementById('roomsBoard');
+        if (!board) return;
+        const counts = { all: rooms.length, clean: 0, dirty: 0, occupied: 0, ooo: 0 };
+        rooms.forEach(r => { if (counts[r.status] != null) counts[r.status]++; });
+        const kpiEl = document.getElementById('roomsKpis');
+        if (kpiEl) {
+            const cards = [['Toplam', counts.all, 'all'], ['Temiz', counts.clean, 'clean'], ['Kirli', counts.dirty, 'dirty'], ['Dolu', counts.occupied, 'occupied'], ['Arıza', counts.ooo, 'ooo']];
+            kpiEl.innerHTML = cards.map(([l, v, st]) => `<div class="room-kpi st-${st}"><span class="v">${v}</span><span class="l">${esc(l)}</span></div>`).join('');
+        }
+        const dl = document.getElementById('rmTypeList');
+        if (dl) { const types = [...new Set(rooms.map(r => r.type).filter(Boolean))]; dl.innerHTML = types.map(t => `<option value="${esc(t)}">`).join(''); }
+        if (!rooms.length) { board.innerHTML = `<div class="rooms-empty">Henüz oda yok.<br>“Varsayılan Oluştur” ile başlayın veya “+ Oda Ekle” deyin.</div>`; return; }
+        const list = rooms.filter(r => roomFilter === 'all' || r.status === roomFilter);
+        if (!list.length) { board.innerHTML = `<div class="rooms-empty">Bu filtrede oda yok.</div>`; return; }
+        const floors = [...new Set(list.map(r => r.floor || '—'))].sort((a, b) => {
+            const x = parseInt(a, 10), y = parseInt(b, 10);
+            if (isNaN(x) && isNaN(y)) return String(a).localeCompare(String(b));
+            if (isNaN(x)) return 1; if (isNaN(y)) return -1; return x - y;
+        });
+        board.innerHTML = floors.map(fl => {
+            const rs = list.filter(r => (r.floor || '—') === fl).sort(roomNoSort);
+            return `<div class="rooms-floor"><div class="rooms-floor-h">Kat ${esc(fl)}</div><div class="rooms-grid">${rs.map(roomCardHtml).join('')}</div></div>`;
+        }).join('');
+    }
+    function roomCardHtml(r) {
+        const occ = occupantOf(r);
+        const st = ROOM_STATUS[r.status] || ROOM_STATUS.clean;
+        return `<div class="room-card st-${st.cls}">
+            <div class="room-top"><span class="room-no">${esc(r.no)}</span><button class="room-edit" onclick="editRoom('${r.id}')" title="Düzenle">⋯</button></div>
+            <div class="room-meta">${esc(r.type || 'Standart')}</div>
+            <div class="room-occ">${occ ? '👤 ' + esc(occ) : '<span class="muted">Boş</span>'}</div>
+            <div class="room-status-row">
+                ${Object.keys(ROOM_STATUS).map(k => `<button class="rs-dot ${k} ${r.status === k ? 'on' : ''}" title="${esc(ROOM_STATUS[k].label)}" onclick="setRoomStatus('${r.id}','${k}')"></button>`).join('')}
+            </div>
+        </div>`;
+    }
+    window.setRoomStatus = (id, st) => {
+        db.collection('rooms').doc(id).update({ status: st, updatedAt: new Date().toISOString() })
+            .then(() => showToast('Oda durumu: ' + (ROOM_STATUS[st] ? ROOM_STATUS[st].label : st)))
+            .catch(e => { console.error(e); showToast('Güncellenemedi', true); });
+    };
+
+    let editingRoomId = null;
+    function openRoomModal(room) {
+        editingRoomId = room ? room.id : null;
+        document.getElementById('roomModalTitle').textContent = room ? 'Oda Düzenle' : 'Oda Ekle';
+        document.getElementById('rmNo').value = room ? (room.no || '') : '';
+        document.getElementById('rmFloor').value = room ? (room.floor || '') : '';
+        document.getElementById('rmType').value = room ? (room.type || '') : '';
+        document.getElementById('rmStatus').value = room ? (room.status || 'clean') : 'clean';
+        document.getElementById('rmNotes').value = room ? (room.notes || '') : '';
+        document.getElementById('rmDelete').style.display = room ? 'inline-block' : 'none';
+        const m = document.getElementById('roomModal');
+        m.style.display = 'flex'; m.style.alignItems = 'center'; m.style.justifyContent = 'center';
+        setTimeout(() => document.getElementById('rmNo')?.focus(), 60);
+    }
+    window.editRoom = (id) => { const r = rooms.find(x => x.id === id); if (r) openRoomModal(r); };
+    function closeRoomModal() { document.getElementById('roomModal').style.display = 'none'; editingRoomId = null; }
+    async function saveRoom() {
+        const no = document.getElementById('rmNo').value.trim();
+        if (!no) return showToast('Oda no zorunlu.', true);
+        const data = {
+            no: no, floor: document.getElementById('rmFloor').value.trim(),
+            type: document.getElementById('rmType').value.trim() || 'Standart',
+            status: document.getElementById('rmStatus').value,
+            notes: document.getElementById('rmNotes').value.trim(),
+            tenantId: TENANT_ID, updatedAt: new Date().toISOString()
+        };
+        try {
+            if (editingRoomId) await db.collection('rooms').doc(editingRoomId).update(data);
+            else {
+                if (rooms.some(r => String(r.no).trim() === no) && !confirm('Bu oda no zaten var. Yine de eklensin mi?')) return;
+                await db.collection('rooms').add(data);
+            }
+            closeRoomModal(); showToast('Oda kaydedildi.');
+        } catch (e) { console.error(e); showToast('Kaydedilemedi.', true); }
+    }
+    async function deleteRoom() {
+        if (!editingRoomId) return;
+        if (!confirm('Bu oda silinsin mi?')) return;
+        try { await db.collection('rooms').doc(editingRoomId).delete(); closeRoomModal(); showToast('Oda silindi.'); }
+        catch (e) { console.error(e); showToast('Silinemedi.', true); }
+    }
+    async function seedRooms() {
+        const msg = rooms.length ? 'Mevcut odalara ek olarak eksik 101–110 ve 201–210 odaları eklensin mi?' : '1. ve 2. kat için 101–110 ve 201–210 odaları oluşturulsun mu?';
+        if (!confirm(msg)) return;
+        const batch = db.batch(); let added = 0;
+        [1, 2].forEach(fl => {
+            for (let i = 1; i <= 10; i++) {
+                const no = String(fl * 100 + i);
+                if (rooms.some(r => String(r.no).trim() === no)) continue;
+                const ref = db.collection('rooms').doc();
+                batch.set(ref, { no: no, floor: String(fl), type: 'Standart', status: 'clean', notes: '', tenantId: TENANT_ID, updatedAt: new Date().toISOString() });
+                added++;
+            }
+        });
+        if (!added) { showToast('Eklenecek yeni oda yok.'); return; }
+        try { await batch.commit(); showToast(added + ' oda oluşturuldu.'); } catch (e) { console.error(e); showToast('Oluşturulamadı.', true); }
+    }
+
+    function setView(v) {
+        currentView = v;
+        document.querySelectorAll('.crm-subtab').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+        const gv = document.getElementById('guestsView'), rv = document.getElementById('roomsView');
+        if (gv) gv.style.display = v === 'guests' ? '' : 'none';
+        if (rv) rv.style.display = v === 'rooms' ? '' : 'none';
+        if (v === 'rooms') renderRooms();
+    }
+    document.querySelectorAll('.crm-subtab').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+    document.getElementById('roomsFilter')?.addEventListener('click', (e) => {
+        const b = e.target.closest('.rf-btn'); if (!b) return;
+        roomFilter = b.dataset.st;
+        document.querySelectorAll('#roomsFilter .rf-btn').forEach(x => x.classList.toggle('active', x === b));
+        renderRooms();
+    });
+    document.getElementById('addRoomBtn')?.addEventListener('click', () => openRoomModal(null));
+    document.getElementById('seedRoomsBtn')?.addEventListener('click', seedRooms);
+    document.getElementById('rmSave')?.addEventListener('click', saveRoom);
+    document.getElementById('rmCancel')?.addEventListener('click', closeRoomModal);
+    document.getElementById('rmDelete')?.addEventListener('click', deleteRoom);
+    document.getElementById('roomModal')?.addEventListener('click', (e) => { if (e.target.id === 'roomModal') closeRoomModal(); });
+    listenRooms();
 
 });

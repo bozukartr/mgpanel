@@ -184,3 +184,71 @@
     .guest-detail { padding: 16px 16px 100px; }
     .bnav-btn.active { color: var(--primary); }
 }
+
+/* ── Alt görünüm geçişi (Misafirler / Odalar) ── */
+.crm-subnav { display: flex; gap: 6px; padding: 10px 22px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.crm-subtab { border: none; background: transparent; padding: 9px 16px; border-radius: 10px; font-weight: 700; font-size: 14px; color: var(--text-muted); cursor: pointer; font-family: inherit; }
+.crm-subtab:hover { background: #f1f5f9; color: var(--text-main); }
+.crm-subtab.active { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(99,102,241,.25); }
+
+/* ── İletişim şeridi + VIP etiketi (misafir 360) ── */
+.contact-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.cstat { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 7px 13px; font-size: 12.5px; font-weight: 700; color: #334155; text-decoration: none; box-shadow: var(--shadow); }
+a.cstat:hover { border-color: var(--primary); color: var(--primary-dark); }
+.tag.tag-vip { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+
+/* ── PMS: Odalar & Housekeeping ── */
+.rooms-view { padding: 22px; max-width: 1200px; margin: 0 auto; }
+.rooms-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.rooms-actions { display: flex; gap: 10px; }
+.rooms-kpis { display: flex; gap: 10px; flex-wrap: wrap; }
+.room-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 16px; display: flex; flex-direction: column; min-width: 78px; box-shadow: var(--shadow); }
+.room-kpi .v { font-size: 22px; font-weight: 800; color: var(--text-main); line-height: 1; }
+.room-kpi .l { font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-top: 3px; }
+.room-kpi.st-clean .v { color: #16a34a; }
+.room-kpi.st-dirty .v { color: #d97706; }
+.room-kpi.st-occupied .v { color: #2563eb; }
+.room-kpi.st-ooo .v { color: #dc2626; }
+
+.rooms-filter { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 16px; }
+.rf-btn { border: 1px solid var(--border); background: #fff; color: var(--text-muted); padding: 8px 15px; border-radius: 999px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.rf-btn.active { background: var(--text-main); border-color: var(--text-main); color: #fff; }
+
+.rooms-floor { margin-bottom: 22px; }
+.rooms-floor-h { font-size: 12px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px; }
+.rooms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.rooms-empty { text-align: center; color: #94a3b8; padding: 60px 20px; font-size: 15px; line-height: 1.6; }
+
+.room-card { position: relative; border: 1px solid var(--border); border-left: 5px solid #cbd5e1; background: var(--surface); border-radius: 14px; padding: 13px 14px 11px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 5px; }
+.room-card.st-clean { border-left-color: #16a34a; }
+.room-card.st-dirty { border-left-color: #d97706; background: #fffdf5; }
+.room-card.st-occupied { border-left-color: #2563eb; background: #f7faff; }
+.room-card.st-ooo { border-left-color: #dc2626; background: #fff7f7; }
+.room-top { display: flex; align-items: center; justify-content: space-between; }
+.room-no { font-size: 21px; font-weight: 800; color: var(--text-main); letter-spacing: -.5px; }
+.room-edit { border: none; background: #f1f5f9; color: #64748b; width: 26px; height: 26px; border-radius: 8px; cursor: pointer; font-size: 15px; line-height: 1; }
+.room-edit:hover { background: #e2e8f0; }
+.room-meta { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.room-occ { font-size: 12.5px; font-weight: 700; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.room-occ .muted { color: #cbd5e1; font-weight: 600; }
+.room-status-row { display: flex; gap: 6px; margin-top: 4px; }
+.rs-dot { width: 26px; height: 26px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; padding: 0; position: relative; }
+.rs-dot.clean { background: #dcfce7; }
+.rs-dot.dirty { background: #fef3c7; }
+.rs-dot.occupied { background: #dbeafe; }
+.rs-dot.ooo { background: #fee2e2; }
+.rs-dot.on.clean { border-color: #16a34a; }
+.rs-dot.on.dirty { border-color: #d97706; }
+.rs-dot.on.occupied { border-color: #2563eb; }
+.rs-dot.on.ooo { border-color: #dc2626; }
+.rs-dot.on::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
+.rs-dot.on.clean::after { color: #16a34a; }
+.rs-dot.on.dirty::after { color: #d97706; }
+.rs-dot.on.occupied::after { color: #2563eb; }
+.rs-dot.on.ooo::after { color: #dc2626; }
+
+@media (max-width: 768px) {
+    .crm-subnav { padding: 8px 14px; }
+    .rooms-view { padding: 14px 14px 100px; }
+    .rooms-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
