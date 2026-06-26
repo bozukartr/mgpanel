@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ── Per-user module access ─────────────────────────────────
-    const MOD_KEYS = ['concierge', 'guestIssues', 'crm', 'guestOrders', 'restaurant'];
+    const MOD_KEYS = ['concierge', 'guestIssues', 'reports', 'crm', 'guestOrders', 'restaurant'];
     function setUserModuleSel(modules) {
         MOD_KEYS.forEach(k => {
             const cb = document.querySelector('#userModules input[data-mod="' + k + '"]');
