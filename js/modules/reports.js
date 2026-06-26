@@ -442,25 +442,35 @@
     }
 
     // ── Filtering / grouping ───────────────────────────────────
-    function filtered() {
+    function inDateWindow(r) {
         const w = dateWindow();
+        const d = D.dateOf(r);
+        if (w.from && d && d < w.from) return false;
+        if (w.to && d && d > w.to) return false;
+        if (w.from && !d) return false; // a date filter excludes undated rows
+        return true;
+    }
+    function matchFacet(f, r) {
+        const s = sel[f.key];
+        if (f.kind === 'chips') {
+            if (f.match) return f.match(r, s);
+            return !s.size || s.has(f.valueOf(r));
+        }
+        const q = (s || '').trim().toLowerCase();
+        return !q || String(f.valueOf(r) || '').toLowerCase().includes(q);
+    }
+    function filtered() {
+        return records.filter(r => inDateWindow(r) && D.facets.every(f => matchFacet(f, r)))
+            .sort((a, b) => String(D.dateOf(b)).localeCompare(String(D.dateOf(a))));
+    }
+    // Tarih penceresi + bir facet HARİÇ tüm facet'lerle eşleşen kayıtlar.
+    // O facet'in "veri olan" seçeneklerini hesaplamak için (kademeli/dinamik filtre).
+    function filteredExcept(exceptKey) {
         return records.filter(r => {
-            const d = D.dateOf(r);
-            if (w.from && d && d < w.from) return false;
-            if (w.to && d && d > w.to) return false;
-            if (w.from && !d) return false; // a date filter excludes undated rows
-            for (const f of D.facets) {
-                const s = sel[f.key];
-                if (f.kind === 'chips') {
-                    if (f.match) { if (!f.match(r, s)) return false; }
-                    else if (s.size && !s.has(f.valueOf(r))) return false;
-                } else { // text
-                    const q = (s || '').trim().toLowerCase();
-                    if (q && !String(f.valueOf(r) || '').toLowerCase().includes(q)) return false;
-                }
-            }
+            if (!inDateWindow(r)) return false;
+            for (const f of D.facets) { if (f.key !== exceptKey && !matchFacet(f, r)) return false; }
             return true;
-        }).sort((a, b) => String(D.dateOf(b)).localeCompare(String(D.dateOf(a))));
+        });
     }
     // group options = chip facets + Güne göre
     function groupFacet() {
@@ -481,13 +491,25 @@
         return arr;
     }
 
-    // ── Distinct chip values ───────────────────────────────────
+    // ── Dynamic chip values (kademeli filtre) ──────────────────
+    // Yalnızca DİĞER filtrelerle + tarihle eşleşen veride MEVCUT değerleri göster.
+    // Örn: Tür=Şikayet seçilince Departman'da yalnızca şikayet verisi olan
+    // departmanlar görünür. Hâlihazırda seçili değerler her zaman görünür kalır.
+    function facetHasValue(f, r, v) { return f.match ? f.match(r, new Set([v])) : (f.valueOf(r) === v); }
     function chipValues(f) {
-        if (f.fixed) return f.fixed.slice();
-        const set = new Set();
-        if (f.extra) try { f.extra().forEach(v => v && set.add(v)); } catch (e) { }
-        records.forEach(r => { const v = f.valueOf(r); if (v && v !== '—') set.add(v); });
-        return [...set].sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+        const base = filteredExcept(f.key);
+        const selSet = (sel[f.key] && sel[f.key].has) ? sel[f.key] : new Set();
+        const cand = new Set();
+        if (f.fixed) f.fixed.forEach(v => cand.add(v));
+        base.forEach(r => { const v = f.valueOf(r); if (v && v !== '—') cand.add(v); });
+        selSet.forEach(v => cand.add(v));
+        const present = [...cand].filter(v => selSet.has(v) || base.some(r => facetHasValue(f, r, v)));
+        if (f.fixed) {
+            const inFixed = f.fixed.filter(v => present.indexOf(v) !== -1);
+            const rest = present.filter(v => f.fixed.indexOf(v) === -1).sort((a, b) => String(a).localeCompare(String(b), 'tr'));
+            return inFixed.concat(rest);
+        }
+        return present.sort((a, b) => String(a).localeCompare(String(b), 'tr'));
     }
 
     // ── Render sidebar facets ──────────────────────────────────
@@ -506,8 +528,8 @@
         host.querySelectorAll('button[data-facet]').forEach(b => {
             b.onclick = () => {
                 const s = sel[b.getAttribute('data-facet')], v = b.getAttribute('data-v');
-                if (s.has(v)) { s.delete(v); b.classList.remove('active'); } else { s.add(v); b.classList.add('active'); }
-                render();
+                if (s.has(v)) s.delete(v); else s.add(v);
+                refresh(); // diğer facet'lerin "veri olan" seçenekleri güncellensin
             };
         });
         host.querySelectorAll('input[data-facet]').forEach(inp => {
@@ -521,6 +543,9 @@
         gb.innerHTML = opts.join('');
         gb.value = groupBy;
     }
+
+    // Facet seçenekleri + tablo birlikte tazelensin (kademeli filtre).
+    function refresh() { renderFacets(); render(); }
 
     // ── Render preview ─────────────────────────────────────────
     function render() {
@@ -687,9 +712,9 @@
     function wire() {
         $('repDomain').innerHTML = DOMAIN_ORDER.map(k => `<option value="${k}">${esc(DOMAINS[k].label)}</option>`).join('');
         $('repDomain').onchange = e => setDomain(e.target.value);
-        $('repDatePreset').onchange = e => { preset = e.target.value; $('repCustomDates').style.display = (preset === 'custom') ? '' : 'none'; render(); };
-        $('repFrom').onchange = e => { cFrom = e.target.value; render(); };
-        $('repTo').onchange = e => { cTo = e.target.value; render(); };
+        $('repDatePreset').onchange = e => { preset = e.target.value; $('repCustomDates').style.display = (preset === 'custom') ? '' : 'none'; refresh(); };
+        $('repFrom').onchange = e => { cFrom = e.target.value; refresh(); };
+        $('repTo').onchange = e => { cTo = e.target.value; refresh(); };
         $('repGroupBy').onchange = e => { groupBy = e.target.value; render(); };
         $('repReset').onclick = () => { setDomain(domainKey); };
         $('repExcel').onclick = exportExcel;
