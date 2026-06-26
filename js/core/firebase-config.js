@@ -93,6 +93,14 @@ function pmsEnabled() {
     return localStorage.getItem('hotelPmsEnabled') === '1';
 }
 
+// --- StayOS F&B (restaurant) access ---
+// F&B staff sign in with a 5-digit numeric code. Firebase Auth requires a
+// password of at least 6 chars, so the actual auth password is derived from the
+// code with this fixed prefix. Staff only ever type the 5 digits; the system
+// derives the same value for both account creation (admin) and login (F&B door).
+const FNB_DEPT = 'Food & Beverage';
+function fnbPassword(code) { return 'FB' + String(code || ''); }
+
 // Read the cached module flags. A module counts as enabled unless explicitly
 // disabled, so legacy hotels keep full access.
 function hotelModules() {
