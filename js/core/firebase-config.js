@@ -100,6 +100,10 @@ function pmsEnabled() {
 // derives the same value for both account creation (admin) and login (F&B door).
 const FNB_DEPT = 'Food & Beverage';
 function fnbPassword(code) { return 'FB' + String(code || ''); }
+// F&B personeli yalnızca 5 haneli koduyla (kullanıcı adı girmeden) giriş yapar.
+// Hem e-posta hem şifre koddan türetildiği için giriş öncesi sorguya gerek yok.
+// Kod tenant içinde benzersizdir (Firebase e-posta benzersizliği zorlar).
+function fnbEmail(code, tenantId) { return userEmail('fb-' + String(code || ''), tenantId); }
 
 // Read the cached module flags. A module counts as enabled unless explicitly
 // disabled, so legacy hotels keep full access.

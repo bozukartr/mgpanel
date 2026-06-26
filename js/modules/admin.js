@@ -133,7 +133,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!/^\d{5}$/.test(fnbCode)) { showToast('F&B kullanıcısı için 5 haneli (yalnızca rakam) kod girin.', true); return; }
                     password = fnbPassword(fnbCode);   // Firebase ≥6 char gerektirir → türetilmiş şifre
                 }
-                const email = userEmail(username, TENANT_ID);
+                // F&B kullanıcısı kullanıcı adı GİRMEDEN yalnızca koduyla girer →
+                // e-posta da koddan türetilir (kod tenant içinde benzersiz olur).
+                const email = isFnb ? fnbEmail(fnbCode, TENANT_ID) : userEmail(username, TENANT_ID);
 
                 // Ensure Secondary app is fresh
                 let secondaryApp;
@@ -168,7 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
             userForm.reset();
         } catch (err) {
             console.error(err);
-            showToast('Error: ' + err.message, true);
+            if (err && err.code === 'auth/email-already-in-use') showToast('Bu kullanıcı adı / F&B kodu zaten kullanımda.', true);
+            else showToast('Error: ' + err.message, true);
         }
     };
 
