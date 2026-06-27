@@ -558,6 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateGuestMap();
             refreshTopicDatalists();
             updateView(globalSearch.value, dateSearch.value);
+            autoEscalateSweep();
 
             // Trigger backfill check
             if (guestDirectory.length >= 0) backfillGuestDirectory();
@@ -1423,11 +1424,135 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    function isOverdueFn(record) {
-        if (!record.createdAt || record.status === 'Solved') return false;
-        const t = record.createdAt.toDate ? record.createdAt.toDate() : new Date(record.createdAt);
-        return (Date.now() - t) / 60000 > 15;
+    // ── SLA / gecikme ──────────────────────────────────────────
+    const DEFAULT_SLA_MIN = 15;
+    function slaOf(record) {
+        const m = window.IssueConfig ? IssueConfig.slaFor(record.department) : null;
+        return (m && m > 0) ? m : DEFAULT_SLA_MIN;
     }
+    // { state:'ok'|'soon'|'breached', remaining (dk; negatif=aşıldı), elapsedMin, sla }
+    function slaState(record) {
+        const created = tsToDate(record.createdAt);
+        const sla = slaOf(record);
+        if (!created || (record.status || 'Following') === 'Solved') return { state: 'ok', remaining: null, elapsedMin: 0, sla };
+        const elapsed = (Date.now() - created.getTime()) / 60000;
+        let state = 'ok';
+        if (elapsed >= sla) state = 'breached';
+        else if (elapsed >= sla * 0.8) state = 'soon';
+        return { state: state, remaining: sla - elapsed, elapsedMin: elapsed, sla: sla };
+    }
+    function isOverdueFn(record) { return slaState(record).state === 'breached'; }
+
+    // ── Eskalasyon (istemci tarafı; çift bildirim için transaction guard) ──
+    let mgrCache = null, mgrCacheAt = 0;
+    async function getManagers() {
+        if (mgrCache && Date.now() - mgrCacheAt < 300000) return mgrCache; // 5 dk cache
+        try {
+            const snap = await db.collection('systemUsers').where('tenantId', '==', TENANT_ID).get();
+            mgrCache = snap.docs
+                .map(d => ({ uid: d.id, username: (d.data().username || d.id), role: (d.data().role || '').toLowerCase() }))
+                .filter(u => u.role === 'admin' || u.role === 'manager');
+            mgrCacheAt = Date.now();
+        } catch (e) { mgrCache = mgrCache || []; }
+        return mgrCache;
+    }
+    async function escalateRecord(record, reason) {
+        const ref = db.collection('guestLogs').doc(record.id);
+        let didFlip = false;
+        try {
+            await db.runTransaction(async tx => {
+                const snap = await tx.get(ref);
+                if (!snap.exists) return;
+                const d = snap.data();
+                if (d.status === 'Solved' || d.escalated === true) return; // başka istemci çevirmiş
+                tx.update(ref, {
+                    escalated: true,
+                    escalatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    escalatedReason: reason || 'sla'
+                });
+                didFlip = true;
+            });
+        } catch (e) { return false; }
+        if (!didFlip) return false;            // yalnız flag'i çeviren istemci bildirir
+        record.escalated = true;               // optimistik
+        const mgrs = await getManagers();
+        const me = (firebase.auth().currentUser || {}).uid;
+        mgrs.filter(m => m.uid !== me).forEach(m => {
+            if (window.RT) RT.sendNotification({
+                toUid: m.uid, toUsername: m.username, type: 'complaint',
+                title: 'SLA aşımı: ' + (record.department || ''),
+                body: `Oda ${record.room || '—'} · ${record.guestName || ''} — ${slaOf(record)} dk SLA aşıldı`,
+                recordId: record.id
+            }).catch(() => {});
+        });
+        return true;
+    }
+    let sweeping = false;
+    async function autoEscalateSweep() {
+        if (sweeping) return; sweeping = true;
+        try {
+            const due = records.filter(r => (r.status || 'Following') !== 'Solved' && r.escalated !== true && slaState(r).state === 'breached');
+            for (const r of due) { await escalateRecord(r, 'sla'); }
+        } finally { sweeping = false; }
+    }
+
+    // ── Performans paneli (kütüphanesiz CSS bar grafik) ────────
+    function perfAvg(arr) { return arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null; }
+    function computePerformance(data) {
+        const byDept = {}, byStaff = {};
+        data.forEach(r => {
+            const dept = r.department || 'Diğer';
+            const d = byDept[dept] = byDept[dept] || { total: 0, done: 0, open: 0, resp: [], hand: [], breach: 0, slaMet: 0, slaEval: 0 };
+            d.total++;
+            const solved = (r.status === 'Solved');
+            if (solved) d.done++; else d.open++;
+            const c = tsToDate(r.createdAt), a = tsToDate(r.acknowledgedAt), f = tsToDate(r.completedAt);
+            if (c && a) d.resp.push((a - c) / 60000);
+            if (a && f) d.hand.push((f - a) / 60000);
+            if (solved && c && f) { d.slaEval++; if ((f - c) / 60000 <= slaOf(r)) d.slaMet++; }
+            const overBreach = solved ? (c && f && (f - c) / 60000 > slaOf(r)) : (slaState(r).state === 'breached');
+            if (overBreach) d.breach++;
+            const who = r.completedBy || r.acknowledgedBy;
+            if (who) { const s = byStaff[who] = byStaff[who] || { handled: 0, hand: [] }; s.handled++; if (a && f) s.hand.push((f - a) / 60000); }
+        });
+        return { byDept, byStaff };
+    }
+    function perfBarRow(label, val, max, meta, sub) {
+        const w = Math.round(val / max * 100);
+        return `<div class="perf-row"><span class="perf-label" title="${esc(label)}">${esc(label)}</span><span class="perf-bar"><i style="width:${w}%"></i></span><span class="perf-val">${esc(val)}</span></div>`
+            + (meta ? `<div class="perf-meta">${meta}</div>` : '') + (sub || '');
+    }
+    function renderPerf() {
+        const from = document.getElementById('perfFrom').value, to = document.getElementById('perfTo').value;
+        const data = (from || to) ? filterByRange(records, from, to) : records;
+        const { byDept, byStaff } = computePerformance(data);
+        const drows = Object.entries(byDept).map(([k, d]) => ({
+            dept: k, total: d.total, open: d.open, done: d.done, resp: perfAvg(d.resp), hand: perfAvg(d.hand),
+            slaPct: d.slaEval ? Math.round(d.slaMet / d.slaEval * 100) : null, breach: d.breach
+        })).sort((a, b) => b.total - a.total);
+        const maxT = Math.max(1, ...drows.map(r => r.total));
+        document.getElementById('perfDeptChart').innerHTML = drows.length ? drows.map(r => {
+            const slaSub = r.slaPct != null ? `<div class="perf-row sub"><span class="perf-label">SLA uyumu</span><span class="perf-bar sla"><i style="width:${r.slaPct}%"></i></span><span class="perf-val">%${r.slaPct}</span></div>` : '';
+            const meta = `Açık ${r.open} · Çözülen ${r.done}` + (r.resp != null ? ` · Ort. yanıt ${r.resp} dk` : '') + (r.hand != null ? ` · işlem ${r.hand} dk` : '') + (r.breach ? ` · <span class="perf-breach">${r.breach} SLA aşımı</span>` : '');
+            return perfBarRow(r.dept, r.total, maxT, meta, slaSub);
+        }).join('') : '<div class="perf-empty">Bu aralıkta kayıt yok.</div>';
+        const srows = Object.entries(byStaff).map(([k, s]) => ({ name: k, handled: s.handled, hand: perfAvg(s.hand) })).sort((a, b) => b.handled - a.handled);
+        const maxH = Math.max(1, ...srows.map(s => s.handled));
+        document.getElementById('perfStaffChart').innerHTML = srows.length ? srows.map(s => perfBarRow(s.name, s.handled, maxH, s.hand != null ? `Ort. işlem ${s.hand} dk` : '')).join('') : '<div class="perf-empty">Kayıt yok.</div>';
+    }
+    function openPerf() { const m = document.getElementById('perfModal'); if (!m) return; m.style.display = 'flex'; renderPerf(); }
+    (function wirePerf() {
+        const canSee = isAdminUser || loggedRole === 'manager';
+        const btn = document.getElementById('openPerfBtn');
+        if (btn && canSee) { btn.style.display = ''; btn.addEventListener('click', openPerf); }
+        const close = document.getElementById('closePerfModal');
+        if (close) close.addEventListener('click', () => { document.getElementById('perfModal').style.display = 'none'; });
+        ['perfFrom', 'perfTo'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', renderPerf); });
+        const clr = document.getElementById('perfClear');
+        if (clr) clr.addEventListener('click', () => { document.getElementById('perfFrom').value = ''; document.getElementById('perfTo').value = ''; renderPerf(); });
+        const modal = document.getElementById('perfModal');
+        if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+    })();
 
     const triggerSearch = () => updateView(globalSearch.value, dateSearch.value);
     globalSearch.addEventListener('input', triggerSearch);
@@ -1443,8 +1568,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filterSolved').addEventListener('click', () => { activeStatusFilter = 'Solved'; setActivePill('filterSolved'); triggerSearch(); });
     document.getElementById('filterOverdue').addEventListener('click', () => { activeStatusFilter = 'Overdue'; setActivePill('filterOverdue'); triggerSearch(); });
 
-    // Refresh elapsed-time chips and overdue states every minute while visible.
-    setInterval(() => { if (!document.hidden) triggerSearch(); }, 60000);
+    // Refresh elapsed-time chips and overdue states every minute while visible;
+    // ayrıca SLA aşan kayıtları otomatik eskale et.
+    setInterval(() => { if (!document.hidden) { triggerSearch(); autoEscalateSweep(); } }, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) autoEscalateSweep(); });
 
     // "Tüm Zamanlar": clear the date filter so every record is listed.
     document.getElementById('allTimeBtn')?.addEventListener('click', () => {
@@ -1654,13 +1781,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return date.toLocaleDateString('en-GB', options).replace(/ /g, ' ');
     }
 
-    // Helper: Check if record is older than 15 minutes
-    function isOverdue(record) {
-        if (!record.createdAt || record.status === 'Solved') return false;
-        const createdTime = record.createdAt.toDate ? record.createdAt.toDate() : new Date(record.createdAt);
-        const diffMinutes = (new Date() - createdTime) / (1000 * 60);
-        return diffMinutes > 15;
-    }
+    // Helper: SLA aşıldı mı (departman SLA'sına göre)
+    function isOverdue(record) { return slaState(record).state === 'breached'; }
 
     // ── Recurring-issue detection ──────────────────────────────
     // Flags repeat problems: same room + same department logged 2+ times
@@ -1752,8 +1874,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const statusLabel = statusLabelOf(status);
             const noteCount = record.updates ? record.updates.length : 0;
             const noteIndicator = noteCount > 0 ? `<span class="note-indicator" title="${noteCount} güncelleme">💬 ${noteCount}</span>` : '';
-            const lateBadgeStatus = status !== 'Solved' && isOverdue(record);
-            const lateBadge = lateBadgeStatus ? '<span class="late-warning" title="15 dakikadan uzun süredir bekliyor">⚠️ Gecikti</span>' : '';
+            const ss = slaState(record);
+            const lateBadgeStatus = status !== 'Solved' && ss.state === 'breached';
+            let lateBadge = '';
+            if (status !== 'Solved') {
+                if (ss.state === 'breached') lateBadge = `<span class="late-warning" title="SLA (${ss.sla} dk) aşıldı">⚠️ Gecikti · ${Math.round(-ss.remaining)}dk</span>`;
+                else if (ss.state === 'soon') lateBadge = `<span class="sla-soon" title="SLA (${ss.sla} dk) yaklaşıyor">⏳ ${Math.max(0, Math.round(ss.remaining))}dk kaldı</span>`;
+            }
+            const escBadge = record.escalated === true ? '<span class="esc-badge" title="Yöneticiye eskale edildi">🚨 Eskale</span>' : '';
 
             const gStatus = getGuestStatus(record.guestName);
             const gStatusLabel = gStatus === 'in_house' ? 'OTELDE' : 'ÇIKIŞ YAPTI';
@@ -1791,6 +1919,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     ${recurBadge}
                     ${lateBadge}
+                    ${escBadge}
                 </td>
                 <td><span class="dept-badge">${esc(record.department)}</span></td>
                 <td class="staff-cell">${esc(record.staffInitial)}</td>
@@ -1859,6 +1988,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('wfTakeBtn').onclick = () => transitionRecord('take');
         document.getElementById('wfCompleteBtn').onclick = () => transitionRecord('complete');
         document.getElementById('wfReopenBtn').onclick = () => transitionRecord('reopen');
+        const escBtn = document.getElementById('wfEscalateBtn');
+        if (escBtn) escBtn.onclick = () => {
+            escalateRecord(record, 'manual').then(ok => {
+                if (ok) { record.escalated = true; renderWorkflow(record); showToast('Yöneticiye eskale edildi.'); }
+                else showToast('Zaten eskale edilmiş veya çözülmüş.', true);
+            });
+        };
 
         document.getElementById('emailModalBtn').onclick = () => draftEmail(record);
         document.getElementById('editModalBtn').onclick = () => startModalEdit(record);
@@ -1929,6 +2065,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('wfTakeBtn').style.display = (status === 'Following') ? 'inline-flex' : 'none';
         document.getElementById('wfCompleteBtn').style.display = (status !== 'Solved') ? 'inline-flex' : 'none';
         document.getElementById('wfReopenBtn').style.display = (status === 'Solved') ? 'inline-flex' : 'none';
+        const escBtn2 = document.getElementById('wfEscalateBtn');
+        const escTag = document.getElementById('wfEscTag');
+        const canEsc = status !== 'Solved' && record.escalated !== true;
+        if (escBtn2) escBtn2.style.display = canEsc ? 'inline-flex' : 'none';
+        if (escTag) escTag.style.display = (record.escalated === true) ? 'inline-flex' : 'none';
     }
 
     // Appends an entry to the record's timeline (same shape as manual notes).
