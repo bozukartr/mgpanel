@@ -1861,3 +1861,32 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
     .gi-table-card { border: none; background: transparent; padding: 0; }
     .gi-table-card .table-wrapper { padding: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
+
+/* ── SLA / Eskalasyon rozetleri ── */
+.sla-soon { display:inline-block; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; font-size:9px; font-weight:800; padding:2px 7px; border-radius:999px; margin-top:3px; }
+.esc-badge { display:inline-block; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; font-size:9px; font-weight:800; padding:2px 7px; border-radius:999px; margin-top:3px; }
+.wf-btn.escalate { background:#fff1f2; color:#be123c; border:1px solid #fecdd3; }
+.wf-btn.escalate:hover { background:#ffe4e6; }
+.wf-esc-tag { display:inline-flex; align-items:center; gap:4px; background:#fee2e2; color:#b91c1c; font-size:12px; font-weight:800; padding:8px 12px; border-radius:8px; }
+.cz-new.cz-perf { background:#0ea5e9; box-shadow:0 6px 16px rgba(14,165,233,.28); }
+.cz-new.cz-perf:hover { background:#0284c7; }
+
+/* ── Performans paneli (CSS bar grafik) ── */
+.perf-range { display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+.perf-range input[type=date] { padding:9px 11px; border:1px solid #e2e8f0; border-radius:8px; font-family:'Outfit',sans-serif; font-size:13px; }
+.perf-range span { color:#94a3b8; }
+.perf-h { font-size:12px; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:#94a3b8; margin:18px 0 8px; }
+.perf-chart { display:flex; flex-direction:column; }
+.perf-row { display:flex; align-items:center; gap:10px; margin:5px 0; font-size:13px; }
+.perf-label { width:140px; flex:0 0 140px; font-weight:700; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.perf-bar { flex:1; height:18px; background:#eef2f7; border-radius:999px; overflow:hidden; }
+.perf-bar > i { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#6366f1,#4f46e5); }
+.perf-bar.sla > i { background:linear-gradient(90deg,#10b981,#059669); }
+.perf-val { width:64px; flex:0 0 64px; text-align:right; font-weight:800; color:#334155; }
+.perf-row.sub { margin:2px 0 8px; }
+.perf-row.sub .perf-label { font-size:11px; font-weight:600; color:#64748b; }
+.perf-row.sub .perf-bar { height:10px; }
+.perf-meta { font-size:11px; color:#64748b; margin:0 0 8px 150px; }
+.perf-breach { color:#dc2626; font-weight:800; }
+.perf-empty { color:#94a3b8; font-size:13px; padding:14px; text-align:center; }
+@media (max-width:560px){ .perf-label{width:96px;flex-basis:96px} .perf-meta{margin-left:0} }

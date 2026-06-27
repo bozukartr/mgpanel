@@ -33,14 +33,19 @@
     var topicState = []; // [{ id, name }]
     var readyCbs = [];
 
+    var DEFAULT_SLA = 15; // dakika — departmana özel sla yoksa varsayılan eşik
+
     function normalize(list) {
         if (!Array.isArray(list)) return [];
         return list.map(function (d) {
             d = d || {};
-            return {
+            var n = Number(d.sla);
+            var out = {
                 name: String(d.name || '').trim(),
                 kind: (d.kind === 'request' || d.kind === 'complaint') ? d.kind : 'both'
             };
+            if (isFinite(n) && n > 0) out.sla = Math.round(n); // tanımsız/0/negatif → alan yok (varsayılana düşer)
+            return out;
         }).filter(function (d) { return d.name; });
     }
 
@@ -66,6 +71,14 @@
             return this.departments().filter(function (d) {
                 return d.kind === 'both' || d.kind === t;
             });
+        },
+
+        // SLA (dakika) — departmana özel; tanımsızsa varsayılan eşik.
+        defaultSla: function () { return DEFAULT_SLA; },
+        slaFor: function (deptName) {
+            var key = String(deptName || '').trim().toLowerCase();
+            var found = this.departments().filter(function (d) { return d.name.toLowerCase() === key; })[0];
+            return (found && found.sla > 0) ? found.sla : DEFAULT_SLA;
         },
 
         isLoaded: function () { return state.loaded; },

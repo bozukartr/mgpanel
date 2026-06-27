@@ -71,6 +71,7 @@
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                             Ekle
                         </button>
+                        <button class="cz-new cz-perf" id="openPerfBtn" style="display:none;">📊 Performans</button>
 
                         <div class="gi-filters">
                             <div class="gi-search-wrap">
@@ -298,6 +299,8 @@
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/></svg>
                                 Yeniden Aç
                             </button>
+                            <button class="wf-btn escalate" id="wfEscalateBtn">🚨 Yöneticiye Eskale Et</button>
+                            <span class="wf-esc-tag" id="wfEscTag" style="display:none;">🚨 Eskale edildi</span>
                         </div>
                     </div>
 
@@ -550,6 +553,29 @@
                         <span style="font-size: 18px;">📕</span> PDF'e Aktar
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performans Modal -->
+    <div id="perfModal" class="modal">
+        <div class="modal-content" style="max-width: 640px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border-radius: 12px 12px 0 0; padding: 20px 24px;">
+                <div>
+                    <h2 style="color:white;margin:0;font-size:20px;">📊 Performans</h2>
+                    <p style="color:rgba(255,255,255,0.75);margin:4px 0 0;font-size:13px;">Departman ve personel bazında talep/şikayet performansı + SLA</p>
+                </div>
+                <span class="close-modal" id="closePerfModal" style="color:white;font-size:28px;">&times;</span>
+            </div>
+            <div class="modal-body" style="padding: 22px 24px;">
+                <div class="perf-range">
+                    <input type="date" id="perfFrom"><span>–</span><input type="date" id="perfTo">
+                    <button id="perfClear" class="gi-alltime">Tüm Zamanlar</button>
+                </div>
+                <h4 class="perf-h">Departman</h4>
+                <div id="perfDeptChart" class="perf-chart"></div>
+                <h4 class="perf-h">Personel</h4>
+                <div id="perfStaffChart" class="perf-chart"></div>
             </div>
         </div>
     </div>

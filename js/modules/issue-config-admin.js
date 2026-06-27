@@ -92,6 +92,7 @@
         $('issueModalTitle').textContent = d ? 'Departmanı Düzenle' : 'Departman Ekle';
         $('issName').value = d ? (d.name || '') : '';
         $('issKind').value = d ? (d.kind || 'both') : 'both';
+        if ($('issSla')) $('issSla').value = (d && d.sla) ? d.sla : '';
         $('issueDeleteBtn').style.display = d ? 'block' : 'none';
         $('issueModal').style.display = 'flex';
     }
@@ -115,7 +116,10 @@
         const name = $('issName').value.trim();
         if (!name) { toast('Departman adı zorunlu.', true); return; }
         const kind = $('issKind').value;
+        const slaRaw = $('issSla') ? $('issSla').value.trim() : '';
+        const sla = slaRaw ? Math.max(1, parseInt(slaRaw, 10) || 0) : 0;
         const obj = { name: name, kind: kind };
+        if (sla > 0) obj.sla = sla; // boş → alan yazılmaz (varsayılan SLA'ya düşer)
 
         if (editingIdx >= 0) {
             depts[editingIdx] = obj;
@@ -156,7 +160,8 @@
         if (!Array.isArray(list)) return [];
         return list.map(d => ({
             name: String((d && d.name) || '').trim(),
-            kind: (d && (d.kind === 'request' || d.kind === 'complaint')) ? d.kind : 'both'
+            kind: (d && (d.kind === 'request' || d.kind === 'complaint')) ? d.kind : 'both',
+            ...(d && Number(d.sla) > 0 ? { sla: Math.round(Number(d.sla)) } : {})
         })).filter(d => d.name);
     }
     function listen() {
