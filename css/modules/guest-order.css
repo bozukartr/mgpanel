@@ -319,62 +319,65 @@ input, textarea { font-family: inherit; }
 /* ════════════════════════════════════════════════════════════
    Misafir ANA EKRAN yeniden tasarımı (referans: premium home)
    ════════════════════════════════════════════════════════════ */
-#goCatalogView { padding-bottom: calc(96px + var(--safe-bottom)); }
+#goCatalogView { padding-bottom: calc(98px + var(--safe-bottom)); }
 
 /* Header — açık krem, kişiselleştirilmiş */
 .go-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
-    padding: calc(16px + var(--safe-top)) 22px 8px; }
-.go-hd-text { min-width: 0; }
-.go-hd-eyebrow { font-size: 15px; font-weight: 500; color: var(--text-muted); letter-spacing: .2px; }
-.go-hd-name { font-size: 31px; line-height: 1.05; font-weight: 800; letter-spacing: -.8px; color: var(--text);
-    margin: 2px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.go-hd-room { display: inline-block; margin-top: 5px; font-size: 15px; font-weight: 600; color: var(--text-muted); }
-.go-hd-bell { position: relative; width: 50px; height: 50px; flex-shrink: 0; border-radius: 50%;
+    padding: calc(18px + var(--safe-top)) 24px 16px; }
+.go-hd-text { min-width: 0; padding-top: 2px; }
+.go-hd-eyebrow { font-size: 16px; font-weight: 500; color: var(--text-muted); letter-spacing: .2px; }
+.go-hd-name { font-size: 34px; line-height: 1.04; font-weight: 800; letter-spacing: -1px; color: var(--text);
+    margin: 4px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.go-hd-room { display: inline-block; margin-top: 8px; font-size: 16px; font-weight: 500; color: var(--text-muted); }
+.go-hd-bell { position: relative; width: 56px; height: 56px; flex-shrink: 0; border-radius: 50%;
     background: var(--surface); border: 1px solid var(--border); color: var(--text);
-    display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); transition: transform .12s; }
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 18px rgba(45,40,28,.10); transition: transform .12s; }
+.go-hd-bell svg { width: 24px; height: 24px; }
 .go-hd-bell:active { transform: scale(.92); }
-.go-bell-dot { position: absolute; top: 11px; right: 12px; width: 9px; height: 9px; border-radius: 50%;
+.go-bell-dot { position: absolute; top: 13px; right: 14px; width: 10px; height: 10px; border-radius: 50%;
     background: #dc2626; border: 2px solid var(--surface); }
 
-/* Hero görsel bandı (config.heroImage varsa JS doldurur) */
-.go-hero-img { height: 168px; margin: 14px 16px 4px; border-radius: 22px; overflow: hidden;
+/* Hero — tam genişlik; içerik tabakası altından kıvrılarak yükselir */
+.go-hero-img { height: 230px; margin: 0; border-radius: 0; overflow: hidden; position: relative;
     background: linear-gradient(155deg, #cfdad6 0%, #e7dcc9 48%, #d6c4a8 100%);
-    background-size: cover; background-position: center; box-shadow: var(--shadow);
-    position: relative; }
-.go-hero-img::after { content: ''; position: absolute; inset: 0; border-radius: 22px;
-    box-shadow: inset 0 -40px 60px rgba(33,31,26,.10); }
-.go-hero-img.has-photo::after { box-shadow: inset 0 -60px 80px rgba(20,18,14,.32); }
+    background-size: cover; background-position: center; }
+.go-hero-img::after { content: ''; position: absolute; inset: 0;
+    box-shadow: inset 0 -50px 70px rgba(33,31,26,.12); }
+.go-hero-img.has-photo::after { box-shadow: inset 0 -70px 90px rgba(20,18,14,.28); }
 
-.go-welcome { font-size: 14px; color: var(--text-muted); line-height: 1.5; margin: 14px 22px 0; }
+/* İçerik tabakası: hero'nun üstüne yuvarlak köşelerle biner */
+.go-home-sheet { position: relative; z-index: 1; background: var(--bg);
+    border-radius: 30px 30px 0 0; margin-top: -28px; padding-top: 24px;
+    box-shadow: 0 -10px 28px rgba(45,40,28,.05); }
+
+.go-welcome { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin: 0 24px 2px; }
 
 /* Büyük renkli kategori kartları */
-.go-cards { display: flex; flex-direction: column; gap: 14px; padding: 18px 16px 6px; }
-.go-card-big { display: flex; align-items: center; gap: 16px; width: 100%; text-align: left;
-    border-radius: 22px; padding: 22px 20px; color: #f3efe2; box-shadow: 0 14px 34px rgba(45,40,28,.14);
-    transition: transform .12s, box-shadow .2s; }
+.go-cards { display: flex; flex-direction: column; gap: 18px; padding: 4px 20px 8px; }
+.go-card-big { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+    border-radius: 28px; padding: 24px 20px; min-height: 116px; color: #f4f1e9;
+    box-shadow: 0 16px 38px rgba(45,40,28,.13); transition: transform .14s; }
 .go-card-big:active { transform: scale(.985); }
-.go-cb-ico { width: 78px; height: 78px; flex-shrink: 0; border-radius: 50%;
-    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
-    display: flex; align-items: center; justify-content: center; color: #f6f2e8; }
-.go-cb-ico svg { width: 36px; height: 36px; }
+.go-cb-ico { width: 84px; height: 84px; flex-shrink: 0; border-radius: 50%;
+    background: rgba(255,255,255,.08); display: flex; align-items: center; justify-content: center; color: #f6f3ec; }
+.go-cb-ico svg { width: 42px; height: 42px; stroke-width: 1.5; }
 .go-cb-txt { flex: 1; min-width: 0; }
-.go-cb-title { display: block; font-size: 25px; font-weight: 800; letter-spacing: -.5px; line-height: 1.05; }
-.go-cb-sub { display: block; font-size: 14px; line-height: 1.4; margin-top: 6px; color: rgba(243,239,226,.82); }
-.go-cb-chev { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%;
-    background: rgba(255,255,255,.14); display: flex; align-items: center; justify-content: center; color: #f6f2e8; }
+.go-cb-title { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.6px; line-height: 1.05; }
+.go-cb-sub { display: block; font-size: 14.5px; line-height: 1.4; margin-top: 7px; color: rgba(244,241,233,.78); }
+.go-cb-chev { width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%;
+    background: rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; color: #f6f3ec; }
 .go-cb-chev svg { width: 22px; height: 22px; }
 
-/* Küçük kareler (4'ten fazla kategori olduğunda) */
-.go-cards-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 0 16px 6px; }
-.go-mtile { background: var(--surface); border: 1px solid var(--border); border-radius: 22px;
-    padding: 22px 16px; display: flex; flex-direction: column; align-items: center; gap: 12px;
-    box-shadow: var(--shadow); transition: transform .12s; }
+/* Küçük hızlı kareler — yalnız ikon (referans) */
+.go-cards-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 0 20px 8px; }
+.go-mtile { background: var(--surface); border-radius: 26px; padding: 28px 16px;
+    display: flex; align-items: center; justify-content: center; min-height: 150px;
+    box-shadow: 0 12px 30px rgba(45,40,28,.08); transition: transform .12s; }
 .go-mtile:active { transform: scale(.97); }
-.go-mtile-ico { width: 64px; height: 64px; border-radius: 50%; background: #efe9dc; color: var(--primary-dark);
+.go-mtile-ico { width: 100px; height: 100px; border-radius: 50%; background: #efeadd; color: var(--primary-dark);
     display: flex; align-items: center; justify-content: center; }
-.go-mtile-ico svg { width: 30px; height: 30px; }
-.go-mtile-name { font-size: 14.5px; font-weight: 700; color: var(--text); text-align: center; line-height: 1.2; }
-.go-mtile-sub { font-size: 12px; color: var(--text-muted); text-align: center; }
+.go-mtile-ico svg { width: 46px; height: 46px; stroke-width: 1.6; }
 
 /* Kategori detay üst çubuğu */
 .go-catbar { display: flex; align-items: center; gap: 12px; padding: calc(14px + var(--safe-top)) 18px 8px; }
@@ -387,18 +390,17 @@ input, textarea { font-family: inherit; }
 
 /* Alt navigasyon */
 .go-bnav { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 540px;
-    z-index: 45; display: grid; grid-template-columns: repeat(5, 1fr); align-items: end;
-    background: rgba(252,250,244,.94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border-top: 1px solid var(--border); padding: 8px 6px calc(8px + var(--safe-bottom)); }
-.go-bn { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #9b9788; font-weight: 600;
-    padding: 4px 0; }
-.go-bn svg { width: 24px; height: 24px; }
-.go-bn span { font-size: 10.5px; }
-.go-bn.active { color: var(--primary-dark); }
-.go-bn-qr { color: var(--primary-dark); }
-.go-bn-qric { width: 52px; height: 52px; margin-top: -22px; border-radius: 50%;
-    background: var(--primary-dark); color: #f6f2e8; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 10px 24px rgba(15,61,52,.4); border: 3px solid var(--bg); }
+    z-index: 45; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 10px 6px calc(10px + var(--safe-bottom)); box-shadow: 0 -6px 20px rgba(45,40,28,.05); }
+.go-bn { display: flex; flex-direction: column; align-items: center; gap: 5px; color: #a7a294; font-weight: 500;
+    padding: 2px 0; }
+.go-bn svg { width: 25px; height: 25px; }
+.go-bn span { font-size: 11px; }
+.go-bn.active { color: var(--text); }
+.go-bn-qric { width: 56px; height: 56px; margin: -16px 0 2px; border-radius: 50%;
+    background: var(--primary-dark); color: #fff; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(15,61,52,.35); }
 .go-bn-qric svg { width: 24px; height: 24px; }
 
 /* Yüzen sepet/mini çubuğu alt nav'ın üstüne taşı */

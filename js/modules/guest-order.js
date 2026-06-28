@@ -130,11 +130,11 @@
     // Category → line icon + gradient (keyword based).
     function catKind(cat) {
         const c = String(cat || '').toLowerCase();
-        if (/temiz|housekeep|clean/.test(c)) return 'temiz';
-        if (/konfor|comfort|amenit/.test(c)) return 'konfor';
-        if (/yiyecek|içecek|icecek|food|beverage|restoran|minibar/.test(c)) return 'food';
-        if (/teknik|tech|engineer|ariza|arıza|maintenance/.test(c)) return 'teknik';
-        if (/resepsiyon|front|concierge/.test(c)) return 'bell';
+        if (/temiz|housekeep|clean|kat hizmet|oda temiz/.test(c)) return 'temiz';
+        if (/konfor|comfort|amenit|buklet/.test(c)) return 'konfor';
+        if (/yiyecek|içecek|icecek|food|beverage|restoran|minibar|mini bar|oda servis|room service|kahvalt/.test(c)) return 'food';
+        if (/teknik|tech|engineer|ariza|arıza|maintenance|tamir/.test(c)) return 'teknik';
+        if (/resepsiyon|front|concierge|konsiyerj|karşılama|danışma/.test(c)) return 'bell';
         return 'other';
     }
     const CAT_ICON = {
@@ -155,14 +155,23 @@
     };
     const catIcon = (cat, size) => svg(CAT_ICON[catKind(cat)] || CAT_ICON.other, size);
     const catGrad = cat => CAT_GRAD[catKind(cat)] || CAT_GRAD.other;
+    // Friendly two-line blurb under each big card title (reference style); '' → count fallback.
+    const CAT_BLURB = {
+        bell: 'İhtiyacınız olan her konuda size yardımcı olalım.',
+        temiz: 'Temizlik, havlu, buklet ürün ve daha fazlası.',
+        konfor: 'Konaklamanızı daha keyifli kılacak detaylar.',
+        food: 'Yiyecek ve içecek siparişleriniz için buradayız.',
+        teknik: 'Odanızdaki teknik sorunları hızla çözelim.'
+    };
+    const catBlurb = cat => CAT_BLURB[catKind(cat)] || '';
     // Premium, index-based palette for the home category cards (dark green / taupe
     // / navy / warm-brown / muted-green) — matches the reference hotel-home design.
     const CARD_PALETTE = [
-        'linear-gradient(150deg,#15564a,#0c382f)',
-        'linear-gradient(150deg,#9c8c72,#7c6c52)',
-        'linear-gradient(150deg,#28354f,#151e31)',
-        'linear-gradient(150deg,#7c5340,#553529)',
-        'linear-gradient(150deg,#4f6457,#36453c)'
+        'linear-gradient(160deg,#3a5644,#2e4636)',
+        'linear-gradient(160deg,#928568,#7d7058)',
+        'linear-gradient(160deg,#34485c,#293a4b)',
+        'linear-gradient(160deg,#7b5a44,#5f4434)',
+        'linear-gradient(160deg,#536659,#3e4e44)'
     ];
 
     // ── Cart persistence ───────────────────────────────────────
@@ -348,15 +357,13 @@
         const bigCats = cats.slice(0, bigCount), miniCats = cats.slice(bigCount);
         const bigHtml = bigCats.map((c, i) => `
             <button class="go-card-big" data-cat="${esc(c)}" style="background:${CARD_PALETTE[i % CARD_PALETTE.length]}">
-                <span class="go-cb-ico">${catIcon(c, 30)}</span>
-                <span class="go-cb-txt"><span class="go-cb-title">${esc(c)}</span><span class="go-cb-sub">${esc(subLabel(c))}</span></span>
-                <span class="go-cb-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 20)}</span>
+                <span class="go-cb-ico">${catIcon(c, 48)}</span>
+                <span class="go-cb-txt"><span class="go-cb-title">${esc(c)}</span><span class="go-cb-sub">${esc(catBlurb(c) || subLabel(c))}</span></span>
+                <span class="go-cb-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 22)}</span>
             </button>`).join('');
         const miniHtml = miniCats.length ? `<div class="go-cards-mini">${miniCats.map(c => `
-            <button class="go-mtile" data-cat="${esc(c)}">
-                <span class="go-mtile-ico">${catIcon(c, 24)}</span>
-                <span class="go-mtile-name">${esc(c)}</span>
-                <span class="go-mtile-sub">${esc(subLabel(c))}</span>
+            <button class="go-mtile" data-cat="${esc(c)}" aria-label="${esc(c)}">
+                <span class="go-mtile-ico">${catIcon(c, 46)}</span>
             </button>`).join('')}</div>` : '';
         cards.innerHTML = bigHtml + miniHtml;
         cards.onclick = (e) => { const b = e.target.closest('[data-cat]'); if (b) openCategory(b.dataset.cat); };
