@@ -14,6 +14,28 @@
 (function () {
     'use strict';
 
+    // ── Isolated Firebase app (CRITICAL) ───────────────────────
+    // The guest signs in ANONYMOUSLY. Firebase Auth syncs the DEFAULT app's
+    // current user across every tab of the same origin — and the QR link is on
+    // the same origin as the staff app. If we used the shared `auth`, the
+    // guest's anonymous sign-in would REPLACE a logged-in staff member's
+    // session in their other tab (admin/panel/dashboard), turning every
+    // tenant-scoped query into a permission-denied error. We therefore use a
+    // dedicated secondary app with in-memory (NONE) persistence: the guest
+    // session stays local to this tab and never touches the staff session.
+    let auth, db;
+    (function initGuestApp() {
+        if (typeof firebase === 'undefined' || typeof firebaseConfig === 'undefined') return;
+        try {
+            let app;
+            try { app = firebase.app('guest'); }
+            catch (e) { app = firebase.initializeApp(firebaseConfig, 'guest'); }
+            auth = app.auth();
+            try { auth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) {}
+            db = app.firestore();
+        } catch (e) { /* firebase yüklenemedi → aşağıdaki guard ele alır */ }
+    })();
+
     // ── Tenant + room from the QR link ─────────────────────────
     const TENANT = (typeof resolveTenant === 'function' ? resolveTenant() : 'mgallery');
     const params = new URLSearchParams(window.location.search);
