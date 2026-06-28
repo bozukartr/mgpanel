@@ -288,6 +288,7 @@
             if (cur) cur.value = cfg.currency || '₺';
             if (sp) sp.checked = !!cfg.showPrices;
             if (rv) rv.checked = !!cfg.requireVerification;
+            const hi = $('cfgHeroImage'); if (hi) hi.value = cfg.heroImage || '';
             Object.keys(INFO_FIELDS).forEach(id => { const el = $(id); if (el) el.value = cfg[INFO_FIELDS[id]] || ''; });
             render();
         }).catch(err => console.error('config load failed', err));
@@ -297,7 +298,8 @@
             hotelName: ($('cfgHotelName').value || '').trim().slice(0, 60),
             currency: ($('cfgCurrency').value || '₺').trim().slice(0, 4) || '₺',
             showPrices: $('cfgShowPrices').checked,
-            requireVerification: $('cfgRequireVerify').checked
+            requireVerification: $('cfgRequireVerify').checked,
+            heroImage: (($('cfgHeroImage') || {}).value || '').trim().slice(0, 500)
         };
         Object.keys(INFO_FIELDS).forEach(id => { const el = $(id); if (el) cfg[INFO_FIELDS[id]] = (el.value || '').trim().slice(0, 160); });
         db.collection(CFG).doc(TENANT_ID).set(Object.assign({ tenantId: TENANT_ID, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, cfg), { merge: true })

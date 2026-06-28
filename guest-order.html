@@ -15,45 +15,66 @@
 <body>
     <!-- ── Catalog (browse) view ── -->
     <main id="goCatalogView">
-        <header class="go-header">
-            <div class="go-topbar">
-                <div class="go-hotel">
-                    <span class="go-hotel-ico">
-                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
-                    </span>
-                    <span id="goHotelName">StayOS</span>
-                </div>
-                <div class="go-top-r">
-                    <button class="go-ic" id="goInfoIc" aria-label="Otel Bilgileri" style="display:none;">
-                        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <!-- Home screen -->
+        <section id="goHome">
+            <div class="go-top" id="goHeroImg">
+                <header class="go-hd">
+                    <div class="go-hd-text">
+                        <span class="go-hd-eyebrow">Hoş Geldiniz</span>
+                        <h1 class="go-hd-name" id="goHotelName">StayOS</h1>
+                        <span class="go-hd-room" id="goRoomLabel" style="display:none;">Oda —</span>
+                    </div>
+                    <button class="go-hd-bell" id="goTrackIc" aria-label="Taleplerim">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.95 1.95 0 0 0 3.4 0"/></svg>
+                        <span class="go-bell-dot" id="goBellDot" style="display:none;"></span>
                     </button>
-                    <button class="go-ic" id="goTrackIc" aria-label="Taleplerim">
-                        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                    </button>
+                </header>
+            </div>
+            <div class="go-home-sheet">
+                <p class="go-welcome" id="goSub" style="display:none;"></p>
+                <div class="go-cards" id="goCards"><div class="go-spinner"></div></div>
+                <div class="go-legal">
+                    Talebinizi oluşturarak verilerinizin hizmet amacıyla işlenmesini kabul edersiniz.
+                    <a href="legal/kvkk-aydinlatma.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>
                 </div>
             </div>
-            <div class="go-hero">
-                <span class="go-eyebrow">Dijital Concierge</span>
-                <h1 class="go-title">Hizmetinizdeyiz.</h1>
-                <p class="go-sub" id="goSub">İhtiyacınız olan hizmeti seçin, anında ekibimize iletelim.</p>
-                <div class="go-room-chip" id="goRoomChip" style="display:none;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                    <span id="goRoomLabel">Oda —</span>
-                </div>
-            </div>
-        </header>
+        </section>
 
-        <div class="go-scroll">
-            <div class="go-tiles" id="goTiles"></div>
-            <div class="go-body" id="goBody">
-                <div class="go-spinner"></div>
+        <!-- Category items screen -->
+        <section id="goCatView" class="go-hidden">
+            <div class="go-catbar">
+                <button class="go-back2" id="goCatBack" aria-label="Geri">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <h2 id="goCatTitle">Hizmetler</h2>
             </div>
-            <div class="go-legal">
-                Talebinizi oluşturarak verilerinizin hizmet amacıyla işlenmesini kabul edersiniz.
-                <a href="legal/kvkk-aydinlatma.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>
-            </div>
-        </div>
+            <div class="go-body" id="goBody"></div>
+        </section>
     </main>
+
+    <!-- ── Bottom nav (guest HUD) ── -->
+    <nav class="go-bnav" id="goBnav">
+        <button class="go-bn active" data-nav="home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+            <span>Ana Sayfa</span>
+        </button>
+        <button class="go-bn" data-nav="orders">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+            <span>Siparişlerim</span>
+        </button>
+        <button class="go-bn go-bn-qr" data-nav="qr">
+            <span class="go-bn-qric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="17.5" y1="14" x2="17.5" y2="17.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg></span>
+            <span>QR</span>
+        </button>
+        <button class="go-bn" data-nav="notif">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.95 1.95 0 0 0 3.4 0"/></svg>
+            <span>Bildirimler</span>
+        </button>
+        <button class="go-bn" data-nav="profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19.2a6 6 0 0 1 11 0"/></svg>
+            <span>Profil</span>
+        </button>
+    </nav>
 
     <!-- ── Floating stack: live mini-tracker + cart bar ── -->
     <div class="go-floats">

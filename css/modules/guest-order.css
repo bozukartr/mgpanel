@@ -315,3 +315,102 @@ input, textarea { font-family: inherit; }
 .go-card-unavail .go-emoji { filter: grayscale(.6); }
 .go-unavail-tag { flex-shrink: 0; font-size: 11.5px; font-weight: 800; color: #94a3b8; background: #f1f5f9;
     border-radius: 11px; padding: 9px 11px; text-align: center; line-height: 1.2; white-space: nowrap; }
+
+/* ════════════════════════════════════════════════════════════
+   Misafir ANA EKRAN yeniden tasarımı (referans: premium home)
+   ════════════════════════════════════════════════════════════ */
+/* ── Native app kabuğu: sabit başlık + kaydırılan içerik + sabit alt nav ── */
+#goCatalogView { padding-bottom: 0; }
+#goHome, #goCatView { position: fixed; top: 0; bottom: 0; left: 0; right: 0;
+    max-width: 540px; margin: 0 auto; background: var(--bg);
+    display: flex; flex-direction: column; }
+
+/* Üst blok — hero fotoğraf; selamlama başlığı fotoğrafın üzerine biner */
+.go-top { position: relative; flex-shrink: 0; min-height: 196px; overflow: hidden;
+    background: linear-gradient(155deg, #cfdad6 0%, #e7dcc9 48%, #d6c4a8 100%);
+    background-size: cover; background-position: center; }
+.go-top::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(246,243,234,.96) 0%, rgba(246,243,234,.7) 34%,
+        rgba(246,243,234,.28) 56%, rgba(246,243,234,0) 86%); }
+.go-top.has-photo::before { background: linear-gradient(180deg, rgba(246,243,234,.94) 0%,
+        rgba(246,243,234,.72) 33%, rgba(246,243,234,.3) 55%, rgba(246,243,234,0) 84%); }
+
+.go-hd { position: relative; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 14px; padding: calc(16px + var(--safe-top)) 22px 14px; }
+.go-hd-text { min-width: 0; padding-top: 2px; }
+.go-hd-eyebrow { font-size: 16px; font-weight: 500; color: var(--text-muted); letter-spacing: .2px; }
+.go-hd-name { font-size: 33px; line-height: 1.04; font-weight: 800; letter-spacing: -1px; color: var(--text);
+    margin: 3px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.go-hd-room { display: inline-block; margin-top: 7px; font-size: 16px; font-weight: 500; color: var(--text-muted); }
+.go-hd-bell { position: relative; width: 54px; height: 54px; flex-shrink: 0; border-radius: 50%;
+    background: var(--surface); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 18px rgba(45,40,28,.12); transition: transform .12s; }
+.go-hd-bell svg { width: 23px; height: 23px; }
+.go-hd-bell:active { transform: scale(.92); }
+.go-bell-dot { position: absolute; top: 12px; right: 13px; width: 10px; height: 10px; border-radius: 50%;
+    background: #dc2626; border: 2px solid var(--surface); }
+
+/* İçerik tabakası: hero'nun üstüne yuvarlak köşelerle biner ve KAYDIRILIR */
+.go-home-sheet { position: relative; z-index: 2; flex: 1 1 auto; min-height: 0;
+    overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg);
+    border-radius: 28px 28px 0 0; margin-top: -24px;
+    padding: 22px 0 calc(104px + var(--safe-bottom)); box-shadow: 0 -8px 24px rgba(45,40,28,.05); }
+
+.go-welcome { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin: 0 22px 2px; }
+
+/* Büyük renkli kategori kartları */
+.go-cards { display: flex; flex-direction: column; gap: 16px; padding: 4px 18px 6px; }
+.go-card-big { display: flex; align-items: center; gap: 16px; width: 100%; text-align: left;
+    border-radius: 26px; padding: 22px 22px; min-height: 116px; color: #f4f1e9;
+    box-shadow: 0 14px 32px rgba(45,40,28,.12); transition: transform .14s; }
+.go-card-big:active { transform: scale(.985); }
+.go-cb-ico { width: 78px; height: 78px; flex-shrink: 0; border-radius: 50%;
+    background: rgba(255,255,255,.085); display: flex; align-items: center; justify-content: center; color: #f6f3ec; }
+.go-cb-ico svg { width: 40px; height: 40px; stroke-width: 1.5; }
+.go-cb-txt { flex: 1; min-width: 0; }
+.go-cb-title { display: block; font-size: 25px; font-weight: 800; letter-spacing: -.6px; line-height: 1.05; }
+.go-cb-sub { display: block; font-size: 14px; line-height: 1.4; margin-top: 6px; color: rgba(244,241,233,.78); }
+.go-cb-chev { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%;
+    background: rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; color: #f6f3ec; }
+.go-cb-chev svg { width: 22px; height: 22px; }
+
+/* Küçük hızlı kareler — yalnız ikon (referans) */
+.go-cards-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 18px 6px; }
+.go-mtile { background: var(--surface); border-radius: 24px; padding: 22px 16px;
+    display: flex; align-items: center; justify-content: center; min-height: 132px;
+    box-shadow: 0 12px 28px rgba(45,40,28,.07); transition: transform .12s; }
+.go-mtile:active { transform: scale(.97); }
+.go-mtile-ico { width: 86px; height: 86px; border-radius: 50%; background: #efeadd; color: var(--primary-dark);
+    display: flex; align-items: center; justify-content: center; }
+.go-mtile-ico svg { width: 40px; height: 40px; stroke-width: 1.6; }
+
+/* Kategori detay üst çubuğu */
+.go-catbar { flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+    padding: calc(16px + var(--safe-top)) 18px 10px; background: var(--bg); }
+.go-back2 { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: var(--surface);
+    border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow); transition: transform .12s; }
+.go-back2:active { transform: scale(.92); }
+.go-catbar h2 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; margin: 0; color: var(--text); }
+#goCatView .go-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 6px 16px calc(104px + var(--safe-bottom)); }
+
+/* Alt navigasyon */
+.go-bnav { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 540px;
+    z-index: 45; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 10px 6px calc(10px + var(--safe-bottom)); box-shadow: 0 -6px 20px rgba(45,40,28,.05); }
+.go-bn { display: flex; flex-direction: column; align-items: center; gap: 5px; color: #a7a294; font-weight: 500;
+    padding: 2px 0; }
+.go-bn svg { width: 25px; height: 25px; }
+.go-bn span { font-size: 11px; }
+.go-bn.active { color: var(--text); }
+.go-bn-qric { width: 56px; height: 56px; margin: -16px 0 2px; border-radius: 50%;
+    background: var(--primary-dark); color: #fff; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(15,61,52,.35); }
+.go-bn-qric svg { width: 24px; height: 24px; }
+
+/* Yüzen sepet/mini çubuğu alt nav'ın üstüne taşı */
+.go-floats { bottom: calc(82px + var(--safe-bottom)); }
+.go-toast { bottom: calc(150px + var(--safe-bottom)); }

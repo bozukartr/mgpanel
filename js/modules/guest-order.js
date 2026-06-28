@@ -64,8 +64,9 @@
 
     // Admin-controlled guest-page settings (collection `guestConfig/{tenant}`).
     const DEFAULT_CONFIG = { hotelName: '', showPrices: false, currency: '₺', requireVerification: false,
-        welcome: '', phone: '', wifiName: '', wifiPass: '', checkoutTime: '', breakfast: '', address: '' };
+        welcome: '', phone: '', wifiName: '', wifiPass: '', checkoutTime: '', breakfast: '', address: '', heroImage: '' };
     const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺', requireVerification: true,
+        heroImage: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1000&q=80',
         welcome: 'Konaklamanızın keyfini çıkarın — her şey bir dokunuş uzağınızda.',
         phone: '0 (212) 000 00 00', wifiName: 'GrandDemo-Guest', wifiPass: 'demo2024',
         checkoutTime: '12:00', breakfast: '07:00 – 10:30 · Lobi Restoran', address: 'Sahil Cad. No:1, İstanbul' };
@@ -130,11 +131,11 @@
     // Category → line icon + gradient (keyword based).
     function catKind(cat) {
         const c = String(cat || '').toLowerCase();
-        if (/temiz|housekeep|clean/.test(c)) return 'temiz';
-        if (/konfor|comfort|amenit/.test(c)) return 'konfor';
-        if (/yiyecek|içecek|icecek|food|beverage|restoran|minibar/.test(c)) return 'food';
-        if (/teknik|tech|engineer|ariza|arıza|maintenance/.test(c)) return 'teknik';
-        if (/resepsiyon|front|concierge/.test(c)) return 'bell';
+        if (/temiz|housekeep|clean|kat hizmet|oda temiz/.test(c)) return 'temiz';
+        if (/konfor|comfort|amenit|buklet/.test(c)) return 'konfor';
+        if (/yiyecek|içecek|icecek|food|beverage|restoran|minibar|mini bar|oda servis|room service|kahvalt/.test(c)) return 'food';
+        if (/teknik|tech|engineer|ariza|arıza|maintenance|tamir/.test(c)) return 'teknik';
+        if (/resepsiyon|front|concierge|konsiyerj|karşılama|danışma/.test(c)) return 'bell';
         return 'other';
     }
     const CAT_ICON = {
@@ -155,6 +156,24 @@
     };
     const catIcon = (cat, size) => svg(CAT_ICON[catKind(cat)] || CAT_ICON.other, size);
     const catGrad = cat => CAT_GRAD[catKind(cat)] || CAT_GRAD.other;
+    // Friendly two-line blurb under each big card title (reference style); '' → count fallback.
+    const CAT_BLURB = {
+        bell: 'İhtiyacınız olan her konuda size yardımcı olalım.',
+        temiz: 'Temizlik, havlu, buklet ürün ve daha fazlası.',
+        konfor: 'Konaklamanızı daha keyifli kılacak detaylar.',
+        food: 'Yiyecek ve içecek siparişleriniz için buradayız.',
+        teknik: 'Odanızdaki teknik sorunları hızla çözelim.'
+    };
+    const catBlurb = cat => CAT_BLURB[catKind(cat)] || '';
+    // Premium, index-based palette for the home category cards (dark green / taupe
+    // / navy / warm-brown / muted-green) — matches the reference hotel-home design.
+    const CARD_PALETTE = [
+        'linear-gradient(160deg,#3a5644,#2e4636)',
+        'linear-gradient(160deg,#928568,#7d7058)',
+        'linear-gradient(160deg,#34485c,#293a4b)',
+        'linear-gradient(160deg,#7b5a44,#5f4434)',
+        'linear-gradient(160deg,#536659,#3e4e44)'
+    ];
 
     // ── Cart persistence ───────────────────────────────────────
     function loadCart() {
@@ -166,7 +185,7 @@
 
     // ── Boot ───────────────────────────────────────────────────
     function boot() {
-        if (ROOM) { $('goRoomChip').style.display = 'inline-flex'; $('goRoomLabel').textContent = 'Oda ' + ROOM; }
+        if (ROOM) { const rl = $('goRoomLabel'); if (rl) { rl.style.display = 'inline-block'; rl.textContent = 'Oda ' + ROOM; } }
         loadCart();
         wireEvents();
         renderCartBar();
@@ -215,7 +234,17 @@
         const hasInfo = ['welcome', 'phone', 'wifiName', 'wifiPass', 'checkoutTime', 'breakfast', 'address']
             .some(k => config[k] && String(config[k]).trim());
         const ic = $('goInfoIc'); if (ic) ic.style.display = hasInfo ? '' : 'none';
+        applyHero();
         renderHotelInfo();
+    }
+
+    // Optional admin-set hero photo; falls back to the warm CSS gradient.
+    function applyHero() {
+        const el = $('goHeroImg');
+        if (!el) return;
+        const url = (config.heroImage || '').trim();
+        el.style.backgroundImage = url ? `url("${url.replace(/"/g, '%22')}")` : '';
+        el.classList.toggle('has-photo', !!url);
     }
 
     // ── Hotel info sheet ───────────────────────────────────────
@@ -304,39 +333,61 @@
     }
 
     // ── Render ─────────────────────────────────────────────────
+    function catVisible() { const v = $('goCatView'); return v && !v.classList.contains('go-hidden'); }
+
     function renderAll() {
-        if (!catalog.length) {
-            $('goTiles').innerHTML = '';
-            $('goBody').innerHTML = stateHtml('🛎️', 'Henüz hizmet tanımlanmamış',
-                'Bu otel için talepler henüz hazır değil. Lütfen resepsiyon ile iletişime geçin.');
-            return;
-        }
-        renderTiles();
-        renderItems();
-        refreshStepControls();
+        renderHome();
+        // Keep the open category screen (if any) in sync with catalog/cart changes.
+        if (catVisible()) { renderItems(); refreshStepControls(); }
         renderCartBar();
     }
 
-    function renderTiles() {
+    // Home screen: big colour-coded category cards (+ compact tiles when many).
+    function renderHome() {
+        const cards = $('goCards');
+        if (!cards) return;
+        if (!catalog.length) {
+            cards.innerHTML = stateHtml('🛎️', 'Henüz hizmet tanımlanmamış',
+                'Bu otel için talepler henüz hazır değil. Lütfen resepsiyon ile iletişime geçin.');
+            return;
+        }
         const cats = categories();
-        if (!activeCat || !cats.includes(activeCat)) activeCat = cats[0];
-        $('goTiles').innerHTML = cats.map(c => {
-            const count = catalog.filter(i => (i.category || 'Diğer') === c).length;
-            return `<button class="go-tile ${c === activeCat ? 'active' : ''}" data-cat="${esc(c)}">
-                <span class="go-tile-ico">${catIcon(c, 26)}</span>
-                <div class="go-tile-txt"><div class="go-tile-name">${esc(c)}</div><div class="go-tile-count">${count} hizmet</div></div>
-                <span class="go-tile-check">✓</span>
-            </button>`;
-        }).join('');
-        $('goTiles').onclick = (e) => {
-            const t = e.target.closest('.go-tile');
-            if (!t || t.dataset.cat === activeCat) return;
-            activeCat = t.dataset.cat;
-            activeSub = 'all';
-            renderTiles();
-            renderItems();
-            refreshStepControls();
-        };
+        const subLabel = (c) => catalog.filter(i => (i.category || 'Diğer') === c).length + ' hizmet';
+        // ≤4 categories → all as big cards; otherwise first 3 big + the rest as mini tiles.
+        const bigCount = cats.length <= 4 ? cats.length : 3;
+        const bigCats = cats.slice(0, bigCount), miniCats = cats.slice(bigCount);
+        const bigHtml = bigCats.map((c, i) => `
+            <button class="go-card-big" data-cat="${esc(c)}" style="background:${CARD_PALETTE[i % CARD_PALETTE.length]}">
+                <span class="go-cb-ico">${catIcon(c, 48)}</span>
+                <span class="go-cb-txt"><span class="go-cb-title">${esc(c)}</span><span class="go-cb-sub">${esc(catBlurb(c) || subLabel(c))}</span></span>
+                <span class="go-cb-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 22)}</span>
+            </button>`).join('');
+        const miniHtml = miniCats.length ? `<div class="go-cards-mini">${miniCats.map(c => `
+            <button class="go-mtile" data-cat="${esc(c)}" aria-label="${esc(c)}">
+                <span class="go-mtile-ico">${catIcon(c, 46)}</span>
+            </button>`).join('')}</div>` : '';
+        cards.innerHTML = bigHtml + miniHtml;
+        cards.onclick = (e) => { const b = e.target.closest('[data-cat]'); if (b) openCategory(b.dataset.cat); };
+    }
+
+    // Drill into one category's items (second screen).
+    function openCategory(cat) {
+        activeCat = cat;
+        activeSub = 'all';
+        const title = $('goCatTitle'); if (title) title.textContent = cat;
+        renderItems();
+        refreshStepControls();
+        $('goHome').classList.add('go-hidden');
+        $('goCatView').classList.remove('go-hidden');
+        renderCartBar();
+        window.scrollTo(0, 0);
+    }
+    function backToHome() {
+        $('goCatView').classList.add('go-hidden');
+        $('goHome').classList.remove('go-hidden');
+        renderHome();
+        renderCartBar();
+        window.scrollTo(0, 0);
     }
 
     function subcatsOf(cat) {
@@ -375,9 +426,7 @@
             }).join('');
         }
 
-        $('goBody').innerHTML = `
-            <div class="go-items-head"><span class="ih-ico">${catIcon(activeCat, 19)}</span><h2>${esc(activeCat)}</h2></div>
-            ${chips}${body}`;
+        $('goBody').innerHTML = `${chips}${body}`;
         bindBodyEvents();
     }
 
@@ -561,7 +610,7 @@
         if (!ROOM) {
             const r = (prompt('Oda numaranızı girin:') || '').trim().slice(0, 40);
             if (!r) { toast('Oda numarası gerekli.', true); return; }
-            ROOM = r; $('goRoomChip').style.display = 'inline-flex'; $('goRoomLabel').textContent = 'Oda ' + ROOM;
+            ROOM = r; const rl = $('goRoomLabel'); if (rl) { rl.style.display = 'inline-block'; rl.textContent = 'Oda ' + ROOM; }
         }
         const btn = $('goSubmit');
         btn.disabled = true; setSubmitLabel('Gönderiliyor...');
@@ -642,12 +691,16 @@
         }, err => { console.error('track failed', err); });
     }
 
+    // Header bell + bottom-nav badge mirror whether there's a live order.
+    function setBellDot(on) { const d = $('goBellDot'); if (d) d.style.display = on ? '' : 'none'; }
+
     // Single entry point for every order change (real or demo).
     function onOrderUpdate(order, openDetailNow) {
         const prev = lastStatus;
         currentOrder = order;
         currentOrderId = order.id;
         activeOrderStatus = order.status;
+        setBellDot(order.status !== 'completed' && order.status !== 'cancelled');
         if (order.status === 'completed' || order.status === 'cancelled') {
             try { localStorage.removeItem(ORDER_KEY); } catch (e) {}
         }
@@ -659,17 +712,24 @@
     }
     function clearActive() {
         currentOrder = null; activeOrderStatus = null; lastStatus = null;
+        setBellDot(false);
         renderMini(null);
         if (trackVisible()) showCatalogView();
     }
 
     function trackVisible() { return !$('goTrackView').classList.contains('go-hidden'); }
+    function setBnav(show) { const n = $('goBnav'); if (n) n.style.display = show ? '' : 'none'; }
+    function setNavActive(key) {
+        const n = $('goBnav'); if (!n) return;
+        n.querySelectorAll('.go-bn').forEach(x => x.classList.toggle('active', x.dataset.nav === key));
+    }
     function showTrackingView() {
         if (currentOrder) renderTracking(currentOrder);
         $('goGateView').classList.add('go-hidden');
         $('goCatalogView').classList.add('go-hidden');
         $('goTrackView').classList.remove('go-hidden');
         $('goCartBar').classList.remove('show');
+        setBnav(true);
         renderMini(currentOrder);
         window.scrollTo(0, 0);
     }
@@ -677,6 +737,8 @@
         $('goGateView').classList.add('go-hidden');
         $('goTrackView').classList.add('go-hidden');
         $('goCatalogView').classList.remove('go-hidden');
+        setBnav(true);
+        setNavActive('home');
         renderCartBar();
         renderMini(currentOrder);
         window.scrollTo(0, 0);
@@ -689,6 +751,7 @@
         $('goGateView').classList.remove('go-hidden');
         $('goCartBar').classList.remove('show');
         $('goMini').classList.remove('show');
+        setBnav(false);
         const roomInput = $('goGateRoom');
         if (roomInput && ROOM) roomInput.value = ROOM;
         setTimeout(() => { const s = $('goGateSurname'); if (s) s.focus(); }, 120);
@@ -706,7 +769,7 @@
         const fail = (m) => { btn.disabled = false; lbl.textContent = 'Doğrula & Devam Et'; setErr(m); try { navigator.vibrate && navigator.vibrate(80); } catch (e) {} };
         const ok = () => {
             ROOM = room; recomputeKeys(); loadCart(); setVerified();
-            $('goRoomChip').style.display = 'inline-flex'; $('goRoomLabel').textContent = 'Oda ' + ROOM;
+            const rl = $('goRoomLabel'); if (rl) { rl.style.display = 'inline-block'; rl.textContent = 'Oda ' + ROOM; }
             btn.disabled = false; lbl.textContent = 'Doğrula & Devam Et';
             renderAll(); showCatalogView(); resumeOrder();
         };
@@ -881,13 +944,25 @@
         $('goSheetClose').onclick = closeSheet;
         $('goBackdrop').onclick = closeSheet;
         $('goSubmit').onclick = submitOrder;
-        $('goInfoIc').onclick = openInfoSheet;
+        const ii = $('goInfoIc'); if (ii) ii.onclick = openInfoSheet;
         $('goInfoClose').onclick = closeInfoSheet;
         $('goInfoBackdrop').onclick = closeInfoSheet;
         $('goMini').onclick = () => { if (currentOrder) showTrackingView(); };
         $('goTrackIc').onclick = () => {
             if (currentOrder) showTrackingView();
             else toast('Henüz aktif bir talebiniz yok.');
+        };
+        const catBack = $('goCatBack'); if (catBack) catBack.onclick = backToHome;
+        // Bottom guest nav: Ana Sayfa/QR → home, Siparişlerim/Bildirimler → tracking, Profil → otel bilgileri.
+        const bnav = $('goBnav');
+        if (bnav) bnav.onclick = (e) => {
+            const b = e.target.closest('[data-nav]'); if (!b) return;
+            const nav = b.dataset.nav;
+            if (nav === 'home' || nav === 'qr') { showCatalogView(); backToHome(); }
+            else if (nav === 'orders' || nav === 'notif') {
+                if (currentOrder) { showTrackingView(); setNavActive(nav); }
+                else toast('Henüz aktif bir talebiniz yok.');
+            } else if (nav === 'profile') openInfoSheet();
         };
         $('goGateBtn').onclick = doVerify;
         // Surname auto-uppercases (Turkish-aware: i→İ, ı→I) and accepts letters only.
