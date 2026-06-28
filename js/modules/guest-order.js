@@ -66,6 +66,7 @@
     const DEFAULT_CONFIG = { hotelName: '', showPrices: false, currency: '₺', requireVerification: false,
         welcome: '', phone: '', wifiName: '', wifiPass: '', checkoutTime: '', breakfast: '', address: '', heroImage: '' };
     const DEMO_CONFIG = { hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺', requireVerification: true,
+        heroImage: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1000&q=80',
         welcome: 'Konaklamanızın keyfini çıkarın — her şey bir dokunuş uzağınızda.',
         phone: '0 (212) 000 00 00', wifiName: 'GrandDemo-Guest', wifiPass: 'demo2024',
         checkoutTime: '12:00', breakfast: '07:00 – 10:30 · Lobi Restoran', address: 'Sahil Cad. No:1, İstanbul' };
