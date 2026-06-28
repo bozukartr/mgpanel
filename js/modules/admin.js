@@ -15,6 +15,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { toast.className = 'toast-notification'; }, 3000);
     }
 
+    // Kullanıcı departman seçenekleri issueConfig'ten gelir → bir kez yükle ve canlı tut.
+    if (window.IssueConfig) {
+        IssueConfig.load().catch(() => {});
+        if (IssueConfig.listen) IssueConfig.listen(() => {});
+    }
+
     // Verify admin access against Firestore (source of truth), not just localStorage.
     auth.onAuthStateChanged(async (u) => {
         if (!u) { window.location.href = 'login.html'; return; }
@@ -95,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('adminNewPassword').value = "********";
         document.getElementById('adminNewPassword').disabled = true;
         document.getElementById('adminUserRole').value = data.role;
-        document.getElementById('adminUserDept').value = data.department;
+        deptOptions(data.department);
         setUserModuleSel(data.modules);
         applyDeptPwUI();
         userModal.style.display = 'flex';
@@ -176,6 +182,23 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Modal Handlers
+    // Kullanıcı departmanı seçenekleri = issueConfig departmanları (talepler bu
+    // departmanlara yönlendirildiği için aynı liste) + F&B her zaman seçilebilir.
+    function deptOptions(currentValue) {
+        const sel = document.getElementById('adminUserDept');
+        if (!sel) return;
+        const names = [];
+        try {
+            (window.IssueConfig ? IssueConfig.departments() : []).forEach(d => {
+                if (d && d.name && names.indexOf(d.name) === -1) names.push(d.name);
+            });
+        } catch (e) { /* ignore */ }
+        if (names.indexOf(FNB_DEPT) === -1) names.push(FNB_DEPT);                 // F&B girişi için
+        if (currentValue && names.indexOf(currentValue) === -1) names.unshift(currentValue); // mevcut değeri koru
+        sel.innerHTML = names.map(n => `<option value="${String(n).replace(/"/g, '&quot;')}">${String(n).replace(/</g, '&lt;')}</option>`).join('');
+        sel.value = currentValue || (names[0] || '');
+    }
+
     // Departman = F&B seçilince şifre alanı 5 haneli (yalnızca rakam) kod olur.
     function applyDeptPwUI() {
         const dept = document.getElementById('adminUserDept').value;
@@ -202,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         userForm.reset();
         setUserModuleSel(null); // new users default to full access (all checked)
         document.getElementById('adminNewPassword').disabled = false;
+        deptOptions('');
         applyDeptPwUI();
     };
 
