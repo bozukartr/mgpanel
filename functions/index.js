@@ -597,3 +597,55 @@ exports.deleteUser = onCall({ region: REGION }, async (request) => {
   await db.collection('systemUsers').doc(uid).delete();
   return { deleted: true };
 });
+
+// ── Misafir adı (QR self-servis) — güvenli ad çözümleme ─────────────
+// Misafir sayfası anonim giriş yapar ve guestDirectory'yi OKUYAMAZ (kurallar
+// personel-only). Bu callable, verilen (tenant, oda, soyadı) bilgisini SUNUCU
+// tarafında guestDirectory ile eşleştirir ve tam adı YALNIZCA soyadı eşleşirse
+// döndürür. Böylece misafir adları toplu olarak sızdırılamaz: adı almak için
+// zaten o odanın soyadını bilmek gerekir.
+function _normTr(s) {
+  return String(s == null ? '' : s).trim().toLocaleLowerCase('tr')
+    .replace(/ı/g, 'i').replace(/ç/g, 'c').replace(/ş/g, 's')
+    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+function _nameTokens(name) {
+  return _normTr(name).split(/\s+/).filter((t) => t.length >= 2);
+}
+function _istanbulToday() {
+  const d = new Date(Date.now() + 3 * 3600 * 1000); // UTC+3 (Europe/Istanbul)
+  return d.toISOString().slice(0, 10);
+}
+
+exports.getGuestName = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const tenant = String(d.tenant || '').trim().toLowerCase().slice(0, 40);
+  const room = String(d.room || '').trim().slice(0, 40);
+  const surname = String(d.surname || '').trim().slice(0, 60);
+  if (!tenant || !room || !surname) return { ok: false };
+
+  // Tek alan (room) sorgusu → bileşik index gerektirmez; tenant kodda süzülür.
+  let snap;
+  try {
+    snap = await db.collection('guestDirectory').where('room', '==', room).limit(25).get();
+  } catch (e) {
+    return { ok: false };
+  }
+  const today = _istanbulToday();
+  const sTokens = _nameTokens(surname);
+  let matchName = '';
+  snap.forEach((doc) => {
+    if (matchName) return;
+    const g = doc.data() || {};
+    const gTenant = String(g.tenantId || 'mgallery').toLowerCase();
+    if (gTenant !== tenant) return;
+    if (g.status && g.status !== 'in_house') return;
+    if (g.checkOut && String(g.checkOut) < today) return; // çıkış yapmış
+    const gTokens = _nameTokens(g.name);
+    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) matchName = String(g.name || '').trim();
+  });
+
+  if (!matchName) return { ok: false };
+  return { ok: true, name: matchName };
+});
