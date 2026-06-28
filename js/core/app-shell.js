@@ -72,10 +72,15 @@
         setActive(route);
     }
 
-    // Hash değişimi → görünüm yükle
+    // Hash değişimi → görünüm yükle. Hash'te bir sorgu olabilir
+    // (ör. app.html#concierge?order=ID veya #kayitlar?open=ID); bunu iframe'e
+    // ilet ki bildirimle gelen kayıt odaklansın.
     function fromHash() {
-        var h = (location.hash || '').replace('#', '').split('?')[0];
-        loadRoute(h || defaultRoute());
+        var raw = (location.hash || '').replace(/^#/, '');
+        var qi = raw.indexOf('?');
+        var h = qi >= 0 ? raw.slice(0, qi) : raw;
+        var q = qi >= 0 ? raw.slice(qi + 1) : '';
+        loadRoute(h || defaultRoute(), q, !!q);
     }
     window.addEventListener('hashchange', fromHash);
 

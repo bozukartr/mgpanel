@@ -295,9 +295,11 @@ exports.onNotificationCreate = onDocumentCreated(
     if (!tokens.length) return;
 
     const recordId = n.recordId || '';
+    // App Shell rotaları (app.html#route) — eski bağımsız sayfalara (/panel.html,
+    // /concierge.html) değil; böylece bildirim tıklayınca sabit header/nav korunur.
     const link = (n.type === 'guestOrder')
-      ? '/concierge.html?orders=1'
-      : '/panel.html?open=' + encodeURIComponent(recordId);
+      ? '/app.html#concierge' + (recordId ? '?order=' + encodeURIComponent(recordId) : '')
+      : '/app.html#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
     const message = {
       notification: { title: n.title || 'StayOS', body: n.body || '' },
       data: {

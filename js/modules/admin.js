@@ -30,11 +30,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const uname = doc.exists ? (doc.data().username || '').toLowerCase() : '';
             if (role !== 'admin' && uname !== 'admin' && !isAdminUser) {
                 showToast('Unauthorized Access. Redirecting...', true);
-                setTimeout(() => window.location.href = 'concierge.html', 1500);
+                setTimeout(() => window.location.href = 'app.html', 1500);
             }
         } catch (e) {
             console.error('Auth check failed', e);
-            window.location.href = 'concierge.html';
+            window.location.href = 'app.html';
         }
     });
 
