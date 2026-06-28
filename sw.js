@@ -5,7 +5,7 @@
  * Web Push (FCM) hooks are stubbed below and will be wired once the sender
  * Cloud Function can be deployed.
  */
-const CACHE = 'stayos-shell-v3';
+const CACHE = 'stayos-shell-v4';
 const SHELL = ['logo.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -48,7 +48,7 @@ self.addEventListener('push', (event) => {
         body: data.body || 'Yeni bir bildiriminiz var.',
         icon: 'logo.png',
         badge: 'logo.png',
-        data: { url: data.url || '/panel.html' },
+        data: { url: data.url || '/app.html#kayitlar' },
         vibrate: [60, 40, 60]
     };
     event.waitUntil(self.registration.showNotification(title, options));
@@ -56,7 +56,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const url = (event.notification.data && event.notification.data.url) || '/panel.html';
+    const url = (event.notification.data && event.notification.data.url) || '/app.html#kayitlar';
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
             for (const c of list) { if ('focus' in c) { c.navigate(url); return c.focus(); } }
