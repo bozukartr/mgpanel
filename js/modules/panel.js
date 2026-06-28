@@ -636,16 +636,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 IssueConfig.addTopic(formData.topic);
             }
 
-            // Notify the assigned teammate in real time.
-            if (isRequest && selectedAssignee && window.RT) {
-                RT.sendNotification({
-                    toUid: selectedAssignee.uid,
-                    toUsername: selectedAssignee.username,
-                    type: 'request',
-                    title: 'Yeni talep: ' + (formData.department || ''),
-                    body: `Oda ${formData.room || '—'} · ${formData.guestName || ''} — ${(formData.complaint || '').slice(0, 80)}`,
-                    recordId: ref.id
-                }).catch(() => {});
+            // Talebi ilgili departmandaki tüm kullanıcılara (+ varsa atanan kişiye) bildir.
+            if (isRequest) {
+                notifyRequestTeam(formData, ref.id, selectedAssignee);
             }
 
             const assignedName = formData.assignedToName || '';
@@ -1455,6 +1448,27 @@ document.addEventListener('DOMContentLoaded', () => {
             mgrCacheAt = Date.now();
         } catch (e) { mgrCache = mgrCache || []; }
         return mgrCache;
+    }
+    // Talebi departmanına göre yönlendir: department alanı eşleşen tüm
+    // kullanıcılara (+ açıkça atanan kişiye) bildirim gönder. Kendine bildirmez.
+    async function notifyRequestTeam(record, recordId, assignee) {
+        const dept = (record.department || '').trim().toLowerCase();
+        const me = (firebase.auth().currentUser || {}).uid;
+        const recips = {}; // uid -> username
+        try {
+            const snap = await db.collection('systemUsers').where('tenantId', '==', TENANT_ID).get();
+            snap.docs.forEach(d => {
+                const u = d.data() || {};
+                if (dept && (u.department || '').trim().toLowerCase() === dept) recips[d.id] = (u.username || d.id);
+            });
+        } catch (e) { /* yine de atanan kişiye gider */ }
+        if (assignee && assignee.uid) recips[assignee.uid] = assignee.username || recips[assignee.uid] || assignee.uid;
+        if (me) delete recips[me];
+        const title = 'Yeni talep: ' + (record.department || '');
+        const body = `Oda ${record.room || '—'} · ${record.guestName || ''} — ${(record.complaint || '').slice(0, 80)}`;
+        Object.keys(recips).forEach(uid => {
+            if (window.RT) RT.sendNotification({ toUid: uid, toUsername: recips[uid], type: 'request', title: title, body: body, recordId: recordId }).catch(() => {});
+        });
     }
     async function escalateRecord(record, reason) {
         const ref = db.collection('guestLogs').doc(record.id);
