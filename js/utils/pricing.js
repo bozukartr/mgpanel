@@ -129,21 +129,47 @@
             pms: isBiz ? true : !!(pms && pms.checked)
         };
     }
+    // Lemon.js overlay (modal). Hazır değilse tam-sayfa yönlendirmeye düşer.
+    var lemonReady = false;
+    function ensureLemon() {
+        if (lemonReady) return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
+        if (typeof window.createLemonSqueezy === 'function') {
+            try {
+                window.createLemonSqueezy();
+                if (window.LemonSqueezy && window.LemonSqueezy.Setup) {
+                    window.LemonSqueezy.Setup({ eventHandler: function (e) {
+                        var name = e && (e.event || e.type || e.name);
+                        if (name === 'Checkout.Success') {
+                            window.location.href = '/payment-result.html?status=ok&provider=lemon';
+                        }
+                    } });
+                }
+                lemonReady = true;
+            } catch (err) { /* yok say */ }
+        }
+        return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
+    }
+    function openCheckout(url) {
+        var u = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'embed=1';
+        if (ensureLemon() && window.LemonSqueezy.Url.Open) { window.LemonSqueezy.Url.Open(u); }
+        else { window.location.href = url; }   // fallback
+    }
     qa('[data-pay]').forEach(function (b) {
         b.addEventListener('click', function () {
             var btn = this, label = btn.querySelector('#prPayLabel') || btn;
             var orig = label.textContent;
             btn.disabled = true; label.textContent = 'Hazırlanıyor…';
+            var reset = function () { btn.disabled = false; label.textContent = orig; };
             fetch('/api/lemon-checkout', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(quotePayload())
             }).then(function (res) { return res.json().then(function (d) { return { ok: res.ok, d: d }; }); })
               .then(function (out) {
-                  if (out.ok && out.d && out.d.url) { window.location.href = out.d.url; return; }
+                  if (out.ok && out.d && out.d.url) { openCheckout(out.d.url); reset(); return; }
                   throw new Error((out.d && out.d.error) || 'Ödeme başlatılamadı.');
               })
               .catch(function (e) {
-                  btn.disabled = false; label.textContent = orig;
+                  reset();
                   alert(e.message || 'Ödeme şu an başlatılamadı. Lütfen daha sonra tekrar deneyin veya “Teklif Al” ile iletişime geçin.');
               });
         });

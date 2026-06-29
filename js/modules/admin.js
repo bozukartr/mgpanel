@@ -606,18 +606,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // sayfasına gelir.
     const payLemonBtn = document.getElementById('payLemonBtn');
     if (payLemonBtn) {
+        let lemonReady = false;
+        const ensureLemon = () => {
+            if (lemonReady) return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
+            if (typeof window.createLemonSqueezy === 'function') {
+                try {
+                    window.createLemonSqueezy();
+                    if (window.LemonSqueezy && window.LemonSqueezy.Setup) {
+                        window.LemonSqueezy.Setup({ eventHandler: (e) => {
+                            const name = e && (e.event || e.type || e.name);
+                            if (name === 'Checkout.Success') {
+                                showToast('Ödeme alındı, aboneliğiniz güncelleniyor…');
+                                setTimeout(() => location.reload(), 2500);
+                            }
+                        } });
+                    }
+                    lemonReady = true;
+                } catch (err) { /* yok say */ }
+            }
+            return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
+        };
+        const openCheckout = (url) => {
+            const u = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'embed=1';
+            if (ensureLemon() && window.LemonSqueezy.Url.Open) { window.LemonSqueezy.Url.Open(u); }
+            else { window.location.href = url; } // fallback
+        };
         payLemonBtn.addEventListener('click', async () => {
             const orig = payLemonBtn.textContent;
             payLemonBtn.disabled = true;
             payLemonBtn.textContent = 'Hazırlanıyor…';
+            const reset = () => { payLemonBtn.disabled = false; payLemonBtn.textContent = orig; };
             try {
                 const fn = firebase.app().functions('us-central1').httpsCallable('createLemonCheckout');
                 const res = await fn({});
-                if (res && res.data && res.data.url) { window.location.href = res.data.url; return; }
+                if (res && res.data && res.data.url) { openCheckout(res.data.url); reset(); return; }
                 throw new Error('URL alınamadı');
             } catch (err) {
-                payLemonBtn.disabled = false;
-                payLemonBtn.textContent = orig;
+                reset();
                 showToast('Ödeme başlatılamadı: ' + (err.message || 'bilinmeyen hata'), true);
             }
         });

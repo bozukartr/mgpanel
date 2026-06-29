@@ -714,6 +714,7 @@ async function lsCreateCheckout(opts) {
   // checkout_data içine konursa "The checkout data field must be an array" hatası alınır.
   const attrs = {
     product_options: { redirect_url: opts.redirectUrl },
+    checkout_options: { embed: true },   // lemon.js overlay (modal) için
     checkout_data: { custom: opts.custom || {} }
   };
   if (opts.email) attrs.checkout_data.email = opts.email;
