@@ -1068,7 +1068,8 @@
         name: 'Burak Göl Şahıs Şirketi', addr: '', taxOffice: 'Arda Vergi Dairesi',
         taxNo: '1234567890', mersis: '000000000', iban: '', phone: '+90 (542) 307 4620',
         email: 'bu.gol@outlook.com', kdvRate: 20, series: 'SOS', nextNo: 1, notes: '',
-        planStarter: 49, planPro: 99, planEnterprise: 199, fxRate: 0
+        planStarter: 49, planPro: 99, planEnterprise: 199, fxRate: 0,
+        lemonStoreId: '', lemonVariantStarter: '', lemonVariantPro: '', lemonVariantEnterprise: ''
     };
     function B(k) { return (billing && billing[k] != null && billing[k] !== '') ? billing[k] : BILLING_DEFAULTS[k]; }
     function currentKdvRate() { const r = Number(B('kdvRate')); return isFinite(r) ? r : 20; }
@@ -1391,7 +1392,7 @@
 
     // ── Settings (siteConfig/billing) ──────────────────────────
     function fillSettingsForm() {
-        const map = { setName: 'name', setAddr: 'addr', setTaxOffice: 'taxOffice', setTaxNo: 'taxNo', setMersis: 'mersis', setIban: 'iban', setPhone: 'phone', setEmail: 'email', setKdv: 'kdvRate', setSeries: 'series', setNextNo: 'nextNo', setNotes: 'notes', setPlanStarter: 'planStarter', setPlanPro: 'planPro', setPlanEnterprise: 'planEnterprise' };
+        const map = { setName: 'name', setAddr: 'addr', setTaxOffice: 'taxOffice', setTaxNo: 'taxNo', setMersis: 'mersis', setIban: 'iban', setPhone: 'phone', setEmail: 'email', setKdv: 'kdvRate', setSeries: 'series', setNextNo: 'nextNo', setNotes: 'notes', setPlanStarter: 'planStarter', setPlanPro: 'planPro', setPlanEnterprise: 'planEnterprise', setLemonStore: 'lemonStoreId', setLemonStarter: 'lemonVariantStarter', setLemonPro: 'lemonVariantPro', setLemonEnt: 'lemonVariantEnterprise' };
         Object.keys(map).forEach(id => { const el = $(id); if (el) el.value = B(map[id]); });
         const fxEl = $('setFxRate'); if (fxEl) fxEl.value = fxRate() || '';
         // Invoice defaults
@@ -1415,7 +1416,11 @@
             kdvRate: Number($('setKdv').value) || 0,
             series: $('setSeries').value.trim(), nextNo: Number($('setNextNo').value) || 1, notes: $('setNotes').value.trim(),
             planStarter: Number($('setPlanStarter').value) || 0, planPro: Number($('setPlanPro').value) || 0,
-            planEnterprise: Number($('setPlanEnterprise').value) || 0, fxRate: Number($('setFxRate').value) || 0
+            planEnterprise: Number($('setPlanEnterprise').value) || 0, fxRate: Number($('setFxRate').value) || 0,
+            lemonStoreId: (($('setLemonStore') || {}).value || '').trim(),
+            lemonVariantStarter: (($('setLemonStarter') || {}).value || '').trim(),
+            lemonVariantPro: (($('setLemonPro') || {}).value || '').trim(),
+            lemonVariantEnterprise: (($('setLemonEnt') || {}).value || '').trim()
         };
         const btn = $('setSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
         try {

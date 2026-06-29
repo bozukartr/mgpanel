@@ -25,6 +25,12 @@ const MERCHANT_ID = defineSecret('PAYTR_MERCHANT_ID');
 const MERCHANT_KEY = defineSecret('PAYTR_MERCHANT_KEY');
 const MERCHANT_SALT = defineSecret('PAYTR_MERCHANT_SALT');
 
+// Lemon Squeezy (Merchant of Record) — alternatif ödeme yöntemi.
+//   firebase functions:secrets:set LEMON_API_KEY
+//   firebase functions:secrets:set LEMON_WEBHOOK_SECRET
+const LEMON_API_KEY = defineSecret('LEMON_API_KEY');
+const LEMON_WEBHOOK_SECRET = defineSecret('LEMON_WEBHOOK_SECRET');
+
 // Monthly price per plan, in EUR (server-authoritative — clients can't tamper).
 // Revenue is collected in EUR; the superadmin Muhasebe panel converts to TRY
 // for accounting with a manual rate. Operators can override these amounts in
@@ -649,3 +655,263 @@ exports.getGuestName = onCall({ region: REGION }, async (request) => {
   if (!matchName) return { ok: false };
   return { ok: true, name: matchName };
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  Lemon Squeezy ödeme entegrasyonu (PayTR'a alternatif)
+//
+//  Kurulum:
+//   1) Lemon Squeezy'de Starter/Pro/Enterprise için birer ÜRÜN (tek seferlik,
+//      "custom price" / pay-what-you-want açık) oluşturun.
+//   2) siteConfig/billing dokümanına ekleyin:
+//        lemonStoreId, lemonVariantStarter, lemonVariantPro, lemonVariantEnterprise
+//   3) Secret'ları tanımlayın: LEMON_API_KEY, LEMON_WEBHOOK_SECRET
+//   4) Lemon Squeezy webhook'unu şu olaylarla kaydedin (order_created +
+//      subscription_payment_success), URL:
+//        https://stayos.org/api/lemon-webhook
+//      (veya doğrudan https://us-central1-panel-d25c9.cloudfunctions.net/lemonWebhook)
+// ═══════════════════════════════════════════════════════════════════
+
+// Fiyatlandırma sayfasındaki hesap ile birebir (js/utils/pricing.js).
+const LS_PLANS = {
+  starter:    { base: 49,  perRoom: 0.8, inclMods: 1, allMods: false },
+  pro:        { base: 99,  perRoom: 1.2, inclMods: 2, allMods: false },
+  enterprise: { base: 199, perRoom: 1.5, inclMods: 4, allMods: true }
+};
+const LS_PMS = 99, LS_EXTRA = 19, LS_DISCOUNT = 0.18, LS_MIN_ROOMS = 25, LS_MAX_ROOMS = 500;
+
+function normalizePlan(plan) {
+  const p = String(plan || '').toLowerCase();
+  if (p === 'business' || p === 'enterprise') return 'enterprise';
+  if (p === 'starter') return 'starter';
+  return 'pro';
+}
+// Sunucu-otoritatif tutar (€). İstemciden gelen tutara GÜVENİLMEZ.
+function computeQuoteEUR(plan, rooms, modsCount, pms, cycle) {
+  const p = LS_PLANS[normalizePlan(plan)] || LS_PLANS.pro;
+  const r = Math.min(LS_MAX_ROOMS, Math.max(LS_MIN_ROOMS, parseInt(rooms, 10) || LS_MIN_ROOMS));
+  const isBiz = !!p.allMods;
+  const billableRooms = Math.max(0, r - LS_MIN_ROOMS);
+  const x = isBiz ? 0 : Math.max(0, (parseInt(modsCount, 10) || 1) - p.inclMods);
+  const pmsCost = isBiz ? 0 : (pms ? LS_PMS : 0);
+  const monthly = p.base + billableRooms * p.perRoom + x * LS_EXTRA + pmsCost;
+  const total = cycle === 'annual' ? Math.round(monthly * 12 * (1 - LS_DISCOUNT)) : Math.round(monthly * 100) / 100;
+  return { rooms: r, monthly: Math.round(monthly * 100) / 100, total, cycle: cycle === 'annual' ? 'annual' : 'monthly' };
+}
+function lemonConfig(cfg) {
+  cfg = cfg || {};
+  return {
+    storeId: cfg.lemonStoreId ? String(cfg.lemonStoreId) : '',
+    variants: {
+      starter: cfg.lemonVariantStarter ? String(cfg.lemonVariantStarter) : '',
+      pro: cfg.lemonVariantPro ? String(cfg.lemonVariantPro) : '',
+      enterprise: cfg.lemonVariantEnterprise ? String(cfg.lemonVariantEnterprise) : ''
+    }
+  };
+}
+// Lemon Squeezy Checkout API → ödeme sayfası URL'i döndürür.
+async function lsCreateCheckout(opts) {
+  const attrs = {
+    checkout_data: { custom: opts.custom || {} },
+    checkout_options: { embed: false, dark: false },
+    product_options: { redirect_url: opts.redirectUrl }
+  };
+  if (opts.email) attrs.checkout_data.email = opts.email;
+  if (opts.name) attrs.checkout_data.name = opts.name;
+  if (opts.priceCents && opts.priceCents > 0) attrs.checkout_data.custom_price = Math.round(opts.priceCents);
+  const body = {
+    data: {
+      type: 'checkouts',
+      attributes: attrs,
+      relationships: {
+        store: { data: { type: 'stores', id: String(opts.storeId) } },
+        variant: { data: { type: 'variants', id: String(opts.variantId) } }
+      }
+    }
+  };
+  const resp = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/vnd.api+json',
+      'Content-Type': 'application/vnd.api+json',
+      'Authorization': 'Bearer ' + opts.apiKey
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok || !data.data || !data.data.attributes || !data.data.attributes.url) {
+    const msg = (data.errors && data.errors[0] && (data.errors[0].detail || data.errors[0].title)) || ('HTTP ' + resp.status);
+    throw new Error('Lemon Squeezy: ' + msg);
+  }
+  return data.data.attributes.url;
+}
+
+// Custom data değerleri Lemon Squeezy'de string olmalı.
+function strMap(obj) {
+  const out = {};
+  Object.keys(obj || {}).forEach((k) => { if (obj[k] != null) out[k] = String(obj[k]); });
+  return out;
+}
+
+// ── In-app abonelik yenileme (yetkili otel yöneticisi) ──────────────
+exports.createLemonCheckout = onCall(
+  { secrets: [LEMON_API_KEY], region: REGION },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+    const uid = request.auth.uid;
+    const userSnap = await db.collection('systemUsers').doc(uid).get();
+    if (!userSnap.exists) throw new HttpsError('permission-denied', 'Kullanıcı bulunamadı.');
+    const user = userSnap.data();
+    if ((user.role || '').toLowerCase() !== 'admin') {
+      throw new HttpsError('permission-denied', 'Sadece otel yöneticisi ödeme yapabilir.');
+    }
+    const tenantId = user.tenantId || 'mgallery';
+    const tenantSnap = await db.collection('tenants').doc(tenantId).get();
+    const tenant = tenantSnap.exists ? tenantSnap.data() : {};
+    const plan = normalizePlan(tenant.plan || 'pro');
+    const billingSnap = await db.collection('siteConfig').doc('billing').get();
+    const cfg = billingSnap.exists ? billingSnap.data() : {};
+    const ls = lemonConfig(cfg);
+    const apiKey = LEMON_API_KEY.value();
+    const variantId = ls.variants[plan];
+    if (!apiKey || !ls.storeId || !variantId) {
+      throw new HttpsError('failed-precondition', 'Lemon Squeezy henüz yapılandırılmamış.');
+    }
+    const price = configuredPlanPrice(plan, cfg); // EUR
+    const oid = 'LS' + tenantId.replace(/[^a-zA-Z0-9]/g, '') + Date.now();
+    await db.collection('payments').doc(oid).set({
+      oid, tenantId, plan, amount: price, currency: 'EUR', status: 'pending',
+      provider: 'lemonsqueezy', cycle: 'monthly', createdBy: uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    try {
+      const url = await lsCreateCheckout({
+        apiKey, storeId: ls.storeId, variantId, priceCents: Math.round(price * 100),
+        email: user.email || '', name: tenant.name || user.username || 'StayOS',
+        custom: strMap({ tenant_id: tenantId, plan, cycle: 'monthly', oid }),
+        redirectUrl: BASE_URL + '/payment-result.html?status=ok&provider=lemon'
+      });
+      return { url, oid };
+    } catch (e) {
+      await db.collection('payments').doc(oid).update({ status: 'error', error: String(e.message || e) });
+      throw new HttpsError('internal', e.message || 'Ödeme başlatılamadı.');
+    }
+  }
+);
+
+// ── Fiyatlandırma sayfası: herkese açık ödeme başlatma ──────────────
+exports.lemonCheckout = onRequest(
+  { secrets: [LEMON_API_KEY], region: REGION },
+  async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).json({ error: 'method' }); return; }
+    try {
+      const b = req.body || {};
+      const plan = normalizePlan(b.plan);
+      const cycle = b.cycle === 'annual' ? 'annual' : 'monthly';
+      const modsCount = Array.isArray(b.mods) ? b.mods.length : (parseInt(b.mods, 10) || 1);
+      const quote = computeQuoteEUR(plan, b.rooms, modsCount, !!b.pms, cycle);
+
+      const billingSnap = await db.collection('siteConfig').doc('billing').get();
+      const cfg = billingSnap.exists ? billingSnap.data() : {};
+      const ls = lemonConfig(cfg);
+      const apiKey = LEMON_API_KEY.value();
+      const variantId = ls.variants[plan];
+      if (!apiKey || !ls.storeId || !variantId) {
+        res.status(503).json({ error: 'Online ödeme şu an kullanılamıyor. Lütfen "Teklif Al" ile iletişime geçin.' });
+        return;
+      }
+      const buyer = b.buyer || {};
+      const email = String(buyer.email || '').trim();
+      const oid = 'LSC' + Date.now() + Math.floor(Math.random() * 1000);
+      await db.collection('lemonOrders').doc(oid).set({
+        oid, plan, cycle, rooms: quote.rooms, mods: Array.isArray(b.mods) ? b.mods : [], pms: !!b.pms,
+        amount: quote.total, currency: 'EUR', status: 'pending', provider: 'lemonsqueezy',
+        buyer: { email, name: String(buyer.name || ''), hotel: String(buyer.hotel || '') },
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      const url = await lsCreateCheckout({
+        apiKey, storeId: ls.storeId, variantId, priceCents: Math.round(quote.total * 100),
+        email, name: String(buyer.name || ''),
+        custom: strMap({ plan, cycle, oid, rooms: quote.rooms, signup: '1' }),
+        redirectUrl: BASE_URL + '/payment-result.html?status=ok&provider=lemon'
+      });
+      res.json({ url, oid, amount: quote.total, cycle });
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'hata' });
+    }
+  }
+);
+
+// ── Lemon Squeezy webhook (imza doğrulamalı) ────────────────────────
+exports.lemonWebhook = onRequest(
+  { secrets: [LEMON_WEBHOOK_SECRET], region: REGION },
+  async (req, res) => {
+    try {
+      const secret = LEMON_WEBHOOK_SECRET.value();
+      const sig = req.get('X-Signature') || '';
+      const raw = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+      const digest = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+      const a = Buffer.from(digest, 'utf8');
+      const c = Buffer.from(sig, 'utf8');
+      if (a.length !== c.length || !crypto.timingSafeEqual(a, c)) {
+        res.status(401).send('bad signature');
+        return;
+      }
+      const payload = JSON.parse(raw.toString('utf8'));
+      const event = (payload.meta && payload.meta.event_name) || '';
+      const custom = (payload.meta && payload.meta.custom_data) || {};
+      const attr = (payload.data && payload.data.attributes) || {};
+      const dataId = (payload.data && payload.data.id) || '';
+
+      const paidOrder = event === 'order_created' && attr.status === 'paid';
+      const subPay = event === 'subscription_payment_success';
+      const subCreated = event === 'subscription_created' && (attr.status === 'active' || attr.status === 'on_trial');
+      if (!(paidOrder || subPay || subCreated)) { res.status(200).send('ignored'); return; }
+
+      // İdempotans: her olayı bir kez işle.
+      const evRef = db.collection('lemonEvents').doc(event + '_' + dataId);
+      const fresh = await db.runTransaction(async (tx) => {
+        const s = await tx.get(evRef);
+        if (s.exists) return false;
+        tx.set(evRef, { event, dataId, at: admin.firestore.FieldValue.serverTimestamp() });
+        return true;
+      });
+      if (!fresh) { res.status(200).send('dup'); return; }
+
+      const months = String(custom.cycle || 'monthly') === 'annual' ? 12 : 1;
+      const tenantId = custom.tenant_id ? String(custom.tenant_id) : '';
+      const oid = custom.oid ? String(custom.oid) : '';
+
+      if (tenantId) {
+        const tRef = db.collection('tenants').doc(tenantId);
+        const tSnap = await tRef.get();
+        const now = new Date();
+        let base = now;
+        if (tSnap.exists && tSnap.data().subscriptionEnd) {
+          const cur = tSnap.data().subscriptionEnd.toDate();
+          if (cur > now) base = cur;
+        }
+        const newEnd = new Date(base);
+        newEnd.setMonth(newEnd.getMonth() + months);
+        await tRef.set({
+          subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd), suspended: false
+        }, { merge: true });
+        if (oid) await db.collection('payments').doc(oid).set({
+          status: 'success', paidAt: admin.firestore.FieldValue.serverTimestamp(), lemonId: dataId
+        }, { merge: true });
+      } else if (oid) {
+        // Fiyatlandırma sayfasından yeni kayıt → operatör otelin kurulumunu yapar.
+        await db.collection('lemonOrders').doc(oid).set({
+          status: 'success', paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          lemonId: dataId, buyerEmail: attr.user_email || ''
+        }, { merge: true });
+      }
+      res.status(200).send('OK');
+    } catch (e) {
+      res.status(500).send('error');
+    }
+  }
+);

@@ -32,22 +32,32 @@
         <span class="eyebrow">StayOS · Ödeme</span>
         <h1 id="title">İşleniyor…</h1>
         <p id="msg">Lütfen bekleyin.</p>
+        <a id="backLink" href="/app" style="display:none;margin-top:22px;background:#10564a;color:#fff;font-weight:600;font-size:14px;padding:12px 22px;border-radius:12px;text-decoration:none;">Panele Dön</a>
     </div>
+    <style>.card a:hover{opacity:.92}</style>
     <script>
-        var ok = new URLSearchParams(location.search).get('status') === 'ok';
+        var params = new URLSearchParams(location.search);
+        var ok = params.get('status') === 'ok';
+        var isLemon = params.get('provider') === 'lemon';
         var card = document.getElementById('card');
         card.className = 'card ' + (ok ? 'ok' : 'fail');
         document.getElementById('ico').innerHTML = ok
             ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
             : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-        document.getElementById('title').textContent = ok ? 'Ödeme Başarılı' : 'Ödeme Başarısız';
+        document.getElementById('title').textContent = ok ? (isLemon ? 'Ödemeniz Alındı' : 'Ödeme Başarılı') : 'Ödeme Başarısız';
         document.getElementById('msg').textContent = ok
-            ? 'Aboneliğiniz güncellendi. Bu pencereyi kapatabilirsiniz.'
+            ? (isLemon
+                ? 'Teşekkürler! Ödemeniz işleniyor; aboneliğiniz birkaç dakika içinde güncellenecek.'
+                : 'Aboneliğiniz güncellendi. Bu pencereyi kapatabilirsiniz.')
             : 'Ödeme tamamlanamadı. Lütfen tekrar deneyin veya farklı bir kart kullanın.';
 
-        // This page loads inside the admin's payment iframe (same origin) —
-        // notify the panel so it can close the modal and refresh.
-        try { window.parent.postMessage({ source: 'stayos-payment', status: ok ? 'ok' : 'fail' }, '*'); } catch (e) {}
+        if (isLemon) {
+            // Tam sayfa dönüş (iframe değil) — panele dönüş bağlantısı göster.
+            document.getElementById('backLink').style.display = 'inline-block';
+        } else {
+            // PayTR iframe içinde (aynı origin) — paneli bilgilendir.
+            try { window.parent.postMessage({ source: 'stayos-payment', status: ok ? 'ok' : 'fail' }, '*'); } catch (e) {}
+        }
     </script>
 </body>
 </html>

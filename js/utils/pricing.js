@@ -116,5 +116,38 @@
         });
     });
 
+    // ── Hemen Öde (Lemon Squeezy) ──────────────────────────────
+    // Seçili paket/oda/modülleri sunucuya gönderir; sunucu tutarı YENİDEN
+    // hesaplar (istemciye güvenmez), Lemon Squeezy ödeme sayfasını açar.
+    function quotePayload() {
+        var p = PLANS[curPlan]; var r = clampRooms(); var isBiz = !!p.allMods;
+        var mods = []; modChecks().forEach(function (c) { if (c.checked) mods.push(c.value); });
+        if (isBiz) mods = ['concierge', 'crm', 'guestOrders', 'guestIssues'];
+        return {
+            plan: curPlan === 'business' ? 'enterprise' : curPlan,
+            cycle: billing, rooms: r, mods: mods,
+            pms: isBiz ? true : !!(pms && pms.checked)
+        };
+    }
+    qa('[data-pay]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var btn = this, label = btn.querySelector('#prPayLabel') || btn;
+            var orig = label.textContent;
+            btn.disabled = true; label.textContent = 'Hazırlanıyor…';
+            fetch('/api/lemon-checkout', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(quotePayload())
+            }).then(function (res) { return res.json().then(function (d) { return { ok: res.ok, d: d }; }); })
+              .then(function (out) {
+                  if (out.ok && out.d && out.d.url) { window.location.href = out.d.url; return; }
+                  throw new Error((out.d && out.d.error) || 'Ödeme başlatılamadı.');
+              })
+              .catch(function (e) {
+                  btn.disabled = false; label.textContent = orig;
+                  alert(e.message || 'Ödeme şu an başlatılamadı. Lütfen daha sonra tekrar deneyin veya “Teklif Al” ile iletişime geçin.');
+              });
+        });
+    });
+
     setPlan('pro'); updatePlanCards(); paintRange(); calc();
 })();

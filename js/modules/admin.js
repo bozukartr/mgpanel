@@ -600,6 +600,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ── SUBSCRIPTION PAYMENT (Lemon Squeezy) ───────────────────
+    // Lemon Squeezy harici barındırılan bir ödeme sayfası kullanır; iframe yerine
+    // yönlendiririz. Ödeme sonrası webhook aboneliği uzatır, kullanıcı dönüş
+    // sayfasına gelir.
+    const payLemonBtn = document.getElementById('payLemonBtn');
+    if (payLemonBtn) {
+        payLemonBtn.addEventListener('click', async () => {
+            const orig = payLemonBtn.textContent;
+            payLemonBtn.disabled = true;
+            payLemonBtn.textContent = 'Hazırlanıyor…';
+            try {
+                const fn = firebase.app().functions('us-central1').httpsCallable('createLemonCheckout');
+                const res = await fn({});
+                if (res && res.data && res.data.url) { window.location.href = res.data.url; return; }
+                throw new Error('URL alınamadı');
+            } catch (err) {
+                payLemonBtn.disabled = false;
+                payLemonBtn.textContent = orig;
+                showToast('Ödeme başlatılamadı: ' + (err.message || 'bilinmeyen hata'), true);
+            }
+        });
+    }
+
     // ── PAYMENT HISTORY ─────────────────────────────────────────
     const payHistBody = document.getElementById('payHistBody');
     if (payHistBody) {
