@@ -317,8 +317,16 @@
         const dot = $('goBellDot'); if (dot) dot.hidden = !activeOrder();
     }
 
-    // Konum bazlı renkler (lacivert / yeşil / altın) + kategori türüne göre ikon.
+    // Konum bazlı renkler (görsel yoksa fallback) + kategori türüne göre ikon.
     const CARD_COLORS = ['#1f3a5c', '#34703f', '#bf8b2e', '#5c5470', '#7a5a44'];
+    // Kategori türüne göre arka plan görseli (otel kökünden servis edilir).
+    // Görsel yüklenemezse altındaki renk + karartma görünür (graceful fallback).
+    const CARD_IMG = {
+        temiz: 'housekeeping_button.png',
+        konfor: 'housekeeping_button.png',
+        bell: 'frontoffice_button.png',
+        food: 'fnb_button.png'
+    };
     const CARD_KIND_ICON = {
         bell: '<path d="M4 12a8 8 0 0 1 16 0"/><line x1="2.5" y1="12" x2="21.5" y2="12"/><line x1="12" y1="5.4" x2="12" y2="3.2"/>',
         temiz: '<path d="M3 10.6 12 3l9 7.6"/><path d="M5.6 9.3V20a1 1 0 0 0 1 1h10.8a1 1 0 0 0 1-1V9.3"/>',
@@ -335,11 +343,17 @@
             wrap.innerHTML = `<div class="go-empty" style="grid-column:1/-1"><div class="go-empty-ic">🛎️</div><h3>Hizmet yok</h3><p>Bu otel için talepler henüz hazır değil.</p></div>`;
             return;
         }
-        wrap.innerHTML = cats.slice(0, 3).map((c, i) => `
-            <button class="go-card3" data-cat="${esc(c)}" style="background:${CARD_COLORS[i % CARD_COLORS.length]}">
+        wrap.innerHTML = cats.slice(0, 3).map((c, i) => {
+            const color = CARD_COLORS[i % CARD_COLORS.length];
+            const img = CARD_IMG[catKind(c)];
+            const style = img
+                ? `background-color:${color};background-image:linear-gradient(180deg,rgba(16,24,36,.20),rgba(16,24,36,.66)),url('${img}');background-size:cover;background-position:center;`
+                : `background:${color};`;
+            return `<button class="go-card3" data-cat="${esc(c)}" style="${style}">
                 <span class="go-card3-ic">${card3Icon(c, 36)}</span>
                 <span class="go-card3-tx">${esc(c)}</span>
-            </button>`).join('');
+            </button>`;
+        }).join('');
         wrap.onclick = e => {
             const b = e.target.closest('[data-cat]'); if (!b) return;
             activeCat = b.dataset.cat; searchTerm = '';
