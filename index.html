@@ -361,6 +361,24 @@
         @media(max-width:700px){section{padding:60px 0}}
         /* Buton köşeleri biraz daha kurumsal */
         .btn{border-radius:12px}
+
+        /* ── Misafir App telefon mockup'ı ── */
+        .phone-wrap{display:flex;justify-content:center}
+        .phone{width:266px;background:#0e1c2e;border-radius:42px;padding:11px;box-shadow:0 44px 90px rgba(15,23,42,.30);position:relative}
+        .phone-screen{background:#fff;border-radius:32px;overflow:hidden;padding:0 18px 22px;position:relative}
+        .ph-notch{width:104px;height:24px;background:#0e1c2e;border-radius:0 0 14px 14px;margin:0 auto 16px}
+        .ph-greet{text-align:center;margin-bottom:18px}
+        .ph-greet small{font-size:12px;color:#8a96a4}
+        .ph-greet b{display:block;font-family:'Playfair Display',Georgia,serif;font-size:25px;color:#16314f;line-height:1.1;margin-top:2px}
+        .ph-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+        .ph-card{aspect-ratio:.6;border-radius:14px;color:#fff;display:flex;align-items:flex-end;justify-content:center;text-align:center;padding:10px 4px;font-size:10px;font-weight:700;line-height:1.15;box-shadow:0 8px 18px rgba(15,23,42,.16)}
+        .ph-status{display:flex;align-items:center;gap:11px;background:#f6f7f9;border:1px solid #eceef2;border-radius:14px;padding:11px 12px}
+        .ph-status .d{width:34px;height:34px;border-radius:10px;background:#fdf2dd;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+        .ph-status b{font-size:12px;color:#16314f;display:block;line-height:1.2}
+        .ph-status > span > span{font-size:10.5px;color:#8a96a4}
+        @media(max-width:880px){.phone{width:236px}}
+        /* 4 modül için esnek ızgara */
+        .mod-grid{grid-template-columns:repeat(auto-fit,minmax(248px,1fr))}
     </style>
 </head>
 <body>
@@ -371,7 +389,7 @@
             <div class="brand"><img src="logo.png" alt="StayOS"><span>StayOS</span></div>
             <nav class="nav-links">
                 <a href="#ozellikler">Özellikler</a>
-                <a href="#akis">Talep Akışı</a>
+                <a href="#misafir-app">Misafir App</a>
                 <a href="#moduller">Modüller</a>
                 <a href="fiyatlandirma.html">Fiyatlandırma</a>
                 <a href="#sss">SSS</a>
@@ -383,7 +401,7 @@
         </div>
         <div class="mobile-menu" id="mobileMenu">
             <a href="#ozellikler">Özellikler</a>
-            <a href="#akis">Talep Akışı</a>
+            <a href="#misafir-app">Misafir App</a>
             <a href="#moduller">Modüller</a>
             <a href="fiyatlandirma.html">Fiyatlandırma</a>
             <a href="#sss">SSS</a>
@@ -447,7 +465,7 @@
     <section style="padding:0 0 40px">
         <div class="wrap">
             <div class="stats-band">
-                <div class="stat gs-card"><b><span data-count="3">3</span>+</b><span>Entegre modül</span></div>
+                <div class="stat gs-card"><b><span data-count="6">6</span></b><span>Entegre modül</span></div>
                 <div class="stat gs-card"><b>&lt;1 dk</b><span>Talebin departmana ulaşması</span></div>
                 <div class="stat gs-card"><b><span data-count="10">10</span>+</b><span>Hazır rapor türü</span></div>
                 <div class="stat gs-card"><b>7/24</b><span>Web + mobil (PWA) erişim</span></div>
@@ -493,6 +511,42 @@
                     <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01"/></svg></div>
                     <h3>Çok Otelli Mimari</h3>
                     <p>Tek işletme ya da zincir — her otelin verisi tamamen izole. Pakete göre kullanıcı ve modül kontrolü.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- QR MİSAFİR SELF-SERVİS -->
+    <section id="misafir-app">
+        <div class="wrap">
+            <div class="spot-grid">
+                <div class="spot-copy gs-up">
+                    <span class="tag">Misafir App · QR</span>
+                    <h2>Misafirleriniz,<br>telefonundan self-servis</h2>
+                    <p>Odadaki QR'ı okuturlar; resepsiyona gitmeden talep ve sipariş oluşturur, durumunu canlı izlerler. Her talep doğrudan ilgili departmana düşer.</p>
+                    <ul>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Kategorilere göre hizmet · tek dokunuşla sepet ve gönderim</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Soyadı + oda ile güvenli doğrulama, kişiselleştirilmiş karşılama</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Canlı durum takibi: Bekliyor → Hazırlanıyor → Tamamlandı</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Kurulum yok — QR'ı basın, odaya koyun</li>
+                    </ul>
+                </div>
+                <div class="phone-wrap gs-up" aria-label="Misafir uygulaması önizlemesi">
+                    <div class="phone">
+                        <div class="phone-screen">
+                            <div class="ph-notch"></div>
+                            <div class="ph-greet"><small>Hoş geldiniz,</small><b>Burak</b></div>
+                            <div class="ph-cards">
+                                <div class="ph-card" style="background:#1f3a5c">Resepsiyon</div>
+                                <div class="ph-card" style="background:#34703f">Kat<br>Hizmetleri</div>
+                                <div class="ph-card" style="background:#bf8b2e">Oda<br>Servisi</div>
+                            </div>
+                            <div class="ph-status">
+                                <span class="d">⏳</span>
+                                <span><b>Talebiniz hazırlanıyor</b><span>Oda Servisi · ~12 dk</span></span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -574,6 +628,16 @@
                         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Misafir profili &amp; geçmişi</li>
                         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Notlar &amp; tercihler</li>
                         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Mükerrer kayıt birleştirme</li>
+                    </ul>
+                </div>
+                <div class="mod gs-card">
+                    <div class="m-ico">🍽️</div>
+                    <h3>F&amp;B / Restoran</h3>
+                    <p>Restoran ve oda servisi operasyonu.</p>
+                    <ul>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Adisyon oluştur, takip et, arşivle</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> F&amp;B personeli için 5 haneli kodla hızlı giriş</li>
+                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Misafir QR siparişleriyle entegre</li>
                     </ul>
                 </div>
             </div>
