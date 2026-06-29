@@ -626,6 +626,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
         };
+        // Overlay'i tıklamadan ÖNCE init et (yoksa lemon.js yeni sekmeye düşer).
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureLemon);
+        else ensureLemon();
+        window.addEventListener('load', ensureLemon);
         const openCheckout = (url) => {
             const u = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'embed=1';
             if (ensureLemon() && window.LemonSqueezy.Url.Open) { window.LemonSqueezy.Url.Open(u); }
