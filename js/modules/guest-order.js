@@ -262,89 +262,144 @@
     function prettyTenant(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'StayOS'; }
     function applyConfig() {
         $('goApp').setAttribute('aria-busy', 'false');
-        // Hero görseli
-        const hero = $('goHero');
-        const url = (config.heroImage || '').trim();
-        if (hero) hero.style.backgroundImage = url ? `linear-gradient(180deg,rgba(8,28,23,.12),rgba(8,28,23,.42)), url("${url.replace(/"/g, '%22')}")` : '';
-        // Selamlama
         renderGreeting();
-        // Karşılama
-        const w = $('goWelcome');
-        if (w) { const t = (config.welcome || '').trim(); w.hidden = !t; w.textContent = t; }
-        renderCarousel();
+        renderHome();
+        renderProfile();
+        renderChat();
+    }
+    function timeGreeting() {
+        const h = new Date().getHours();
+        if (h < 6) return 'İyi geceler,';
+        if (h < 12) return 'Günaydın,';
+        if (h < 18) return 'İyi günler,';
+        return 'İyi akşamlar,';
+    }
+    function firstName() {
+        const n = (guestName || '').trim();
+        return n ? n.split(/\s+/)[0] : 'Misafirimiz';
     }
     function renderGreeting() {
-        const gn = $('goGuestName');
-        if (gn) gn.textContent = guestName || 'Değerli Misafirimiz';
-        const rl = $('goRoomLine');
-        if (rl) {
-            const hotel = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
-            rl.textContent = (ROOM ? 'Oda ' + ROOM + ' · ' : '') + hotel + (DEMO ? ' · DEMO' : '');
-        }
+        const t = $('goGreetTime'); if (t) t.textContent = timeGreeting();
+        const gn = $('goGuestName'); if (gn) gn.textContent = firstName();
     }
 
     // ════════════════════════════════════════════════════════════
     //  TAB NAV
     // ════════════════════════════════════════════════════════════
+    const SCREENS = { home: 'scHome', services: 'scServices', cart: 'scCart', orders: 'scOrders', chat: 'scChat', profile: 'scProfile' };
     function showTab(name, opts) {
         opts = opts || {};
         currentTab = name;
-        const map = { home: 'scHome', services: 'scServices', cart: 'scCart', orders: 'scOrders' };
-        Object.keys(map).forEach(k => { const el = $(map[k]); if (el) el.classList.toggle('go-hidden', k !== name); });
-        document.querySelectorAll('.go-nav-b').forEach(b => b.classList.toggle('active', b.dataset.go === name));
-        if (name === 'cart') renderCart();
-        if (name === 'services') renderServices();
-        if (name === 'orders' && !opts.keepTrack) showOrderList();
+        Object.keys(SCREENS).forEach(k => { const el = $(SCREENS[k]); if (el) el.classList.toggle('go-hidden', k !== name); });
+        // services/cart alt akışları "home" sekmesini vurgular.
+        const navName = (name === 'services' || name === 'cart') ? 'home' : name;
+        document.querySelectorAll('.go-nav-b').forEach(b => b.classList.toggle('active', b.dataset.go === navName));
         if (name === 'home') renderHome();
+        if (name === 'services') renderServices();
+        if (name === 'cart') renderCart();
+        if (name === 'orders' && !opts.keepTrack) showOrderList();
+        if (name === 'chat') renderChat();
+        if (name === 'profile') renderProfile();
         updateCartPill();
-        // scroll reset
-        const sc = $(map[name]); const scroller = sc && sc.querySelector('.go-scroll, .go-body');
-        if (scroller && !opts.keepScroll) scroller.scrollTop = 0;
+        const sc = $(SCREENS[name]);
+        if (sc && !opts.keepScroll) { sc.scrollTop = 0; const inner = sc.querySelector('.go-scroll'); if (inner) inner.scrollTop = 0; }
     }
 
     // ════════════════════════════════════════════════════════════
     //  ANA SAYFA
     // ════════════════════════════════════════════════════════════
-    function renderAll() { renderHome(); renderServices(); renderCartUI(); }
+    function renderAll() { renderHome(); renderProfile(); renderChat(); renderCartUI(); }
 
     function renderHome() {
         renderGreeting();
-        renderActiveBanner();
         renderCats();
+        renderQuick();
+        const dot = $('goBellDot'); if (dot) dot.hidden = !activeOrder();
     }
 
+    // Konum bazlı renkler (lacivert / yeşil / altın) + kategori türüne göre ikon.
+    const CARD_COLORS = ['#1f3a5c', '#34703f', '#bf8b2e', '#5c5470', '#7a5a44'];
+    const CARD_KIND_ICON = {
+        bell: '<path d="M4 12a8 8 0 0 1 16 0"/><line x1="2.5" y1="12" x2="21.5" y2="12"/><line x1="12" y1="5.4" x2="12" y2="3.2"/>',
+        temiz: '<path d="M3 10.6 12 3l9 7.6"/><path d="M5.6 9.3V20a1 1 0 0 0 1 1h10.8a1 1 0 0 0 1-1V9.3"/>',
+        konfor: '<path d="M2 7v11"/><path d="M2 11h15a4 4 0 0 1 4 4v3"/><path d="M2 18h20"/><path d="M6.5 11V9"/>',
+        food: '<path d="M3 18h18"/><path d="M5.2 18a6.8 6.8 0 0 1 13.6 0"/><line x1="12" y1="4.6" x2="12" y2="7.4"/>',
+        teknik: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-7.9 7.9l-6.3 6.3a2.1 2.1 0 0 1-3-3l6.3-6.3a6 6 0 0 1 7.9-7.9l-3.1 3.1z"/>',
+        other: '<rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/>'
+    };
+    function card3Icon(cat, size) { return svg(CARD_KIND_ICON[catKind(cat)] || CARD_KIND_ICON.other, size); }
     function renderCats() {
         const wrap = $('goCats'); if (!wrap) return;
         const cats = categories();
         if (!cats.length) {
-            wrap.style.gridTemplateColumns = '1fr';
-            wrap.innerHTML = `<div class="go-empty" style="padding:30px"><div class="go-empty-ic">🛎️</div><h3>Hizmet yok</h3><p>Bu otel için talepler henüz hazır değil.</p></div>`;
+            wrap.innerHTML = `<div class="go-empty" style="grid-column:1/-1"><div class="go-empty-ic">🛎️</div><h3>Hizmet yok</h3><p>Bu otel için talepler henüz hazır değil.</p></div>`;
             return;
         }
-        wrap.style.gridTemplateColumns = '1fr 1fr';
-        wrap.innerHTML = cats.map((c, i) => `
-            <button class="go-cat" data-cat="${esc(c)}" style="background:${CARD_PALETTE[i % CARD_PALETTE.length]}">
-                <span class="go-cat-ic">${catIcon(c, 26)}</span>
-                <span class="go-cat-tx"><span class="go-cat-name">${esc(c)}</span><span class="go-cat-count">${catCount(c)} hizmet</span></span>
+        wrap.innerHTML = cats.slice(0, 3).map((c, i) => `
+            <button class="go-card3" data-cat="${esc(c)}" style="background:${CARD_COLORS[i % CARD_COLORS.length]}">
+                <span class="go-card3-ic">${card3Icon(c, 36)}</span>
+                <span class="go-card3-tx">${esc(c)}</span>
             </button>`).join('');
-        wrap.onclick = e => { const b = e.target.closest('[data-cat]'); if (b) { activeCat = b.dataset.cat; showTab('services'); } };
+        wrap.onclick = e => {
+            const b = e.target.closest('[data-cat]'); if (!b) return;
+            activeCat = b.dataset.cat; searchTerm = '';
+            const sx = $('goSearch'); if (sx) sx.value = '';
+            const xx = $('goSearchX'); if (xx) xx.hidden = true;
+            showTab('services');
+        };
+    }
+    function renderQuick() {
+        const wrap = $('goQuick'), sec = $('goQaSec'); if (!wrap) return;
+        const items = catalog.slice(0, 2);
+        if (!items.length) { if (sec) sec.style.display = 'none'; wrap.innerHTML = ''; return; }
+        if (sec) sec.style.display = '';
+        wrap.innerHTML = items.map(it => `
+            <button class="go-qtile" data-quick="${esc(it.id)}">
+                <span class="go-qtile-ic">${catIcon(it.category, 32)}</span>
+                <span class="go-qtile-tx">${esc(it.name)}</span>
+            </button>`).join('');
+        wrap.onclick = e => { const b = e.target.closest('[data-quick]'); if (b) changeQty(b.dataset.quick, +1); };
+    }
+    function renderActiveBanner() { /* ana sayfada banner kaldırıldı; zil noktası + Taleplerim rozeti kullanılıyor */ }
+
+    // ── Sohbet (Chat) ───────────────────────────────────────────
+    function renderChat() {
+        const wrap = $('goChatBody'); if (!wrap) return;
+        const phone = (config.phone || '').replace(/[^0-9+]/g, '');
+        wrap.innerHTML = `
+            <div class="go-chat-hero">
+                <div class="go-chat-emoji">💬</div>
+                <h2>Size nasıl yardımcı olabiliriz?</h2>
+                <p>Resepsiyon ekibimiz hizmetinizde. Aşağıdan ulaşın ya da hızlıca bir talep oluşturun.</p>
+            </div>
+            ${phone ? `<a class="go-cta go-cta-block" href="tel:${esc(phone)}">${svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>', 18)} Resepsiyonu Ara</a>` : ''}
+            <button class="go-btn-ghost" id="goChatNew">Yeni Talep Oluştur</button>`;
+        const nb = $('goChatNew'); if (nb) nb.onclick = () => { activeCat = 'all'; showTab('services'); };
     }
 
-    function renderActiveBanner() {
-        const el = $('goActive'); if (!el) return;
-        const o = activeOrder();
-        if (!o) { el.hidden = true; el.onclick = null; return; }
-        const st = STATUS[o.status] || STATUS.pending;
-        const n = (o.items || []).length;
-        el.hidden = false;
-        el.innerHTML = `
-            <span class="go-active-ic">${esc(st.emoji)}</span>
-            <span class="go-active-tx">
-                <span class="go-active-st">${esc(st.label)}</span>
-                <span class="go-active-sub">${n} talep · durumu görüntüle</span>
-            </span>
-            <span class="go-active-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 20)}</span>`;
-        el.onclick = () => openTracking(o.id);
+    // ── Profil ──────────────────────────────────────────────────
+    function renderProfile() {
+        const wrap = $('goProfileBody'); if (!wrap) return;
+        const hname = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
+        const rows = [
+            infoRow('phone', 'Resepsiyon', config.phone, { tel: (config.phone || '').replace(/[^0-9+]/g, '') }),
+            infoRow('wifi', 'Wi-Fi ağı', config.wifiName, { copy: config.wifiName }),
+            infoRow('wifi', 'Wi-Fi şifresi', config.wifiPass, { copy: config.wifiPass }),
+            infoRow('clock', 'Check-out', config.checkoutTime),
+            infoRow('coffee', 'Kahvaltı', config.breakfast),
+            infoRow('pin', 'Adres', config.address, { map: config.address })
+        ].filter(Boolean).join('');
+        const initial = (firstName().charAt(0) || 'M').toLocaleUpperCase('tr-TR');
+        wrap.innerHTML = `
+            <div class="go-prof-card">
+                <div class="go-prof-av">${esc(initial)}</div>
+                <div class="go-prof-name">${esc(guestName || 'Değerli Misafirimiz')}</div>
+                <div class="go-prof-sub">${ROOM ? 'Oda ' + esc(ROOM) + ' · ' : ''}${esc(hname)}${DEMO ? ' · DEMO' : ''}</div>
+            </div>
+            ${config.welcome && config.welcome.trim() ? `<p class="go-prof-welcome">${esc(config.welcome.trim())}</p>` : ''}
+            <div class="go-prof-sec">Otel Bilgileri</div>
+            ${rows || '<div class="go-empty"><div class="go-empty-ic">ℹ️</div><h3>Bilgi yok</h3><p>Henüz otel bilgisi eklenmemiş.</p></div>'}`;
+        wrap.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast('Kopyalandı'); } catch (e) {} });
     }
 
     // ── Otel bilgileri carousel ────────────────────────────────
@@ -504,11 +559,7 @@
     }
 
     // ── Sepet ekranı + pill + badge ────────────────────────────
-    function renderCartUI() {
-        const n = cartCount();
-        const badge = $('goNavBadge'); if (badge) { badge.hidden = n === 0; badge.textContent = n; }
-        updateCartPill();
-    }
+    function renderCartUI() { updateCartPill(); }
     function updateCartPill() {
         const pill = $('goCartPill'); if (!pill) return;
         const n = cartCount();
@@ -638,8 +689,9 @@
             if (prev && prev !== o.status && STATUS[o.status]) toast(STATUS[o.status].sub);
             lastStatusMap[o.id] = o.status;
         });
-        const bell = $('goBellDot'); if (bell) bell.hidden = !activeOrder();
-        renderActiveBanner();
+        const active = myOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length;
+        const bell = $('goBellDot'); if (bell) bell.hidden = active === 0;
+        const nb = $('goNavBadge'); if (nb) { nb.hidden = active === 0; nb.textContent = active; }
         if (currentTab === 'orders') {
             if (trackingId && !$('goTrack').classList.contains('go-hidden')) renderTracking();
             else showOrderList();
@@ -858,16 +910,14 @@
         document.querySelectorAll('[data-go]').forEach(el => { if (!el.classList.contains('go-nav-b')) el.addEventListener('click', () => showTab(el.dataset.go)); });
         $('goCartPill').onclick = () => showTab('cart');
         $('goBell').onclick = () => showTab('orders');
-        $('goActive') && ($('goActive').onclick = null);
-        $('goInfoAll').onclick = openInfo;
-        $('goInfoClose').onclick = closeInfo; $('goInfoBackdrop').onclick = closeInfo;
+        const av = $('goAvatar'); if (av) av.onclick = () => showTab('profile');
+        const sb = $('goServicesBack'); if (sb) sb.onclick = () => showTab('home');
+        const cbk = $('goCartBack'); if (cbk) cbk.onclick = () => showTab('home');
         $('goTrackBack').onclick = showOrderList;
         $('goCartClear').onclick = () => { if (cart.length && confirm('Sepeti temizlemek istiyor musunuz?')) { cart = []; saveCart(); renderCartUI(); renderCart(); refreshAllItemRows(); } };
         $('goSubmit').onclick = submitOrder;
         $('goGateBtn').onclick = doVerify;
         $('goGateBackdrop').onclick = () => { if (!(config.requireVerification && !isVerified())) closeGate(); };
-        $('goItemClose') && ($('goItemClose').onclick = () => { $('goItemBackdrop').classList.remove('show'); $('goItemSheet').classList.remove('show'); });
-        $('goItemBackdrop') && ($('goItemBackdrop').onclick = () => { $('goItemBackdrop').classList.remove('show'); $('goItemSheet').classList.remove('show'); });
         // Arama
         const s = $('goSearch');
         if (s) s.addEventListener('input', () => { searchTerm = s.value; $('goSearchX').hidden = !s.value; renderItems(); });

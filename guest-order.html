@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#10564a">
+    <meta name="theme-color" content="#ffffff">
     <title>Misafir Hizmetleri · StayOS</title>
     <link rel="stylesheet" href="css/modules/guest-order.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -17,49 +17,41 @@
 
         <!-- ══ ANA SAYFA ══ -->
         <section class="go-screen" id="scHome" data-screen="home">
-            <div class="go-hero" id="goHero">
-                <div class="go-hero-tint"></div>
-                <header class="go-head">
-                    <div class="go-head-txt">
-                        <span class="go-greet">Hoş geldiniz</span>
-                        <h1 class="go-guest" id="goGuestName">Misafirimiz</h1>
-                        <span class="go-room" id="goRoomLine"></span>
-                    </div>
-                    <button class="go-bell" id="goBell" aria-label="Taleplerim">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.95 1.95 0 0 0 3.4 0"/></svg>
-                        <span class="go-bell-dot" id="goBellDot" hidden></span>
-                    </button>
-                </header>
+            <div class="go-h2-top">
+                <span class="go-h2-spacer"></span>
+                <button class="go-h2-bell" id="goBell" aria-label="Taleplerim">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.95 1.95 0 0 0 3.4 0"/></svg>
+                    <span class="go-bell-dot" id="goBellDot" hidden></span>
+                </button>
+                <button class="go-h2-avatar" id="goAvatar" aria-label="Profil">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg>
+                </button>
             </div>
 
-            <div class="go-body">
-                <p class="go-welcome" id="goWelcome" hidden></p>
+            <div class="go-h2-greet">
+                <span class="go-h2-hi" id="goGreetTime">Hoş geldiniz,</span>
+                <h1 class="go-h2-name" id="goGuestName">Misafirimiz</h1>
+            </div>
 
-                <button class="go-active" id="goActive" hidden></button>
+            <div class="go-h2-cards" id="goCats"><div class="go-spinner"></div></div>
 
-                <div class="go-sec">
-                    <h2 class="go-sec-title">Otel Bilgileri</h2>
-                    <button class="go-sec-link" id="goInfoAll">Tümü</button>
-                </div>
-                <div class="go-carousel" id="goCarousel"></div>
-                <div class="go-dots" id="goDots"></div>
+            <div class="go-h2-qa" id="goQaSec">
+                <div class="go-h2-qa-head">HIZLI İŞLEMLER</div>
+                <div class="go-h2-qa-grid" id="goQuick"></div>
+            </div>
 
-                <div class="go-sec">
-                    <h2 class="go-sec-title">Hizmetler</h2>
-                    <button class="go-sec-link" data-go="services">Tümü</button>
-                </div>
-                <div class="go-cats" id="goCats"><div class="go-spinner"></div></div>
-
-                <div class="go-legal">
-                    Talebinizi oluşturarak verilerinizin hizmet amacıyla işlenmesini kabul edersiniz.
-                    <a href="legal/kvkk-aydinlatma.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>
-                </div>
+            <div class="go-legal">
+                Talebinizi oluşturarak verilerinizin hizmet amacıyla işlenmesini kabul edersiniz.
+                <a href="legal/kvkk-aydinlatma.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>
             </div>
         </section>
 
-        <!-- ══ HİZMETLER ══ -->
+        <!-- ══ HİZMETLER (kategori → öğeler) ══ -->
         <section class="go-screen go-hidden" id="scServices" data-screen="services">
             <div class="go-topbar">
+                <button class="go-back" id="goServicesBack" aria-label="Geri">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
                 <h1 class="go-topbar-title">Hizmetler</h1>
             </div>
             <div class="go-search">
@@ -74,6 +66,9 @@
         <!-- ══ SEPET ══ -->
         <section class="go-screen go-hidden" id="scCart" data-screen="cart">
             <div class="go-topbar">
+                <button class="go-back" id="goCartBack" aria-label="Geri">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
                 <h1 class="go-topbar-title">Sepetim</h1>
                 <button class="go-topbar-act" id="goCartClear" hidden>Temizle</button>
             </div>
@@ -90,16 +85,28 @@
             </div>
         </section>
 
-        <!-- ══ TALEPLERİM ══ -->
+        <!-- ══ TALEPLERİM (Requests) ══ -->
         <section class="go-screen go-hidden" id="scOrders" data-screen="orders">
             <div class="go-topbar">
                 <button class="go-back" id="goTrackBack" hidden aria-label="Geri">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
                 <h1 class="go-topbar-title" id="goOrdersTitle">Taleplerim</h1>
             </div>
             <div class="go-scroll" id="goOrders"></div>
             <div class="go-scroll go-hidden" id="goTrack"></div>
+        </section>
+
+        <!-- ══ SOHBET (Chat) ══ -->
+        <section class="go-screen go-hidden" id="scChat" data-screen="chat">
+            <div class="go-topbar"><h1 class="go-topbar-title">Sohbet</h1></div>
+            <div class="go-scroll" id="goChatBody"></div>
+        </section>
+
+        <!-- ══ PROFİL ══ -->
+        <section class="go-screen go-hidden" id="scProfile" data-screen="profile">
+            <div class="go-topbar"><h1 class="go-topbar-title">Profil</h1></div>
+            <div class="go-scroll" id="goProfileBody"></div>
         </section>
     </div>
 
@@ -113,39 +120,28 @@
         <span class="go-pill-total" id="goPillTotal"></span>
     </button>
 
-    <!-- ══ Alt navigasyon ══ -->
+    <!-- ══ Alt navigasyon (Home · Requests · Chat · Profile) ══ -->
     <nav class="go-nav" id="goNav">
         <button class="go-nav-b active" data-go="home">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
             <span>Ana Sayfa</span>
         </button>
-        <button class="go-nav-b" data-go="services">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-            <span>Hizmetler</span>
-        </button>
-        <button class="go-nav-b" data-go="cart">
-            <span class="go-nav-ic">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-                <b class="go-nav-badge" id="goNavBadge" hidden>0</b>
-            </span>
-            <span>Sepet</span>
-        </button>
         <button class="go-nav-b" data-go="orders">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>
+            <span class="go-nav-ic">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg>
+                <b class="go-nav-badge" id="goNavBadge" hidden></b>
+            </span>
             <span>Taleplerim</span>
         </button>
+        <button class="go-nav-b" data-go="chat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/></svg>
+            <span>Sohbet</span>
+        </button>
+        <button class="go-nav-b" data-go="profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg>
+            <span>Profil</span>
+        </button>
     </nav>
-
-    <!-- ══ Otel bilgileri sayfası (alt sayfa) ══ -->
-    <div class="go-backdrop" id="goInfoBackdrop"></div>
-    <section class="go-sheet" id="goInfoSheet" aria-hidden="true">
-        <div class="go-sheet-grip"></div>
-        <div class="go-sheet-head">
-            <h2 id="goInfoTitle">Otel Bilgileri</h2>
-            <button class="go-sheet-x" id="goInfoClose" aria-label="Kapat">✕</button>
-        </div>
-        <div class="go-sheet-scroll" id="goInfoBody"></div>
-    </section>
 
     <!-- ══ Doğrulama (soyadı + oda) ══ -->
     <div class="go-backdrop" id="goGateBackdrop"></div>
@@ -167,17 +163,6 @@
         <div class="go-gate-err" id="goGateErr"></div>
         <button class="go-cta go-cta-block" id="goGateBtn"><span id="goGateBtnLabel">Doğrula ve Devam Et</span></button>
         <p class="go-gate-help">Sorun mu yaşıyorsunuz? Lütfen resepsiyon ile iletişime geçin.</p>
-    </section>
-
-    <!-- ══ Sepete eklendi / aksiyon onayı için alt sayfa (talep notu) ══ -->
-    <div class="go-backdrop" id="goItemBackdrop"></div>
-    <section class="go-sheet" id="goItemSheet" aria-hidden="true">
-        <div class="go-sheet-grip"></div>
-        <div class="go-sheet-head">
-            <h2 id="goItemTitle">Talep</h2>
-            <button class="go-sheet-x" id="goItemClose" aria-label="Kapat">✕</button>
-        </div>
-        <div class="go-sheet-scroll" id="goItemBody"></div>
     </section>
 
     <!-- ══ Toast ══ -->
