@@ -29,6 +29,14 @@
         .sec-head p { font-size: 15px; color: var(--muted); line-height: 1.6; }
         .pg-foot { border-top: 1px solid var(--border); text-align: center; padding: 28px; color: var(--faint); font-size: 13px; }
         .pg-foot a { color: var(--accent-dark); font-weight: 600; }
+        .pr-pay { display: flex; align-items: center; justify-content: center; gap: 9px;
+            background: linear-gradient(120deg,#0c8f4e,#0aa05a) !important; color: #fff !important;
+            box-shadow: 0 10px 24px rgba(10,160,90,.30) !important; }
+        .pr-pay:disabled { opacity: .6; cursor: default; }
+        .pr-ghost { background: #fff !important; color: var(--accent-dark) !important; border: 1px solid var(--border) !important;
+            box-shadow: none !important; margin-top: 9px !important; }
+        .pr-secure { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 12px;
+            font-size: 11.5px; color: var(--faint); }
         @media (max-width: 480px) { .pg-head .back { display: none; } .sec-head h2 { font-size: 25px; } }
     </style>
 </head>
@@ -102,8 +110,16 @@
                     <div class="pr-r-total" id="prTotal">€0<span>/ay</span></div>
                     <div class="pr-r-sub" id="prSub"></div>
                     <span class="pr-r-save" id="prSave" style="display:none;"></span>
-                    <button class="pr-r-cta" data-quote>Teklif Al →</button>
-                    <div class="pr-r-note">Tüm fiyatlar KDV hariç ve €/aydır. Kesin teklif için “Teklif Al” deyin, aynı gün dönelim.</div>
+                    <button class="pr-r-cta pr-pay" data-pay>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/></svg>
+                        <span id="prPayLabel">Hemen Öde</span>
+                    </button>
+                    <button class="pr-r-cta pr-ghost" data-quote>Teklif Al →</button>
+                    <div class="pr-secure">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+                        Lemon Squeezy ile güvenli ödeme · kart bilgileri bizde saklanmaz
+                    </div>
+                    <div class="pr-r-note">Tüm fiyatlar KDV hariç ve €/aydır. Toplu/kurumsal anlaşmalar için “Teklif Al” deyin, aynı gün dönelim.</div>
                 </div>
             </div>
         </div>

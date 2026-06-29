@@ -397,6 +397,18 @@
                             </div>
                             <label>Fatura Notu / Dipnot</label>
                             <input id="setNotes" placeholder="Teşekkür ederiz.">
+
+                            <div class="fin-sec-divider">Lemon Squeezy (Online Ödeme)</div>
+                            <div class="fin-note-box">Fiyatlandırma sayfasındaki ve panel içi “Lemon Squeezy ile Öde” butonları için. Lemon Squeezy mağazanızdaki <b>Store ID</b> ve her plan için <b>Variant ID</b> girin. API anahtarı ve webhook gizli anahtarı sunucuda secret olarak tutulur (<code>LEMON_API_KEY</code>, <code>LEMON_WEBHOOK_SECRET</code>). Webhook URL: <code>https://stayos.org/api/lemon-webhook</code></div>
+                            <div class="fin-form-row">
+                                <div><label>Store ID</label><input id="setLemonStore" placeholder="örn. 12345"></div>
+                                <div><label>Starter Variant ID</label><input id="setLemonStarter" placeholder="variant id"></div>
+                            </div>
+                            <div class="fin-form-row">
+                                <div><label>Pro Variant ID</label><input id="setLemonPro" placeholder="variant id"></div>
+                                <div><label>Enterprise Variant ID</label><input id="setLemonEnt" placeholder="variant id"></div>
+                            </div>
+
                             <div style="display:flex; align-items:center; gap:12px; margin-top:18px;">
                                 <button class="btn-primary" id="setSave">Kaydet</button>
                                 <span id="setSaved" class="sub" style="display:none; color:#16a34a;">✓ Kaydedildi</span>
