@@ -710,14 +710,15 @@ function lemonConfig(cfg) {
 }
 // Lemon Squeezy Checkout API → ödeme sayfası URL'i döndürür.
 async function lsCreateCheckout(opts) {
+  // NOT: custom_price, attributes içinde ÜST SEVİYEDE olmalı (resmi SDK gibi);
+  // checkout_data içine konursa "The checkout data field must be an array" hatası alınır.
   const attrs = {
-    checkout_data: { custom: opts.custom || {} },
-    checkout_options: { embed: false, dark: false },
-    product_options: { redirect_url: opts.redirectUrl }
+    product_options: { redirect_url: opts.redirectUrl },
+    checkout_data: { custom: opts.custom || {} }
   };
   if (opts.email) attrs.checkout_data.email = opts.email;
   if (opts.name) attrs.checkout_data.name = opts.name;
-  if (opts.priceCents && opts.priceCents > 0) attrs.checkout_data.custom_price = Math.round(opts.priceCents);
+  if (opts.priceCents && opts.priceCents > 0) attrs.custom_price = Math.round(opts.priceCents);
   const body = {
     data: {
       type: 'checkouts',
