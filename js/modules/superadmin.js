@@ -1541,9 +1541,37 @@
         const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], tickets: ['Destek', 'Otellerden gelen sorun, istek ve öneriler'], finance: ['Muhasebe', 'Gelir, KDV, abonelik ve fatura'], site: ['Site', 'Apex tanıtım sayfası görünümü'] };
         $('pageTitle').textContent = titles[view][0];
         $('pageSub').textContent = titles[view][1];
-        $('sidebar').classList.remove('open');
+        closeSidebar();
     }));
-    $('menuToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
+    const closeSidebar = () => { $('sidebar').classList.remove('open'); const bd = $('sbBackdrop'); if (bd) bd.classList.remove('show'); };
+    $('menuToggle').addEventListener('click', () => {
+        const open = $('sidebar').classList.toggle('open');
+        const bd = $('sbBackdrop'); if (bd) bd.classList.toggle('show', open);
+    });
+    { const bd = $('sbBackdrop'); if (bd) bd.addEventListener('click', closeSidebar); }
+
+    // ── Responsive tablolar: thead başlıklarını her hücreye data-label olarak
+    // ekler; mobilde tablolar etiketli kart görünümüne dönüşür (CSS). Render'lar
+    // tbody'yi değiştirdikçe MutationObserver otomatik yeniden uygular.
+    function labelTables() {
+        document.querySelectorAll('.table-wrap table').forEach(tbl => {
+            const heads = Array.from(tbl.querySelectorAll('thead th')).map(th => th.textContent.trim());
+            if (!heads.length) return;
+            tbl.querySelectorAll('tbody tr, tfoot tr').forEach(tr => {
+                let i = 0;
+                Array.from(tr.children).forEach(td => {
+                    const span = parseInt(td.getAttribute('colspan') || '1', 10) || 1;
+                    if (span === 1 && heads[i] != null && heads[i] !== '') td.setAttribute('data-label', heads[i]);
+                    i += span;
+                });
+            });
+        });
+    }
+    try {
+        const obs = new MutationObserver(() => labelTables());
+        obs.observe(document.querySelector('.content') || document.body, { childList: true, subtree: true });
+    } catch (e) { /* yok say */ }
+    labelTables();
 
     // ---------- support (tickets) events ----------
     $('ticketFilters').addEventListener('click', (e) => {
