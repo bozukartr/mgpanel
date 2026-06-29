@@ -129,10 +129,11 @@
             pms: isBiz ? true : !!(pms && pms.checked)
         };
     }
-    // Lemon.js overlay (modal). Hazır değilse tam-sayfa yönlendirmeye düşer.
-    var lemonReady = false;
-    function ensureLemon() {
-        if (lemonReady) return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
+    // Lemon.js overlay (modal). ÖNEMLİ: overlay'in tıklama anında değil, sayfa
+    // yüklenince ÖNCEDEN init edilmesi gerekir; yoksa lemon.js yeni sekmeye düşer.
+    var lemonInited = false;
+    function initLemon() {
+        if (lemonInited) return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
         if (typeof window.createLemonSqueezy === 'function') {
             try {
                 window.createLemonSqueezy();
@@ -144,15 +145,20 @@
                         }
                     } });
                 }
-                lemonReady = true;
+                lemonInited = true;
             } catch (err) { /* yok say */ }
         }
         return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
     }
+    // lemon.js `defer` ile yüklenir; bu script önce çalışır → init'i DOMContentLoaded'a bırak.
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initLemon);
+    else initLemon();
+    window.addEventListener('load', initLemon);  // ekstra güvence
+
     function openCheckout(url) {
         var u = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'embed=1';
-        if (ensureLemon() && window.LemonSqueezy.Url.Open) { window.LemonSqueezy.Url.Open(u); }
-        else { window.location.href = url; }   // fallback
+        if (initLemon() && window.LemonSqueezy.Url.Open) { window.LemonSqueezy.Url.Open(u); }
+        else { window.location.href = url; }   // lemon.js yoksa tam-sayfa fallback
     }
     qa('[data-pay]').forEach(function (b) {
         b.addEventListener('click', function () {
