@@ -501,3 +501,107 @@ a.btn-ghost, a.btn-primary { text-decoration: none; }
 #ticketModal textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-family: inherit;
     font-size: 13.5px; color: var(--text); resize: vertical; }
 #ticketModal textarea:focus { outline: none; border-color: var(--accent); }
+
+/* ════════════════════════════════════════════════════════════════
+   MOBİL / RESPONSIVE REVİZYON
+   Sidebar drawer + backdrop, 2 sütun KPI, kaydırılır sekmeler,
+   tablolar → kart görünümü, alt-sayfa modaller, dikey formlar.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Sidebar drawer arka planı (mobil) */
+.sb-backdrop {
+    position: fixed; inset: 0; background: rgba(15,23,42,.45); backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 55;
+}
+.sb-backdrop.show { opacity: 1; pointer-events: auto; }
+
+@media (max-width: 900px) {
+    .topbar { padding: 0 18px; }
+    .content { padding: 22px 18px 70px; }
+}
+
+@media (max-width: 760px) {
+    /* ── Topbar ── */
+    .topbar { height: 58px; padding: 0 12px; gap: 10px; }
+    .topbar > div { min-width: 0; }
+    .topbar h1 { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar .sub { display: none; }
+    .content { padding: 14px 12px 90px; }
+
+    /* ── KPI: 2 sütun ── */
+    .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .kpi { padding: 13px; border-radius: 12px; }
+    .kpi .top { margin-bottom: 8px; }
+    .kpi .ico { width: 28px; height: 28px; border-radius: 8px; }
+    .kpi .ico svg { width: 16px; height: 16px; }
+    .kpi .val { font-size: 22px; letter-spacing: -.5px; }
+    .kpi .lbl { font-size: 11.5px; }
+    .kpi .hint { font-size: 11px; margin-top: 5px; }
+
+    /* ── Kart başlığı sarılsın, arama tam genişlik ── */
+    .card-head { flex-wrap: wrap; gap: 10px; padding: 14px; }
+    .card-head > .o-search-wrap, .card-head .o-search-wrap { width: 100%; order: 3; }
+    .o-search-wrap input { width: 100%; max-width: none; }
+
+    /* ── Sekme / filtre çubukları: yatay kaydırma ── */
+    .o-filters, .fin-tabs, .fin-rangebar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .o-filters::-webkit-scrollbar, .fin-tabs::-webkit-scrollbar, .fin-rangebar::-webkit-scrollbar { display: none; }
+    .o-filters { padding: 12px 14px; }
+    .o-tab, .fin-rg, .fin-tab, .fin-range { white-space: nowrap; flex-shrink: 0; }
+    .fin-range-label { display: none; }
+
+    /* ── Tablolar → kart görünümü (yalnız .table-wrap içindekiler) ── */
+    .table-wrap { overflow-x: visible; }
+    .table-wrap table, .table-wrap tbody, .table-wrap tfoot, .table-wrap tr, .table-wrap td { display: block; width: 100%; }
+    .table-wrap thead { display: none; }
+    .table-wrap tbody tr, .table-wrap tfoot tr { padding: 13px 14px; border-bottom: 1px solid var(--border); }
+    .table-wrap tbody tr:last-child, .table-wrap tfoot tr:last-child { border-bottom: none; }
+    .table-wrap tbody tr:hover { background: transparent; }
+    .table-wrap td { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+        padding: 6px 0 !important; border: none !important; font-size: 13.5px; text-align: right; white-space: normal; }
+    .table-wrap td::before { content: attr(data-label); flex-shrink: 0; text-align: left; white-space: nowrap;
+        font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--faint); }
+    .table-wrap td:not([data-label])::before { content: ""; }
+    .table-wrap td:first-child { justify-content: flex-start; text-align: left; font-size: 14.5px; font-weight: 700;
+        padding: 0 0 9px !important; margin-bottom: 5px; border-bottom: 1px solid #eef1f6 !important; }
+    .table-wrap td:first-child::before { display: none; }
+    .table-wrap td[colspan], .table-wrap td.empty { display: block; text-align: center; }
+    .table-wrap td[colspan]::before, .table-wrap td.empty::before { display: none; }
+    .table-wrap .row-actions, .table-wrap .mchips { justify-content: flex-end; flex-wrap: wrap; }
+    .table-wrap .hotel-cell { width: 100%; }
+    .fin-tx-foot td { font-weight: 800; }
+
+    /* ── Modaller → alt sayfa (bottom sheet) ── */
+    .modal-backdrop { padding: 0; align-items: flex-end; }
+    .modal { max-width: none; width: 100%; border-radius: 18px 18px 0 0; max-height: 90vh; }
+    .modal.modal-sm { max-width: none; }
+    .modal-head { padding: 18px 18px 0; }
+    .modal-body { padding: 14px 18px; }
+    .modal-foot { flex-direction: column-reverse; gap: 8px; padding: 14px 18px calc(16px + env(safe-area-inset-bottom, 0px)); }
+    .modal-foot > button, .modal-foot > a { width: 100%; justify-content: center; }
+    .field-row { flex-direction: column; gap: 0; }
+
+    /* ── Drawer (otel detayı) tam genişlik ── */
+    .drawer { width: 100%; max-width: 100vw; border-left: none; }
+    .drawer-body { padding: 16px; }
+    .d-stats { gap: 8px; }
+    .d-actions .btn-ghost, .d-actions .btn-primary, .d-actions button, .d-actions a { flex: 1; justify-content: center; }
+
+    /* ── Muhasebe ── */
+    .fin-rangebar { gap: 10px; }
+    .fin-chart { gap: 5px; height: 150px; }
+    .fin-bar { max-width: 30px; }
+    .fin-inv-preview { padding: 18px 14px; }
+    .fin-inv-wrap { gap: 14px; }
+
+    /* Destek (ticket) thread */
+    .tk-thread { max-height: 50vh; }
+}
+
+@media (max-width: 440px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .d-stats { grid-template-columns: 1fr 1fr; }
+    /* "Yeni Otel" → ikon-only */
+    #newHotelBtn { padding: 9px 11px; gap: 0; font-size: 0; }
+    #newHotelBtn svg { width: 18px; height: 18px; }
+}
