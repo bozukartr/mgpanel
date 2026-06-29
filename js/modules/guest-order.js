@@ -350,7 +350,6 @@
                 ? `background-color:${color};background-image:linear-gradient(180deg,rgba(16,24,36,.20),rgba(16,24,36,.66)),url('${img}');background-size:cover;background-position:center;`
                 : `background:${color};`;
             return `<button class="go-card3" data-cat="${esc(c)}" style="${style}">
-                <span class="go-card3-ic">${card3Icon(c, 36)}</span>
                 <span class="go-card3-tx">${esc(c)}</span>
             </button>`;
         }).join('');

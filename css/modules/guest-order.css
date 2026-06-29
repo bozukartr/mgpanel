@@ -71,15 +71,13 @@ h1, h2, h3, p { margin: 0; }
 
 /* 3 uzun renkli kart */
 .go-h2-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0 18px; flex-shrink: 0; }
-.go-card3 { aspect-ratio: 0.62; border-radius: var(--r-lg); padding: 18px 12px; color: #fff; overflow: hidden;
+.go-card3 { aspect-ratio: 0.62; border-radius: var(--r-lg); padding: 16px 12px 18px; color: #fff; overflow: hidden;
     background-size: cover; background-position: center; background-repeat: no-repeat;
-    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
     box-shadow: var(--shadow); transition: transform .14s; }
 .go-card3:active { transform: scale(.96); }
-.go-card3-ic { flex: 1; display: flex; align-items: center; justify-content: center; }
-.go-card3-ic svg { width: 38px; height: 38px; stroke-width: 1.6; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
-.go-card3-tx { font-size: 14.5px; font-weight: 600; text-align: center; line-height: 1.2; letter-spacing: -.2px;
-    padding-bottom: 4px; text-shadow: 0 1px 8px rgba(0,0,0,.4); }
+.go-card3-tx { font-size: 15px; font-weight: 700; text-align: center; line-height: 1.2; letter-spacing: -.2px;
+    text-shadow: 0 1px 10px rgba(0,0,0,.55); }
 
 /* Hızlı işlemler */
 .go-h2-qa { padding: 28px 18px 0; flex-shrink: 0; }
