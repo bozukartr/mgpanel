@@ -917,3 +917,53 @@ exports.lemonWebhook = onRequest(
     }
   }
 );
+
+// ── Tek seferlik göç: tenantId'siz (etiketsiz) eski dokümanları kurucu otele
+//    ('mgallery') etiketle. Fail-closed kurallara/koda geçmeden ÖNCE superadmin
+//    bunu çalıştırmalı; aksi halde çok-kiracılık öncesi etiketsiz veriler ve
+//    kullanıcılar fail-closed sonrası erişilemez kalır. İdempotent: zaten
+//    etiketli dokümanlara dokunmaz. İstenirse {tenant, collections} verilebilir.
+const BACKFILL_COLLECTIONS = [
+  'systemUsers', 'reservations', 'guestLogs', 'guestDirectory',
+  'guestOrders', 'restChecks', 'tickets', 'notifications', 'presence', 'issueTopics'
+];
+exports.backfillTenantTags = onCall({ region: REGION, timeoutSeconds: 540 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const su = await db.collection('superAdmins').doc(request.auth.uid).get();
+  if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
+
+  const d = request.data || {};
+  const tenant = (typeof d.tenant === 'string' && /^[a-z0-9-]{2,24}$/.test(d.tenant)) ? d.tenant : 'mgallery';
+  const cols = (Array.isArray(d.collections) && d.collections.length)
+    ? d.collections.filter((c) => BACKFILL_COLLECTIONS.includes(c))
+    : BACKFILL_COLLECTIONS;
+
+  const result = {};
+  for (const col of cols) {
+    let scanned = 0; let tagged = 0; let last = null;
+    // Doküman-id sırasıyla sayfalayarak tüm koleksiyonu tara (Firestore'da
+    // "alan yok" sorgusu olmadığından istemci-tarafı kontrol gerekir).
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      let q = db.collection(col).orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+      if (last) q = q.startAfter(last);
+      const snap = await q.get();
+      if (snap.empty) break;
+      const batch = db.batch();
+      let n = 0;
+      snap.forEach((doc) => {
+        scanned++;
+        const dd = doc.data() || {};
+        if (dd.tenantId === undefined || dd.tenantId === null || dd.tenantId === '') {
+          batch.set(doc.ref, { tenantId: tenant }, { merge: true });
+          n++;
+        }
+      });
+      if (n) { await batch.commit(); tagged += n; }
+      last = snap.docs[snap.docs.length - 1];
+      if (snap.size < 400) break;
+    }
+    result[col] = { scanned, tagged };
+  }
+  return { ok: true, tenant, result };
+});
