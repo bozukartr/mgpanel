@@ -47,21 +47,25 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/roomAccess/$(tid + '__' + room)).data.get('open', false) == true;
     }
 
-    // The caller's hotel (tenant). Untagged legacy users are treated as the
-    // first hotel so nothing is locked out before/while data is migrated.
+    // The caller's hotel (tenant). FAIL-CLOSED: an untagged user (no tenantId
+    // on their systemUsers doc) gets a sentinel that can never equal a real
+    // tenant slug NOR a document's missing-tenant sentinel — so they match
+    // nothing. Tag legacy users via backfillTenantTags before this is enforced.
     function callerTenant() {
       return get(/databases/$(database)/documents/systemUsers/$(request.auth.uid))
-               .data.get('tenantId', 'mgallery');
+               .data.get('tenantId', 'NO_TENANT_USER');
     }
 
-    // Tenant guards. Untagged legacy documents default to the first hotel.
+    // Tenant guards. FAIL-CLOSED: an untagged document defaults to a sentinel
+    // distinct from the caller sentinel, so untagged docs are inaccessible to
+    // everyone (an untagged caller never matches an untagged doc).
     function readOwnTenant() {
       return isSuperAdmin()
-        || (signedIn() && resource.data.get('tenantId', 'mgallery') == callerTenant());
+        || (signedIn() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
     }
     function writeOwnTenant() {
       return isSuperAdmin()
-        || (signedIn() && request.resource.data.get('tenantId', 'mgallery') == callerTenant());
+        || (signedIn() && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
     }
 
     // --- Business data: isolated per hotel (tenant) ---
@@ -166,10 +170,10 @@ service cloud.firestore {
 
     // --- Support tickets: per-hotel, admins only ---
     match /tickets/{id} {
-      allow read:   if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'mgallery') == callerTenant());
-      allow create: if isSuperAdmin() || (isAdmin() && request.resource.data.get('tenantId', 'mgallery') == callerTenant());
-      allow update: if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'mgallery') == callerTenant());
-      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'mgallery') == callerTenant());
+      allow read:   if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      allow create: if isSuperAdmin() || (isAdmin() && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      allow update: if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
     }
 
     // --- Tenant registry (hotels). A user may read only their own hotel;
@@ -217,9 +221,9 @@ service cloud.firestore {
     //     their OWN document (id = uid) via a heartbeat; teammates in the same
     //     hotel may read the roster to assign live requests. ---
     match /presence/{uid} {
-      allow read:   if signedIn() && resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow read:   if signedIn() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow create, update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 
@@ -229,7 +233,7 @@ service cloud.firestore {
     match /notifications/{id} {
       allow read:   if signedIn() && resource.data.toUid == request.auth.uid;
       allow create: if signedIn()
-        && request.resource.data.get('tenantId', 'mgallery') == callerTenant()
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
         && request.resource.data.fromUid == request.auth.uid;
       allow update: if signedIn() && resource.data.toUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
@@ -304,9 +308,9 @@ service cloud.firestore {
     match /issueTopics/{id} {
       allow read:   if signedIn();
       allow create: if isStaff()
-        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow delete: if isStaff() && isAdmin()
-        && resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
     }
 
     // --- Guest self-service request catalog (admin-managed "menu"). Any signed-in
@@ -316,12 +320,12 @@ service cloud.firestore {
     match /requestCatalog/{id} {
       allow read:   if signedIn();
       allow create: if isStaff() && isAdmin()
-        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow update: if isStaff() && isAdmin()
-        && resource.data.get('tenantId', 'mgallery') == callerTenant()
-        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow delete: if isStaff() && isAdmin()
-        && resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
     }
 
     // --- Guest self-service orders. A guest (anonymous session) creates an order
@@ -329,7 +333,7 @@ service cloud.firestore {
     //     cancel one while it is still pending. The hotel's staff see and manage
     //     every order in their tenant. Tenant and session owner are immutable. ---
     match /guestOrders/{id} {
-      allow read: if (isStaff() && resource.data.get('tenantId', 'mgallery') == callerTenant())
+      allow read: if (isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant())
         || (signedIn() && resource.data.get('sessionUid', '') == request.auth.uid);
 
       allow create: if signedIn()
@@ -348,8 +352,8 @@ service cloud.firestore {
       // Staff manage status/assignment within their hotel (tenant + owner frozen);
       // OR the guest cancels their own still-pending order.
       allow update: if (isStaff()
-            && resource.data.get('tenantId', 'mgallery') == callerTenant()
-            && request.resource.data.get('tenantId', 'mgallery') == resource.data.get('tenantId', 'mgallery')
+            && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
+            && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == resource.data.get('tenantId', 'NO_TENANT_DOC')
             && request.resource.data.get('sessionUid', '') == resource.data.get('sessionUid', ''))
         || (signedIn()
             && resource.data.get('sessionUid', '') == request.auth.uid
@@ -357,7 +361,7 @@ service cloud.firestore {
             && request.resource.data.status == 'cancelled'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
 
-      allow delete: if isStaff() && resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow delete: if isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
     }
 
     // --- Per-room access state for the guest QR page. Mirrored from the hotel's
@@ -369,9 +373,9 @@ service cloud.firestore {
     match /roomAccess/{id} {
       allow read:          if signedIn();
       allow create, update: if isStaff()
-        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow delete:        if isStaff()
-        && resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
     }
 
     // --- İstemci hata günlükleri (kendi içinde izleme; monitor.js) ---
@@ -381,9 +385,9 @@ service cloud.firestore {
     //     yapar.
     match /errorLogs/{id} {
       allow create: if isStaff()
-        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow read:   if isSuperAdmin()
-        || (isAdmin() && resource.data.get('tenantId', 'mgallery') == callerTenant());
+        || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
       allow update: if false;
       allow delete: if isSuperAdmin();
     }

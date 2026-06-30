@@ -352,7 +352,8 @@ exports.onGuestOrderCreate = onDocumentCreated(
     if (!snap) return;
     const o = snap.data() || {};
     if ((o.status || 'pending') !== 'pending') return;
-    const tenantId = o.tenantId || 'mgallery';
+    const tenantId = o.tenantId;
+    if (!tenantId) return; // etiketsiz sipariş — hangi otele ait bilinmiyor, bildirim gönderme (fail-closed)
     const room = String(o.room || '').trim();
     const count = Array.isArray(o.items) ? o.items.length : 0;
 
@@ -477,7 +478,8 @@ exports.pmsLookup = onCall({ region: REGION }, async (request) => {
   const uid = request.auth.uid;
   const userSnap = await db.collection('systemUsers').doc(uid).get();
   if (!userSnap.exists) throw new HttpsError('permission-denied', 'Kullanıcı bulunamadı.');
-  const tenantId = userSnap.data().tenantId || 'mgallery';
+  const tenantId = userSnap.data().tenantId;
+  if (!tenantId) throw new HttpsError('failed-precondition', 'Kullanıcının oteli (tenant) tanımlı değil.'); // fail-closed
 
   const cfgSnap = await db.collection('pmsConfig').doc(tenantId).get();
   if (!cfgSnap.exists) return { enabled: false, results: [] };
@@ -644,8 +646,8 @@ exports.getGuestName = onCall({ region: REGION }, async (request) => {
   snap.forEach((doc) => {
     if (matchName) return;
     const g = doc.data() || {};
-    const gTenant = String(g.tenantId || 'mgallery').toLowerCase();
-    if (gTenant !== tenant) return;
+    const gTenant = String(g.tenantId || '').toLowerCase();
+    if (!gTenant || gTenant !== tenant) return; // etiketsiz misafir kaydı hiçbir tenant'a eşleşmez (fail-closed)
     if (g.status && g.status !== 'in_house') return;
     if (g.checkOut && String(g.checkOut) < today) return; // çıkış yapmış
     const gTokens = _nameTokens(g.name);
