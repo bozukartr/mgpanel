@@ -786,6 +786,10 @@
                     ${showP ? `<span class="go-track-tag">Toplam ${esc(money(o.total))}</span>` : ''}
                 </div>
             </div>
+            ${cancelled && o.cancelReason ? `<div class="go-cancel-reason">
+                <div class="go-cancel-reason-h">İptal Nedeni</div>
+                <div class="go-cancel-reason-b">${esc(o.cancelReason)}</div>
+            </div>` : ''}
             ${steps}
             <div class="go-track-sec">Talepleriniz</div>
             ${items}
