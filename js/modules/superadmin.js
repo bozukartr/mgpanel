@@ -1572,30 +1572,6 @@
     }
     if ($('errorSearch')) $('errorSearch').addEventListener('input', renderErrors);
 
-    // ── Tenant etiketleme göçü (backfillTenantTags) ───────────────
-    // Fail-closed izolasyonu devreye almadan ÖNCE bir kez çalıştırılır:
-    // tenantId'siz eski dokümanları kurucu otele ('mgallery') etiketler.
-    const backfillBtn = $('backfillBtn');
-    if (backfillBtn) backfillBtn.addEventListener('click', async () => {
-        if (!confirm("Tüm koleksiyonlardaki tenantId'siz dokümanlar 'mgallery' olarak etiketlenecek. Bu işlem geri alınamaz. Devam edilsin mi?")) return;
-        const out = $('backfillResult');
-        backfillBtn.disabled = true;
-        const orig = backfillBtn.textContent;
-        backfillBtn.textContent = 'Çalışıyor…';
-        if (out) { out.style.display = 'block'; out.textContent = 'Etiketleme çalışıyor, lütfen bekleyin…'; }
-        try {
-            const call = firebase.app().functions('us-central1').httpsCallable('backfillTenantTags');
-            const res = await call({});
-            if (out) out.textContent = JSON.stringify(res.data, null, 2);
-        } catch (e) {
-            if (out) out.textContent = 'Hata: ' + (e.message || e);
-            if (window.Monitor) Monitor.capture(e, { where: 'superadmin.backfill' });
-        } finally {
-            backfillBtn.disabled = false;
-            backfillBtn.textContent = orig;
-        }
-    });
-
     // Navigation
     document.querySelectorAll('.sb-link').forEach(link => link.addEventListener('click', () => {
         document.querySelectorAll('.sb-link').forEach(l => l.classList.remove('active'));
