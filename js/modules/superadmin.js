@@ -1531,6 +1531,47 @@
         if (e.target === m) m.classList.remove('show');
     }));
 
+    // ── İstemci hata günlükleri (monitor.js → errorLogs) ──────────
+    // Tüm tenant'ların son hataları (superadmin görür). "Hatalar" sekmesi ilk
+    // açıldığında bir kez canlı dinleyici kurulur (talep üzerine).
+    let errorRows = [];
+    let errorsLoaded = false;
+    const ERR_COLORS = { error: '#dc2626', warn: '#d97706', info: '#2563eb' };
+    function loadErrors() {
+        if (errorsLoaded) return;
+        errorsLoaded = true;
+        db.collection('errorLogs').orderBy('createdAt', 'desc').limit(200).onSnapshot(snap => {
+            errorRows = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+            renderErrors();
+        }, err => {
+            console.error('errorLogs load failed', err);
+            const b = $('errorsBody'); if (b) b.innerHTML = '<tr><td colspan="6">Yüklenemedi.</td></tr>';
+        });
+    }
+    function renderErrors() {
+        const body = $('errorsBody'); if (!body) return;
+        const q = ($('errorSearch') ? $('errorSearch').value : '').trim().toLowerCase();
+        let rows = errorRows;
+        if (q) rows = rows.filter(r => [r.tenantId, r.route, r.message, r.username, r.uid, r.level]
+            .some(v => String(v || '').toLowerCase().includes(q)));
+        if ($('errorsCount')) $('errorsCount').textContent = rows.length + ' kayıt' + (errorRows.length > rows.length ? ' / ' + errorRows.length + ' toplam' : '');
+        if (!rows.length) { body.innerHTML = '<tr><td colspan="6">Kayıt yok.</td></tr>'; return; }
+        body.innerHTML = rows.map(r => {
+            const d = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleString('tr-TR') : '';
+            const lvl = String(r.level || 'error');
+            const color = ERR_COLORS[lvl] || '#dc2626';
+            return '<tr>'
+                + '<td>' + esc(d) + '</td>'
+                + '<td>' + esc(r.tenantId || '—') + '</td>'
+                + '<td><span style="font-weight:700;color:' + color + '">' + esc(lvl) + '</span></td>'
+                + '<td>' + esc(r.route || '—') + '</td>'
+                + '<td>' + esc(r.username || r.uid || '—') + '</td>'
+                + '<td title="' + esc(r.stack || '') + '">' + esc(r.message || '') + '</td>'
+                + '</tr>';
+        }).join('');
+    }
+    if ($('errorSearch')) $('errorSearch').addEventListener('input', renderErrors);
+
     // Navigation
     document.querySelectorAll('.sb-link').forEach(link => link.addEventListener('click', () => {
         document.querySelectorAll('.sb-link').forEach(l => l.classList.remove('active'));
@@ -1538,7 +1579,8 @@
         const view = link.dataset.view;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         $('view-' + view).classList.add('active');
-        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], tickets: ['Destek', 'Otellerden gelen sorun, istek ve öneriler'], finance: ['Muhasebe', 'Gelir, KDV, abonelik ve fatura'], site: ['Site', 'Apex tanıtım sayfası görünümü'] };
+        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], tickets: ['Destek', 'Otellerden gelen sorun, istek ve öneriler'], finance: ['Muhasebe', 'Gelir, KDV, abonelik ve fatura'], site: ['Site', 'Apex tanıtım sayfası görünümü'], errors: ['Hatalar', 'İstemci tarafı hata günlükleri'] };
+        if (view === 'errors') loadErrors();
         $('pageTitle').textContent = titles[view][0];
         $('pageSub').textContent = titles[view][1];
         closeSidebar();

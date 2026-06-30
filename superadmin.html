@@ -82,6 +82,11 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                 Site
             </button>
+            <button class="sb-link" data-view="errors">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Hatalar
+                <span class="nav-badge" id="errorsBadge" hidden></span>
+            </button>
         </nav>
         <div class="sb-foot">
             <div class="sb-user">
@@ -202,6 +207,25 @@
                             <th>Tarih</th><th>Otel</th><th>Tür</th><th>Konu</th><th>Öncelik</th><th>Durum</th>
                         </tr></thead>
                         <tbody id="ticketsBody"></tbody>
+                    </table></div>
+                </div>
+            </section>
+
+            <!-- HATALAR / İSTEMCİ HATA GÜNLÜKLERİ -->
+            <section class="view" id="view-errors">
+                <div class="card">
+                    <div class="card-head">
+                        <div><h3>İstemci Hata Günlükleri</h3><div class="sub" id="errorsCount">—</div></div>
+                        <div class="o-search-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input id="errorSearch" type="search" placeholder="Otel, sayfa, mesaj, kullanıcı…" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr>
+                            <th>Zaman</th><th>Otel</th><th>Seviye</th><th>Sayfa</th><th>Kullanıcı</th><th>Mesaj</th>
+                        </tr></thead>
+                        <tbody id="errorsBody"></tbody>
                     </table></div>
                 </div>
             </section>
