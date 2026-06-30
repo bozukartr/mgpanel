@@ -71,6 +71,7 @@
             <button class="adm-tab" data-view="finance">Finans</button>
             <button class="adm-tab" data-view="users">Kullanıcılar</button>
             <button class="adm-tab" data-view="catalog">Hazır Talepler</button>
+            <button class="adm-tab" data-view="notify">Bildirimler</button>
             <button class="adm-tab" data-view="issues">Departmanlar</button>
             <button class="adm-tab" data-view="tickets">Destek</button>
             <button class="adm-tab" data-view="system">Sistem</button>
@@ -332,6 +333,41 @@
                     </div>
                     <div id="catalogQrHint" class="card-sub" style="margin:0 0 6px;"></div>
                     <div id="catalogList" class="cat-list"><!-- rendered by request-catalog.js --></div>
+                </section>
+            </section>
+
+            <!-- ═══ BİLDİRİMLER (misafir talebi push/ekran bildirimleri) ═══ -->
+            <section class="adm-view" id="view-notify">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Bildirim Ayarları</h2>
+                            <p class="card-sub">Yeni misafir talebi geldiğinde personele gönderilen bildirimleri özelleştirin.</p>
+                        </div>
+                        <button class="btn btn-primary" id="ntSave">Kaydet</button>
+                    </div>
+                    <div class="settings-body" style="display:grid; gap:14px;">
+                        <label class="switch-row" style="display:flex; align-items:center; gap:10px;">
+                            <input type="checkbox" id="ntEnabled">
+                            <span>Yeni misafir talebinde bildirim gönder</span>
+                        </label>
+                        <div class="form-group">
+                            <label>Bildirim başlığı</label>
+                            <input type="text" id="ntTitle" maxlength="80" placeholder="🛎️ Yeni misafir talebi">
+                        </div>
+                        <label class="switch-row" style="display:flex; align-items:center; gap:10px;">
+                            <input type="checkbox" id="ntShowItems">
+                            <span>Talep içeriğini bildirimde göster (talep edilen ürünler) — kapalıysa yalnızca talep sayısı görünür</span>
+                        </label>
+                        <div class="form-group">
+                            <label>Bildirimi kimler alsın?</label>
+                            <select id="ntRecipients">
+                                <option value="all">Tüm personel</option>
+                                <option value="managers">Yalnızca yönetici ve admin</option>
+                            </select>
+                        </div>
+                        <p class="card-sub" style="margin:0;">Not: Bildirimlerin telefona/masaüstüne kapalıyken düşmesi için cihazda bildirim izni verilmeli; iOS'ta site ana ekrana (PWA olarak) eklenmelidir.</p>
+                    </div>
                 </section>
             </section>
 
@@ -688,6 +724,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="js/modules/request-catalog.js"></script>
     <script src="js/modules/issue-config-admin.js"></script>
+    <script src="js/modules/notify-config-admin.js"></script>
     <script src="js/modules/room-access.js"></script>
     <script src="js/utils/modal-guard.js"></script>
     <script>
