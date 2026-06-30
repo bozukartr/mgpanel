@@ -111,7 +111,7 @@
     const DOMAINS = {
         guestLogs: {
             label: 'Misafir Kayıtları (Talep / Şikayet)',
-            collection: 'guestLogs', order: ['createdAt', 'desc'],
+            collection: 'guestLogs', order: ['createdAt', 'desc'], tsBound: 'createdAt',
             dateOf: r => r.date || '',
             facets: [
                 facet({ key: 'type', label: 'Kayıt Türü', kind: 'chips', fixed: ['Şikayet', 'Talep'], valueOf: glType }),
@@ -207,7 +207,7 @@
 
         guestOrders: {
             label: 'Misafir Siparişleri (QR)',
-            collection: 'guestOrders', order: ['createdAt', 'desc'],
+            collection: 'guestOrders', order: ['createdAt', 'desc'], tsBound: 'createdAt',
             dateOf: r => normDate(r.createdAt),
             facets: [
                 facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Tamamlandı', 'İptal'], valueOf: ordStatus }),
@@ -241,7 +241,7 @@
 
         orderItems: {
             label: 'Sipariş Ürünleri (kalem bazlı)',
-            collection: 'guestOrders', order: ['createdAt', 'desc'],
+            collection: 'guestOrders', order: ['createdAt', 'desc'], tsBound: 'createdAt',
             // Explode each order into one row per product line.
             transform: orders => {
                 const out = [];
@@ -314,7 +314,7 @@
 
         restSales: {
             label: 'Restoran Satışları (adisyon bazlı)',
-            collection: 'restChecks', order: ['closedAt', 'desc'],
+            collection: 'restChecks', order: ['closedAt', 'desc'], tsBound: 'closedAt',
             // Kapanmış adisyonlar: her satır bir adisyon (checkNo).
             transform: checks => {
                 const PM = { cash: 'Nakit', card: 'Kart', room: 'Oda Hesabı' };
@@ -358,7 +358,7 @@
 
         restItems: {
             label: 'Restoran Ürün Satışları (kalem bazlı)',
-            collection: 'restChecks', order: ['closedAt', 'desc'],
+            collection: 'restChecks', order: ['closedAt', 'desc'], tsBound: 'closedAt',
             transform: checks => {
                 const PM = { cash: 'Nakit', card: 'Kart', room: 'Oda Hesabı' };
                 const out = [];
@@ -673,9 +673,27 @@
     }
 
     // ── Domain switching / data ────────────────────────────────
+    // Seçili tarih aralığını sunucu tarafına iter (tüm koleksiyonu çekmek
+    // yerine). Yalnızca order alanı = sınır alanı olan domain'lerde (tsBound)
+    // ve aralık zaman damgası alanıyla aynı günse güvenli; render() zaten
+    // dateOf ile istemci tarafında tam filtrelediğinden ±1 gün marj bırakıp
+    // hiçbir aralık-içi kaydı atlamayız. 'Tüm Zamanlar'da sınır yok.
+    const DAY_MS = 86400000;
+    function queryBounds() {
+        if (!D.tsBound) return null;
+        const w = dateWindow();
+        if (!w.from && !w.to) return null; // preset 'all' → tüm koleksiyon
+        const out = {};
+        if (w.from) out.lo = firebase.firestore.Timestamp.fromDate(new Date(new Date(w.from + 'T00:00:00').getTime() - DAY_MS));
+        if (w.to) out.hi = firebase.firestore.Timestamp.fromDate(new Date(new Date(w.to + 'T23:59:59.999').getTime() + DAY_MS));
+        return out;
+    }
     function subscribe() {
         if (unsub) { try { unsub(); } catch (e) { } unsub = null; }
         let q = db.collection(D.collection).where('tenantId', '==', TENANT_ID);
+        const b = queryBounds();
+        if (b && b.lo) q = q.where(D.tsBound, '>=', b.lo);
+        if (b && b.hi) q = q.where(D.tsBound, '<=', b.hi);
         if (D.order) { try { q = q.orderBy(D.order[0], D.order[1]); } catch (e) { } }
         ready = false;
         // Map docs, optionally transform (e.g. explode orders into line items).
@@ -712,9 +730,13 @@
     function wire() {
         $('repDomain').innerHTML = DOMAIN_ORDER.map(k => `<option value="${k}">${esc(DOMAINS[k].label)}</option>`).join('');
         $('repDomain').onchange = e => setDomain(e.target.value);
-        $('repDatePreset').onchange = e => { preset = e.target.value; $('repCustomDates').style.display = (preset === 'custom') ? '' : 'none'; refresh(); };
-        $('repFrom').onchange = e => { cFrom = e.target.value; refresh(); };
-        $('repTo').onchange = e => { cTo = e.target.value; refresh(); };
+        // Tarih aralığı değişince, sunucu sınırlaması olan domain'lerde sorguyu
+        // yeni aralıkla yeniden kur (snapshot render eder); diğerlerinde istemci
+        // tarafında yeniden filtrele.
+        const applyDateChange = () => { if (D.tsBound) { renderFacets(); subscribe(); } else { refresh(); } };
+        $('repDatePreset').onchange = e => { preset = e.target.value; $('repCustomDates').style.display = (preset === 'custom') ? '' : 'none'; applyDateChange(); };
+        $('repFrom').onchange = e => { cFrom = e.target.value; applyDateChange(); };
+        $('repTo').onchange = e => { cTo = e.target.value; applyDateChange(); };
         $('repGroupBy').onchange = e => { groupBy = e.target.value; render(); };
         $('repReset').onclick = () => { setDomain(domainKey); };
         $('repExcel').onclick = exportExcel;
