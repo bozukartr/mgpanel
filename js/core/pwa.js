@@ -14,7 +14,10 @@
     if (!document.head.querySelector('link[rel="manifest"]')) {
         const l = document.createElement('link');
         l.rel = 'manifest';
-        l.href = 'manifest.webmanifest';
+        // Mutlak yol: her sayfada (login, app, panel…) AYNI manifest referans
+        // edilsin ki iOS/Chrome tek bir PWA kimliği (id: "/") görsün — yoksa
+        // login ile panel ekranından kurulan ayrı uygulamalar olarak algılanır.
+        l.href = '/manifest.webmanifest';
         document.head.appendChild(l);
     }
     meta('theme-color', '#6366f1');
@@ -25,7 +28,7 @@
     if (!document.head.querySelector('link[rel="apple-touch-icon"]')) {
         const al = document.createElement('link');
         al.rel = 'apple-touch-icon';
-        al.href = 'logo.png';
+        al.href = '/logo.png';
         document.head.appendChild(al);
     }
     if ('serviceWorker' in navigator) {
