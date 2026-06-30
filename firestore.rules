@@ -292,6 +292,15 @@ service cloud.firestore {
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
 
+    // --- Per-hotel notification settings (admin "Bildirimler" sekmesi). The
+    //     onGuestOrderCreate Cloud Function reads this with the Admin SDK to
+    //     customize the new-request push (title, show items, recipients, on/off).
+    //     Staff of the hotel may read; only the hotel's admin writes. ---
+    match /notifyConfig/{tid} {
+      allow read:  if isStaff() && tid == callerTenant();
+      allow write: if isStaff() && isAdmin() && tid == callerTenant();
+    }
+
     // --- Issue (guest-record) departments & topics (per hotel). The list of
     //     departments and their sub-topics used by "Misafir Kayıtları" for both
     //     talep and şikayet. Any signed-in staff member READS it; only the

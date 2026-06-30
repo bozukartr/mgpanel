@@ -355,15 +355,44 @@ exports.onGuestOrderCreate = onDocumentCreated(
     const tenantId = o.tenantId;
     if (!tenantId) return; // etiketsiz sipariş — hangi otele ait bilinmiyor, bildirim gönderme (fail-closed)
     const room = String(o.room || '').trim();
-    const count = Array.isArray(o.items) ? o.items.length : 0;
+    const items = Array.isArray(o.items) ? o.items : [];
+    const count = items.length;
+
+    // Otelin bildirim ayarları (admin "Bildirimler" sekmesi). Yoksa makul
+    // varsayılanlar: bildirim açık, içerik gösterilir, tüm personele gider.
+    let cfg = {};
+    try { const c = await db.collection('notifyConfig').doc(tenantId).get(); if (c.exists) cfg = c.data() || {}; } catch (e) { /* varsayılanlarla devam */ }
+    if (cfg.guestOrderEnabled === false) return; // operatör bildirimi kapatmış
 
     const staffSnap = await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
     if (staffSnap.empty) return;
+    let recipients = staffSnap.docs;
+    if (cfg.guestOrderRecipients === 'managers') {
+      recipients = recipients.filter((d) => {
+        const r = String((d.data() || {}).role || '').toLowerCase();
+        return r === 'admin' || r === 'manager';
+      });
+    }
+    if (!recipients.length) return;
 
-    const title = '🛎️ Yeni misafir talebi';
-    const body = (room ? 'Oda ' + room : 'Misafir') + (count ? ' · ' + count + ' talep' : '');
+    const title = (cfg.guestOrderTitle && String(cfg.guestOrderTitle).trim()) || '🛎️ Yeni misafir talebi';
+    // İçerik: talep edilen ürün adları (ör. "Havlu x2, Su, Kahvaltı"). Ayar
+    // kapalıysa yalnızca adet ("3 talep"). Push gövdesi için makul uzunlukta kırp.
+    const showItems = cfg.guestOrderShowItems !== false;
+    let detail = '';
+    if (showItems && count) {
+      const names = items
+        .map((it) => String((it && it.name) || '').trim() + (it && it.qty > 1 ? ' x' + it.qty : ''))
+        .filter((s) => s);
+      detail = names.join(', ');
+      if (detail.length > 120) detail = detail.slice(0, 117) + '…';
+    } else if (count) {
+      detail = count + ' talep';
+    }
+    const body = (room ? 'Oda ' + room : 'Misafir') + (detail ? ' · ' + detail : '');
+
     const batch = db.batch();
-    staffSnap.docs.forEach((doc) => {
+    recipients.forEach((doc) => {
       const ref = db.collection('notifications').doc();
       batch.set(ref, {
         toUid: doc.id,
