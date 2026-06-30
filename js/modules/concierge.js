@@ -25,6 +25,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
     const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     if (!loggedUsername) { window.location.href = 'login.html'; return; }
+
+    // Bu otelin (tenant) görünen adı — PDF/çıktılarda kullanılır. Sabit yazmak
+    // başka bir tenant'a MGallery markasını sızdırır; bu yüzden guestConfig'ten
+    // okunur. Ayarlanmamışsa marka satırı boş bırakılır (sızıntı yok).
+    let HOTEL_NAME = '';
+    async function ensureHotelName() {
+        if (HOTEL_NAME) return HOTEL_NAME;
+        try {
+            const d = await db.collection('guestConfig').doc(TENANT_ID).get();
+            if (d.exists) HOTEL_NAME = String((d.data() || {}).hotelName || '').trim();
+        } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'concierge.ensureHotelName' }); }
+        return HOTEL_NAME;
+    }
+    ensureHotelName();
     auth.onAuthStateChanged(async (u) => {
         if (!u) {
             window.location.href = 'login.html';
@@ -2006,7 +2020,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const generateConfirmationPDF = (r) => {
+    const generateConfirmationPDF = async (r) => {
+        await ensureHotelName(); // tenant'ın kendi otel adı (marka sızıntısını önler)
         const pdfEl = document.getElementById('itinerary-pdf');
         pdfEl.style.display = 'block';
 
@@ -2055,7 +2070,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <div class="pdf-footer">
-                    MGallery The Bodrum Hotel Yalıkavak
+                    ${esc(HOTEL_NAME)}
                 </div>
             </div>
         `;
