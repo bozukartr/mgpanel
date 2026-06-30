@@ -1820,6 +1820,10 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
 .cz-todayBtn:hover { background: #f8fafc; }
 .gi-table-card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 8px 4px; }
 .gi-table-card .table-wrapper { padding: 0 16px 8px; }
+.gi-loadolder-wrap { display: flex; justify-content: center; padding: 4px 0 10px; }
+.gi-loadolder { background: #fff; border: 1px solid var(--border); color: var(--text-muted); font-size: 12px; font-weight: 700; padding: 7px 18px; border-radius: 999px; cursor: pointer; transition: .15s; }
+.gi-loadolder:hover:not(:disabled) { border-color: #c7d2fe; color: var(--primary); }
+.gi-loadolder:disabled { opacity: .6; cursor: default; }
 
 /* Right column */
 .cz-right { width: 280px; flex-shrink: 0; background: #f6f8fb; border-left: 1px solid var(--border); padding: 26px 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }

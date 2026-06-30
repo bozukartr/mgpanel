@@ -374,6 +374,20 @@ service cloud.firestore {
         && resource.data.get('tenantId', 'mgallery') == callerTenant();
     }
 
+    // --- İstemci hata günlükleri (kendi içinde izleme; monitor.js) ---
+    //     Yalnızca personel (anonim olmayan) kendi tenant'ı için oluşturabilir;
+    //     anonim QR misafirleri yazamaz. Yalnızca o tenant'ın admin'i ve vendor
+    //     (superadmin) okuyabilir. Kayıtlar değiştirilemez; temizliği superadmin
+    //     yapar.
+    match /errorLogs/{id} {
+      allow create: if isStaff()
+        && request.resource.data.get('tenantId', 'mgallery') == callerTenant();
+      allow read:   if isSuperAdmin()
+        || (isAdmin() && resource.data.get('tenantId', 'mgallery') == callerTenant());
+      allow update: if false;
+      allow delete: if isSuperAdmin();
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;

@@ -61,7 +61,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let timelineFilter = 'all';
 
     // ── CORE FUNCTIONS ─────────────────────────────────────────
-    const loadAllData = async () => {
+    // Misafir aktivitesi (guestLogs + reservations) yalnızca bir misafir detayı
+    // ya da birleştirme/uzlaştırma açıldığında gerekir. Bu iki koleksiyon zamanla
+    // sınırsız büyüdüğünden, her CRM açılışında/işleminde değil yalnızca talep
+    // üzerine bir kez yüklenir. İsim eşleştirmesi büyük/küçük harf duyarsız
+    // olduğundan (hedefli sunucu sorgusu kayıtları atlayabilir) tam yükleme korunur.
+    let activityLoaded = false;
+    const ensureGuestActivity = async () => {
+        if (activityLoaded) return;
+        const logsSnap = await db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get();
+        guestLogs = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
+        reservations = resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        activityLoaded = true;
+    };
+
+    // Yalnızca misafir rehberini (liste için yeterli) yükler.
+    const loadDirectory = async () => {
         try {
             const dirSnap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
             guestDirectory = dirSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -84,12 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Auto-checkout executed for past guests.");
             }
 
-            const logsSnap = await db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get();
-            guestLogs = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-            const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
-            reservations = resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
             renderGuestList();
             if (currentGuestId) viewGuestDetail(currentGuestId);
         } catch (e) {
@@ -97,6 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast("Failed to sync data", true);
         }
     };
+    // Geriye dönük uyum: eski çağrı adı rehberi yükler.
+    const loadAllData = loadDirectory;
 
 
     const generateTags = (logs, res) => {
@@ -148,10 +160,12 @@ document.addEventListener('DOMContentLoaded', () => {
         `}).join('');
     };
 
-    window.viewGuestDetail = (guestId) => {
+    window.viewGuestDetail = async (guestId) => {
         currentGuestId = guestId;
         const guest = guestDirectory.find(g => g.id === guestId);
         if (!guest) return;
+
+        await ensureGuestActivity(); // detay zaman çizelgesi/etiketleri için aktiviteyi yükle
 
         // Render Active Card
         const cards = document.querySelectorAll('.guest-card');
@@ -388,6 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
 
         try {
+            await ensureGuestActivity(); // birleştirilecek kayıtları okumak için aktivite gerekir
             const batch = db.batch();
             const secName = secondary.name.toLowerCase();
 
@@ -424,8 +439,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`Merged "${secondary.name}" into "${primary.name}".`);
             closeMergeModal();
             currentGuestId = primary.id;
-            await loadAllData();
-            viewGuestDetail(primary.id);
+            activityLoaded = false; // isimler değişti → aktiviteyi tazele
+            await loadDirectory();
         } catch (e) {
             console.error('Merge failed', e);
             showToast('Merge failed. Check permissions.', true);
@@ -611,8 +626,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.disabled = true;
 
         try {
+            await ensureGuestActivity(); // eski isimle eşleşen log/rezervasyonları okumak için
             const batch = db.batch();
-            
+
             // 1. Update Guest Directory
             const updates = {
                 room: newRoomForDir,
@@ -651,6 +667,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showToast('Stay details updated successfully.');
             closeRoomChangeModal();
+            activityLoaded = false; // isim/oda değişti → aktiviteyi ve rehberi tazele
+            await loadDirectory();
         } catch (e) {
             console.error(e);
             showToast('Error updating stay details.', true);

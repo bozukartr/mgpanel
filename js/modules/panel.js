@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const d = new Date(v);
         return isNaN(d) ? null : d;
     }
+    function tsMillis(v) { const d = tsToDate(v); return d ? d.getTime() : 0; }
     function fmtDuration(ms) {
         if (ms == null || ms < 0) return '—';
         const mins = Math.round(ms / 60000);
@@ -506,7 +507,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
     const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
 
-    let records = [];
+    let records = [];          // Görünen birleşik liste: canlı pencere + yüklenen eski kayıtlar (createdAt desc)
+    let liveRecords = [];      // Son WINDOW_DAYS günü gerçek-zamanlı dinleyen pencere
+    let olderRecords = [];     // "Daha eskisini yükle" / tam arşiv ile sayfalanan eski kayıtlar
+    let fullyLoaded = false;   // Tüm arşiv (her kayıt) yüklendiyse true
+    let loadingOlder = false;  // Eş zamanlı çift sayfalamayı önler
+    const WINDOW_DAYS = 90;    // Canlı pencere genişliği (gün)
+    const OLDER_PAGE = 200;    // "Daha eskisini yükle" sayfa boyutu
     let editingId = null;
     let selectedRecord = null;
     let recordToDelete = null;
@@ -552,9 +559,63 @@ document.addEventListener('DOMContentLoaded', () => {
     setupDynamicAutolist('rpt-guestSearch', 'guestNamesList', 'reports');
 
     // 2. Data Persistence
+    //
+    // Kayan pencere: canlı dinleyici yalnızca son WINDOW_DAYS günü gerçek
+    // zamanlı izler (tüm koleksiyonu sürekli streaming etmek yerine). Daha eski
+    // kayıtlar gizlenmez — "Daha eskisini yükle" ile sayfalanır, raporlar/
+    // arşiv dışa aktarımı ise ensureFullArchive() ile tüm arşivi talep üzerine
+    // yükler. Böylece geçmiş veri her zaman erişilebilir kalır.
+    function mergeRecords() {
+        const map = new Map();
+        olderRecords.forEach(r => map.set(r.id, r));
+        liveRecords.forEach(r => map.set(r.id, r)); // canlı sürüm güncel olduğundan eskisini ezer
+        records = Array.from(map.values()).sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
+    }
+
+    function syncLoadOlderBtn() {
+        const btn = document.getElementById('loadOlderBtn');
+        if (!btn) return;
+        btn.style.display = fullyLoaded ? 'none' : '';
+        btn.disabled = loadingOlder;
+        btn.textContent = loadingOlder ? 'Yükleniyor…' : 'Daha eskisini yükle';
+    }
+
+    // Bir sonraki eski sayfayı (en eski yüklü kayıttan öncesini) tek seferlik çeker.
+    function loadOlder() {
+        if (loadingOlder || fullyLoaded) return Promise.resolve();
+        loadingOlder = true; syncLoadOlderBtn();
+        let q = db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc');
+        const oldest = records[records.length - 1];
+        if (oldest && oldest.createdAt) q = q.startAfter(oldest.createdAt);
+        return q.limit(OLDER_PAGE).get().then(snap => {
+            olderRecords = olderRecords.concat(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            if (snap.size < OLDER_PAGE) fullyLoaded = true; // arşivin sonuna gelindi
+            mergeRecords();
+            updateView(globalSearch.value, dateSearch.value);
+        }).catch(() => {}).finally(() => { loadingOlder = false; syncLoadOlderBtn(); });
+    }
+
+    // Raporlar/arşiv dışa aktarımı ve performans paneli için tüm arşivi (bir kez)
+    // garanti eder. fullyLoaded ise anında çözülür.
+    function ensureFullArchive() {
+        if (fullyLoaded) return Promise.resolve();
+        return db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').get()
+            .then(snap => {
+                olderRecords = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                fullyLoaded = true;
+                mergeRecords();
+                syncLoadOlderBtn();
+            }).catch(() => {});
+    }
+
     const fetchRecords = () => {
-        db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snapshot => {
-            records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const cutoff = firebase.firestore.Timestamp.fromMillis(Date.now() - WINDOW_DAYS * 86400000);
+        db.collection('guestLogs').where('tenantId', '==', TENANT_ID)
+            .where('createdAt', '>=', cutoff)
+            .orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+            liveRecords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            mergeRecords();
+            syncLoadOlderBtn();
             updateGuestMap();
             refreshTopicDatalists();
             updateView(globalSearch.value, dateSearch.value);
@@ -573,17 +634,32 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Deep-link from a notification: ?open=<recordId> opens it once.
+            // Pencere dışındaki (eski) bir kayda işaret ediyorsa doğrudan getir.
             if (!openHandled) {
                 const openId = new URLSearchParams(location.search).get('open');
                 if (openId) {
                     const rec = records.find(r => r.id === openId);
                     if (rec) { openHandled = true; openModal(rec); }
+                    else {
+                        openHandled = true;
+                        db.collection('guestLogs').doc(openId).get().then(d => {
+                            if (d.exists) {
+                                const data = { id: d.id, ...d.data() };
+                                if ((data.tenantId || '') === TENANT_ID) {
+                                    olderRecords.push(data); mergeRecords();
+                                    updateView(globalSearch.value, dateSearch.value);
+                                    openModal(data);
+                                }
+                            }
+                        }).catch(() => {});
+                    }
                 }
             }
         });
     };
     let openHandled = false;
     fetchRecords();
+    document.getElementById('loadOlderBtn')?.addEventListener('click', loadOlder);
 
     // Guest auto-fill logic
     document.getElementById('guestName')?.addEventListener('input', (e) => {
@@ -1059,7 +1135,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Report Engine ──────────────────────────────────────────
-    window.generateReport = function (type, format) {
+    // Raporlar tüm arşivi gerektirir (rastgele tarih/aralık). Canlı liste 90
+    // günlük pencereyle çalıştığından, rapor üretmeden önce tüm arşivi talep
+    // üzerine yükleriz — böylece eski tarihli raporlar/arşiv eksiksiz olur.
+    window.generateReport = async function (type, format) {
+        if (!fullyLoaded) { showToast('Arşiv yükleniyor…'); await ensureFullArchive(); }
         const { from, to, specific, dept, guest, topic } = getRptDates();
 
         if (type === 'summary') {
@@ -1554,7 +1634,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const maxH = Math.max(1, ...srows.map(s => s.handled));
         document.getElementById('perfStaffChart').innerHTML = srows.length ? srows.map(s => perfBarRow(s.name, s.handled, maxH, s.hand != null ? `Ort. işlem ${s.hand} dk` : '')).join('') : '<div class="perf-empty">Kayıt yok.</div>';
     }
-    function openPerf() { const m = document.getElementById('perfModal'); if (!m) return; m.style.display = 'flex'; renderPerf(); }
+    async function openPerf() {
+        const m = document.getElementById('perfModal'); if (!m) return;
+        m.style.display = 'flex';
+        if (!fullyLoaded) await ensureFullArchive(); // performans tüm arşiv üzerinden hesaplanır
+        renderPerf();
+    }
     (function wirePerf() {
         const canSee = isAdminUser || loggedRole === 'manager';
         const btn = document.getElementById('openPerfBtn');
@@ -1570,7 +1655,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const triggerSearch = () => updateView(globalSearch.value, dateSearch.value);
     globalSearch.addEventListener('input', triggerSearch);
-    dateSearch.addEventListener('change', triggerSearch);
+    // Seçilen tarih canlı pencereden (90 gün) eski ve arşiv henüz yüklenmediyse,
+    // o tarihin kayıtlarını gösterebilmek için tüm arşivi yükle.
+    async function ensureArchiveForDate(iso) {
+        if (fullyLoaded || !iso) return;
+        const cutoffIso = giDateToIso(new Date(Date.now() - WINDOW_DAYS * 86400000));
+        if (iso < cutoffIso) { showToast('Arşiv yükleniyor…'); await ensureFullArchive(); }
+    }
+    dateSearch.addEventListener('change', async () => { await ensureArchiveForDate(dateSearch.value); triggerSearch(); });
 
     let activeStatusFilter = null;
     function setActivePill(id) {
@@ -1588,8 +1680,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) autoEscalateSweep(); });
 
     // "Tüm Zamanlar": clear the date filter so every record is listed.
-    document.getElementById('allTimeBtn')?.addEventListener('click', () => {
+    // Gerçekten tüm kayıtlar listelenmeli; canlı pencere dışındaki eski kayıtlar
+    // için tüm arşivi yükle.
+    document.getElementById('allTimeBtn')?.addEventListener('click', async () => {
         dateSearch.value = '';
+        if (!fullyLoaded) { showToast('Arşiv yükleniyor…'); await ensureFullArchive(); }
         triggerSearch();
     });
 
@@ -1640,7 +1735,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!btn) return;
         giCalCursor = giIsoToDate(btn.dataset.iso);
         dateSearch.value = btn.dataset.iso;
-        triggerSearch();
+        ensureArchiveForDate(btn.dataset.iso).then(triggerSearch);
     });
     document.getElementById('giCalPrev')?.addEventListener('click', () => {
         giCalCursor = new Date(giCalCursor.getFullYear(), giCalCursor.getMonth() - 1, 1);
@@ -1778,11 +1873,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     profileSearchInput?.addEventListener('input', renderGuestProfileList);
 
-    window.selectGuestProfile = function (name) {
+    window.selectGuestProfile = async function (name) {
         guestProfileModal.style.display = 'none';
         globalSearch.value = name;
         dateSearch.value = ''; // clear date to show all history
         activeStatusFilter = null;
+        if (!fullyLoaded) { showToast('Arşiv yükleniyor…'); await ensureFullArchive(); } // misafirin tüm geçmişi
         triggerSearch();
     };
 

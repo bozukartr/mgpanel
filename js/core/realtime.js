@@ -271,12 +271,12 @@
         window.location.href = 'app.html#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
     };
     // Notifications are removed once read / interacted with (no read-archive).
-    RT.markRead = async function (id) { try { await db.collection('notifications').doc(id).delete(); } catch (e) { } };
+    RT.markRead = async function (id) { try { await db.collection('notifications').doc(id).delete(); } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'RT.markRead', id: id }); } };
     RT.markAllRead = async function () {
         if (!notifications.length) return;
         const batch = db.batch();
         notifications.forEach(n => batch.delete(db.collection('notifications').doc(n.id)));
-        try { await batch.commit(); } catch (e) { }
+        try { await batch.commit(); } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'RT.markAllRead' }); }
     };
 
     // ── presence heartbeat ─────────────────────────────────────
