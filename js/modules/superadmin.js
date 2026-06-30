@@ -50,18 +50,25 @@
     function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
     // ---------- plans / modules ----------
+    // Modül anahtarları uygulama genelinde tek küme olmalı (admin.js MOD_KEYS ile
+    // hizalı): concierge, crm, guestIssues, reports, guestOrders, restaurant.
+    // Not: moduleEnabled() bir anahtarı "yok" ise AÇIK sayar; bu yüzden reports/
+    // restaurant'ı bir otelde KAPATABİLMEK için bunların burada ve checkbox'larda
+    // bulunması şart. reports tüm planlarda açık; restaurant (F&B POS) premium
+    // (yalnız enterprise/custom) — operatör checkbox'larla özelleştirebilir.
     const PLANS = {
-        starter:    { name: 'Starter',  maxUsers: 5,  modules: { concierge: true, crm: false, guestIssues: false, guestOrders: false } },
-        pro:        { name: 'Pro',      maxUsers: 15, modules: { concierge: true, crm: true,  guestIssues: false, guestOrders: false } },
-        enterprise: { name: 'Business', maxUsers: 40, modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } },
-        custom:     { name: 'Özel',     maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true, guestOrders: true } }
+        starter:    { name: 'Starter',  maxUsers: 5,  modules: { concierge: true, crm: false, guestIssues: false, reports: true, guestOrders: false, restaurant: false } },
+        pro:        { name: 'Pro',      maxUsers: 15, modules: { concierge: true, crm: true,  guestIssues: false, reports: true, guestOrders: false, restaurant: false } },
+        enterprise: { name: 'Business', maxUsers: 40, modules: { concierge: true, crm: true,  guestIssues: true,  reports: true, guestOrders: true,  restaurant: true } },
+        custom:     { name: 'Özel',     maxUsers: 0,  modules: { concierge: true, crm: true,  guestIssues: true,  reports: true, guestOrders: true,  restaurant: true } }
     };
-    const MODULE_KEYS = ['concierge', 'crm', 'guestIssues', 'guestOrders'];
-    const MODULE_LABELS = { concierge: 'Concierge', crm: 'CRM', guestIssues: 'Kayıtlar', guestOrders: 'Misafir Talepleri' };
+    const MODULE_KEYS = ['concierge', 'crm', 'guestIssues', 'reports', 'guestOrders', 'restaurant'];
+    const MODULE_LABELS = { concierge: 'Concierge', crm: 'CRM', guestIssues: 'Misafir Kayıtları', reports: 'Raporlar', guestOrders: 'Misafir Siparişleri', restaurant: 'Restoran (POS)' };
+    const ALL_ON = { concierge: true, crm: true, guestIssues: true, reports: true, guestOrders: true, restaurant: true };
 
     function planKey(t) { return (t && t.plan && PLANS[t.plan]) ? t.plan : 'custom'; }
     function planName(t) { return PLANS[planKey(t)].name; }
-    function modulesOf(t) { return (t && t.modules) ? t.modules : { concierge: true, crm: true, guestIssues: true, guestOrders: true }; }
+    function modulesOf(t) { return (t && t.modules) ? t.modules : ALL_ON; }
     function applyPlanToForm(planSel, maxInput, modsContainer) {
         const p = PLANS[planSel.value];
         if (!p || planSel.value === 'custom') return;
@@ -1571,30 +1578,6 @@
         }).join('');
     }
     if ($('errorSearch')) $('errorSearch').addEventListener('input', renderErrors);
-
-    // ── Tenant etiketleme göçü (backfillTenantTags) ───────────────
-    // Fail-closed izolasyonu devreye almadan ÖNCE bir kez çalıştırılır:
-    // tenantId'siz eski dokümanları kurucu otele ('mgallery') etiketler.
-    const backfillBtn = $('backfillBtn');
-    if (backfillBtn) backfillBtn.addEventListener('click', async () => {
-        if (!confirm("Tüm koleksiyonlardaki tenantId'siz dokümanlar 'mgallery' olarak etiketlenecek. Bu işlem geri alınamaz. Devam edilsin mi?")) return;
-        const out = $('backfillResult');
-        backfillBtn.disabled = true;
-        const orig = backfillBtn.textContent;
-        backfillBtn.textContent = 'Çalışıyor…';
-        if (out) { out.style.display = 'block'; out.textContent = 'Etiketleme çalışıyor, lütfen bekleyin…'; }
-        try {
-            const call = firebase.app().functions('us-central1').httpsCallable('backfillTenantTags');
-            const res = await call({});
-            if (out) out.textContent = JSON.stringify(res.data, null, 2);
-        } catch (e) {
-            if (out) out.textContent = 'Hata: ' + (e.message || e);
-            if (window.Monitor) Monitor.capture(e, { where: 'superadmin.backfill' });
-        } finally {
-            backfillBtn.disabled = false;
-            backfillBtn.textContent = orig;
-        }
-    });
 
     // Navigation
     document.querySelectorAll('.sb-link').forEach(link => link.addEventListener('click', () => {

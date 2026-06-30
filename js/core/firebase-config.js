@@ -71,7 +71,7 @@ function guardTenant() {
 // --- Plan / package config ---
 // Feature modules a hotel can have. Default (legacy hotels with no config):
 // everything on, unlimited users — so nothing is restricted before a plan is set.
-const ALL_MODULES = { concierge: true, crm: true, guestIssues: true, reports: true, guestOrders: true };
+const ALL_MODULES = { concierge: true, crm: true, guestIssues: true, reports: true, guestOrders: true, restaurant: true };
 
 // Monthly plan price in TRY (display only — the server is authoritative in
 // functions/index.js). Used to show the amount on the renewal button.
