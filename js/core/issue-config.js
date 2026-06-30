@@ -52,7 +52,7 @@
     function flush() {
         var cbs = readyCbs.slice();
         readyCbs = [];
-        cbs.forEach(function (c) { try { c(); } catch (e) {} });
+        cbs.forEach(function (c) { try { c(); } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'IssueConfig.flush' }); } });
     }
 
     var IssueConfig = {
@@ -114,7 +114,7 @@
                 var data = doc.exists ? doc.data() : null;
                 state.departments = (data && Array.isArray(data.departments)) ? normalize(data.departments) : null;
                 state.loaded = true; flush();
-                if (typeof cb === 'function') { try { cb(self.departments()); } catch (e) {} }
+                if (typeof cb === 'function') { try { cb(self.departments()); } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'IssueConfig.listen' }); } }
             }, function () {});
         },
 
@@ -137,7 +137,7 @@
                     return { id: d.id, name: String((d.data() || {}).name || '').trim() };
                 }).filter(function (t) { return t.name; })
                     .sort(function (a, b) { return a.name.localeCompare(b.name, 'tr'); });
-                if (typeof cb === 'function') { try { cb(topicState.slice()); } catch (e) {} }
+                if (typeof cb === 'function') { try { cb(topicState.slice()); } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'IssueConfig.listenTopics' }); } }
             }, function () {});
         },
         // Persist a typed topic if it isn't already known (case-insensitive).
