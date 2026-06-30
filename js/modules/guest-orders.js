@@ -319,7 +319,9 @@
         const created = ms(o.createdAt);
         const items = (o.items || []).map((it, idx) => {
             const sIdx = FLOW.indexOf(it.status);
-            const canAdv = it.status !== 'cancelled' && sIdx >= 0 && sIdx < FLOW.length - 1;
+            // İptal edilmiş sipariş terminaldir: misafir iptal etmişse personel
+            // bir öğeyi ilerletip siparişi yeniden "onaylandı"ya çeviremez.
+            const canAdv = o.status !== 'cancelled' && it.status !== 'cancelled' && sIdx >= 0 && sIdx < FLOW.length - 1;
             const meta = [it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note]
                 .filter(Boolean).join(' · ');
             return `<div class="gos-item">
@@ -382,7 +384,16 @@
         });
         root.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => {
             const id = b.dataset.cancel;
-            if (confirm('Bu siparişi iptal etmek istiyor musunuz?')) bulkSet(id, 'cancelled');
+            // Personel iptal ediyorsa (onaylamıyorsa) neden zorunlu; misafire gösterilir.
+            const raw = prompt('Talebi iptal etme nedeni (misafire gösterilecektir):');
+            if (raw === null) return;            // vazgeçildi
+            const reason = raw.trim();
+            if (!reason) { alert('İptal nedeni belirtmelisiniz.'); return; }
+            bulkSet(id, 'cancelled', {
+                cancelReason: reason.slice(0, 300),
+                cancelledBy: USERNAME,
+                cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
         });
         root.querySelectorAll('[data-assign]').forEach(b => b.onclick = () => {
             const id = b.dataset.assign;
@@ -395,21 +406,26 @@
     function findOrder(id) { return orders.find(o => o.id === id); }
 
     // Set every live item of an order to a target status (bulk action).
-    function bulkSet(orderId, status) {
+    // `extra` opsiyonel olarak sipariş dokümanına ek alanlar yazar (ör. iptal nedeni).
+    function bulkSet(orderId, status, extra) {
         const o = findOrder(orderId);
         if (!o) return;
+        // İptal terminaldir: zaten iptal edilmiş bir siparişi başka bir duruma çekme.
+        if (o.status === 'cancelled' && status !== 'cancelled') return;
         const items = (o.items || []).map(it => {
             if (status === 'cancelled') return Object.assign({}, it, { status: 'cancelled' });
             if (it.status === 'cancelled') return it;
             return Object.assign({}, it, { status });
         });
-        commit(o, items);
+        commit(o, items, extra);
     }
 
     // Advance a single item by one step.
     function advanceItem(orderId, itemId) {
         const o = findOrder(orderId);
         if (!o) return;
+        // İptal edilmiş sipariş terminaldir — ilerletme siparişi yeniden açmamalı.
+        if (o.status === 'cancelled') return;
         const items = (o.items || []).map(it => {
             if (it.id !== itemId || it.status === 'cancelled') return it;
             const idx = FLOW.indexOf(it.status);
@@ -421,7 +437,7 @@
 
     // Persist new item statuses: writes/updates a guestLog per item so each lands
     // in the room's history, recomputes the order status, and appends a log entry.
-    function commit(order, items) {
+    function commit(order, items, extra) {
         const newStatus = deriveStatus(items);
         const batch = db.batch();
         const orderRef = db.collection('guestOrders').doc(order.id);
@@ -467,12 +483,12 @@
         });
 
         const statusLog = (order.statusLog || []).concat([{ status: newStatus, at: Date.now(), by: USERNAME }]);
-        batch.update(orderRef, {
+        batch.update(orderRef, Object.assign({
             items,
             status: newStatus,
             statusLog,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        }, extra || {}));
 
         batch.commit().catch(err => { console.error('guest order commit failed', err); alert('İşlem kaydedilemedi.'); });
     }
