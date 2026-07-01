@@ -77,6 +77,13 @@
     }
     const RES_TYPE = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
     const resType = r => RES_TYPE[r.type] || (r.type || 'Diğer');
+    // Concierge rezervasyonları kendi `currency` alanını taşır (Restoran/QR'ın
+    // guestConfig/restConfig currency'sinden BAĞIMSIZ — çoğunlukla yurt dışı
+    // tur/transfer için EUR). Eski kayıtlarda alan yoktur → geriye dönük
+    // uyum için EUR varsayılır (eskiden hep '€' gösteriliyordu).
+    const RES_CUR_SYM = { EUR: '€', TRY: '₺', USD: '$' };
+    const resCur = r => r.currency || 'EUR';
+    const resCurSym = r => RES_CUR_SYM[resCur(r)] || '€';
     const RES_STATUS = { Pending: 'Bekliyor', Confirmed: 'Onaylı', Cancelled: 'İptal' };
     const resStatus = r => RES_STATUS[r.status] || 'Bekliyor';
     // Where / details, per service type (dynamic fields stored on the reservation).
@@ -172,6 +179,7 @@
                 facet({ key: 'type', label: 'Hizmet', kind: 'chips', valueOf: resType }),
                 facet({ key: 'detail', label: 'Detay / Yer', kind: 'text', valueOf: resDetail }),
                 facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Onaylı', 'İptal'], valueOf: resStatus }),
+                facet({ key: 'currency', label: 'Para Birimi', kind: 'chips', fixed: ['EUR', 'TRY', 'USD'], valueOf: resCur }),
                 facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
                 facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
             ],
@@ -184,24 +192,37 @@
                 { label: 'Misafir', get: r => r.guestName || '—' },
                 { label: 'Oda', get: r => r.room || '—' },
                 { label: 'Durum', get: resStatus },
-                { label: 'Fiyat', get: r => money(r.totalPrice), c: true },
-                { label: 'Kapora', get: r => money(r.deposit), c: true },
-                { label: 'Bakiye', get: r => money((Number(r.totalPrice) || 0) - (Number(r.deposit) || 0)), c: true },
+                { label: 'Fiyat', get: r => resCurSym(r) + money(r.totalPrice), c: true },
+                { label: 'Kapora', get: r => resCurSym(r) + money(r.deposit), c: true },
+                { label: 'Bakiye', get: r => resCurSym(r) + money((Number(r.totalPrice) || 0) - (Number(r.deposit) || 0)), c: true },
                 { label: 'Voucher', get: r => r.voucherNo || '—' },
                 { label: 'Not', get: r => r.notes || '', wide: true }
             ],
+            // Para birimleri ASLA karıştırılmadan gruplanır (bkz. concierge.js
+            // summarizeFinance() ile aynı ilke) — EUR ve TRY ciroları tek bir
+            // sayıda toplanmaz, ayrı ayrı gösterilir.
             summary: rows => {
-                let conf = 0, pend = 0, canc = 0, rev = 0, dep = 0;
+                let conf = 0, pend = 0, canc = 0;
+                const byCur = {};
                 rows.forEach(r => {
                     if (r.status === 'Confirmed') conf++; else if (r.status === 'Cancelled') canc++; else pend++;
-                    if (r.status !== 'Cancelled') { rev += Number(r.totalPrice) || 0; dep += Number(r.deposit) || 0; }
+                    if (r.status !== 'Cancelled') {
+                        const cur = resCur(r);
+                        const g = byCur[cur] || (byCur[cur] = { rev: 0, dep: 0 });
+                        g.rev += Number(r.totalPrice) || 0; g.dep += Number(r.deposit) || 0;
+                    }
                 });
+                const curs = Object.keys(byCur);
+                const line = key => curs.length ? curs.map(c => RES_CUR_SYM[c] + money(byCur[c][key])).join(' · ') : '€0';
+                const lineBal = () => curs.length ? curs.map(c => RES_CUR_SYM[c] + money(byCur[c].rev - byCur[c].dep)).join(' · ') : '€0';
                 return [['Toplam', rows.length, 'i'], ['Onaylı', conf, 's'], ['Bekleyen', pend, 'w'], ['İptal', canc, 'o'],
-                ['Ciro', money(rev), 'k'], ['Kapora', money(dep), 'p'], ['Kalan', money(rev - dep), 'c']];
+                ['Ciro', line('rev'), 'k'], ['Kapora', line('dep'), 'p'], ['Kalan', lineBal(), 'c']];
             },
             groupAgg: rows => {
-                let rev = 0; rows.forEach(r => { if (r.status !== 'Cancelled') rev += Number(r.totalPrice) || 0; });
-                return rows.length + ' rez. · ' + money(rev) + ' ciro';
+                const byCur = {};
+                rows.forEach(r => { if (r.status !== 'Cancelled') { const c = resCur(r); byCur[c] = (byCur[c] || 0) + (Number(r.totalPrice) || 0); } });
+                const rev = Object.keys(byCur).map(c => RES_CUR_SYM[c] + money(byCur[c])).join(' · ') || '€0';
+                return rows.length + ' rez. · ' + rev + ' ciro';
             }
         },
 

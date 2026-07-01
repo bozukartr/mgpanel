@@ -1193,7 +1193,7 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
                 batch.set(ref, {
                     tenantId: TENANT_ID, room: pm.room || '', guestName: pm.guestName || '',
                     source: 'restaurant', checkId: (currentCheck && currentCheck.id) || checkId || '', tableName: currentCheck.tableName || '',
-                    amount: pm.amount, status: 'open', createdAt: TS, by: loggedUser
+                    amount: pm.amount, currency: cfg.currency || '₺', status: 'open', createdAt: TS, by: loggedUser
                 });
             });
             if (roomPays.length) batch.commit().catch(err => console.error(err));

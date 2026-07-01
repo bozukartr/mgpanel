@@ -89,15 +89,26 @@
         { name: 'Oda Servisi Menüsü', pdfUrl: 'https://www.orimi.com/pdf-test.pdf' },
         { name: 'Spa & Wellness', pdfUrl: 'https://www.orimi.com/pdf-test.pdf' }
     ];
+    // Para birimi başına ayrı grup (gerçek getGuestStay yanıtıyla aynı şekil) —
+    // TRY (restoran) ve EUR (concierge) kalemlerinin ASLA karışmadığını
+    // demo modunda da göstermek için bilerek iki farklı para birimi var.
     const DEMO_STAY = {
         checkIn: '2026-06-28', checkOut: '2026-07-04',
-        folio: {
-            total: 420, count: 2,
-            items: [
-                { amount: 240, source: 'restaurant', tableName: 'Masa 12', createdAt: Date.now() - 3600000 },
-                { amount: 180, source: 'restaurant', tableName: 'Masa 4', createdAt: Date.now() - 90000000 }
-            ]
-        },
+        folio: [
+            {
+                currency: 'TRY', total: 420, count: 2,
+                items: [
+                    { amount: 240, source: 'restaurant', tableName: 'Masa 12', createdAt: Date.now() - 3600000 },
+                    { amount: 180, source: 'restaurant', tableName: 'Masa 4', createdAt: Date.now() - 90000000 }
+                ]
+            },
+            {
+                currency: 'EUR', total: 60, count: 1,
+                items: [
+                    { amount: 60, source: 'concierge', tableName: '', createdAt: Date.now() - 7200000 }
+                ]
+            }
+        ],
         reservations: [
             { type: 'Restaurant', date: '2026-07-01', time: '20:00', status: 'Confirmed', resName: 'Lobi Restoran', pax: '2' },
             { type: 'Transfer', date: '2026-07-04', time: '11:00', status: 'Pending', from: 'Otel', to: 'Havalimanı', vehicle: 'VIP Araç' }
@@ -557,16 +568,22 @@
                 <div><b>Giriş</b><span>${esc(fmtDateTR(stayData.checkIn))}</span></div>
                 <div><b>Çıkış</b><span>${esc(fmtDateTR(stayData.checkOut))}</span></div>
             </div>` : '';
-        const folio = stayData.folio || { total: 0, count: 0 };
-        const folioRowHtml = `<button class="go-stay-folio" id="goStayFolioBtn">
-            <span><b>Oda Hesabım</b><span>${folio.count ? folio.count + ' kalem' : 'Ekstra yok'}</span></span>
-            <span class="go-stay-folio-amt">${esc(fmtPrice(folio.total || 0))}</span></button>`;
+        // Oda hesabı, PARA BİRİMİ BAŞINA ayrı bir buton olarak gösterilir —
+        // ör. Concierge'in €150'lik ekstrası ile restoranın ₺2.400'lük
+        // adisyonu ASLA tek bir tutarda toplanmaz (kaynağı farklı para
+        // birimleri olduğundan bu yanlış bir tutar gösterir).
+        const folioGroups = stayData.folio || [];
+        const folioRowsHtml = folioGroups.length
+            ? folioGroups.map((g, i) => `<button class="go-stay-folio" data-folio-i="${i}">
+                <span><b>Oda Hesabım</b><span>${g.count} kalem · ${esc(g.currency)}</span></span>
+                <span class="go-stay-folio-amt">${esc(fmtCur(g.total, g.currency))}</span></button>`).join('')
+            : `<button class="go-stay-folio off" disabled><span><b>Oda Hesabım</b><span>Ekstra yok</span></span></button>`;
         const resList = (stayData.reservations || []);
         const resHtml = resList.length
             ? `<div class="go-prof-sec">Rezervasyonlarım</div>${resList.map(reservationRow).join('')}`
             : `<div class="go-prof-sec">Rezervasyonlarım</div><div class="go-empty" style="padding:24px 10px;"><p>Kayıtlı rezervasyon yok.</p></div>`;
-        body.innerHTML = `${dateRow}${folioRowHtml}${resHtml}`;
-        const fb = $('goStayFolioBtn'); if (fb) fb.onclick = () => { closeStay(); openFolio(folio); };
+        body.innerHTML = `${dateRow}${folioRowsHtml}${resHtml}`;
+        body.querySelectorAll('[data-folio-i]').forEach(btn => btn.onclick = () => { closeStay(); openFolio(folioGroups[+btn.dataset.folioI]); });
         body.querySelectorAll('.go-stay-res-row').forEach(row => row.onclick = () => row.classList.toggle('open'));
     }
     function openStay() {
@@ -593,18 +610,24 @@
     }
 
     // ── Oda Hesabım detayı (Konaklama'dan drill-down) ─────────────
+    // NOT: burada HER ZAMAN kalemin/grubun KENDİ para birimi (curr) kullanılır,
+    // fmtPrice() (guestConfig.currency, ör. ₺) değil — Concierge kalemleri
+    // EUR olabilir, restoran kalemleri TRY; ikisini aynı sembolle göstermek
+    // yanlış tutar izlenimi verir.
+    const CUR_SYM_MAP = { EUR: '€', TRY: '₺', USD: '$' };
+    function fmtCur(amount, currency) { return (CUR_SYM_MAP[currency] || config.currency) + Number(amount || 0).toLocaleString('tr-TR'); }
     const FOLIO_SOURCE_LABEL = { restaurant: 'Restoran / Bar', concierge: 'Concierge Rezervasyonu' };
-    function folioRow(it) {
+    function folioRow(it, currency) {
         const meta = [it.tableName || '', it.createdAt ? new Date(it.createdAt).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');
         return `<div class="go-folio-row">
             <div class="go-folio-row-tx"><div class="go-folio-row-src">${esc(FOLIO_SOURCE_LABEL[it.source] || it.source || 'Oda Hesabı')}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
-            <div class="go-folio-row-amt">${esc(fmtPrice(it.amount))}</div></div>`;
+            <div class="go-folio-row-amt">${esc(fmtCur(it.amount, currency))}</div></div>`;
     }
-    function openFolio(folio) {
-        const body = $('goFolioBody'); if (!body || !folio) return;
-        const rows = (folio.items || []).map(folioRow).join('');
+    function openFolio(group) {
+        const body = $('goFolioBody'); if (!body || !group) return;
+        const rows = (group.items || []).map(it => folioRow(it, group.currency)).join('');
         body.innerHTML = `${rows || '<div class="go-empty"><div class="go-empty-ic">🧾</div><h3>Kalem yok</h3></div>'}
-            <div class="go-folio-total"><b>Toplam</b><span>${esc(fmtPrice(folio.total || 0))}</span></div>`;
+            <div class="go-folio-total"><b>Toplam (${esc(group.currency)})</b><span>${esc(fmtCur(group.total || 0, group.currency))}</span></div>`;
         $('goFolioBackdrop').classList.add('show');
         $('goFolioSheet').classList.add('show');
         $('goFolioSheet').setAttribute('aria-hidden', 'false');
