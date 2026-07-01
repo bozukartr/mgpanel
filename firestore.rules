@@ -337,6 +337,20 @@ service cloud.firestore {
         && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
     }
 
+    // --- Guest-facing PDF menus ("Menüler" carousel card). Admin pastes a
+    //     hosted PDF link (no Storage upload); guests only ever read the list.
+    //     Same read/write shape as requestCatalog. ---
+    match /guestMenus/{id} {
+      allow read:   if signedIn();
+      allow create: if isStaff() && isAdmin()
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
+      allow update: if isStaff() && isAdmin()
+        && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
+      allow delete: if isStaff() && isAdmin()
+        && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
+    }
+
     // --- Guest self-service orders. A guest (anonymous session) creates an order
     //     bound to their own uid and may read ONLY their own orders; they can
     //     cancel one while it is still pending. The hotel's staff see and manage
