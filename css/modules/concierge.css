@@ -314,6 +314,9 @@
 }
 
 #d-balance.paid { color: var(--solved); }
+#d-balance.folio { color: var(--accent); }
+#d-applyFolioBtn { background: #eef2ff; color: var(--accent); }
+#d-applyFolioBtn:active { opacity: .8; }
 
 /* â”€â”€ FORM EXTRAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .dynamic-group {

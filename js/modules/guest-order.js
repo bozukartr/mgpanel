@@ -593,10 +593,11 @@
     }
 
     // ── Oda Hesabım detayı (Konaklama'dan drill-down) ─────────────
+    const FOLIO_SOURCE_LABEL = { restaurant: 'Restoran / Bar', concierge: 'Concierge Rezervasyonu' };
     function folioRow(it) {
         const meta = [it.tableName || '', it.createdAt ? new Date(it.createdAt).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');
         return `<div class="go-folio-row">
-            <div class="go-folio-row-tx"><div class="go-folio-row-src">${esc(it.source === 'restaurant' ? 'Restoran / Bar' : (it.source || 'Oda Hesabı'))}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
+            <div class="go-folio-row-tx"><div class="go-folio-row-src">${esc(FOLIO_SOURCE_LABEL[it.source] || it.source || 'Oda Hesabı')}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
             <div class="go-folio-row-amt">${esc(fmtPrice(it.amount))}</div></div>`;
     }
     function openFolio(folio) {
@@ -1071,11 +1072,13 @@
     //  WIRING
     // ════════════════════════════════════════════════════════════
     function wireShell() {
-        document.querySelectorAll('.go-nav-b').forEach(b => b.onclick = () => showTab(b.dataset.go));
+        // "Profil" (alt nav + üst avatar) artık ayrı bir sekme değil — Konaklama
+        // sheet'ini açar (giriş/çıkış, Oda Hesabım, rezervasyonlar zaten orada).
+        document.querySelectorAll('.go-nav-b').forEach(b => b.onclick = () => { if (b.dataset.go === 'profile') openStay(); else showTab(b.dataset.go); });
         document.querySelectorAll('[data-go]').forEach(el => { if (!el.classList.contains('go-nav-b')) el.addEventListener('click', () => showTab(el.dataset.go)); });
         $('goCartPill').onclick = () => showTab('cart');
         $('goBell').onclick = () => showTab('orders');
-        const av = $('goAvatar'); if (av) av.onclick = () => showTab('profile');
+        const av = $('goAvatar'); if (av) av.onclick = openStay;
         const sb = $('goServicesBack'); if (sb) sb.onclick = () => showTab('home');
         const cbk = $('goCartBack'); if (cbk) cbk.onclick = () => showTab('home');
         $('goTrackBack').onclick = showOrderList;

@@ -5,7 +5,7 @@
  * Web Push (FCM) hooks are stubbed below and will be wired once the sender
  * Cloud Function can be deployed.
  */
-const CACHE = 'stayos-shell-v4';
+const CACHE = 'stayos-shell-v5';
 const SHELL = ['logo.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -29,12 +29,16 @@ self.addEventListener('fetch', (event) => {
     // here, which served stale styles after releases).
     if (url.origin !== self.location.origin) return;
     if (/\.(png|jpg|jpeg|svg|ico|webmanifest)$/i.test(url.pathname)) {
+        // Stale-while-revalidate: önbellekteki sürüm varsa hemen o döner (hızlı),
+        // AYNI ANDA ağdan tazesi çekilip önbellek güncellenir — bir sonraki
+        // istekte görünür. Saf cache-first (önceki sürüm) bir görsel aynı
+        // dosya adıyla değiştirildiğinde (ör. otel bir buton görselini
+        // güncellediğinde) eski kopyayı SÜRESİZ göstermeye devam ediyordu.
         event.respondWith(
-            caches.match(req).then(hit => hit || fetch(req).then(res => {
-                const copy = res.clone();
-                caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
-                return res;
-            }).catch(() => hit))
+            caches.open(CACHE).then(cache => cache.match(req).then(hit => {
+                const fetchPromise = fetch(req).then(res => { cache.put(req, res.clone()); return res; }).catch(() => hit);
+                return hit || fetchPromise;
+            }))
         );
     }
 });

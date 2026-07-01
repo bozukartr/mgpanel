@@ -1405,8 +1405,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPaid = r.status === 'Confirmed' || (r.totalPrice - r.deposit <= 0);
         const balance = r.totalPrice - r.deposit;
         const bEl = document.getElementById('d-balance');
-        bEl.textContent = isPaid ? 'PAID' : '€' + balance;
-        bEl.className = 'balance-text' + (isPaid ? ' paid' : '');
+        if (r.folioApplied) {
+            bEl.textContent = 'Oda Hesabına Yansıtıldı (€' + (r.folioAmount != null ? r.folioAmount : balance) + ')';
+            bEl.className = 'balance-text folio';
+        } else {
+            bEl.textContent = isPaid ? 'PAID' : '€' + balance;
+            bEl.className = 'balance-text' + (isPaid ? ' paid' : '');
+        }
+        // Bakiye varsa, oda gerçek bir oda numarasına atanmışsa (Pre-Arrival değil)
+        // ve daha önce yansıtılmamışsa "Oda Hesabına Yansıt" aksiyonu gösterilir.
+        const applyBtn = document.getElementById('d-applyFolioBtn');
+        if (applyBtn) applyBtn.style.display = (!r.folioApplied && balance > 0 && r.room && r.room !== 'Pre-Arrival') ? '' : 'none';
 
         document.getElementById('d-staff').textContent = r.staffInitial;
         document.getElementById('d-voucher').textContent = r.voucherNo || '—';
@@ -1431,6 +1440,42 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!window.selectedReservation) return;
         generateConfirmationPDF(window.selectedReservation);
     };
+
+    // Ödeme gerektiren (transfer, tekne, çiçek vb.) rezervasyonların kalan
+    // bakiyesini misafirin oda hesabına (Folio) yansıtır — restaurant.js'in
+    // "Oda Hesabı" ile adisyon kapatmasıyla AYNI folioCharges koleksiyonuna
+    // yazar; guest-order.js'deki Konaklama/Oda Hesabım kartında görünür.
+    // folioApplied bayrağıyla aynı bakiyenin iki kez yansıtılması engellenir.
+    async function applyToFolio(r) {
+        if (!r) return;
+        if (!r.room || r.room === 'Pre-Arrival') { showToast('Oda ataması olmayan rezervasyon oda hesabına yansıtılamaz.', true); return; }
+        const balance = (Number(r.totalPrice) || 0) - (Number(r.deposit) || 0);
+        if (balance <= 0) { showToast('Yansıtılacak bakiye yok.', true); return; }
+        if (r.folioApplied) { showToast('Bu rezervasyon zaten oda hesabına yansıtılmış.', true); return; }
+        const btn = document.getElementById('d-applyFolioBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Yansıtılıyor…'; }
+        try {
+            const TS = firebase.firestore.FieldValue.serverTimestamp();
+            const batch = db.batch();
+            batch.set(db.collection('folioCharges').doc(), {
+                tenantId: TENANT_ID, room: r.room, guestName: r.guestName || '',
+                source: 'concierge', reservationId: r.id, tableName: '',
+                amount: balance, status: 'open', createdAt: TS, by: loggedUsername
+            });
+            batch.update(db.collection('reservations').doc(r.id), { folioApplied: true, folioAmount: balance, folioAt: TS });
+            await batch.commit();
+            const updated = Object.assign({}, r, { folioApplied: true, folioAmount: balance });
+            window.selectedReservation = updated;
+            populateDetail(updated);
+            showToast('Oda hesabına yansıtıldı.');
+        } catch (e) {
+            showToast('Yansıtılamadı. Yetkiniz olmayabilir.', true);
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '🧾 Kalan Bakiyeyi Oda Hesabına Yansıt'; }
+        }
+    }
+    const applyFolioBtn = document.getElementById('d-applyFolioBtn');
+    if (applyFolioBtn) applyFolioBtn.onclick = () => applyToFolio(window.selectedReservation);
 
     ['Pending', 'Confirmed', 'Cancelled'].forEach(st => {
         document.getElementById('d-set' + st).onclick = async () => {
