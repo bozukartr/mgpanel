@@ -33,9 +33,8 @@
                 <h1 class="go-h2-name" id="goGuestName">Misafirimiz</h1>
             </div>
 
-            <!-- Otel bilgi kartları: Wi-Fi, kahvaltı, oda servisi, check-out,
-                 resepsiyon, adres, oda hesabım (Folio) — veri yoksa gizlenir. -->
-            <div class="go-sec" id="goInfoSec" style="display:none;">
+            <!-- Ana carousel: Otel Bilgileri · Menüler · Konaklama -->
+            <div class="go-sec" id="goInfoSec">
                 <div class="go-carousel" id="goCarousel"></div>
                 <div class="go-carousel-dots" id="goDots"></div>
             </div>
@@ -172,7 +171,40 @@
         <p class="go-gate-help">Sorun mu yaşıyorsunuz? Lütfen resepsiyon ile iletişime geçin.</p>
     </section>
 
-    <!-- ══ Oda Hesabım (Folio) ══ -->
+    <!-- ══ Otel Bilgileri ══ -->
+    <div class="go-backdrop" id="goInfoBackdrop"></div>
+    <section class="go-sheet" id="goInfoSheet" aria-hidden="true">
+        <div class="go-sheet-grip"></div>
+        <div class="go-folio-head">
+            <h2>Otel Bilgileri</h2>
+            <button class="go-sheet-close" id="goInfoClose" aria-label="Kapat">✕</button>
+        </div>
+        <div class="go-scroll" id="goInfoBody"></div>
+    </section>
+
+    <!-- ══ Menüler (PDF) ══ -->
+    <div class="go-backdrop" id="goMenusBackdrop"></div>
+    <section class="go-sheet" id="goMenusSheet" aria-hidden="true">
+        <div class="go-sheet-grip"></div>
+        <div class="go-folio-head">
+            <h2>Menüler</h2>
+            <button class="go-sheet-close" id="goMenusClose" aria-label="Kapat">✕</button>
+        </div>
+        <div class="go-scroll" id="goMenusBody"></div>
+    </section>
+
+    <!-- ══ Konaklama ══ -->
+    <div class="go-backdrop" id="goStayBackdrop"></div>
+    <section class="go-sheet" id="goStaySheet" aria-hidden="true">
+        <div class="go-sheet-grip"></div>
+        <div class="go-folio-head">
+            <h2>Konaklama</h2>
+            <button class="go-sheet-close" id="goStayClose" aria-label="Kapat">✕</button>
+        </div>
+        <div class="go-scroll" id="goStayBody"></div>
+    </section>
+
+    <!-- ══ Oda Hesabım (Folio) — Konaklama'dan drill-down ══ -->
     <div class="go-backdrop" id="goFolioBackdrop"></div>
     <section class="go-sheet" id="goFolioSheet" aria-hidden="true">
         <div class="go-sheet-grip"></div>

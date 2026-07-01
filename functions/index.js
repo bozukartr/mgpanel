@@ -687,15 +687,16 @@ exports.getGuestName = onCall({ region: REGION }, async (request) => {
   return { ok: true, name: matchName };
 });
 
-// ── Oda hesabım (Folio) — güvenli özet ──────────────────────────────
-// firestore.rules'da folioCharges yalnızca personel tarafından okunabilir
-// (bkz. match /folioCharges/{id}); anonim misafirin doğrudan sorgu atıp
-// başka bir odanın hesabını okumasını önlemek için kural DEĞİŞTİRİLMEDİ.
-// Bunun yerine getGuestName ile AYNI sunucu-taraflı doğrulama (oda + soyadı
-// → guestDirectory'de in-house eşleşmesi) burada tekrarlanır; yalnızca
-// eşleşme başarılıysa Admin SDK ile o odanın açık (status='open') oda hesabı
-// kalemleri toplanıp döndürülür.
-exports.getRoomFolio = onCall({ region: REGION }, async (request) => {
+// ── Konaklama bilgilerim (Folio + Rezervasyonlar + tarihler) — güvenli özet ──
+// firestore.rules'da folioCharges/reservations/guestDirectory yalnızca
+// personel tarafından okunabilir; anonim misafirin doğrudan sorgu atıp başka
+// bir odanın/misafirin verisini okumasını önlemek için bu kurallar
+// DEĞİŞTİRİLMEDİ. Bunun yerine getGuestName ile AYNI sunucu-taraflı doğrulama
+// (oda + soyadı → guestDirectory'de in-house eşleşmesi) burada tekrarlanır;
+// yalnızca eşleşme başarılıysa Admin SDK ile üç bilgi tek çağrıda toplanır:
+// check-in/check-out tarihleri, açık (status='open') oda hesabı kalemleri ve
+// misafirin (guestDirectory'deki KANONİK adıyla) Concierge rezervasyonları.
+exports.getGuestStay = onCall({ region: REGION }, async (request) => {
   const d = request.data || {};
   const tenant = String(d.tenant || '').trim().toLowerCase().slice(0, 40);
   const room = String(d.room || '').trim().slice(0, 40);
@@ -710,18 +711,18 @@ exports.getRoomFolio = onCall({ region: REGION }, async (request) => {
   }
   const today = _istanbulToday();
   const sTokens = _nameTokens(surname);
-  let verified = false;
+  let guest = null;
   dirSnap.forEach((doc) => {
-    if (verified) return;
+    if (guest) return;
     const g = doc.data() || {};
     const gTenant = String(g.tenantId || '').toLowerCase();
     if (!gTenant || gTenant !== tenant) return; // etiketsiz misafir kaydı hiçbir tenant'a eşleşmez (fail-closed)
     if (g.status && g.status !== 'in_house') return;
     if (g.checkOut && String(g.checkOut) < today) return; // çıkış yapmış
     const gTokens = _nameTokens(g.name);
-    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) verified = true;
+    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) guest = g;
   });
-  if (!verified) return { ok: false };
+  if (!guest) return { ok: false };
 
   let chargesSnap;
   try {
@@ -732,23 +733,64 @@ exports.getRoomFolio = onCall({ region: REGION }, async (request) => {
       .limit(100)
       .get();
   } catch (e) {
-    return { ok: false };
+    chargesSnap = null;
   }
-  let total = 0;
-  const items = [];
-  chargesSnap.forEach((doc) => {
-    const c = doc.data() || {};
-    const amount = Number(c.amount) || 0;
-    total += amount;
-    items.push({
-      amount,
-      source: String(c.source || '').slice(0, 40),
-      tableName: String(c.tableName || '').slice(0, 40),
-      createdAt: c.createdAt && c.createdAt.toMillis ? c.createdAt.toMillis() : null
+  let folioTotal = 0;
+  const folioItems = [];
+  if (chargesSnap) {
+    chargesSnap.forEach((doc) => {
+      const c = doc.data() || {};
+      const amount = Number(c.amount) || 0;
+      folioTotal += amount;
+      folioItems.push({
+        amount,
+        source: String(c.source || '').slice(0, 40),
+        tableName: String(c.tableName || '').slice(0, 40),
+        createdAt: c.createdAt && c.createdAt.toMillis ? c.createdAt.toMillis() : null
+      });
     });
-  });
-  items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  return { ok: true, total, count: items.length, items: items.slice(0, 30) };
+    folioItems.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }
+
+  let resSnap;
+  try {
+    resSnap = await db.collection('reservations')
+      .where('tenantId', '==', tenant)
+      .where('guestName', '==', String(guest.name || ''))
+      .limit(50)
+      .get();
+  } catch (e) {
+    resSnap = null;
+  }
+  const reservations = [];
+  if (resSnap) {
+    resSnap.forEach((doc) => {
+      const r = doc.data() || {};
+      reservations.push({
+        type: String(r.type || '').slice(0, 30),
+        date: String(r.date || '').slice(0, 20),
+        time: String(r.time || '').slice(0, 20),
+        status: String(r.status || 'Pending').slice(0, 20),
+        resName: String(r.resName || '').slice(0, 80),
+        from: String(r.from || '').slice(0, 80),
+        to: String(r.to || '').slice(0, 80),
+        vehicle: String(r.vehicle || '').slice(0, 60),
+        vessel: String(r.vessel || '').slice(0, 60),
+        provider: String(r.provider || '').slice(0, 60),
+        pax: String(r.pax || '').slice(0, 10),
+        otherType: String(r.otherType || '').slice(0, 60)
+      });
+    });
+    reservations.sort((a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
+  }
+
+  return {
+    ok: true,
+    checkIn: String(guest.checkIn || ''),
+    checkOut: String(guest.checkOut || ''),
+    folio: { total: folioTotal, count: folioItems.length, items: folioItems.slice(0, 30) },
+    reservations: reservations.slice(0, 30)
+  };
 });
 
 // ═══════════════════════════════════════════════════════════════════

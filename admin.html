@@ -300,6 +300,21 @@
                     </div>
                 </section>
 
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Menüler (PDF)</h2>
+                            <p class="card-sub">Misafirin QR sayfasındaki "Menüler" kartında göreceği PDF menüler (Oda Servisi, Restoran, Spa vb.). PDF'i barındırdığınız bir bağlantı (Drive, otel web siteniz vb.) yapıştırın — dosya yükleme yoktur.</p>
+                        </div>
+                    </div>
+                    <div class="menu-add-row">
+                        <input type="text" id="menuNewName" maxlength="80" placeholder="Menü adı (ör. Restoran Menüsü)">
+                        <input type="text" id="menuNewUrl" maxlength="500" placeholder="PDF bağlantısı (https://…)">
+                        <button class="btn btn-primary" id="menuAddBtn">+ Menü Ekle</button>
+                    </div>
+                    <div id="menuList"><!-- rendered by menus-admin.js --></div>
+                </section>
+
                 <section class="admin-card" id="qrCard">
                     <div class="card-header">
                         <div class="card-title">
@@ -725,6 +740,7 @@
     <script src="js/modules/request-catalog.js"></script>
     <script src="js/modules/issue-config-admin.js"></script>
     <script src="js/modules/notify-config-admin.js"></script>
+    <script src="js/modules/menus-admin.js"></script>
     <script src="js/modules/room-access.js"></script>
     <script src="js/utils/modal-guard.js"></script>
     <script>

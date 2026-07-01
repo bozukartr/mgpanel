@@ -84,6 +84,26 @@
         { category: 'Resepsiyon', name: 'Taksi Çağır', icon: '🚕', eta: '10 dk', department: 'Front Office' }
     ].map((d, i) => Object.assign({ id: 'demo-' + i, active: true, sortOrder: (i + 1) * 10 }, d));
 
+    const DEMO_MENUS = [
+        { name: 'Restoran Menüsü', pdfUrl: 'https://www.orimi.com/pdf-test.pdf' },
+        { name: 'Oda Servisi Menüsü', pdfUrl: 'https://www.orimi.com/pdf-test.pdf' },
+        { name: 'Spa & Wellness', pdfUrl: 'https://www.orimi.com/pdf-test.pdf' }
+    ];
+    const DEMO_STAY = {
+        checkIn: '2026-06-28', checkOut: '2026-07-04',
+        folio: {
+            total: 420, count: 2,
+            items: [
+                { amount: 240, source: 'restaurant', tableName: 'Masa 12', createdAt: Date.now() - 3600000 },
+                { amount: 180, source: 'restaurant', tableName: 'Masa 4', createdAt: Date.now() - 90000000 }
+            ]
+        },
+        reservations: [
+            { type: 'Restaurant', date: '2026-07-01', time: '20:00', status: 'Confirmed', resName: 'Lobi Restoran', pax: '2' },
+            { type: 'Transfer', date: '2026-07-04', time: '11:00', status: 'Pending', from: 'Otel', to: 'Havalimanı', vehicle: 'VIP Araç' }
+        ]
+    };
+
     const STATUS = {
         pending:     { label: 'Bekliyor',     emoji: '⏳', sub: 'Talebiniz personelimize iletildi.' },
         confirmed:   { label: 'Onaylandı',    emoji: '✅', sub: 'Talebiniz onaylandı, hazırlanıyor.' },
@@ -188,8 +208,9 @@
         guestName = String(n || '').trim();
         try { guestName ? localStorage.setItem(GUEST_KEY, guestName) : localStorage.removeItem(GUEST_KEY); } catch (e) {}
     }
-    // Doğrulamada girilen soyadı saklanır — Folio gibi sonradan sunucu-taraflı
-    // yeniden doğrulama gerektiren çağrılarda (getRoomFolio) tekrar kullanılır.
+    // Doğrulamada girilen soyadı saklanır — Konaklama sekmesi gibi sonradan
+    // sunucu-taraflı yeniden doğrulama gerektiren çağrılarda (getGuestStay)
+    // tekrar kullanılır.
     function loadSurname() { try { return localStorage.getItem(SURNAME_KEY) || ''; } catch (e) { return ''; } }
     function setSurname(s) {
         s = String(s || '').trim();
@@ -424,107 +445,165 @@
         wrap.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast('Kopyalandı'); } catch (e) {} });
     }
 
-    // ── Otel bilgileri carousel ────────────────────────────────
+    // ── Otel bilgileri (Otel Bilgileri sheet + Profil sekmesi ortak ikonlar) ──
     const INFO_ICONS = {
         wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
         phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
         clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
         coffee: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
-        pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
-        food: '<path d="M3 2v7c0 1.1.9 2 2 2a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
-        folio: '<path d="M6 2h9l3 3v17l-3-2-3 2-3-2-3 2V5a3 3 0 0 1 3-3z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/>'
+        pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>'
     };
-    const INFO_GRAD = ['linear-gradient(145deg,#2f5346,#1f3a30)', 'linear-gradient(145deg,#33485c,#26384a)', 'linear-gradient(145deg,#7a5a44,#5a4131)', 'linear-gradient(145deg,#8a7d63,#6c6049)', 'linear-gradient(145deg,#4f6155,#39473e)', 'linear-gradient(145deg,#5c5470,#433f57)'];
-    let folioData = null;      // { total, count, items } — son başarılı getRoomFolio yanıtı
-    let folioFetchedAt = 0;    // throttle: Home sekmesine her dönüşte yeniden sorgulamamak için
 
-    // Katalogda F&B/oda servisi niteliğindeki ilk kategoriyi bulur (catKind ile
-    // esnek eşleşir: "Oda Servisi", "Yiyecek & İçecek", "Room Service" vb.).
-    function roomServiceCategory() {
-        const cats = [...new Set((catalog || []).map(i => i.category || '').filter(Boolean))];
-        return cats.find(c => catKind(c) === 'food') || '';
-    }
-    function infoCards() {
-        const cards = [];
-        if (config.wifiName || config.wifiPass)
-            cards.push({ ic: 'wifi', kicker: 'Wi-Fi', val: config.wifiName || 'Wi-Fi', sub: config.wifiPass ? 'Şifre: ' + config.wifiPass : '', copy: config.wifiPass || config.wifiName });
-        if (config.breakfast)
-            cards.push({ ic: 'coffee', kicker: 'Kahvaltı', val: config.breakfast });
-        const roomSvcCat = roomServiceCategory();
-        if (roomSvcCat)
-            cards.push({ ic: 'food', kicker: 'Oda Servisi', val: roomSvcCat, sub: 'Menüyü görüntüleyin', nav: roomSvcCat });
-        if (config.checkoutTime)
-            cards.push({ ic: 'clock', kicker: 'Check-out', val: config.checkoutTime, sub: 'Çıkış saati' });
-        if (config.phone)
-            cards.push({ ic: 'phone', kicker: 'Resepsiyon', val: config.phone, tel: config.phone.replace(/[^0-9+]/g, '') });
-        if (config.address)
-            cards.push({ ic: 'pin', kicker: 'Adres', val: config.address, map: config.address });
-        if (folioData && folioData.total > 0)
-            cards.push({ ic: 'folio', kicker: 'Oda Hesabım', val: fmtPrice(folioData.total), sub: folioData.count + ' kalem · detay için dokunun', folio: true });
-        return cards;
-    }
-    function renderCarouselCards(cards) {
+    // ── Ana carousel: 3 büyük giriş kartı (Otel Bilgileri / Menüler / Konaklama) ──
+    const BIG_CARDS = [
+        { key: 'info', title: 'Otel Bilgileri', img: 'info_button.png', color: '#1f3a5c' },
+        { key: 'menus', title: 'Menüler', img: 'menus_button.png', color: '#7a5a44' },
+        { key: 'stay', title: 'Konaklama', img: 'stay_button.png', color: '#34703f' }
+    ];
+    function renderCarousel() {
         const wrap = $('goCarousel'), dots = $('goDots'); if (!wrap) return;
-        const sec = $('goInfoSec');
-        const showInfo = cards.length > 0;
-        if (sec) sec.style.display = showInfo ? '' : 'none';
-        if (!showInfo) { wrap.innerHTML = ''; if (dots) dots.innerHTML = ''; return; }
-        wrap.innerHTML = cards.map((c, i) => {
-            let act = '';
-            if (c.tel) act = `<a class="go-info-act" href="tel:${esc(c.tel)}">Ara</a>`;
-            else if (c.map) act = `<a class="go-info-act" href="https://maps.google.com/?q=${encodeURIComponent(c.map)}" target="_blank" rel="noopener">Haritada Aç</a>`;
-            else if (c.copy) act = `<button class="go-info-act" data-copy="${esc(c.copy)}">Kopyala</button>`;
-            else if (c.nav) act = `<button class="go-info-act" data-nav="${esc(c.nav)}">Menüyü Gör</button>`;
-            else if (c.folio) act = `<button class="go-info-act" data-folio="1">Detayı Gör</button>`;
-            return `<div class="go-info-card" style="background:${INFO_GRAD[i % INFO_GRAD.length]}">
-                <div class="go-info-top"><span class="go-info-ic">${svg(INFO_ICONS[c.ic] || INFO_ICONS.pin, 23)}</span><span class="go-info-kicker">${esc(c.kicker)}</span></div>
-                <div class="go-info-main"><div class="go-info-val">${esc(c.val)}</div>${c.sub ? `<div class="go-info-sub">${esc(c.sub)}</div>` : ''}</div>
-                ${act}</div>`;
-        }).join('');
-        if (dots) dots.innerHTML = cards.map((_, i) => `<span class="go-dot ${i === 0 ? 'active' : ''}"></span>`).join('');
-        wrap.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast('Kopyalandı'); } catch (e) {} });
-        wrap.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => {
-            activeCat = b.dataset.nav; searchTerm = ''; showTab('services');
-            const a = document.querySelector('#goChips .go-chip.active');
-            if (a) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+        const sec = $('goInfoSec'); if (sec) sec.style.display = '';
+        wrap.innerHTML = BIG_CARDS.map(c => `
+            <button class="go-bigcard" data-open="${esc(c.key)}"
+                style="background-color:${c.color};background-image:linear-gradient(180deg,rgba(16,24,36,.16),rgba(16,24,36,.62)),url('${esc(c.img)}');background-size:cover;background-position:center;">
+                <span class="go-bigcard-tx">${esc(c.title)}</span>
+            </button>`).join('');
+        if (dots) dots.innerHTML = BIG_CARDS.map((_, i) => `<span class="go-dot ${i === 0 ? 'active' : ''}"></span>`).join('');
+        wrap.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
+            const key = b.dataset.open;
+            if (key === 'info') openInfo();
+            else if (key === 'menus') openMenus();
+            else if (key === 'stay') openStay();
         });
-        wrap.querySelectorAll('[data-folio]').forEach(b => b.onclick = openFolio);
         wrap.onscroll = () => {
             if (!dots) return;
-            const card = wrap.querySelector('.go-info-card'); if (!card) return;
-            const w = card.offsetWidth + 14;
+            const card = wrap.querySelector('.go-bigcard'); if (!card) return;
+            const w = card.offsetWidth + 12;
             const idx = Math.round(wrap.scrollLeft / w);
             dots.querySelectorAll('.go-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
         };
     }
-    // Senkron kartlar hemen çizilir (WiFi/kahvaltı/oda servisi/checkout/telefon/
-    // adres — hiçbiri ağ çağrısı gerektirmez). Folio, misafir daha önce soyadı ile
-    // doğrulandıysa (SURNAME_KEY dolu) sunucu üzerinden ayrıca sorgulanır; sonuç
-    // gelince kart listesine eklenip carousel yeniden çizilir. 30 sn throttle ile
-    // Home sekmesine her dönüşte gereksiz Cloud Function çağrısı önlenir.
-    async function renderCarousel() {
-        renderCarouselCards(infoCards());
-        const surname = loadSurname();
-        if (!fns || !ROOM || !surname) return;
-        if (Date.now() - folioFetchedAt < 30000) return;
-        folioFetchedAt = Date.now();
-        try {
-            const res = await fns.httpsCallable('getRoomFolio')({ tenant: TENANT, room: ROOM, surname });
-            folioData = (res && res.data && res.data.ok) ? res.data : null;
-        } catch (e) { folioData = null; }
-        renderCarouselCards(infoCards());
+
+    // ── Menüler (admin panelden eklenen PDF bağlantıları) ─────────
+    let menusCache = null; // [{name,pdfUrl}] — bir kez çekilip sekme boyunca saklanır
+    function menuRow(m) {
+        return `<button class="go-menu-row" data-url="${esc(m.pdfUrl || '')}">
+            <span class="go-menu-row-ic">${svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>', 20)}</span>
+            <span class="go-menu-row-tx">${esc(m.name || 'Menü')}</span>
+            <span class="go-menu-row-arrow">›</span></button>`;
     }
+    function renderMenus(list) {
+        const body = $('goMenusBody'); if (!body) return;
+        if (!list.length) { body.innerHTML = '<div class="go-empty"><div class="go-empty-ic">📋</div><h3>Menü yok</h3><p>Bu otel için henüz menü eklenmemiş.</p></div>'; return; }
+        body.innerHTML = list.map(menuRow).join('');
+        body.querySelectorAll('[data-url]').forEach(b => b.onclick = () => {
+            const url = b.dataset.url;
+            if (!url) { toast('Bu menü için bağlantı tanımlı değil.', true); return; }
+            window.open(url, '_blank', 'noopener');
+        });
+    }
+    function openMenus() {
+        $('goMenusBackdrop').classList.add('show');
+        $('goMenusSheet').classList.add('show');
+        $('goMenusSheet').setAttribute('aria-hidden', 'false');
+        if (menusCache) { renderMenus(menusCache); return; }
+        $('goMenusBody').innerHTML = '<div class="go-spinner" style="margin:30px auto;"></div>';
+        if (DEMO) { menusCache = DEMO_MENUS; renderMenus(menusCache); return; }
+        db.collection('guestMenus').where('tenantId', '==', TENANT).get().then(snap => {
+            menusCache = snap.docs.map(d => d.data()).filter(m => m.active !== false)
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+            renderMenus(menusCache);
+        }).catch(() => { menusCache = []; renderMenus([]); });
+    }
+    function closeMenus() {
+        $('goMenusBackdrop').classList.remove('show');
+        $('goMenusSheet').classList.remove('show');
+        $('goMenusSheet').setAttribute('aria-hidden', 'true');
+    }
+
+    // ── Konaklama (tarihler + Oda Hesabım özeti + rezervasyonlar) ─
+    // Tek bir sunucu-taraflı doğrulanmış çağrı (getGuestStay) ile gelir; soyadı
+    // gate'te girildiğinde saklanır (SURNAME_KEY). Doğrulama hiç yapılmamışsa
+    // (requireVerification kapalıysa) bu sekme "doğrulama gerekli" gösterir —
+    // yeni bir zorunlu akış icat etmek yerine.
+    let stayData = null; // { checkIn, checkOut, folio:{total,count,items}, reservations:[...] }
+    const RES_TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
+    function resDetailText(r) {
+        if (r.type === 'Restaurant' || r.type === 'Beach') return [r.resName, r.pax ? r.pax + ' kişi' : ''].filter(Boolean).join(' · ');
+        if (r.type === 'Transfer') return [r.from, r.to].filter(Boolean).join(' → ') + (r.vehicle ? ' · ' + r.vehicle : '');
+        if (r.type === 'Boat' || r.type === 'Tour') return [r.vessel, r.provider].filter(Boolean).join(' · ');
+        if (r.type === 'Other') return r.otherType || '';
+        return r.resName || '';
+    }
+    function reservationRow(r, i) {
+        const detail = resDetailText(r);
+        return `<div class="go-stay-res-row" data-i="${i}">
+            <div class="go-stay-res-top">
+                <div><b>${esc(RES_TYPE_TR[r.type] || r.type || 'Rezervasyon')}</b><span>${esc(fmtDateTR(r.date))}${r.time ? ' · ' + esc(r.time) : ''}</span></div>
+                <span class="go-stay-res-chev">›</span>
+            </div>
+            <div class="go-stay-res-detail">${detail ? esc(detail) : '<span class="go-ink-mute">Detay yok</span>'}</div>
+        </div>`;
+    }
+    function fmtDateTR(iso) {
+        if (!iso) return '—';
+        const p = String(iso).slice(0, 10).split('-');
+        return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
+    }
+    function renderStay() {
+        const body = $('goStayBody'); if (!body || !stayData) return;
+        const dateRow = (stayData.checkIn || stayData.checkOut) ? `
+            <div class="go-stay-dates">
+                <div><b>Giriş</b><span>${esc(fmtDateTR(stayData.checkIn))}</span></div>
+                <div><b>Çıkış</b><span>${esc(fmtDateTR(stayData.checkOut))}</span></div>
+            </div>` : '';
+        const folio = stayData.folio || { total: 0, count: 0 };
+        const folioRowHtml = `<button class="go-stay-folio" id="goStayFolioBtn">
+            <span><b>Oda Hesabım</b><span>${folio.count ? folio.count + ' kalem' : 'Ekstra yok'}</span></span>
+            <span class="go-stay-folio-amt">${esc(fmtPrice(folio.total || 0))}</span></button>`;
+        const resList = (stayData.reservations || []);
+        const resHtml = resList.length
+            ? `<div class="go-prof-sec">Rezervasyonlarım</div>${resList.map(reservationRow).join('')}`
+            : `<div class="go-prof-sec">Rezervasyonlarım</div><div class="go-empty" style="padding:24px 10px;"><p>Kayıtlı rezervasyon yok.</p></div>`;
+        body.innerHTML = `${dateRow}${folioRowHtml}${resHtml}`;
+        const fb = $('goStayFolioBtn'); if (fb) fb.onclick = () => { closeStay(); openFolio(folio); };
+        body.querySelectorAll('.go-stay-res-row').forEach(row => row.onclick = () => row.classList.toggle('open'));
+    }
+    function openStay() {
+        $('goStayBackdrop').classList.add('show');
+        $('goStaySheet').classList.add('show');
+        $('goStaySheet').setAttribute('aria-hidden', 'false');
+        if (DEMO) { stayData = DEMO_STAY; renderStay(); return; }
+        const surname = loadSurname();
+        if (!fns || !ROOM || !surname) {
+            $('goStayBody').innerHTML = '<div class="go-empty"><div class="go-empty-ic">🔒</div><h3>Doğrulama gerekli</h3><p>Konaklama bilgilerinizi görmek için önce soyadı ve oda numaranızla doğrulanmanız gerekir.</p></div>';
+            return;
+        }
+        if (stayData) { renderStay(); return; }
+        $('goStayBody').innerHTML = '<div class="go-spinner" style="margin:30px auto;"></div>';
+        fns.httpsCallable('getGuestStay')({ tenant: TENANT, room: ROOM, surname }).then(res => {
+            if (res && res.data && res.data.ok) { stayData = res.data; renderStay(); }
+            else $('goStayBody').innerHTML = '<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>Bilgi alınamadı</h3><p>Lütfen tekrar deneyin.</p></div>';
+        }).catch(() => { $('goStayBody').innerHTML = '<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>Bilgi alınamadı</h3><p>Lütfen tekrar deneyin.</p></div>'; });
+    }
+    function closeStay() {
+        $('goStayBackdrop').classList.remove('show');
+        $('goStaySheet').classList.remove('show');
+        $('goStaySheet').setAttribute('aria-hidden', 'true');
+    }
+
+    // ── Oda Hesabım detayı (Konaklama'dan drill-down) ─────────────
     function folioRow(it) {
         const meta = [it.tableName || '', it.createdAt ? new Date(it.createdAt).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');
         return `<div class="go-folio-row">
             <div class="go-folio-row-tx"><div class="go-folio-row-src">${esc(it.source === 'restaurant' ? 'Restoran / Bar' : (it.source || 'Oda Hesabı'))}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
             <div class="go-folio-row-amt">${esc(fmtPrice(it.amount))}</div></div>`;
     }
-    function openFolio() {
-        const body = $('goFolioBody'); if (!body || !folioData) return;
-        const rows = (folioData.items || []).map(folioRow).join('');
+    function openFolio(folio) {
+        const body = $('goFolioBody'); if (!body || !folio) return;
+        const rows = (folio.items || []).map(folioRow).join('');
         body.innerHTML = `${rows || '<div class="go-empty"><div class="go-empty-ic">🧾</div><h3>Kalem yok</h3></div>'}
-            <div class="go-folio-total"><b>Toplam</b><span>${esc(fmtPrice(folioData.total))}</span></div>`;
+            <div class="go-folio-total"><b>Toplam</b><span>${esc(fmtPrice(folio.total || 0))}</span></div>`;
         $('goFolioBackdrop').classList.add('show');
         $('goFolioSheet').classList.add('show');
         $('goFolioSheet').setAttribute('aria-hidden', 'false');
@@ -1006,6 +1085,12 @@
         $('goGateBackdrop').onclick = () => { if (!(config.requireVerification && !isVerified())) closeGate(); };
         const fc = $('goFolioClose'); if (fc) fc.onclick = closeFolio;
         const fb = $('goFolioBackdrop'); if (fb) fb.onclick = closeFolio;
+        const ic = $('goInfoClose'); if (ic) ic.onclick = closeInfo;
+        const ib = $('goInfoBackdrop'); if (ib) ib.onclick = closeInfo;
+        const mc = $('goMenusClose'); if (mc) mc.onclick = closeMenus;
+        const mb = $('goMenusBackdrop'); if (mb) mb.onclick = closeMenus;
+        const sc2 = $('goStayClose'); if (sc2) sc2.onclick = closeStay;
+        const sb2 = $('goStayBackdrop'); if (sb2) sb2.onclick = closeStay;
         // Arama
         const s = $('goSearch');
         if (s) s.addEventListener('input', () => { searchTerm = s.value; $('goSearchX').hidden = !s.value; renderItems(); });
