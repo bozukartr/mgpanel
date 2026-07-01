@@ -33,6 +33,13 @@
                 <h1 class="go-h2-name" id="goGuestName">Misafirimiz</h1>
             </div>
 
+            <!-- Otel bilgi kartları: Wi-Fi, kahvaltı, oda servisi, check-out,
+                 resepsiyon, adres, oda hesabım (Folio) — veri yoksa gizlenir. -->
+            <div class="go-sec" id="goInfoSec" style="display:none;">
+                <div class="go-carousel" id="goCarousel"></div>
+                <div class="go-carousel-dots" id="goDots"></div>
+            </div>
+
             <div class="go-h2-cards" id="goCats"><div class="go-spinner"></div></div>
 
             <div class="go-h2-qa" id="goQaSec">
@@ -163,6 +170,17 @@
         <div class="go-gate-err" id="goGateErr"></div>
         <button class="go-cta go-cta-block" id="goGateBtn"><span id="goGateBtnLabel">Doğrula ve Devam Et</span></button>
         <p class="go-gate-help">Sorun mu yaşıyorsunuz? Lütfen resepsiyon ile iletişime geçin.</p>
+    </section>
+
+    <!-- ══ Oda Hesabım (Folio) ══ -->
+    <div class="go-backdrop" id="goFolioBackdrop"></div>
+    <section class="go-sheet" id="goFolioSheet" aria-hidden="true">
+        <div class="go-sheet-grip"></div>
+        <div class="go-folio-head">
+            <h2>Oda Hesabım</h2>
+            <button class="go-sheet-close" id="goFolioClose" aria-label="Kapat">✕</button>
+        </div>
+        <div class="go-scroll" id="goFolioBody"></div>
     </section>
 
     <!-- ══ Toast ══ -->
