@@ -735,22 +735,31 @@ exports.getGuestStay = onCall({ region: REGION }, async (request) => {
   } catch (e) {
     chargesSnap = null;
   }
-  let folioTotal = 0;
-  const folioItems = [];
+  // Para birimleri ASLA karıştırılmadan gruplanır (ör. Concierge'in EUR
+  // rezervasyonu ile restoranın ₺ adisyonu tek bir sayıda toplanamaz — bu,
+  // misafirin oda hesabında yanlış tutar/birim görmesine yol açan hataydı).
+  // Eski (bu düzeltmeden önce yazılmış) kayıtlarda `currency` alanı yoktur;
+  // kaynağa göre o zamanki gerçek varsayılana düşülür (concierge→EUR,
+  // restaurant→TRY) — yeni yazımların hepsi artık currency taşıyor.
+  const folioGroups = {}; // { EUR: {total,count,items}, TRY: {...} }
   if (chargesSnap) {
     chargesSnap.forEach((doc) => {
       const c = doc.data() || {};
       const amount = Number(c.amount) || 0;
-      folioTotal += amount;
-      folioItems.push({
+      const currency = c.currency || (c.source === 'restaurant' ? 'TRY' : 'EUR');
+      const g = folioGroups[currency] || (folioGroups[currency] = { currency, total: 0, count: 0, items: [] });
+      g.total += amount;
+      g.count += 1;
+      g.items.push({
         amount,
         source: String(c.source || '').slice(0, 40),
         tableName: String(c.tableName || '').slice(0, 40),
         createdAt: c.createdAt && c.createdAt.toMillis ? c.createdAt.toMillis() : null
       });
     });
-    folioItems.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    Object.values(folioGroups).forEach((g) => g.items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
   }
+  const folioByCurrency = Object.values(folioGroups).sort((a, b) => b.total - a.total);
 
   let resSnap;
   try {
@@ -788,7 +797,9 @@ exports.getGuestStay = onCall({ region: REGION }, async (request) => {
     ok: true,
     checkIn: String(guest.checkIn || ''),
     checkOut: String(guest.checkOut || ''),
-    folio: { total: folioTotal, count: folioItems.length, items: folioItems.slice(0, 30) },
+    // Para birimi başına ayrı grup — bkz. yukarıdaki not. Her grup en fazla
+    // 30 kalem taşır.
+    folio: folioByCurrency.map((g) => Object.assign({}, g, { items: g.items.slice(0, 30) })),
     reservations: reservations.slice(0, 30)
   };
 });

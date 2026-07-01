@@ -6,6 +6,15 @@ function esc(s) {
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Rezervasyon para birimi. Eski kayıtlarda `currency` alanı yoktur — bunlar
+// hep EUR olarak gösterildiğinden ('€' hardcoded idi) geriye dönük uyum için
+// varsayılan EUR'dur. Restoran/QR modüllerinden FARKLI bir birim olabileceği
+// için (Concierge genelde yurt dışı tur operatörü/transfer fiyatları) asla
+// guestConfig/restConfig currency'sine göre değiştirilmez — rezervasyonun
+// KENDİ currency alanı tek doğru kaynaktır.
+const CUR_SYM = { EUR: '€', TRY: '₺', USD: '$' };
+function curSym(cur) { return CUR_SYM[cur] || '€'; }
+
 // Maintenance enforcement — also runs here (not only in maintenance-guard.js) so it
 // works even if a cached page didn't load the guard script.
 (function () {
@@ -586,10 +595,11 @@ document.addEventListener('DOMContentLoaded', () => {
         set('rsPvRoom', ((gid('rs-room') || {}).value || '').trim() || '—');
         const price = parseFloat((gid('rs-price') || {}).value);
         const dep = parseFloat((gid('rs-deposit') || {}).value);
-        set('rsPvPrice', isNaN(price) ? '—' : price.toLocaleString('tr-TR'));
-        set('rsPvDeposit', isNaN(dep) ? '—' : dep.toLocaleString('tr-TR'));
+        const sym = curSym((gid('rs-currency') || {}).value || 'EUR');
+        set('rsPvPrice', isNaN(price) ? '—' : sym + price.toLocaleString('tr-TR'));
+        set('rsPvDeposit', isNaN(dep) ? '—' : sym + dep.toLocaleString('tr-TR'));
     }
-    ['rs-type', 'rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit'].forEach(id => {
+    ['rs-type', 'rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-currency'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', rsPreview); el.addEventListener('change', rsPreview); }
     });
@@ -1248,7 +1258,8 @@ document.addEventListener('DOMContentLoaded', () => {
         paCb.checked = false;
         document.getElementById('rs-pa-box').style.display = 'block'; // Ensure total container visibility restored
         document.getElementById('rs-room').disabled = false;
-        
+        document.getElementById('rs-currency').value = 'EUR';
+
         typeSelect.value = 'Restaurant';
         updateFormFields();
         document.getElementById('rs-date').value = fmtDate(new Date());
@@ -1322,6 +1333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const checkOut = document.getElementById('rs-checkOut').value;
         const price = parseFloat(document.getElementById('rs-price').value) || 0;
         const deposit = parseFloat(document.getElementById('rs-deposit').value) || 0;
+        const currency = document.getElementById('rs-currency').value || 'EUR';
         const voucher = document.getElementById('rs-voucher').value.trim();
         const notes = document.getElementById('rs-notes').value.trim();
 
@@ -1338,7 +1350,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = {
             type, guestName, room: isPreArrival ? 'Pre-Arrival' : room, date, time, notes,
-            totalPrice: price, deposit: deposit,
+            totalPrice: price, deposit: deposit, currency,
             voucherNo: voucher,
             ...dynamicData
         };
@@ -1377,6 +1389,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ['rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
+            document.getElementById('rs-currency').value = 'EUR';
             document.getElementById('rs-isPreArrival').checked = false;
             document.getElementById('rs-pa-box').style.display = 'block'; // Ensure visible
             document.getElementById('rs-room').disabled = false;
@@ -1394,22 +1407,23 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function populateDetail(r) {
+        const sym = curSym(r.currency || 'EUR');
         document.getElementById('d-guest').textContent = r.guestName;
         document.getElementById('d-room').textContent = 'Room ' + r.room;
         document.getElementById('d-type').textContent = r.type;
         document.getElementById('d-date').textContent = fmtDate(r.date);
         document.getElementById('d-time').textContent = r.time || '—';
-        document.getElementById('d-price').textContent = '€' + r.totalPrice;
-        document.getElementById('d-deposit').textContent = '€' + r.deposit;
+        document.getElementById('d-price').textContent = sym + r.totalPrice;
+        document.getElementById('d-deposit').textContent = sym + r.deposit;
 
         const isPaid = r.status === 'Confirmed' || (r.totalPrice - r.deposit <= 0);
         const balance = r.totalPrice - r.deposit;
         const bEl = document.getElementById('d-balance');
         if (r.folioApplied) {
-            bEl.textContent = 'Oda Hesabına Yansıtıldı (€' + (r.folioAmount != null ? r.folioAmount : balance) + ')';
+            bEl.textContent = 'Oda Hesabına Yansıtıldı (' + sym + (r.folioAmount != null ? r.folioAmount : balance) + ')';
             bEl.className = 'balance-text folio';
         } else {
-            bEl.textContent = isPaid ? 'PAID' : '€' + balance;
+            bEl.textContent = isPaid ? 'PAID' : sym + balance;
             bEl.className = 'balance-text' + (isPaid ? ' paid' : '');
         }
         // Bakiye varsa, oda gerçek bir oda numarasına atanmışsa (Pre-Arrival değil)
@@ -1460,7 +1474,7 @@ document.addEventListener('DOMContentLoaded', () => {
             batch.set(db.collection('folioCharges').doc(), {
                 tenantId: TENANT_ID, room: r.room, guestName: r.guestName || '',
                 source: 'concierge', reservationId: r.id, tableName: '',
-                amount: balance, status: 'open', createdAt: TS, by: loggedUsername
+                amount: balance, currency: r.currency || 'EUR', status: 'open', createdAt: TS, by: loggedUsername
             });
             batch.update(db.collection('reservations').doc(r.id), { folioApplied: true, folioAmount: balance, folioAt: TS });
             await batch.commit();
@@ -1595,6 +1609,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rs-time').value = r.time || '';
         document.getElementById('rs-price').value = r.totalPrice || '';
         document.getElementById('rs-deposit').value = r.deposit || '';
+        document.getElementById('rs-currency').value = r.currency || 'EUR';
         document.getElementById('rs-voucher').value = r.voucherNo || '';
         document.getElementById('rs-notes').value = r.notes || '';
 
@@ -1752,6 +1767,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Pax: r.pax || '',
             Price: r.totalPrice || 0,
             Deposit: r.deposit || 0,
+            Currency: r.currency || 'EUR',
             Status: r.status || 'Pending'
         };
     }
@@ -1840,10 +1856,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (type === 'summary') {
             data = reservations.filter(r => r.date === specific && r.status !== 'Cancelled');
+            // Para birimi bazında grupla — o günün EUR ve TRY rezervasyonları
+            // tek bir toplamda karıştırılmaz.
+            const byCur = {};
+            data.forEach(r => { const c = r.currency || 'EUR'; const g = byCur[c] || (byCur[c] = { rev: 0, dep: 0 }); g.rev += Number(r.totalPrice) || 0; g.dep += Number(r.deposit) || 0; });
+            const curs = Object.keys(byCur);
+            const sumLine = key => curs.length ? curs.map(c => curSym(c) + byCur[c][key]).join(' · ') : curSym('EUR') + '0';
             const summaryRows = [
                 { Metric: 'Total Reservations', Value: data.length },
-                { Metric: 'Total Revenue', Value: data.reduce((a, b) => a + (Number(b.totalPrice) || 0), 0) + ' €' },
-                { Metric: 'Total Deposits', Value: data.reduce((a, b) => a + (Number(b.deposit) || 0), 0) + ' €' }
+                { Metric: 'Total Revenue', Value: sumLine('rev') },
+                { Metric: 'Total Deposits', Value: sumLine('dep') }
             ];
             if (format === 'excel') {
                 const wb = XLSX.utils.book_new();
@@ -1856,8 +1878,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 XLSX.writeFile(wb, `Daily_Summary_${specific}.xlsx`);
             } else {
                 const rows = data.map(r => {
-                    const rb = rowBase(r);
-                    return [rb.Date, rb.Time, rb.Room, rb['Guest Name'], rb.Type, rb.Details, rb.Pax, rb.Price, rb.Deposit, rb.Status];
+                    const rb = rowBase(r); const s = curSym(rb.Currency);
+                    return [rb.Date, rb.Time, rb.Room, rb['Guest Name'], rb.Type, rb.Details, rb.Pax, s + rb.Price, s + rb.Deposit, rb.Status];
                 });
                 exportPDF(`Daily Summary: ${specific}`, ['Date', 'Time', 'Room', 'Guest', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
                     rows, `Daily_Summary_${specific}`);
@@ -1870,8 +1892,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (format === 'excel') exportExcel(data.map(rowBase), `By_Activity_${cat}`);
             else {
                 const rows = data.map(r => {
-                    const rb = rowBase(r);
-                    return [rb.Date, rb.Time, rb.Room, rb['Guest Name'], rb.Type, rb.Details, rb.Pax, rb.Price, rb.Deposit, rb.Status];
+                    const rb = rowBase(r); const s = curSym(rb.Currency);
+                    return [rb.Date, rb.Time, rb.Room, rb['Guest Name'], rb.Type, rb.Details, rb.Pax, s + rb.Price, s + rb.Deposit, rb.Status];
                 });
                 exportPDF(`By Activity: ${cat}`, ['Date', 'Time', 'Room', 'Guest', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
                     rows, `By_Activity_${cat}`);
@@ -1882,8 +1904,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (format === 'excel') exportExcel(data.map(rowBase), `Guest_Report_${guest}`);
             else {
                 const rows = data.map(r => {
-                    const rb = rowBase(r);
-                    return [rb.Date, rb.Time, rb.Room, rb.Type, rb.Details, rb.Pax, rb.Price, rb.Deposit, rb.Status];
+                    const rb = rowBase(r); const s = curSym(rb.Currency);
+                    return [rb.Date, rb.Time, rb.Room, rb.Type, rb.Details, rb.Pax, s + rb.Price, s + rb.Deposit, rb.Status];
                 });
                 exportPDF(`Guest Report: ${guest}`, ['Date', 'Time', 'Room', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
                     rows, `Guest_Report_${guest}`);
@@ -1891,18 +1913,21 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (type === 'revenue') {
             data = reservations.filter(r => r.status !== 'Cancelled');
             if (from || to) data = data.filter(r => (!from || r.date >= from) && (!to || r.date <= to));
-            // Group by date
+            // Tarih + PARA BİRİMİ bazında grupla — aynı günün EUR ve TRY
+            // rezervasyonları tek bir tutarda karıştırılmaz (bkz. curSym).
             const revenueMap = {};
             data.forEach(r => {
-                if (!revenueMap[r.date]) revenueMap[r.date] = { Date: r.date, Reservations: 0, Price: 0, Deposit: 0 };
-                revenueMap[r.date].Reservations++;
-                revenueMap[r.date].Price += (Number(r.totalPrice) || 0);
-                revenueMap[r.date].Deposit += (Number(r.deposit) || 0);
+                const cur = r.currency || 'EUR';
+                const key = r.date + '|' + cur;
+                if (!revenueMap[key]) revenueMap[key] = { Date: r.date, Currency: cur, Reservations: 0, Price: 0, Deposit: 0 };
+                revenueMap[key].Reservations++;
+                revenueMap[key].Price += (Number(r.totalPrice) || 0);
+                revenueMap[key].Deposit += (Number(r.deposit) || 0);
             });
-            const revenueRows = Object.values(revenueMap).sort((a, b) => a.Date.localeCompare(b.Date));
+            const revenueRows = Object.values(revenueMap).sort((a, b) => a.Date.localeCompare(b.Date) || a.Currency.localeCompare(b.Currency));
             if (format === 'excel') exportExcel(revenueRows, 'Revenue_Matrix');
-            else exportPDF('Revenue Matrix', ['Date', 'Count', 'Total Price', 'Total Deposit'],
-                revenueRows.map(r => [r.Date, r.Reservations, r.Price + ' €', r.Deposit + ' €']),
+            else exportPDF('Revenue Matrix', ['Date', 'Currency', 'Count', 'Total Price', 'Total Deposit'],
+                revenueRows.map(r => [r.Date, r.Currency, r.Reservations, curSym(r.Currency) + r.Price, curSym(r.Currency) + r.Deposit]),
                 'Revenue_Matrix');
         } else if (type === 'currentView') {
             exportExcel(filteredReservations.map(rowBase), 'Current_View');
@@ -1930,38 +1955,46 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('financeClose').onclick = () => closeSheet(financeSheet, financeBackdrop);
     financeBackdrop.onclick = () => closeSheet(financeSheet, financeBackdrop);
 
+    // Para birimleri KARIŞTIRILMADAN gruplanır (ör. €1.200 + ₺3.400 asla
+    // tek bir sayıda toplanmaz — bu, misafirin oda hesabında yanlış tutar
+    // görmesine yol açan asıl hataydı). Tek para birimi kullanan oteller
+    // (çoğunluk) eskisiyle birebir aynı tek satırlık görünümü görür.
     function summarizeFinance() {
         const confirmed = reservations.filter(r => r.status === 'Confirmed');
-        let totalRev = 0, totalDep = 0, totalBal = 0;
-        const catMap = {};
+        const byCur = {}; // { EUR: {rev,dep,bal}, TRY: {...} }
+        const catMap = {}; // { type: { EUR: rev, TRY: rev } }
 
         confirmed.forEach(r => {
+            const cur = r.currency || 'EUR';
             const p = parseFloat(r.totalPrice) || 0;
             const d = parseFloat(r.deposit) || 0;
-            const b = p - d;
+            const g = byCur[cur] || (byCur[cur] = { rev: 0, dep: 0, bal: 0 });
+            g.rev += p; g.dep += d; g.bal += (p - d);
 
-            totalRev += p;
-            totalDep += d;
-            totalBal += b;
-
-            if (!catMap[r.type]) catMap[r.type] = 0;
-            catMap[r.type] += p;
+            if (!catMap[r.type]) catMap[r.type] = {};
+            catMap[r.type][cur] = (catMap[r.type][cur] || 0) + p;
         });
 
-        document.getElementById('f-totalRev').textContent = '€' + totalRev.toLocaleString();
-        document.getElementById('f-totalDep').textContent = '€' + totalDep.toLocaleString();
-        document.getElementById('f-totalBal').textContent = '€' + totalBal.toLocaleString();
+        const cursPresent = Object.keys(byCur);
+        const fmtLines = key => cursPresent.length
+            ? cursPresent.map(c => curSym(c) + byCur[c][key].toLocaleString()).join('<br>')
+            : (curSym('EUR') + '0');
+        document.getElementById('f-totalRev').innerHTML = fmtLines('rev');
+        document.getElementById('f-totalDep').innerHTML = fmtLines('dep');
+        document.getElementById('f-totalBal').innerHTML = fmtLines('bal');
 
         const catList = document.getElementById('f-category-list');
         catList.innerHTML = Object.keys(catMap)
-            .filter(cat => catMap[cat] > 0) // Only show categories with actual income
             .sort()
-            .map(cat => `
+            .map(cat => {
+                const vals = Object.keys(catMap[cat]).filter(c => catMap[cat][c] > 0);
+                if (!vals.length) return '';
+                return `
                 <div class="f-cat-item">
                     <span class="f-cat-label">${esc(cat)}</span>
-                    <span class="f-cat-val">€${catMap[cat].toLocaleString()}</span>
-                </div>
-            `).join('');
+                    <span class="f-cat-val">${vals.map(c => curSym(c) + catMap[cat][c].toLocaleString()).join(' · ')}</span>
+                </div>`;
+            }).join('');
     }
 
     // ── PDF GENERATOR ────────────────────────────────────────
