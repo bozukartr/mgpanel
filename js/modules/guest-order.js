@@ -38,12 +38,13 @@
     let ROOM = (params.get('room') || params.get('oda') || '').trim().slice(0, 40);
     const DEMO = params.has('demo');
 
-    let CART_KEY, VERIFY_KEY, GUEST_KEY, COOLDOWN_KEY;
+    let CART_KEY, VERIFY_KEY, GUEST_KEY, SURNAME_KEY, COOLDOWN_KEY;
     function recomputeKeys() {
         const r = ROOM || 'x';
         CART_KEY = `go2_cart_${TENANT}_${r}`;
         VERIFY_KEY = `go2_verify_${TENANT}_${r}`;
         GUEST_KEY = `go2_guest_${TENANT}_${r}`;
+        SURNAME_KEY = `go2_surname_${TENANT}_${r}`;
         COOLDOWN_KEY = `go2_cd_${TENANT}_${r}`;
     }
     recomputeKeys();
@@ -187,6 +188,13 @@
         guestName = String(n || '').trim();
         try { guestName ? localStorage.setItem(GUEST_KEY, guestName) : localStorage.removeItem(GUEST_KEY); } catch (e) {}
     }
+    // Doğrulamada girilen soyadı saklanır — Folio gibi sonradan sunucu-taraflı
+    // yeniden doğrulama gerektiren çağrılarda (getRoomFolio) tekrar kullanılır.
+    function loadSurname() { try { return localStorage.getItem(SURNAME_KEY) || ''; } catch (e) { return ''; } }
+    function setSurname(s) {
+        s = String(s || '').trim();
+        try { s ? localStorage.setItem(SURNAME_KEY, s) : localStorage.removeItem(SURNAME_KEY); } catch (e) {}
+    }
 
     // ── Price ──────────────────────────────────────────────────
     function priceOf(it) { const p = Number(it && it.price) || 0; return p > 0 ? p : 0; }
@@ -312,6 +320,7 @@
 
     function renderHome() {
         renderGreeting();
+        renderCarousel();
         renderCats();
         renderQuick();
         const dot = $('goBellDot'); if (dot) dot.hidden = !activeOrder();
@@ -421,35 +430,52 @@
         phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
         clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
         coffee: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
-        pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>'
+        pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+        food: '<path d="M3 2v7c0 1.1.9 2 2 2a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+        folio: '<path d="M6 2h9l3 3v17l-3-2-3 2-3-2-3 2V5a3 3 0 0 1 3-3z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/>'
     };
-    const INFO_GRAD = ['linear-gradient(145deg,#2f5346,#1f3a30)', 'linear-gradient(145deg,#33485c,#26384a)', 'linear-gradient(145deg,#7a5a44,#5a4131)', 'linear-gradient(145deg,#8a7d63,#6c6049)', 'linear-gradient(145deg,#4f6155,#39473e)'];
+    const INFO_GRAD = ['linear-gradient(145deg,#2f5346,#1f3a30)', 'linear-gradient(145deg,#33485c,#26384a)', 'linear-gradient(145deg,#7a5a44,#5a4131)', 'linear-gradient(145deg,#8a7d63,#6c6049)', 'linear-gradient(145deg,#4f6155,#39473e)', 'linear-gradient(145deg,#5c5470,#433f57)'];
+    let folioData = null;      // { total, count, items } — son başarılı getRoomFolio yanıtı
+    let folioFetchedAt = 0;    // throttle: Home sekmesine her dönüşte yeniden sorgulamamak için
+
+    // Katalogda F&B/oda servisi niteliğindeki ilk kategoriyi bulur (catKind ile
+    // esnek eşleşir: "Oda Servisi", "Yiyecek & İçecek", "Room Service" vb.).
+    function roomServiceCategory() {
+        const cats = [...new Set((catalog || []).map(i => i.category || '').filter(Boolean))];
+        return cats.find(c => catKind(c) === 'food') || '';
+    }
     function infoCards() {
         const cards = [];
         if (config.wifiName || config.wifiPass)
             cards.push({ ic: 'wifi', kicker: 'Wi-Fi', val: config.wifiName || 'Wi-Fi', sub: config.wifiPass ? 'Şifre: ' + config.wifiPass : '', copy: config.wifiPass || config.wifiName });
         if (config.breakfast)
             cards.push({ ic: 'coffee', kicker: 'Kahvaltı', val: config.breakfast });
+        const roomSvcCat = roomServiceCategory();
+        if (roomSvcCat)
+            cards.push({ ic: 'food', kicker: 'Oda Servisi', val: roomSvcCat, sub: 'Menüyü görüntüleyin', nav: roomSvcCat });
         if (config.checkoutTime)
             cards.push({ ic: 'clock', kicker: 'Check-out', val: config.checkoutTime, sub: 'Çıkış saati' });
         if (config.phone)
             cards.push({ ic: 'phone', kicker: 'Resepsiyon', val: config.phone, tel: config.phone.replace(/[^0-9+]/g, '') });
         if (config.address)
             cards.push({ ic: 'pin', kicker: 'Adres', val: config.address, map: config.address });
+        if (folioData && folioData.total > 0)
+            cards.push({ ic: 'folio', kicker: 'Oda Hesabım', val: fmtPrice(folioData.total), sub: folioData.count + ' kalem · detay için dokunun', folio: true });
         return cards;
     }
-    function renderCarousel() {
+    function renderCarouselCards(cards) {
         const wrap = $('goCarousel'), dots = $('goDots'); if (!wrap) return;
-        const cards = infoCards();
-        const secs = document.querySelectorAll('#scHome .go-sec');
+        const sec = $('goInfoSec');
         const showInfo = cards.length > 0;
-        if (secs[0]) secs[0].style.display = showInfo ? '' : 'none';
+        if (sec) sec.style.display = showInfo ? '' : 'none';
         if (!showInfo) { wrap.innerHTML = ''; if (dots) dots.innerHTML = ''; return; }
         wrap.innerHTML = cards.map((c, i) => {
             let act = '';
             if (c.tel) act = `<a class="go-info-act" href="tel:${esc(c.tel)}">Ara</a>`;
             else if (c.map) act = `<a class="go-info-act" href="https://maps.google.com/?q=${encodeURIComponent(c.map)}" target="_blank" rel="noopener">Haritada Aç</a>`;
             else if (c.copy) act = `<button class="go-info-act" data-copy="${esc(c.copy)}">Kopyala</button>`;
+            else if (c.nav) act = `<button class="go-info-act" data-nav="${esc(c.nav)}">Menüyü Gör</button>`;
+            else if (c.folio) act = `<button class="go-info-act" data-folio="1">Detayı Gör</button>`;
             return `<div class="go-info-card" style="background:${INFO_GRAD[i % INFO_GRAD.length]}">
                 <div class="go-info-top"><span class="go-info-ic">${svg(INFO_ICONS[c.ic] || INFO_ICONS.pin, 23)}</span><span class="go-info-kicker">${esc(c.kicker)}</span></div>
                 <div class="go-info-main"><div class="go-info-val">${esc(c.val)}</div>${c.sub ? `<div class="go-info-sub">${esc(c.sub)}</div>` : ''}</div>
@@ -457,6 +483,12 @@
         }).join('');
         if (dots) dots.innerHTML = cards.map((_, i) => `<span class="go-dot ${i === 0 ? 'active' : ''}"></span>`).join('');
         wrap.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast('Kopyalandı'); } catch (e) {} });
+        wrap.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => {
+            activeCat = b.dataset.nav; searchTerm = ''; showTab('services');
+            const a = document.querySelector('#goChips .go-chip.active');
+            if (a) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+        });
+        wrap.querySelectorAll('[data-folio]').forEach(b => b.onclick = openFolio);
         wrap.onscroll = () => {
             if (!dots) return;
             const card = wrap.querySelector('.go-info-card'); if (!card) return;
@@ -464,6 +496,43 @@
             const idx = Math.round(wrap.scrollLeft / w);
             dots.querySelectorAll('.go-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
         };
+    }
+    // Senkron kartlar hemen çizilir (WiFi/kahvaltı/oda servisi/checkout/telefon/
+    // adres — hiçbiri ağ çağrısı gerektirmez). Folio, misafir daha önce soyadı ile
+    // doğrulandıysa (SURNAME_KEY dolu) sunucu üzerinden ayrıca sorgulanır; sonuç
+    // gelince kart listesine eklenip carousel yeniden çizilir. 30 sn throttle ile
+    // Home sekmesine her dönüşte gereksiz Cloud Function çağrısı önlenir.
+    async function renderCarousel() {
+        renderCarouselCards(infoCards());
+        const surname = loadSurname();
+        if (!fns || !ROOM || !surname) return;
+        if (Date.now() - folioFetchedAt < 30000) return;
+        folioFetchedAt = Date.now();
+        try {
+            const res = await fns.httpsCallable('getRoomFolio')({ tenant: TENANT, room: ROOM, surname });
+            folioData = (res && res.data && res.data.ok) ? res.data : null;
+        } catch (e) { folioData = null; }
+        renderCarouselCards(infoCards());
+    }
+    function folioRow(it) {
+        const meta = [it.tableName || '', it.createdAt ? new Date(it.createdAt).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');
+        return `<div class="go-folio-row">
+            <div class="go-folio-row-tx"><div class="go-folio-row-src">${esc(it.source === 'restaurant' ? 'Restoran / Bar' : (it.source || 'Oda Hesabı'))}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
+            <div class="go-folio-row-amt">${esc(fmtPrice(it.amount))}</div></div>`;
+    }
+    function openFolio() {
+        const body = $('goFolioBody'); if (!body || !folioData) return;
+        const rows = (folioData.items || []).map(folioRow).join('');
+        body.innerHTML = `${rows || '<div class="go-empty"><div class="go-empty-ic">🧾</div><h3>Kalem yok</h3></div>'}
+            <div class="go-folio-total"><b>Toplam</b><span>${esc(fmtPrice(folioData.total))}</span></div>`;
+        $('goFolioBackdrop').classList.add('show');
+        $('goFolioSheet').classList.add('show');
+        $('goFolioSheet').setAttribute('aria-hidden', 'false');
+    }
+    function closeFolio() {
+        $('goFolioBackdrop').classList.remove('show');
+        $('goFolioSheet').classList.remove('show');
+        $('goFolioSheet').setAttribute('aria-hidden', 'true');
     }
 
     // ════════════════════════════════════════════════════════════
@@ -845,7 +914,7 @@
         btn.disabled = true; lbl.textContent = 'Kontrol ediliyor…';
         const fail = m => { btn.disabled = false; lbl.textContent = 'Doğrula ve Devam Et'; setErr(m); buzz(70); };
         const ok = (name) => {
-            ROOM = room; recomputeKeys(); loadCart(); setVerified();
+            ROOM = room; recomputeKeys(); loadCart(); setVerified(); setSurname(surname);
             if (name) setGuestName(name);
             btn.disabled = false; lbl.textContent = 'Doğrula ve Devam Et';
             closeGate(); applyConfig(); renderAll();
@@ -935,6 +1004,8 @@
         $('goSubmit').onclick = submitOrder;
         $('goGateBtn').onclick = doVerify;
         $('goGateBackdrop').onclick = () => { if (!(config.requireVerification && !isVerified())) closeGate(); };
+        const fc = $('goFolioClose'); if (fc) fc.onclick = closeFolio;
+        const fb = $('goFolioBackdrop'); if (fb) fb.onclick = closeFolio;
         // Arama
         const s = $('goSearch');
         if (s) s.addEventListener('input', () => { searchTerm = s.value; $('goSearchX').hidden = !s.value; renderItems(); });

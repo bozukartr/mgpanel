@@ -687,6 +687,70 @@ exports.getGuestName = onCall({ region: REGION }, async (request) => {
   return { ok: true, name: matchName };
 });
 
+// ── Oda hesabım (Folio) — güvenli özet ──────────────────────────────
+// firestore.rules'da folioCharges yalnızca personel tarafından okunabilir
+// (bkz. match /folioCharges/{id}); anonim misafirin doğrudan sorgu atıp
+// başka bir odanın hesabını okumasını önlemek için kural DEĞİŞTİRİLMEDİ.
+// Bunun yerine getGuestName ile AYNI sunucu-taraflı doğrulama (oda + soyadı
+// → guestDirectory'de in-house eşleşmesi) burada tekrarlanır; yalnızca
+// eşleşme başarılıysa Admin SDK ile o odanın açık (status='open') oda hesabı
+// kalemleri toplanıp döndürülür.
+exports.getRoomFolio = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const tenant = String(d.tenant || '').trim().toLowerCase().slice(0, 40);
+  const room = String(d.room || '').trim().slice(0, 40);
+  const surname = String(d.surname || '').trim().slice(0, 60);
+  if (!tenant || !room || !surname) return { ok: false };
+
+  let dirSnap;
+  try {
+    dirSnap = await db.collection('guestDirectory').where('room', '==', room).limit(25).get();
+  } catch (e) {
+    return { ok: false };
+  }
+  const today = _istanbulToday();
+  const sTokens = _nameTokens(surname);
+  let verified = false;
+  dirSnap.forEach((doc) => {
+    if (verified) return;
+    const g = doc.data() || {};
+    const gTenant = String(g.tenantId || '').toLowerCase();
+    if (!gTenant || gTenant !== tenant) return; // etiketsiz misafir kaydı hiçbir tenant'a eşleşmez (fail-closed)
+    if (g.status && g.status !== 'in_house') return;
+    if (g.checkOut && String(g.checkOut) < today) return; // çıkış yapmış
+    const gTokens = _nameTokens(g.name);
+    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) verified = true;
+  });
+  if (!verified) return { ok: false };
+
+  let chargesSnap;
+  try {
+    chargesSnap = await db.collection('folioCharges')
+      .where('tenantId', '==', tenant)
+      .where('room', '==', room)
+      .where('status', '==', 'open')
+      .limit(100)
+      .get();
+  } catch (e) {
+    return { ok: false };
+  }
+  let total = 0;
+  const items = [];
+  chargesSnap.forEach((doc) => {
+    const c = doc.data() || {};
+    const amount = Number(c.amount) || 0;
+    total += amount;
+    items.push({
+      amount,
+      source: String(c.source || '').slice(0, 40),
+      tableName: String(c.tableName || '').slice(0, 40),
+      createdAt: c.createdAt && c.createdAt.toMillis ? c.createdAt.toMillis() : null
+    });
+  });
+  items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return { ok: true, total, count: items.length, items: items.slice(0, 30) };
+});
+
 // ═══════════════════════════════════════════════════════════════════
 //  Lemon Squeezy ödeme entegrasyonu (PayTR'a alternatif)
 //
