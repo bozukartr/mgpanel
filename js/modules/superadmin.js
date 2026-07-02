@@ -587,7 +587,18 @@
                     if (order.buyer.phone) tenantDoc.billingPhone = order.buyer.phone;
                 }
             }
-            await db.collection('tenants').doc(slug).set(tenantDoc);
+            // Satır 559'daki kontrol yerel `tenants` önbelleğine dayanır ve tek
+            // başına atomik değildir — iki admin aynı slug'ı aynı anda
+            // oluşturursa ikisi de bu kontrolü geçip biri diğerinin tenant
+            // dokümanını sessizce .set() ile ezebilirdi. Transaction içinde
+            // "yoksa oluştur" ile bu yarış kapatılır: ikinci istemci net bir
+            // hata alır, sessiz üzerine yazma olmaz.
+            const tenantRef = db.collection('tenants').doc(slug);
+            await db.runTransaction(async (tx) => {
+                const snap = await tx.get(tenantRef);
+                if (snap.exists) throw new Error('Bu otel kodu az önce başka biri tarafından alındı.');
+                tx.set(tenantRef, tenantDoc);
+            });
 
             // 2) ve 3) admin hesabı + systemUsers kaydı. Bu adımlardan biri
             // başarısız olursa (ağ, Auth kota/hız sınırı vb.) 1. adımda

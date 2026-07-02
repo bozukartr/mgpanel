@@ -1186,7 +1186,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isVirtual = r.isNextDayVirtual;
         const nextDayBadge = isVirtual ? ' <span style="font-size:9px; background:#f97316; color:white; padding:1px 4px; border-radius:3px; font-weight:700; margin-left:4px;">+1 DAY</span>' : '';
-        const seriesBadge = (r.seriesId && r.seriesTotal) ? ` <span class="series-badge" title="Tekrarlayan rezervasyon serisi">🔁 ${r.seriesIndex}/${r.seriesTotal}</span>` : '';
+        // Statik r.seriesTotal yalnızca oluşturma anındaki seri boyutunu taşır;
+        // seriden bazı tarihler silinince bu sayı bayatlar (ör. "3/5" kalan
+        // yalnızca 2 kayıt olsa bile). Rozet, aynı seriesId'yi paylaşan ve HÂLÂ
+        // var olan kayıt sayısını canlı olarak sayar.
+        const seriesCount = r.seriesId ? reservations.filter(x => x.seriesId === r.seriesId).length : 0;
+        const seriesBadge = (r.seriesId && seriesCount > 1) ? ` <span class="series-badge" title="Tekrarlayan rezervasyon serisi">🔁 Seri (${seriesCount})</span>` : '';
 
         card.innerHTML = `
             <div class="res-card-icon">${SERVICE_ICONS[r.type] || '✨'}</div>
@@ -1870,9 +1875,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function autoSizeSheet(ws, rows) {
         if (!rows || rows.length === 0) return;
         const keys = Object.keys(rows[0]);
+        // Binlerce satırlık büyük raporlarda TÜM satırları TÜM sütunlar için
+        // taraması (satır×sütun) sekmeyi donduruyordu. Genişlik yalnızca
+        // "iyi yeterli" bir tahmin olduğundan, ilk 500 satırlık bir örneklem
+        // yeterlidir — maliyeti veri boyutundan bağımsız sabitler.
+        const sample = rows.length > 500 ? rows.slice(0, 500) : rows;
         const widths = keys.map(k => {
             let maxLen = k.length;
-            rows.forEach(r => {
+            sample.forEach(r => {
                 const val = r[k] ? String(r[k]) : '';
                 if (val.length > maxLen) maxLen = val.length;
             });

@@ -1925,7 +1925,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // "Tekrarlayan sorun" applies to COMPLAINTS only — a guest re-requesting a
     // service (talep) isn't a recurring problem. Matches the same room +
     // department + topic so distinct issues in one room aren't merged.
-    function recurringRelated(record) {
+    //
+    // recurringRelated() eskiden HER satır için tüm `records` dizisini baştan
+    // tarıyordu (O(n²) — render listesindeki her kayıt × tüm kayıtlar).
+    // buildRecurringIndex() bunu bir kez (room|dept|topic) anahtarına göre
+    // grupluyor; updateView()'daki render döngüsü bu index'i geçirerek her
+    // satırda yalnızca kendi (çok daha küçük) grubunu tarar.
+    function buildRecurringIndex(all) {
+        const idx = new Map();
+        (all || []).forEach(r => {
+            if ((r.type || 'complaint') !== 'complaint') return;
+            const room = String(r.room || '').trim().toLowerCase();
+            if (!room) return;
+            const key = room + '|' + (r.department || '').toLowerCase() + '|' + (r.topic || '').toLowerCase();
+            if (!idx.has(key)) idx.set(key, []);
+            idx.get(key).push(r);
+        });
+        return idx;
+    }
+    function recurringRelated(record, idx) {
         if (!record || !record.room) return [];
         if ((record.type || 'complaint') !== 'complaint') return [];
         const rd = parseDateStr(record.date);
@@ -1933,12 +1951,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const room = String(record.room).trim().toLowerCase();
         const dept = (record.department || '').toLowerCase();
         const topic = (record.topic || '').toLowerCase();
-        return records
-            .filter(r => r.id !== record.id
-                && (r.type || 'complaint') === 'complaint'
-                && String(r.room || '').trim().toLowerCase() === room
-                && (r.department || '').toLowerCase() === dept
-                && (r.topic || '').toLowerCase() === topic)
+        const key = room + '|' + dept + '|' + topic;
+        const bucket = (idx || buildRecurringIndex(records)).get(key) || [];
+        return bucket
+            .filter(r => r.id !== record.id)
             .filter(r => { const od = parseDateStr(r.date); return od && Math.abs((rd - od) / 86400000) <= RECUR_WINDOW_DAYS; })
             .sort((a, b) => (parseDateStr(b.date) || 0) - (parseDateStr(a.date) || 0));
     }
@@ -1995,6 +2011,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const now = Date.now();
+        const recurIdx = buildRecurringIndex(records);
         finalFiltered.forEach(record => {
             const status = record.status || 'Following';
             const statusClass = status.toLowerCase();
@@ -2014,7 +2031,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const gStatusLabel = gStatus === 'in_house' ? 'OTELDE' : 'ÇIKIŞ YAPTI';
             const gStatusClass = gStatus === 'in_house' ? 'in-house-badge' : 'checked-out-badge';
 
-            const recurCount = recurringRelated(record).length;
+            const recurCount = recurringRelated(record, recurIdx).length;
             const recurBadge = recurCount >= 1
                 ? `<span class="recurring-badge" title="Bu odada son ${RECUR_WINDOW_DAYS} günde aynı departmanda ${recurCount + 1} kayıt">🔁 Tekrarlayan</span>`
                 : '';

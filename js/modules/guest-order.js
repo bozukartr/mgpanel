@@ -862,6 +862,11 @@
             status: 'pending', items, itemCount: items.length, total, currency: config.currency || '₺', showPrices: pricesOn(),
             statusLog: [{ status: 'pending', at: Date.now(), by: 'guest' }],
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            // tsMs() serverTimestamp henüz çözülmemişken (yerel pending-write
+            // snapshot'ında createdAt null gelir) createdAtMs'e düşer — bu alan
+            // olmadan yeni sipariş epoch(1970) sayılıp listenin EN ESKİSİ gibi
+            // sıralanıyordu, ta ki sunucu zaman damgası gelene kadar.
+            createdAtMs: Date.now(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(ref => done(ref.id)).catch(fail);
     }
@@ -1015,7 +1020,19 @@
         $('goGate').classList.add('show');
         $('goGate').setAttribute('aria-hidden', 'false');
         const r = $('goGateRoom'); if (r && ROOM) r.value = ROOM;
-        setTimeout(() => { const s = $('goGateSurname'); if (s) s.focus(); }, 250);
+        // requireVerification=false olan otellerde bu kapı yalnızca ROOM
+        // eksik olduğunda (?room= yoksa) açılır — misafirin siparişi hangi
+        // odaya gideceğini bilmemiz gerekir, ama soyadı/roomAccess ile tam
+        // doğrulama otel tarafından istenmiyor demektir. Soyadı alanı gizlenir
+        // ve doVerify() bu durumda roomAccess kontrolü yapmadan yalnızca oda
+        // numarasını kabul eder.
+        const sf = $('goGateSurnameField'), title = $('goGateTitle'), sub = $('goGateSub');
+        if (sf) sf.style.display = config.requireVerification ? '' : 'none';
+        if (title) title.textContent = config.requireVerification ? 'Sizi tanıyalım' : 'Oda numaranız';
+        if (sub) sub.textContent = config.requireVerification
+            ? 'Talep oluşturmak için rezervasyondaki soyadınızı ve oda numaranızı doğrulayın.'
+            : 'Talebinizi doğru odaya iletebilmemiz için oda numaranızı girin.';
+        setTimeout(() => { const el = config.requireVerification ? $('goGateSurname') : $('goGateRoom'); if (el) el.focus(); }, 250);
     }
     function closeGate() {
         $('goGateBackdrop').classList.remove('show');
@@ -1026,14 +1043,27 @@
         const surname = ($('goGateSurname').value || '').trim();
         const room = ($('goGateRoom').value || '').trim().slice(0, 40);
         const err = $('goGateErr'); const setErr = m => err.textContent = m || '';
-        if (surname.length < 2) { setErr('Lütfen soyadınızı girin.'); return; }
+        // Otel requireVerification'ı kapatmışsa soyadı zorunlu değildir —
+        // yalnızca hangi odaya gönderileceğini bilmemiz gerekir.
+        if (config.requireVerification && surname.length < 2) { setErr('Lütfen soyadınızı girin.'); return; }
         if (!room) { setErr('Lütfen oda numaranızı girin.'); return; }
         setErr('');
         const btn = $('goGateBtn'), lbl = $('goGateBtnLabel');
         btn.disabled = true; lbl.textContent = 'Kontrol ediliyor…';
         const fail = m => { btn.disabled = false; lbl.textContent = 'Doğrula ve Devam Et'; setErr(m); buzz(70); };
         const ok = (name) => {
-            ROOM = room; recomputeKeys(); loadCart(); setVerified(); setSurname(surname);
+            // ROOM ilk kez atanıyorsa (önceden boştu, genel 'x' anahtarı
+            // altında bir sepet olabilir) bu sepeti yeni oda-bazlı anahtara
+            // TAŞI — aksi halde recomputeKeys()+loadCart() doğrulama öncesi
+            // eklenen ürünleri sessizce sıfırlıyordu. Gerçek bir oda
+            // DEĞİŞİMİNDE (ROOM zaten doluydu) her odanın kendi sepeti
+            // korunur — bu durum bilinçli bir tasarım, hata değil.
+            const wasFirstAssignment = !ROOM;
+            const cartBeforeSwitch = cart.slice();
+            ROOM = room; recomputeKeys();
+            if (wasFirstAssignment && cartBeforeSwitch.length) { cart = cartBeforeSwitch; saveCart(); }
+            else { loadCart(); }
+            setVerified(); setSurname(surname);
             if (name) setGuestName(name);
             btn.disabled = false; lbl.textContent = 'Doğrula ve Devam Et';
             closeGate(); applyConfig(); renderAll();
@@ -1041,6 +1071,14 @@
         };
         try {
             if (DEMO) { await new Promise(r => setTimeout(r, 500)); ok(titleCase(surname)); return; }
+            if (!config.requireVerification) {
+                // Doğrulama otel tarafından istenmiyor: roomAccess/soyadı
+                // eşleştirmesi hiç yapılmaz (o doküman hiç var olmayabilir —
+                // yalnızca requireVerification açık otellerde tutulur), oda
+                // numarası doğrudan kabul edilir.
+                ok(surname ? titleCase(surname) : '');
+                return;
+            }
             const doc = await db.collection('roomAccess').doc(TENANT + '__' + room).get();
             if (!doc.exists || doc.data().open !== true) { fail('Bu oda şu anda talebe kapalı görünüyor. Aktif konaklamanız yoksa resepsiyona başvurun.'); return; }
             const keys = doc.data().nameKeys || [];
@@ -1090,9 +1128,13 @@
     //  DEMO backend
     // ════════════════════════════════════════════════════════════
     const DEMO_STEPS = [[0, 'pending'], [25000, 'confirmed'], [60000, 'in_progress'], [110000, 'completed']];
-    function saveDemoOrder(o) { try { localStorage.setItem('go2_demo_' + o.id, JSON.stringify(o)); const ids = demoIds(); if (!ids.includes(o.id)) { ids.push(o.id); localStorage.setItem('go2_demo_ids', JSON.stringify(ids)); } } catch (e) {} }
-    function loadDemoOrder(id) { try { return JSON.parse(localStorage.getItem('go2_demo_' + id)); } catch (e) { return null; } }
-    function demoIds() { try { return JSON.parse(localStorage.getItem('go2_demo_ids')) || []; } catch (e) { return []; } }
+    // CART_KEY/VERIFY_KEY gibi diğer localStorage anahtarlarının aksine bunlar
+    // TENANT ile önekli değildi — aynı tarayıcıda ?tenant= değiştirilerek demo
+    // modu farklı bir "otel" için açıldığında önceki otelin demo sipariş
+    // geçmişi sızıyordu.
+    function saveDemoOrder(o) { try { localStorage.setItem('go2_demo_' + TENANT + '_' + o.id, JSON.stringify(o)); const ids = demoIds(); if (!ids.includes(o.id)) { ids.push(o.id); localStorage.setItem('go2_demo_ids_' + TENANT, JSON.stringify(ids)); } } catch (e) {} }
+    function loadDemoOrder(id) { try { return JSON.parse(localStorage.getItem('go2_demo_' + TENANT + '_' + id)); } catch (e) { return null; } }
+    function demoIds() { try { return JSON.parse(localStorage.getItem('go2_demo_ids_' + TENANT)) || []; } catch (e) { return []; } }
     function demoView(o) {
         if (o.cancelled) return Object.assign({}, o, { status: 'cancelled', items: (o.items || []).map(it => Object.assign({}, it, { status: 'cancelled' })) });
         const e = Date.now() - (o.createdAtMs || Date.now());
@@ -1144,7 +1186,11 @@
     }
 
     // ── Go ─────────────────────────────────────────────────────
-    if (typeof db === 'undefined' || typeof auth === 'undefined' || !db || !auth) {
+    // DEMO modu Firebase'e hiç dokunmaz (boot()'un DEMO dalına bakın) — bu
+    // guard yine de db/auth'u şart koşuyordu, bu yüzden Firebase SDK script'i
+    // (ör. ağ engeli, gstatic.com erişilemez) yüklenemediğinde ?demo bile
+    // "Yapılandırma hatası" gösterip hiç boot olmuyordu.
+    if (!DEMO && (typeof db === 'undefined' || typeof auth === 'undefined' || !db || !auth)) {
         const el = document.getElementById('goCats');
         if (el) el.innerHTML = '<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>Yapılandırma hatası</h3><p>Bağlantı kurulamadı.</p></div>';
         return;
