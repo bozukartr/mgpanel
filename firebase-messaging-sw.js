@@ -22,14 +22,18 @@ messaging.setBackgroundMessageHandler(function (payload) {
         body: n.body || '',
         icon: 'logo.png',
         badge: 'logo.png',
-        data: { url: d.url || '/panel.html' },
+        // functions/index.js her zaman App Shell rotası (app.html#...) gönderir
+        // — bu yalnızca url hiç gelmezse devreye giren bir yedek. Eski bağımsız
+        // /panel.html sabit header/nav'ı olmayan bir sayfaya düşürüyordu;
+        // functions/index.js:304-308'deki aynı App Shell varsayılanına hizalandı.
+        data: { url: d.url || '/app.html#kayitlar' },
         vibrate: [60, 40, 60]
     });
 });
 
 self.addEventListener('notificationclick', function (event) {
     event.notification.close();
-    const url = (event.notification.data && event.notification.data.url) || '/panel.html';
+    const url = (event.notification.data && event.notification.data.url) || '/app.html#kayitlar';
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
             for (const c of list) { if ('focus' in c) { c.navigate(url); return c.focus(); } }

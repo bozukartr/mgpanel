@@ -468,7 +468,10 @@
         const d = D.dateOf(r);
         if (w.from && d && d < w.from) return false;
         if (w.to && d && d > w.to) return false;
-        if (w.from && !d) return false; // a date filter excludes undated rows
+        // Bir tarih filtresi tarihsiz kayıtları hariç tutmalı — öncesinde
+        // yalnızca w.from kontrol ediliyordu; yalnız "bitiş" (to) tarihi
+        // seçildiğinde tarihsiz kayıtlar hiçbir koşula takılmadan sızıyordu.
+        if ((w.from || w.to) && !d) return false;
         return true;
     }
     function matchFacet(f, r) {

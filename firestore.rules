@@ -55,6 +55,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/systemUsers/$(request.auth.uid))
                .data.get('tenantId', 'NO_TENANT_USER');
     }
+    // The caller's own username — used to mirror concierge.js's "only the
+    // creator can delete" ownership check server-side (was client-only, so
+    // any staff member of the tenant could delete ANY reservation via a
+    // direct SDK/console call, bypassing the UI's password re-auth prompt).
+    function callerUsername() {
+      return get(/databases/$(database)/documents/systemUsers/$(request.auth.uid))
+               .data.get('username', 'NO_USER');
+    }
 
     // Tenant guards. FAIL-CLOSED: an untagged document defaults to a sentinel
     // distinct from the caller sentinel, so untagged docs are inaccessible to
@@ -73,7 +81,12 @@ service cloud.firestore {
       allow read:   if readOwnTenant();
       allow create: if writeOwnTenant();
       allow update: if readOwnTenant() && writeOwnTenant();
-      allow delete: if readOwnTenant();
+      // concierge.js only lets the record's creator (staffInitial) delete it
+      // (after a password re-auth prompt) — that check lived purely in
+      // client JS. Mirrored here so it can't be bypassed by calling the SDK
+      // directly; superadmin keeps its usual override via readOwnTenant().
+      allow delete: if readOwnTenant()
+        && (isSuperAdmin() || resource.data.get('staffInitial', 'NO_CREATOR') == callerUsername());
     }
     match /guestLogs/{id} {
       allow read:   if readOwnTenant();
