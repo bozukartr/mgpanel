@@ -375,10 +375,10 @@
     // Kategori türüne göre arka plan görseli (otel kökünden servis edilir).
     // Görsel yüklenemezse altındaki renk + karartma görünür (graceful fallback).
     const CARD_IMG = {
-        temiz: 'housekeeping_button.png',
-        konfor: 'housekeeping_button.png',
-        bell: 'frontoffice_button.png',
-        food: 'fnb_button.png'
+        temiz: 'housekeeping_button.webp',
+        konfor: 'housekeeping_button.webp',
+        bell: 'frontoffice_button.webp',
+        food: 'fnb_button.webp'
     };
     const CARD_KIND_ICON = {
         bell: '<path d="M4 12a8 8 0 0 1 16 0"/><line x1="2.5" y1="12" x2="21.5" y2="12"/><line x1="12" y1="5.4" x2="12" y2="3.2"/>',
@@ -479,9 +479,9 @@
 
     // ── Ana carousel: 3 büyük giriş kartı (Otel Bilgileri / Menüler / Konaklama) ──
     const BIG_CARDS = [
-        { key: 'info', title: 'Otel Bilgileri', img: 'info_button.png', color: '#1f3a5c' },
-        { key: 'menus', title: 'Menüler', img: 'menus_button.png', color: '#7a5a44' },
-        { key: 'stay', title: 'Konaklama', img: 'stay_button.png', color: '#34703f' }
+        { key: 'info', title: 'Otel Bilgileri', img: 'info_button.webp', color: '#1f3a5c' },
+        { key: 'menus', title: 'Menüler', img: 'menus_button.webp', color: '#7a5a44' },
+        { key: 'stay', title: 'Konaklama', img: 'stay_button.webp', color: '#34703f' }
     ];
     function renderCarousel() {
         const wrap = $('goCarousel'), dots = $('goDots'); if (!wrap) return;
