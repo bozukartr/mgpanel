@@ -862,7 +862,11 @@
 
     function listenOrders() {
         if (ordersUnsub) { ordersUnsub(); ordersUnsub = null; }
-        ordersUnsub = db.collection('guestOrders').where('sessionUid', '==', sessionUid).onSnapshot(snap => {
+        // tenantId filtresi KRİTİK: sessionUid tek başına aynı cihaz/tarayıcıda
+        // ?tenant= değişse bile sabit kalır (anonim auth origin bazlı LOCAL
+        // persistence) — tenantId olmadan bir otelin siparişleri başka bir
+        // otelin QR'ını okutan aynı misafire sızabilirdi.
+        ordersUnsub = db.collection('guestOrders').where('sessionUid', '==', sessionUid).where('tenantId', '==', TENANT).onSnapshot(snap => {
             myOrders = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => tsMs(b) - tsMs(a));
             onOrdersChanged();
         }, err => console.error('orders listen', err));

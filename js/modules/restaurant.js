@@ -785,6 +785,14 @@
         const group = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
         const doPrint = $('splitEqPrint') ? $('splitEqPrint').checked : false;
         const table = currentCheck.tableName || '', baseName = currentCheck.name || '';
+        // Eşit bölme, gerçek kalemleri (menuId'li) tutar bazlı sentetik "Eşit
+        // Pay" kalemleriyle değiştirir — bu kalemler menuId taşımadığı için
+        // settle()'daki decrementStock() hiçbir zaman tetiklenmez ve stok asla
+        // düşmezdi. Kalemler zaten hazırlanıp servis edilmiş (sent/served/ready)
+        // olduğundan, bölünmeden önce ORİJİNAL kalemler üzerinden stoğu burada
+        // bir kez düşüyoruz; sonraki N parçanın hiçbiri gerçek menuId taşımadığı
+        // için tekrar düşme riski yok.
+        decrementStock(currentCheck.items);
         currentCheck.items = [shareLine(shares[0], 1, n)];
         currentCheck.splitGroup = group;
         currentCheck.status = 'sent';
@@ -1167,6 +1175,10 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
         if (s.indexOf('%') !== -1) { type = 'percent'; value = parseFloat(s.replace('%', '').replace(',', '.')) || 0; }
         else value = parseFloat(s.replace(',', '.')) || 0;
         if (value <= 0) { pay.discount = null; renderPay(); return; }
+        // %100'ü aşan bir yüzde (yazım hatası, ör. "150" yerine "15") ödenecek
+        // tutarı NEGATİFE düşürüp adisyonun hiç ödeme alınmadan kapanmasına
+        // izin verirdi (paySettle disabled koşulu payable<=0'ı da kapsıyordu).
+        if (type === 'percent' && value > 100) { toast('İndirim yüzdesi 100\'ü aşamaz.', true); value = 100; }
         const reason = prompt('Sebep (opsiyonel):', pay.discount ? (pay.discount.reason || '') : '') || '';
         pay.discount = { type, value, reason: reason.slice(0, 60) };
         renderPay();

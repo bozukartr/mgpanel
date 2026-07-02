@@ -589,27 +589,38 @@
             }
             await db.collection('tenants').doc(slug).set(tenantDoc);
 
-            // 2) First admin auth account — created on a secondary app so the
-            //    operator's own session is not disturbed.
-            let secondary;
-            try { secondary = firebase.app('secondary'); }
-            catch (e) { secondary = firebase.initializeApp(firebaseConfig, 'secondary'); }
-            const email = userEmail(user, slug);
-            const cred = await secondary.auth().createUserWithEmailAndPassword(email, pass);
-            const uid = cred.user.uid;
-            await secondary.auth().signOut();
+            // 2) ve 3) admin hesabı + systemUsers kaydı. Bu adımlardan biri
+            // başarısız olursa (ağ, Auth kota/hız sınırı vb.) 1. adımda
+            // yazılan tenant dokümanını GERİ AL — aksi halde slug kalıcı
+            // olarak "kullanımda" görünür (satır 559'daki kontrol yüzünden)
+            // ama hiçbir admin hesabı olmayan, giriş yapılamaz bir yarım
+            // (orphan) otel olarak sonsuza dek kalır.
+            let uid;
+            try {
+                // First admin auth account — created on a secondary app so the
+                // operator's own session is not disturbed.
+                let secondary;
+                try { secondary = firebase.app('secondary'); }
+                catch (e) { secondary = firebase.initializeApp(firebaseConfig, 'secondary'); }
+                const email = userEmail(user, slug);
+                const cred = await secondary.auth().createUserWithEmailAndPassword(email, pass);
+                uid = cred.user.uid;
+                await secondary.auth().signOut();
 
-            // 3) Staff record for that admin
-            await db.collection('systemUsers').doc(uid).set({
-                uid: uid,
-                username: user,
-                email: email,
-                role: 'admin',
-                department: 'Management',
-                tenantId: slug,
-                mustChangePassword: true,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+                await db.collection('systemUsers').doc(uid).set({
+                    uid: uid,
+                    username: user,
+                    email: email,
+                    role: 'admin',
+                    department: 'Management',
+                    tenantId: slug,
+                    mustChangePassword: true,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (stepErr) {
+                try { await db.collection('tenants').doc(slug).delete(); } catch (e) { /* rollback en iyi çaba */ }
+                throw stepErr;
+            }
 
             $('hotelModal').classList.remove('show');
             currentOrderId = null;

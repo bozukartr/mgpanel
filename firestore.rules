@@ -394,7 +394,18 @@ service cloud.firestore {
     //     Readable by anyone signed in (incl. anonymous guests) so the QR page can
     //     verify surname + room; written only by the hotel's own staff. ---
     match /roomAccess/{id} {
-      allow read:          if signedIn();
+      // Anonymous guests have no tenant claim (tenant is resolved client-side
+      // from the subdomain, not embedded in the anon Auth token), so this
+      // cannot be scoped to "the caller's own tenant" the way staff-facing
+      // rules are. Every client (staff and guest-order.js) only ever reads a
+      // single doc it already knows the id of (`{tenantId}__{room}`) — never
+      // a query — so `get` stays open to any signed-in caller (needed for the
+      // anonymous verification gate) while `list` is denied outright. This
+      // stops bulk cross-tenant enumeration (dumping every hotel's live room
+      // occupancy + hashed guest names in one query) while leaving the
+      // legitimate single-room lookup untouched.
+      allow get:            if signedIn();
+      allow list:           if false;
       allow create, update: if isStaff()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow delete:        if isStaff()

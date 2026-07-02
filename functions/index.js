@@ -573,9 +573,13 @@ async function deleteByQuery(query) {
 // on full delete (they may be needed later for accounting/reference).
 const TENANT_FIELD_COLLECTIONS = [
   'reservations', 'guestLogs', 'guestDirectory', 'tickets',
-  'presence', 'notifications', 'requestCatalog', 'guestOrders', 'roomAccess'
+  'presence', 'notifications', 'requestCatalog', 'guestOrders', 'roomAccess',
+  'restMenu', 'restChecks', 'folioCharges', 'issueTopics', 'guestMenus', 'errorLogs'
 ];
-const TENANT_DOC_COLLECTIONS = ['maintenance', 'financeConfig', 'pmsConfig', 'guestConfig'];
+const TENANT_DOC_COLLECTIONS = [
+  'maintenance', 'financeConfig', 'pmsConfig', 'guestConfig',
+  'notifyConfig', 'issueConfig', 'restConfig', 'restCounters'
+];
 
 // Permanently remove ALL of a hotel's data (used by "Tamamen Sil").
 async function purgeTenantData(tenantId, userUids) {
