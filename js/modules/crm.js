@@ -67,13 +67,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // üzerine bir kez yüklenir. İsim eşleştirmesi büyük/küçük harf duyarsız
     // olduğundan (hedefli sunucu sorgusu kayıtları atlayabilir) tam yükleme korunur.
     let activityLoaded = false;
+    let activityLoadedAt = 0;
+    // "Bir kez yükle" önbelleği süresiz kalırsa (activityLoaded hiç sıfırlanmaz),
+    // CRM açık bırakılan bir vardiyada başka bir modülün (panel.js/concierge.js)
+    // eklediği yeni log/rezervasyon hiç görünmez — bayat veri kalıcı olur. TTL
+    // ile periyodik tazeleme, tam canlı streaming maliyetine girmeden bunu giderir.
+    const ACTIVITY_TTL_MS = 3 * 60 * 1000;
     const ensureGuestActivity = async () => {
-        if (activityLoaded) return;
+        if (activityLoaded && (Date.now() - activityLoadedAt) < ACTIVITY_TTL_MS) return;
         const logsSnap = await db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get();
         guestLogs = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
         reservations = resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         activityLoaded = true;
+        activityLoadedAt = Date.now();
     };
 
     // Yalnızca misafir rehberini (liste için yeterli) yükler.
@@ -175,8 +182,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const detailEl = document.getElementById('guestDetail');
         
-        const gLogs = guestLogs.filter(l => l.guestName.toLowerCase() === guest.name.toLowerCase());
-        const gRes = reservations.filter(r => r.guestName.toLowerCase() === guest.name.toLowerCase());
+        const guestNameLower = (guest.name || '').toLocaleLowerCase('tr-TR');
+        const gLogs = guestLogs.filter(l => (l.guestName || '').toLocaleLowerCase('tr-TR') === guestNameLower);
+        const gRes = reservations.filter(r => (r.guestName || '').toLocaleLowerCase('tr-TR') === guestNameLower);
         
         const tags = generateTags(gLogs, gRes);
 
@@ -403,18 +411,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             await ensureGuestActivity(); // birleştirilecek kayıtları okumak için aktivite gerekir
-            const batch = db.batch();
             const secName = secondary.name.toLowerCase();
 
-            // Reassign the duplicate's reservations to the primary name
+            // Reassign the duplicate's reservations + logs to the primary name.
+            // Uzun süredir konaklayan/çok talepli bir misafirde bu ikisinin
+            // toplamı 500 işlemlik batch limitini aşabilir — tek batch bu
+            // durumda TÜMÜYLE reddedilirdi (merge "başarılı" görünüp hiçbir
+            // kayıt taşınmazdı). 450'lik parçalara bölünerek sırayla commit edilir.
+            const ops = [];
             reservations
                 .filter(r => r.guestName && r.guestName.toLowerCase() === secName)
-                .forEach(r => batch.update(db.collection('reservations').doc(r.id), { guestName: primary.name }));
-
-            // Reassign the duplicate's logs to the primary name
+                .forEach(r => ops.push(b => b.update(db.collection('reservations').doc(r.id), { guestName: primary.name })));
             guestLogs
                 .filter(l => l.guestName && l.guestName.toLowerCase() === secName)
-                .forEach(l => batch.update(db.collection('guestLogs').doc(l.id), { guestName: primary.name }));
+                .forEach(l => ops.push(b => b.update(db.collection('guestLogs').doc(l.id), { guestName: primary.name })));
 
             // Merge notes
             const primaryNotes = (primary.notes || '').trim();
@@ -426,15 +436,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     : secondaryNotes;
             }
 
-            batch.update(db.collection('guestDirectory').doc(primary.id), {
+            const CHUNK = 450;
+            for (let i = 0; i < ops.length; i += CHUNK) {
+                const b = db.batch();
+                ops.slice(i, i + CHUNK).forEach(applyOp => applyOp(b));
+                await b.commit();
+            }
+
+            const finalBatch = db.batch();
+            finalBatch.update(db.collection('guestDirectory').doc(primary.id), {
                 notes: mergedNotes,
                 lastUpdated: new Date().toISOString()
             });
-
             // Remove the duplicate profile
-            batch.delete(db.collection('guestDirectory').doc(secondary.id));
-
-            await batch.commit();
+            finalBatch.delete(db.collection('guestDirectory').doc(secondary.id));
+            await finalBatch.commit();
 
             showToast(`Merged "${secondary.name}" into "${primary.name}".`);
             closeMergeModal();
@@ -627,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             await ensureGuestActivity(); // eski isimle eşleşen log/rezervasyonları okumak için
-            const batch = db.batch();
+            const rcNameLower = (rcGuestName || '').toLowerCase();
 
             // 1. Update Guest Directory
             const updates = {
@@ -639,31 +655,39 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isPreArrival) updates.status = 'pre_arrival';
             if (nameChanged) updates.name = newName;
 
-            batch.update(db.collection('guestDirectory').doc(rcGuestId), updates);
+            // Aynı merge akışındaki gibi (bkz. yukarısı): tek batch 500 işlem
+            // limitini aşabileceğinden ops toplanıp 450'lik parçalar halinde
+            // commit edilir.
+            const ops = [b => b.update(db.collection('guestDirectory').doc(rcGuestId), updates)];
 
             // 2. Update Guest Logs (Issues) — match by the OLD name, then sync room/name
-            const gLogsToUpdate = guestLogs.filter(l => l.guestName.toLowerCase() === rcGuestName.toLowerCase());
+            const gLogsToUpdate = guestLogs.filter(l => (l.guestName || '').toLowerCase() === rcNameLower);
             gLogsToUpdate.forEach(log => {
                 const logUpdate = {};
                 if (log.room !== newRoomForLogs) logUpdate.room = newRoomForLogs;
                 if (nameChanged) logUpdate.guestName = newName;
                 if (Object.keys(logUpdate).length) {
-                    batch.update(db.collection('guestLogs').doc(log.id), logUpdate);
+                    ops.push(b => b.update(db.collection('guestLogs').doc(log.id), logUpdate));
                 }
             });
 
             // 3. Update Reservations (Concierge) — match by the OLD name, then sync room/name
-            const gResToUpdate = reservations.filter(r => r.guestName.toLowerCase() === rcGuestName.toLowerCase());
+            const gResToUpdate = reservations.filter(r => (r.guestName || '').toLowerCase() === rcNameLower);
             gResToUpdate.forEach(res => {
                 const resUpdate = {};
                 if (res.room !== newRoomForLogs) resUpdate.room = newRoomForLogs;
                 if (nameChanged) resUpdate.guestName = newName;
                 if (Object.keys(resUpdate).length) {
-                    batch.update(db.collection('reservations').doc(res.id), resUpdate);
+                    ops.push(b => b.update(db.collection('reservations').doc(res.id), resUpdate));
                 }
             });
 
-            await batch.commit();
+            const CHUNK = 450;
+            for (let i = 0; i < ops.length; i += CHUNK) {
+                const b = db.batch();
+                ops.slice(i, i + CHUNK).forEach(applyOp => applyOp(b));
+                await b.commit();
+            }
 
             showToast('Stay details updated successfully.');
             closeRoomChangeModal();

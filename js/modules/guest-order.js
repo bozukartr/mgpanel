@@ -280,22 +280,34 @@
         });
     }
 
+    // guestConfig/requestCatalog daha önce tek seferlik .get() ile
+    // önbelleğe alınıyordu: personel bu sekme açıkken hizmet listesini veya
+    // hotel ayarlarını değiştirirse misafir sayfayı yenilemeden bunu hiç
+    // görmüyordu. onSnapshot ile canlı dinlenir; ilk teslimat loadData()'nın
+    // Promise'ini çözer, sonraki her değişiklik otomatik yeniden render eder.
     function loadData() {
-        Promise.all([fetchConfig(), fetchCatalog()]).then(() => { applyConfig(); renderAll(); maybeGate(); });
+        return new Promise(resolve => {
+            let pending = 2;
+            const first = () => { if (--pending <= 0) resolve(); };
+            listenConfig(first);
+            listenCatalog(first);
+        }).then(() => { applyConfig(); renderAll(); maybeGate(); });
     }
-    function fetchConfig() {
-        return db.collection('guestConfig').doc(TENANT).get()
-            .then(doc => { if (doc.exists) config = Object.assign({}, DEFAULT_CONFIG, doc.data()); })
-            .catch(() => {});
+    function listenConfig(onFirst) {
+        let first = true;
+        db.collection('guestConfig').doc(TENANT).onSnapshot(doc => {
+            if (doc.exists) config = Object.assign({}, DEFAULT_CONFIG, doc.data());
+            if (first) { first = false; onFirst(); } else { applyConfig(); renderAll(); }
+        }, err => { console.error('config listen failed', err); if (first) { first = false; onFirst(); } });
     }
-    function fetchCatalog() {
-        return db.collection('requestCatalog').where('tenantId', '==', TENANT).get()
-            .then(snap => {
-                catalog = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
-                    .filter(i => i.active !== false)
-                    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || (a.name || '').localeCompare(b.name || '', 'tr'));
-            })
-            .catch(err => { console.error('catalog load failed', err); catalog = []; });
+    function listenCatalog(onFirst) {
+        let first = true;
+        db.collection('requestCatalog').where('tenantId', '==', TENANT).onSnapshot(snap => {
+            catalog = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+                .filter(i => i.active !== false)
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || (a.name || '').localeCompare(b.name || '', 'tr'));
+            if (first) { first = false; onFirst(); } else { renderAll(); }
+        }, err => { console.error('catalog listen failed', err); catalog = catalog || []; if (first) { first = false; onFirst(); } });
     }
 
     // ── Config → görünüm ───────────────────────────────────────

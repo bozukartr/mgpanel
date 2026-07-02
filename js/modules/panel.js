@@ -391,6 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Mobile form submit — mirrors the desktop guestIssueForm
     mobSubmitBtn?.addEventListener('click', async () => {
+        if (mobSubmitBtn.disabled) return; // çift tıklamada mükerrer kayıt önlenir
         const date = document.getElementById('mob-date')?.value;
         const room = document.getElementById('mob-room')?.value?.trim();
         const guestName = document.getElementById('mob-guestName')?.value?.trim();
@@ -403,6 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        mobSubmitBtn.disabled = true;
         try {
             await syncGuestStatus(guestName, room);
             await db.collection('guestLogs').add({
@@ -424,6 +426,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Kayıt başarıyla oluşturuldu.');
         } catch (err) {
             showToast('Error: ' + err.message, true);
+        } finally {
+            mobSubmitBtn.disabled = false;
         }
     });
 
@@ -585,7 +589,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loadingOlder || fullyLoaded) return Promise.resolve();
         loadingOlder = true; syncLoadOlderBtn();
         let q = db.collection('guestLogs').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc');
-        const oldest = records[records.length - 1];
+        // __deepLinked kayıtları cursor hesabından hariç tut — bkz. yukarıdaki not.
+        const pagedRecords = records.filter(r => !r.__deepLinked);
+        const oldest = pagedRecords[pagedRecords.length - 1];
         if (oldest && oldest.createdAt) q = q.startAfter(oldest.createdAt);
         return q.limit(OLDER_PAGE).get().then(snap => {
             olderRecords = olderRecords.concat(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -646,6 +652,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (d.exists) {
                                 const data = { id: d.id, ...d.data() };
                                 if ((data.tenantId || '') === TENANT_ID) {
+                                    // Sayfalanan pencere dışından tek bir kayıt — loadOlder()'ın
+                                    // cursor hesabından hariç tutulur (bkz. __deepLinked filtresi),
+                                    // aksi halde bu kayıt yanlışlıkla yeni "en eski" sayılıp
+                                    // gerçek pencere sınırı ile bu kayıt arasındaki tarih aralığı
+                                    // sonraki "Daha eskisini yükle" tıklamalarında atlanırdı.
+                                    data.__deepLinked = true;
                                     olderRecords.push(data); mergeRecords();
                                     updateView(globalSearch.value, dateSearch.value);
                                     openModal(data);
@@ -681,6 +693,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     issueForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const submitBtnEl = document.getElementById('submitBtn');
+        if (submitBtnEl && submitBtnEl.disabled) return; // çift tıklamada mükerrer kayıt önlenir
+        if (submitBtnEl) submitBtnEl.disabled = true;
         try {
             const recordType = document.getElementById('recordType').value || 'complaint';
             const isRequest = recordType === 'request';
@@ -733,6 +748,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('successModal').style.display = 'flex';
         } catch (err) {
             showToast('Hata: ' + err.message, true);
+        } finally {
+            if (submitBtnEl) submitBtnEl.disabled = false;
         }
     });
 
@@ -2224,7 +2241,11 @@ document.addEventListener('DOMContentLoaded', () => {
             toastMsg = 'Talep yeniden açıldı';
         } else return;
 
-        payload.updates = [...(r.updates || []), note];
+        // arrayUnion: sunucu tarafında atomik ekleme — istemcinin okuduğu
+        // (bayat olabilecek) `updates` dizisini tam olarak geri yazmak, aynı
+        // kayda eşzamanlı eklenen başka bir notu sessizce ezebilirdi.
+        payload.updates = firebase.firestore.FieldValue.arrayUnion(note);
+        const localUpdates = [...(r.updates || []), note];
 
         try {
             await db.collection('guestLogs').doc(editingId).update(payload);
@@ -2234,7 +2255,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (action === 'take') { r.acknowledgedAt = nowDate; r.acknowledgedBy = loggedUsername; }
             if (action === 'complete') { r.completedAt = nowDate; r.completedBy = loggedUsername; }
             if (action === 'reopen') { r.completedAt = null; r.completedBy = null; }
-            r.updates = payload.updates;
+            r.updates = localUpdates;
             updateStatusBadge(r.status);
             renderWorkflow(r);
             renderTimeline(r);
@@ -2284,10 +2305,25 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.confirmDeleteNote = async (index) => {
-        const updatedUpdates = [...selectedRecord.updates];
-        updatedUpdates.splice(index, 1);
-        await db.collection('guestLogs').doc(editingId).update({ updates: updatedUpdates });
-        showToast('Note removed.');
+        const target = selectedRecord.updates[index];
+        if (!target) return;
+        try {
+            await db.runTransaction(async (tx) => {
+                const ref = db.collection('guestLogs').doc(editingId);
+                const snap = await tx.get(ref);
+                if (!snap.exists) return;
+                const cur = snap.data().updates || [];
+                // index yerine timestamp+user ile eşleştir: transaction başlarken
+                // dizi başka bir istemci tarafından değişmiş olabilir, bu durumda
+                // ham index kayıp/yanlış notu silebilirdi.
+                const freshIdx = cur.findIndex(u => u.timestamp === target.timestamp && u.user === target.user);
+                if (freshIdx === -1) return; // not zaten silinmiş/değişmiş
+                const next = cur.slice();
+                next.splice(freshIdx, 1);
+                tx.update(ref, { updates: next });
+            });
+            showToast('Note removed.');
+        } catch (e) { showToast('Silinemedi: ' + e.message, true); }
     };
 
     window.startInlineEdit = (index) => {
@@ -2311,11 +2347,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.saveInlineEdit = async (index) => {
         const newText = document.getElementById(`edit-note-input-${index}`).value.trim();
-        if (newText && newText !== selectedRecord.updates[index].text) {
-            const updatedUpdates = [...selectedRecord.updates];
-            updatedUpdates[index] = { ...updatedUpdates[index], text: newText, isEdited: true };
-            await db.collection('guestLogs').doc(editingId).update({ updates: updatedUpdates });
-            showToast('Note updated.');
+        const original = selectedRecord.updates[index];
+        if (newText && original && newText !== original.text) {
+            try {
+                await db.runTransaction(async (tx) => {
+                    const ref = db.collection('guestLogs').doc(editingId);
+                    const snap = await tx.get(ref);
+                    if (!snap.exists) return;
+                    const cur = snap.data().updates || [];
+                    const freshIdx = cur.findIndex(u => u.timestamp === original.timestamp && u.user === original.user);
+                    if (freshIdx === -1) return;
+                    const next = cur.slice();
+                    next[freshIdx] = Object.assign({}, next[freshIdx], { text: newText, isEdited: true });
+                    tx.update(ref, { updates: next });
+                });
+                showToast('Note updated.');
+            } catch (e) { showToast('Güncellenemedi: ' + e.message, true); }
         } else {
             renderTimeline(selectedRecord);
         }
@@ -2331,9 +2378,13 @@ document.addEventListener('DOMContentLoaded', () => {
             timestamp: Date.now(),
             isEdited: false
         };
-        const updatedUpdates = [...(selectedRecord.updates || []), newNote];
-        await db.collection('guestLogs').doc(editingId).update({ updates: updatedUpdates });
-        noteInput.value = '';
+        try {
+            // arrayUnion: eşzamanlı eklenen başka bir notu ezmeden atomik ekler.
+            await db.collection('guestLogs').doc(editingId).update({
+                updates: firebase.firestore.FieldValue.arrayUnion(newNote)
+            });
+            noteInput.value = '';
+        } catch (e) { showToast('Not eklenemedi: ' + e.message, true); }
     };
 
     const editDeptSel = document.getElementById('editDepartment');
