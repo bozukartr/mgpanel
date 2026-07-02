@@ -1155,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = document.createElement('div');
         card.className = 'res-card';
         card.dataset.type = r.type;
-        card.dataset.status = r.status;
+        card.dataset.status = r.status || 'Pending';
         card.setAttribute('onclick', `openDetailById('${r.id}')`);
 
         const isVirtual = r.isNextDayVirtual;
@@ -1172,7 +1172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="res-card-room">Room ${esc(r.room)} ${r.time ? '• ' + esc(r.time) : ''}</span>
             </div>
             <div class="res-card-status">
-                <span class="status-badge ${esc(r.status.toLowerCase())}">${esc(({Pending:'Bekliyor',Confirmed:'Onaylı',Cancelled:'İptal'})[r.status] || r.status)}</span>
+                <span class="status-badge ${esc((r.status || 'Pending').toLowerCase())}">${esc(({Pending:'Bekliyor',Confirmed:'Onaylı',Cancelled:'İptal'})[r.status] || r.status || 'Pending')}</span>
             </div>
         `;
         return card;
@@ -1463,25 +1463,41 @@ document.addEventListener('DOMContentLoaded', () => {
     async function applyToFolio(r) {
         if (!r) return;
         if (!r.room || r.room === 'Pre-Arrival') { showToast('Oda ataması olmayan rezervasyon oda hesabına yansıtılamaz.', true); return; }
-        const balance = (Number(r.totalPrice) || 0) - (Number(r.deposit) || 0);
-        if (balance <= 0) { showToast('Yansıtılacak bakiye yok.', true); return; }
-        if (r.folioApplied) { showToast('Bu rezervasyon zaten oda hesabına yansıtılmış.', true); return; }
         const btn = document.getElementById('d-applyFolioBtn');
         if (btn) { btn.disabled = true; btn.textContent = 'Yansıtılıyor…'; }
         try {
             const TS = firebase.firestore.FieldValue.serverTimestamp();
-            const batch = db.batch();
-            batch.set(db.collection('folioCharges').doc(), {
-                tenantId: TENANT_ID, room: r.room, guestName: r.guestName || '',
-                source: 'concierge', reservationId: r.id, tableName: '',
-                amount: balance, currency: r.currency || 'EUR', status: 'open', createdAt: TS, by: loggedUsername
+            const resRef = db.collection('reservations').doc(r.id);
+            // Transaction: rezervasyonu TAZE okuyup folioApplied'ı transaction
+            // içinde kontrol eder. İki personel aynı anda basarsa Firestore
+            // ikinci transaction'ı otomatik yeniden dener; ikincisi artık
+            // folioApplied:true görüp hiçbir şey yazmaz — ÇİFT folio charge
+            // imkansız hale gelir (önceki batch.set/update yarışa açıktı).
+            const result = await db.runTransaction(async (tx) => {
+                const snap = await tx.get(resRef);
+                if (!snap.exists) return { error: 'not-found' };
+                const cur = snap.data();
+                if (cur.folioApplied) return { error: 'already' };
+                const balance = (Number(cur.totalPrice) || 0) - (Number(cur.deposit) || 0);
+                if (balance <= 0) return { error: 'no-balance' };
+                const folioRef = db.collection('folioCharges').doc();
+                tx.set(folioRef, {
+                    tenantId: TENANT_ID, room: cur.room, guestName: cur.guestName || '',
+                    source: 'concierge', reservationId: r.id, tableName: '',
+                    amount: balance, currency: cur.currency || 'EUR', status: 'open', createdAt: TS, by: loggedUsername
+                });
+                tx.update(resRef, { folioApplied: true, folioAmount: balance, folioAt: TS });
+                return { ok: true, balance };
             });
-            batch.update(db.collection('reservations').doc(r.id), { folioApplied: true, folioAmount: balance, folioAt: TS });
-            await batch.commit();
-            const updated = Object.assign({}, r, { folioApplied: true, folioAmount: balance });
-            window.selectedReservation = updated;
-            populateDetail(updated);
-            showToast('Oda hesabına yansıtıldı.');
+            if (result.error === 'already') { showToast('Bu rezervasyon zaten oda hesabına yansıtılmış.', true); }
+            else if (result.error === 'no-balance') { showToast('Yansıtılacak bakiye yok.', true); }
+            else if (result.error === 'not-found') { showToast('Rezervasyon bulunamadı.', true); }
+            else {
+                const updated = Object.assign({}, r, { folioApplied: true, folioAmount: result.balance });
+                window.selectedReservation = updated;
+                populateDetail(updated);
+                showToast('Oda hesabına yansıtıldı.');
+            }
         } catch (e) {
             showToast('Yansıtılamadı. Yetkiniz olmayabilir.', true);
         } finally {

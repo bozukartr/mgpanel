@@ -299,27 +299,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 showToast("Yedek indirildi! Veriler siliniyor...", false);
 
-                const batch = db.batch();
-
-                // 1. Delete all reservations
-                resSnap.forEach(doc => batch.delete(doc.ref));
-
-                // 2. Delete all guests in directory
-                dirSnap.forEach(doc => batch.delete(doc.ref));
-
-                // 3. Delete all guest logs
-                logsSnap.forEach(doc => batch.delete(doc.ref));
-
-                // 4. Delete all system users EXCEPT the main admin account
+                // Silinecek tüm referansları tek bir listede topla.
+                const allDeletes = [];
+                resSnap.forEach(doc => allDeletes.push(doc.ref));
+                dirSnap.forEach(doc => allDeletes.push(doc.ref));
+                logsSnap.forEach(doc => allDeletes.push(doc.ref));
                 usersSnap.forEach(doc => {
                     const u = doc.data();
                     if (u.username && u.username.toLowerCase() === 'admin') {
                         return; // Safeguard admin account
                     }
-                    batch.delete(doc.ref);
+                    allDeletes.push(doc.ref);
                 });
 
-                await batch.commit();
+                // Firestore batch limiti 500 işlemdir — birkaç yıl çalışmış bir
+                // otelde bu dört koleksiyonun toplamı kolayca aşabilir; tek batch
+                // bu durumda TÜMÜYLE reddedilirdi (kullanıcı "siliniyor" mesajını
+                // görmüş olmasına rağmen hiçbir şey silinmezdi). 450'lik parçalara
+                // bölüp sırayla commit ederek her büyüklükteki otelde çalışmasını
+                // sağlıyoruz.
+                const CHUNK = 450;
+                for (let i = 0; i < allDeletes.length; i += CHUNK) {
+                    const b = db.batch();
+                    allDeletes.slice(i, i + CHUNK).forEach(ref => b.delete(ref));
+                    await b.commit();
+                }
 
                 showToast("💥 Sistem sıfırlandı! Tüm veriler silindi.", false);
                 setTimeout(() => {
