@@ -636,6 +636,11 @@ exports.deleteUser = onCall({ region: REGION }, async (request) => {
   }
   await deleteAuthUser(uid);
   await db.collection('systemUsers').doc(uid).delete();
+  // Yalnızca tam otel silme akışı (purgeTenantData) pushTokens'ı temizliyordu;
+  // tekil kullanıcı silmede bu ve kullanıcıya yönelik notifications kayıtları
+  // yetim kalıyordu (artık var olmayan bir uid'e push denemesi/bildirim listesi).
+  await deleteByQuery(db.collection('pushTokens').where('uid', '==', uid));
+  await deleteByQuery(db.collection('notifications').where('toUid', '==', uid));
   return { deleted: true };
 });
 
@@ -675,20 +680,23 @@ exports.getGuestName = onCall({ region: REGION }, async (request) => {
   }
   const today = _istanbulToday();
   const sTokens = _nameTokens(surname);
-  let matchName = '';
+  // Birden fazla misafir eşleşirse (ör. checkout hatası nedeniyle aynı odada
+  // kalan eski bir kayıt) ilk bulunanı seçmek YANLIŞ misafiri döndürebilirdi.
+  // Aynı isimdeki tekrarlar zararsızdır; FARKLI isimlerde çoklu eşleşme
+  // belirsizdir ve güvenli tarafta kalmak için reddedilir (fail-closed).
+  const matchedNames = new Set();
   snap.forEach((doc) => {
-    if (matchName) return;
     const g = doc.data() || {};
     const gTenant = String(g.tenantId || '').toLowerCase();
     if (!gTenant || gTenant !== tenant) return; // etiketsiz misafir kaydı hiçbir tenant'a eşleşmez (fail-closed)
     if (g.status && g.status !== 'in_house') return;
     if (g.checkOut && String(g.checkOut) < today) return; // çıkış yapmış
     const gTokens = _nameTokens(g.name);
-    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) matchName = String(g.name || '').trim();
+    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) matchedNames.add(String(g.name || '').trim());
   });
 
-  if (!matchName) return { ok: false };
-  return { ok: true, name: matchName };
+  if (matchedNames.size !== 1) return { ok: false };
+  return { ok: true, name: Array.from(matchedNames)[0] };
 });
 
 // ── Konaklama bilgilerim (Folio + Rezervasyonlar + tarihler) — güvenli özet ──
@@ -715,18 +723,24 @@ exports.getGuestStay = onCall({ region: REGION }, async (request) => {
   }
   const today = _istanbulToday();
   const sTokens = _nameTokens(surname);
-  let guest = null;
+  // getGuestName'deki gibi: FARKLI isimli birden çok eşleşme belirsizdir
+  // (yanlış misafirin oda hesabı/rezervasyonları sızabilir) — fail-closed.
+  const candidates = [];
+  const matchedNames = new Set();
   dirSnap.forEach((doc) => {
-    if (guest) return;
     const g = doc.data() || {};
     const gTenant = String(g.tenantId || '').toLowerCase();
     if (!gTenant || gTenant !== tenant) return; // etiketsiz misafir kaydı hiçbir tenant'a eşleşmez (fail-closed)
     if (g.status && g.status !== 'in_house') return;
     if (g.checkOut && String(g.checkOut) < today) return; // çıkış yapmış
     const gTokens = _nameTokens(g.name);
-    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) guest = g;
+    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) {
+      candidates.push(g);
+      matchedNames.add(String(g.name || '').trim());
+    }
   });
-  if (!guest) return { ok: false };
+  if (matchedNames.size !== 1) return { ok: false };
+  const guest = candidates[0];
 
   let chargesSnap;
   try {

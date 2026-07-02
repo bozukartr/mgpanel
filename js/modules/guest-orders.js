@@ -586,8 +586,14 @@
         });
         try { const oid = new URLSearchParams(location.search).get('order'); if (oid) pendingFocus = oid; } catch (e) {}
         try { if (new URLSearchParams(location.search).get('orders') === '1') setTimeout(openDrawer, 80); } catch (e) {}
+        // onAuthStateChanged aynı oturumda birden fazla kez tetiklenebilir; bir
+        // "started" bayrağı olmadan her tetiklenişte listen()/listenDirectory()
+        // YENİ bir onSnapshot dinleyicisi açıyor, öncekini hiç kapatmıyordu —
+        // zamanla yinelenen bildirim/render'lara yol açardı.
+        let started = false;
         auth.onAuthStateChanged(u => {
-            if (!u || u.isAnonymous) return;
+            if (!u || u.isAnonymous || started) return;
+            started = true;
             listen();
             listenDirectory();
         });

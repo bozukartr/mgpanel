@@ -283,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (editResId && r.id === editResId) return false; // exclude self
             if (r.status === 'Cancelled') return false;
             if (r.date !== date || !r.time) return false;
-            if (r.guestName.trim().toLowerCase() !== guestName.toLowerCase()) return false;
+            if (r.guestName.trim().toLocaleLowerCase('tr-TR') !== guestName.toLocaleLowerCase('tr-TR')) return false;
 
             const existingMins = parseTimeToMins(r.time);
             return entryMins !== null && existingMins !== null && Math.abs(entryMins - existingMins) <= 120;
@@ -303,6 +303,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Tekrarlayan (seri) rezervasyonlarda çakışma kontrolü — checkConflictInline
+    // yalnızca formdaki TEK `rs-date` alanını kontrol eder; seri N tarihe
+    // genişlediğinde (repeatDates()) diğer N-1 tarih hiç kontrol edilmeden
+    // toplu yazılırdı. Aynı mantığı (aynı misafir + ±2 saat) serinin TÜM
+    // tarihlerine uygular; bilgilendirici kalır (kaydı engellemez), yalnız
+    // seri kaydından önce personelin onayını ister.
+    const seriesConflicts = (dates, guestName, time) => {
+        const entryMins = parseTimeToMins(time);
+        const out = [];
+        dates.forEach(date => {
+            const hit = reservations.some(r => {
+                if (editResId && r.id === editResId) return false;
+                if (r.status === 'Cancelled') return false;
+                if (r.date !== date || !r.time) return false;
+                if (r.guestName.trim().toLocaleLowerCase('tr-TR') !== guestName.toLocaleLowerCase('tr-TR')) return false;
+                const existingMins = parseTimeToMins(r.time);
+                return entryMins !== null && existingMins !== null && Math.abs(entryMins - existingMins) <= 120;
+            });
+            if (hit) out.push(date);
+        });
+        return out;
+    };
+
     const resetConflictAlert = () => {
         const box = document.getElementById('rs-conflict-alert');
         if (box) box.style.display = 'none';
@@ -313,7 +336,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const fmtDate = (d) => {
         if (!d) return '';
         const dt = new Date(d);
-        if (isNaN(dt.getTime())) return d;
+        // Geçersiz bir tarihte ham girdiyi (`d`) olduğu gibi döndürmek, bazı
+        // çağrı noktalarında esc() olmadan innerHTML'e yazıldığından stored
+        // XSS riski taşıyordu — geçersiz tarihte boş döndürülür.
+        if (isNaN(dt.getTime())) return '';
         const dd = String(dt.getDate()).padStart(2, '0');
         const mm = String(dt.getMonth() + 1).padStart(2, '0');
         const yyyy = dt.getFullYear();
@@ -546,8 +572,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!host) return;
         const n = (name || '').trim();
         if (!n) { host.className = 'rs-sum-empty'; host.textContent = 'Misafir seçtiğinizde rezervasyon özeti burada görünür.'; return; }
-        const g = guestDirectory.find(x => (x.name || '').toLowerCase() === n.toLowerCase());
-        const list = reservations.filter(r => (r.guestName || '').toLowerCase() === n.toLowerCase())
+        const g = guestDirectory.find(x => (x.name || '').toLocaleLowerCase('tr-TR') === n.toLocaleLowerCase('tr-TR'));
+        const list = reservations.filter(r => (r.guestName || '').toLocaleLowerCase('tr-TR') === n.toLocaleLowerCase('tr-TR'))
             .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
         if (!g && !list.length) { host.className = 'rs-sum-empty'; host.textContent = '“' + n + '” için kayıt yok — yeni misafir olarak eklenecek.'; return; }
         host.className = '';
@@ -607,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto-fill Details & Sync Pre-Arrival state when guest name is selected from directory
     document.getElementById('rs-guest')?.addEventListener('input', (e) => {
         const name = e.target.value.trim();
-        const found = guestDirectory.find(g => g.name.toLowerCase() === name.toLowerCase());
+        const found = guestDirectory.find(g => g.name.toLocaleLowerCase('tr-TR') === name.toLocaleLowerCase('tr-TR'));
         const paCheckbox = document.getElementById('rs-isPreArrival');
         const roomInput = document.getElementById('rs-room');
         const datesWrapper = document.getElementById('rs-dates-wrapper');
@@ -639,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function syncGuestStatus(name, room, isPreArrival, checkIn, checkOut) {
         if (!name) return;
         const normalized = name.trim();
-        const existing = guestDirectory.find(g => g.name.toLowerCase() === normalized.toLowerCase());
+        const existing = guestDirectory.find(g => g.name.toLocaleLowerCase('tr-TR') === normalized.toLocaleLowerCase('tr-TR'));
         
         const determineStatus = () => {
             if (isPreArrival) return 'pre_arrival';
@@ -965,7 +991,7 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
 
     function renderReservations() {
-        const search = document.getElementById('c-search').value.toLowerCase();
+        const search = document.getElementById('c-search').value.toLocaleLowerCase('tr-TR');
         const dateVal = document.getElementById('c-dateFilter').value;
         const feed = document.getElementById('c-feed');
         const empty = document.getElementById('c-emptyState');
@@ -1007,7 +1033,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const results = reservations.filter(r => {
                 const matchesText = !search || [
                     r.guestName, r.room, r.type, r.resName, r.vessel, r.provider, r.from, r.to, r.notes
-                ].some(val => val && val.toString().toLowerCase().includes(search));
+                ].some(val => val && val.toString().toLocaleLowerCase('tr-TR').includes(search));
 
                 const matchesStatus = !statusFilter || r.status === statusFilter;
                 const matchesDate = !dateVal || r.date === dateVal;   // ← değiştirilen kısım
@@ -1243,9 +1269,15 @@ document.addEventListener('DOMContentLoaded', () => {
     updateFormFields();
 
     let editResId = null;
+    // Düzenleme açıldığındaki son güncelleme zamanı — kaydederken bir
+    // transaction içinde bununla karşılaştırılır (kayıp güncelleme/lost-update
+    // önlemi: aynı rezervasyonu iki personel eşzamanlı düzenlerse ikinci kayıt
+    // ilkini sessizce ezmez).
+    let editResBaseUpdatedAt = null;
 
     const openNewRes = () => {
         editResId = null;
+        editResBaseUpdatedAt = null;
         resetConflictAlert(); // Wipe existing alerts
         document.querySelector('#resSheet h3').textContent = 'Yeni Rezervasyon';
         document.getElementById('rs-submit').textContent = 'Rezervasyonu Kaydet';
@@ -1320,6 +1352,8 @@ document.addEventListener('DOMContentLoaded', () => {
     resBackdrop.onclick = () => closeSheet(resSheet, resBackdrop);
 
     document.getElementById('rs-submit').onclick = async () => {
+        const submitBtn = document.getElementById('rs-submit');
+        if (submitBtn.disabled) return; // çift tıklamada mükerrer kayıt önlenir
         const type = typeSelect.value;
         const guestName = document.getElementById('rs-guest').value.trim();
         const isPreArrival = document.getElementById('rs-isPreArrival').checked;
@@ -1355,10 +1389,49 @@ document.addEventListener('DOMContentLoaded', () => {
             ...dynamicData
         };
 
+        // Seri (tekrarlayan) rezervasyon oluşturuluyorsa, toplu yazımdan önce
+        // serinin TÜM tarihlerinde çakışma var mı kontrol et — tek tarihli
+        // pasif uyarı (checkConflictInline) seriye genişleyen diğer tarihleri
+        // hiç görmüyordu. Bilgilendirici kalır, personel onaylarsa kaydeder.
+        if (!editResId) {
+            const seriesDates = repeatDates();
+            if (seriesDates.length > 1) {
+                const conflictDates = seriesConflicts(seriesDates, guestName, time);
+                if (conflictDates.length) {
+                    const shown = conflictDates.slice(0, 5).map(d => fmtDate(new Date(d.replace(/-/g, '/')))).join(', ');
+                    const proceed = confirm(`${conflictDates.length} tarihte bu misafir için ±2 saat içinde başka bir kayıt var (${shown}${conflictDates.length > 5 ? ' …' : ''}).\n\nYine de kaydetmek istiyor musunuz?`);
+                    if (!proceed) return;
+                }
+            }
+        }
+
+        submitBtn.disabled = true; // çift tıklamada mükerrer kayıt önlenir
         try {
             if (editResId) {
-                // Update existing
-                await db.collection('reservations').doc(editResId).update(data);
+                // Update existing — bir transaction içinde "kayıp güncelleme"
+                // (lost update) kontrolü: bu kayıt biz düzenleme ekranını
+                // açtıktan SONRA başka biri tarafından değiştirildiyse, bizim
+                // yazımımız onu sessizce ezmesin.
+                const resRef = db.collection('reservations').doc(editResId);
+                const txResult = await db.runTransaction(async (tx) => {
+                    const snap = await tx.get(resRef);
+                    if (!snap.exists) return { error: 'not-found' };
+                    const cur = snap.data();
+                    const curTs = cur.lastUpdated || cur.createdAt || null;
+                    const baseMs = (editResBaseUpdatedAt && editResBaseUpdatedAt.toMillis) ? editResBaseUpdatedAt.toMillis() : null;
+                    const curMs = (curTs && curTs.toMillis) ? curTs.toMillis() : null;
+                    if (baseMs !== null && curMs !== null && baseMs !== curMs) return { error: 'stale' };
+                    tx.update(resRef, Object.assign({}, data, { lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }));
+                    return { ok: true };
+                });
+                if (txResult.error === 'stale') {
+                    showToast('Bu rezervasyon siz düzenlerken başka biri tarafından güncellendi. Lütfen tekrar açıp kontrol edin.', true);
+                    return;
+                }
+                if (txResult.error === 'not-found') {
+                    showToast('Rezervasyon bulunamadı (silinmiş olabilir).', true);
+                    return;
+                }
                 showToast('Rezervasyon güncellendi');
             } else {
                 // Create new — one per repeat date (single doc when repeat is off).
@@ -1383,7 +1456,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await syncGuestStatus(guestName, isPreArrival ? '' : room, isPreArrival, checkIn, checkOut); // Sync with directory
                 showToast(isSeries ? (dates.length + ' rezervasyon oluşturuldu') : 'Rezervasyon kaydedildi');
             }
-            
+
             resetConflictAlert(); // Clear transient alerts
             closeSheet(resSheet, resBackdrop);
             ['rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
@@ -1394,6 +1467,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('rs-pa-box').style.display = 'block'; // Ensure visible
             document.getElementById('rs-room').disabled = false;
         } catch (e) { showToast('Hata', true); }
+        finally { submitBtn.disabled = false; }
     };
 
     // ── DETAIL SHEET ──────────────────────────────────────────
@@ -1413,14 +1487,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('d-type').textContent = r.type;
         document.getElementById('d-date').textContent = fmtDate(r.date);
         document.getElementById('d-time').textContent = r.time || '—';
-        document.getElementById('d-price').textContent = sym + r.totalPrice;
-        document.getElementById('d-deposit').textContent = sym + r.deposit;
+        // Number() ile güvenli dönüşüm — totalPrice/deposit eksik/tanımsız bir
+        // kayıtta önceden "€undefined"/"€NaN" gösteriliyordu.
+        const totalPrice = Number(r.totalPrice) || 0;
+        const deposit = Number(r.deposit) || 0;
+        document.getElementById('d-price').textContent = sym + totalPrice;
+        document.getElementById('d-deposit').textContent = sym + deposit;
 
-        const isPaid = r.status === 'Confirmed' || (r.totalPrice - r.deposit <= 0);
-        const balance = r.totalPrice - r.deposit;
+        const isPaid = r.status === 'Confirmed' || (totalPrice - deposit <= 0);
+        const balance = totalPrice - deposit;
         const bEl = document.getElementById('d-balance');
         if (r.folioApplied) {
-            bEl.textContent = 'Oda Hesabına Yansıtıldı (' + sym + (r.folioAmount != null ? r.folioAmount : balance) + ')';
+            bEl.textContent = 'Oda Hesabına Yansıtıldı (' + sym + (r.folioAmount != null ? (Number(r.folioAmount) || 0) : balance) + ')';
             bEl.className = 'balance-text folio';
         } else {
             bEl.textContent = isPaid ? 'PAID' : sym + balance;
@@ -1592,6 +1670,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const openDetails = window.selectedReservation; // not relevant, r passed via caller
         
         editResId = r.id;
+        editResBaseUpdatedAt = r.lastUpdated || r.createdAt || null;
         resetConflictAlert(); // Clear logic caches
         document.querySelector('#resSheet h3').textContent = 'Rezervasyonu Düzenle';
         document.getElementById('rs-submit').textContent = 'Değişiklikleri Kaydet';
@@ -1614,7 +1693,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Pre-fill check-in/out if available from directory
         if (isPreArrival) {
-            const guest = guestDirectory.find(g => g.name.toLowerCase() === r.guestName.toLowerCase());
+            const guest = guestDirectory.find(g => g.name.toLocaleLowerCase('tr-TR') === r.guestName.toLocaleLowerCase('tr-TR'));
             if (guest) {
                 document.getElementById('rs-checkIn').value = guest.checkIn || '';
                 document.getElementById('rs-checkOut').value = guest.checkOut || '';
@@ -1916,7 +1995,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else if (type === 'guest') {
             if (!guest) return showToast('Lütfen bir misafir seçin.', true);
-            data = reservations.filter(r => r.guestName && r.guestName.toLowerCase().includes(guest.toLowerCase()) && r.status !== 'Cancelled');
+            data = reservations.filter(r => r.guestName && r.guestName.toLocaleLowerCase('tr-TR').includes(guest.toLocaleLowerCase('tr-TR')) && r.status !== 'Cancelled');
             if (format === 'excel') exportExcel(data.map(rowBase), `Guest_Report_${guest}`);
             else {
                 const rows = data.map(r => {

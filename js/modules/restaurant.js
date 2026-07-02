@@ -20,6 +20,18 @@
     }
 
     let cfg = { name: '', currency: '₺', vatRate: 10, vatMode: 'included', serviceCharge: 0, roomChargeEnabled: true, cancelCode: '', receiptHeader: '', receiptFooter: '' };
+    // cfg.currency serbest metin bir GÖSTERİM sembolüdür (admin "₺", "TL", "$"
+    // gibi herhangi bir kısa metin girebilir — money()'de tutarın önüne yazılır).
+    // Oda hesabına (folioCharges) yazarken bu ham sembol kullanılırsa, Concierge
+    // modülünün yazdığı ISO kodlarından ('TRY'/'EUR'/'USD') farklı bir anahtarla
+    // gruplanır ve getGuestStay'de AYNI para birimi yanlışlıkla ikiye bölünür
+    // (ör. "₺" ile "TRY" ayrı toplamlar olur). Folio yazımı için her zaman ISO
+    // koduna çevrilir; concierge.js'deki CUR_SYM ile simetriktir.
+    const SYM_TO_ISO = { '₺': 'TRY', 'TL': 'TRY', 'TRY': 'TRY', '€': 'EUR', 'EUR': 'EUR', '$': 'USD', 'USD': 'USD' };
+    function currencyIso() {
+        const raw = (cfg.currency || '').trim();
+        return SYM_TO_ISO[raw] || SYM_TO_ISO[raw.toUpperCase()] || 'TRY';
+    }
     let menu = [];
     let editingId = null;
 
@@ -275,12 +287,19 @@
         });
         const ids = Object.keys(dec);
         if (!ids.length) return;
-        const batch = db.batch();
-        ids.forEach(id => batch.update(db.collection(MENU_COL).doc(id), {
-            stock: firebase.firestore.FieldValue.increment(-dec[id]),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }));
-        batch.commit().catch(err => console.error('stock', err));
+        // FieldValue.increment sınırsızdı — stok negatife düşebiliyordu
+        // (envanter kalıcı olarak yanlış kalırdı). Transaction ile mevcut
+        // değer okunup düşüm 0'da kilitlenir.
+        db.runTransaction(async (tx) => {
+            const refs = ids.map(id => db.collection(MENU_COL).doc(id));
+            const snaps = await Promise.all(refs.map(ref => tx.get(ref)));
+            snaps.forEach((snap, i) => {
+                if (!snap.exists) return;
+                const cur = Number(snap.data().stock) || 0;
+                const next = Math.max(0, cur - dec[ids[i]]);
+                tx.update(refs[i], { stock: next, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+            });
+        }).catch(err => console.error('stock', err));
     }
     function renderStock() {
         const wrap = $('stockList'); if (!wrap) return;
@@ -492,6 +511,14 @@
             }
             closeCheckModal(); toast('Adisyon güncellendi.');
         } else {
+            // Aynı masa adıyla zaten açık/gönderilmiş bir adisyon varsa yenisini
+            // açmadan önce uyar — aksi halde iki ayrı açık adisyon aynı masaya
+            // karışıp hesaplaşma sırasında kalemler yanlış check'e yazılabiliyordu.
+            const dup = (openChecks || []).find(c => c.tableName === data.tableName);
+            if (dup) {
+                const proceed = confirm(`"${data.tableName}" masasında zaten açık bir adisyon var (#${dup.checkNo || dup.id}).\n\nYine de yeni bir adisyon açmak istiyor musunuz?`);
+                if (!proceed) return;
+            }
             const TS = firebase.firestore.FieldValue.serverTimestamp();
             nextCheckNo().catch(() => null).then(no => {
                 const payload = Object.assign({
@@ -1142,10 +1169,19 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
         if (amt <= 0) { toast('Tutar girin.', true); return; }
         if (method === 'room') {
             // Adisyon bir odaya bağlıysa doğrudan o odaya yaz; değilse oda seç.
-            if (currentCheck && currentCheck.room) {
-                pay.payments.push({ method: 'room', amount: amt, room: currentCheck.room, guestName: currentCheck.name || '' });
+            // `inhouse` listesindeki (status==='in_house') güncel doluluğa karşı
+            // doğrulanır — aksi halde çıkış yapmış/yanlış yazılmış bir oda
+            // numarasına, o odada gerçekten kimse konaklamıyorken ücret
+            // yazılabiliyordu. Doğrulama geçmezse personel geçerli misafir
+            // listesinden seçim yapan pickRoom() akışına yönlendirilir.
+            const occ = currentCheck && currentCheck.room ? inhouse.find(g => String(g.room) === String(currentCheck.room)) : null;
+            if (currentCheck && currentCheck.room && occ) {
+                pay.payments.push({ method: 'room', amount: amt, room: currentCheck.room, guestName: occ.name || currentCheck.name || '', guestId: occ.id });
                 payEntry = ''; renderPay();
-            } else { pickRoom(amt); }
+            } else {
+                if (currentCheck && currentCheck.room) toast('Bu odada şu anda konaklayan misafir görünmüyor — listeden seçin.', true);
+                pickRoom(amt);
+            }
             return;
         }
         pay.payments.push({ method, amount: amt });
@@ -1205,7 +1241,7 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
                 batch.set(ref, {
                     tenantId: TENANT_ID, room: pm.room || '', guestName: pm.guestName || '',
                     source: 'restaurant', checkId: (currentCheck && currentCheck.id) || checkId || '', tableName: currentCheck.tableName || '',
-                    amount: pm.amount, currency: cfg.currency || '₺', status: 'open', createdAt: TS, by: loggedUser
+                    amount: pm.amount, currency: currencyIso(), status: 'open', createdAt: TS, by: loggedUser
                 });
             });
             if (roomPays.length) batch.commit().catch(err => console.error(err));
