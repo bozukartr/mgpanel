@@ -39,8 +39,7 @@ async function isSubscriptionActive(tenantId) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const logoWrapper = document.getElementById('logoWrapper');
-    const loginCard = document.getElementById('loginCard');
+    const mainCard = document.getElementById('mainCard');
     const loginForm = document.getElementById('loginForm');
     const errorMessage = document.getElementById('errorMessage');
     const paymentOverlay = document.getElementById('paymentOverlay');
@@ -48,28 +47,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const forcePwCard = document.getElementById('forcePwCard');
     const forcePwForm = document.getElementById('forcePwForm');
     const pwError = document.getElementById('pwError');
-    const chooserCard = document.getElementById('chooserCard');
-    const fnbCard = document.getElementById('fnbCard');
+    const fnbCard = document.getElementById('fnbForm');
     const fnbForm = document.getElementById('fnbForm');
     const fnbError = document.getElementById('fnbError');
 
     let loginContext = 'hotel';   // 'hotel' | 'fnb'
 
-    // Kartlar arası geçiş (seçici ↔ Hotel girişi ↔ F&B girişi).
-    function showCard(target) {
-        [chooserCard, loginCard, fnbCard, forcePwCard].forEach(c => {
-            if (!c) return;
-            c.classList.remove('show');
-            if (c !== target) c.style.display = 'none';
-        });
-        if (target) { target.style.display = 'block'; requestAnimationFrame(() => target.classList.add('show')); }
+    // Otel / F&B sekmeleri — kurumsal, animasyonsuz giriş: ayrı bir "seçici"
+    // ekranına geçmek yerine aynı kartın içinde formu değiştirir.
+    function switchTab(name) {
+        loginContext = name;
+        document.getElementById('tabHotel').classList.toggle('active', name === 'hotel');
+        document.getElementById('tabFnb').classList.toggle('active', name === 'fnb');
+        loginForm.classList.toggle('active', name === 'hotel');
+        fnbForm.classList.toggle('active', name === 'fnb');
+        const toFocus = name === 'hotel' ? document.getElementById('username') : document.getElementById('fnbCode');
+        setTimeout(() => { if (toFocus) toFocus.focus(); }, 60);
     }
+    document.getElementById('tabHotel').onclick = () => switchTab('hotel');
+    document.getElementById('tabFnb').onclick = () => switchTab('fnb');
+
     function fnbShake(msg) { fnbCard.classList.add('shake'); fnbError.textContent = msg; fnbError.classList.add('show'); setTimeout(() => fnbCard.classList.remove('shake'), 500); }
 
-    if (document.getElementById('chooseHotel')) document.getElementById('chooseHotel').onclick = () => { showCard(loginCard); setTimeout(() => { const u = document.getElementById('username'); if (u) u.focus(); }, 60); };
-    if (document.getElementById('chooseFnb')) document.getElementById('chooseFnb').onclick = () => { showCard(fnbCard); setTimeout(() => { const u = document.getElementById('fnbUsername'); if (u) u.focus(); }, 60); };
-    if (document.getElementById('hotelBack')) document.getElementById('hotelBack').onclick = () => showCard(chooserCard);
-    if (document.getElementById('fnbBack')) document.getElementById('fnbBack').onclick = () => showCard(chooserCard);
     if (document.getElementById('fnbMgrToggle')) document.getElementById('fnbMgrToggle').onclick = () => {
         const g = document.getElementById('fnbUserGroup');
         const lbl = document.getElementById('fnbCodeLabel');
@@ -98,22 +97,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Per-user module access (admin-managed). Absent = full access.
         localStorage.setItem('userModules', JSON.stringify((userData && userData.modules) || {}));
         localStorage.setItem('loginContext', loginContext);
-        logoWrapper.classList.add('expand');
-        loginCard.classList.add('fade-out');
-        if (chooserCard) chooserCard.classList.add('fade-out');
-        if (fnbCard) fnbCard.classList.add('fade-out');
-        forcePwCard.classList.add('fade-out');
+        mainCard.classList.add('fade-hide');
+        forcePwCard.classList.add('fade-hide');
         setTimeout(() => {
             window.location.href = 'app.html';
-        }, 800);
+        }, 250);
     }
-
-    setTimeout(() => {
-        logoWrapper.classList.add('active');
-        setTimeout(() => {
-            (chooserCard || loginCard).classList.add('show');
-        }, 400);
-    }, 1200);
 
     paymentCloseBtn.addEventListener('click', () => {
         paymentOverlay.classList.remove('show');
@@ -161,9 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 pendingPwUid = uid;
                 pendingUserData = userData;
                 pendingUserInput = userInput;
-                loginCard.classList.remove('show');
+                mainCard.style.display = 'none';
                 forcePwCard.style.display = 'block';
-                requestAnimationFrame(() => forcePwCard.classList.add('show'));
                 return;
             }
 
@@ -171,17 +159,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Login Error:", error.message);
-            loginCard.classList.add('shake');
+            mainCard.classList.add('shake');
             errorMessage.textContent = "Kullanıcı adı veya şifre yanlış";
             errorMessage.classList.add('show');
 
             setTimeout(() => {
-                loginCard.classList.remove('shake');
+                mainCard.classList.remove('shake');
             }, 500);
         }
     });
 
-    // StayOS F&B girişi: kullanıcı adı + 5 haneli kod (veya admin/yönetici şifresi).
+    // Hotizy F&B girişi: kullanıcı adı + 5 haneli kod (veya admin/yönetici şifresi).
     // 5 haneliyse türetilmiş Firebase şifresi (FB + kod), değilse ham şifre denenir.
     if (fnbForm) fnbForm.addEventListener('submit', async (e) => {
         e.preventDefault();

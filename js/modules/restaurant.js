@@ -1,4 +1,4 @@
-/* StayOS — Restoran (POS) modülü · Faz 1.1: Ayarlar + Menü Yönetimi.
+/* Hotizy — Restoran (POS) modülü · Faz 1.1: Ayarlar + Menü Yönetimi.
  * Standalone page (restaurant.html), app-shell içinde "Restoran" sekmesi.
  * Tek outlet. restConfig/{tenant} ayarlar, restMenu/{id} menü kalemleri. */
 (function () {

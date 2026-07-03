@@ -1,4 +1,4 @@
-/* StayOS — Raporlar (uygulama geneli rapor merkezi).
+/* Hotizy — Raporlar (uygulama geneli rapor merkezi).
  *
  * Standalone page (reports.html), app-shell içinde "Raporlar" sekmesi.
  * Çok kaynaklı (Misafir Kayıtları, Concierge Rezervasyonları, Misafir
@@ -646,7 +646,7 @@
  .sumk{background:#f8fafc;font-weight:bold;width:180px}.sumv{text-align:center;font-weight:bold;width:110px}
  .sumh{background:#2563eb;color:#fff;font-weight:bold;text-align:center}
 </style></head><body>
-<div class="t-title">${esc(D.label)} — StayOS Rapor</div>
+<div class="t-title">${esc(D.label)} — Hotizy Rapor</div>
 <div class="t-sub">${esc(filterDesc().join('  ·  '))}</div>
 <div class="t-sub">Oluşturulma: ${esc(fmtDateTR(todayStr()))}</div><br>
 <table><tr><td class="sumh" colspan="2">ÖZET</td></tr>${sumRows.map(([k, v]) => `<tr><td class="sumk">${esc(k)}</td><td class="sumv">${esc(v)}</td></tr>`).join('')}</table>
@@ -655,7 +655,7 @@
         const blob = new Blob(['﻿', html], { type: 'application/vnd.ms-excel;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'StayOS_' + domainKey + '_' + todayStr() + '.xls';
+        a.href = url; a.download = 'Hotizy_' + domainKey + '_' + todayStr() + '.xls';
         document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
         toast('Excel raporu indirildi.');
     }
@@ -674,7 +674,7 @@
         }
         const w = window.open('', '_blank');
         if (!w) { toast('Açılır pencere engellendi.', true); return; }
-        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>${esc(D.label)} — StayOS</title>
+        w.document.write(`<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><title>${esc(D.label)} — Hotizy</title>
 <style>
  *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#111827}
  h1{font-size:20px;margin:0 0 2px}.sub{font-size:11px;color:#64748b;margin-bottom:14px;line-height:1.5}
@@ -687,7 +687,7 @@
  .grp{background:#e8edf7;color:#1e3a8a;font-weight:bold}.wide{max-width:240px}
  tr{page-break-inside:avoid}@media print{body{margin:10px}}
 </style></head><body>
-<h1>${esc(D.label)} — StayOS Rapor</h1>
+<h1>${esc(D.label)} — Hotizy Rapor</h1>
 <div class="sub">${esc(filterDesc().join(' · '))}<br>Oluşturulma: ${esc(fmtDateTR(todayStr()))}</div>
 <div class="stats">${stats.map(([l, v]) => `<div class="stat"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div>
 <table><thead><tr>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>

@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
-    // On a hotel subdomain (e.g. mgallery.stayos.org) send visitors straight to
-    // login; the marketing page is only for the apex (stayos.org).
+    // On a hotel subdomain (e.g. mgallery.hotizy.com) send visitors straight to
+    // login; the marketing page is only for the apex (hotizy.com).
     (function () {
         try {
             var h = (location.hostname || '').toLowerCase();
             var p = h.split('.');
-            if (h.indexOf('stayos.org') !== -1 && p.length >= 3 && p[0] !== 'www') {
+            if (h.indexOf('hotizy.com') !== -1 && p.length >= 3 && p[0] !== 'www') {
                 location.replace('/login.html'); return;
             }
         } catch (e) {}
@@ -24,9 +24,9 @@
     })();
     </script>
     <style>html.apex-gate body { visibility: hidden; }</style>
-    <title>StayOS — Kurumsal Otel Operasyon Yönetim Platformu</title>
-    <meta name="description" content="StayOS; misafir rezervasyonları, şikayet ve talep süreçleri, CRM ve otel işletmeleri (restoran &amp; bar) operasyonlarını tek platformda yöneten kurumsal otel yönetim sistemidir.">
-    <meta property="og:title" content="StayOS — Kurumsal Otel Operasyon Yönetim Platformu">
+    <title>Hotizy — Kurumsal Otel Operasyon Yönetim Platformu</title>
+    <meta name="description" content="Hotizy; misafir rezervasyonları, şikayet ve talep süreçleri, CRM ve otel işletmeleri (restoran &amp; bar) operasyonlarını tek platformda yöneten kurumsal otel yönetim sistemidir.">
+    <meta property="og:title" content="Hotizy — Kurumsal Otel Operasyon Yönetim Platformu">
     <meta property="og:description" content="Misafir rezervasyonları, şikayet ve talep süreçleri, CRM ve otel işletmeleri operasyonlarını tek platformda yönetin.">
     <meta name="theme-color" content="#f8f8f6">
     <link rel="icon" href="logo.png">
@@ -186,7 +186,7 @@
 <body>
     <header id="siteHeader">
         <div class="wrap nav">
-            <div class="brand"><img src="logo.png" alt="StayOS"><span>StayOS</span></div>
+            <div class="brand"><img src="logo.png" alt="Hotizy"><span>Hotizy</span></div>
             <nav class="nav-links">
                 <a href="#moduller">Modüller</a>
                 <a href="fiyatlandirma.html">Fiyatlandırma</a>
@@ -207,7 +207,7 @@
         <div class="wrap">
             <span class="eyebrow gs-up">Kurumsal Otel Yönetim Platformu</span>
             <h1 class="gs-up">Otel Operasyonunun Tamamı,<br>Tek Platformda</h1>
-            <p class="lead gs-up">Misafir rezervasyonları, şikayet ve talep süreçleri, CRM ve otel işletmeleri operasyonlarını StayOS üzerinden yönetin.</p>
+            <p class="lead gs-up">Misafir rezervasyonları, şikayet ve talep süreçleri, CRM ve otel işletmeleri operasyonlarını Hotizy üzerinden yönetin.</p>
             <div class="hero-cta gs-up">
                 <button class="btn btn-primary" data-quote>Teklif Alın</button>
             </div>
@@ -348,7 +348,7 @@
         <div class="wrap">
             <div class="foot-top">
                 <div class="foot-brand">
-                    <div class="brand"><img src="logo.png" alt="StayOS"><span>StayOS</span></div>
+                    <div class="brand"><img src="logo.png" alt="Hotizy"><span>Hotizy</span></div>
                     <p>Kurumsal, çok otelli otel operasyon yönetim platformu.</p>
                 </div>
                 <div class="foot-cols">
@@ -378,7 +378,7 @@
                 </div>
             </div>
             <div class="foot-bottom">
-                <small>© <span id="year"></span> StayOS · Tüm hakları saklıdır.</small>
+                <small>© <span id="year"></span> Hotizy · Tüm hakları saklıdır.</small>
                 <small><a href="hakkimizda.html" style="color:var(--faint);text-decoration:underline;text-underline-offset:2px;">Hakkımızda &amp; Künye</a></small>
             </div>
         </div>
@@ -564,7 +564,7 @@
                     phone: data.phone, rooms: data.rooms, hotels: data.hotels,
                     message: data.message,
                     status: 'new',
-                    source: 'stayos.org',
+                    source: 'hotizy.com',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 form.style.display = 'none';
@@ -608,7 +608,7 @@
     </div>
     <script>
     (function () {
-        var KEY = 'stayos_cookie_consent';
+        var KEY = 'hotizy_cookie_consent';
         var bar = document.getElementById('cookieBar');
         try { if (localStorage.getItem(KEY)) return; } catch (e) {}
         setTimeout(function () { bar.classList.add('show'); }, 800);

@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // The result page (inside the iframe) posts back when payment finishes.
     window.addEventListener('message', (e) => {
-        if (e.data && e.data.source === 'stayos-payment') {
+        if (e.data && e.data.source === 'hotizy-payment') {
             closePay();
             showToast(e.data.status === 'ok' ? 'Ödeme alındı, aboneliğiniz güncellendi.' : 'Ödeme tamamlanamadı.', e.data.status !== 'ok');
         }

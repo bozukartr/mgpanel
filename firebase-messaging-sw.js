@@ -1,4 +1,4 @@
-/* StayOS — Firebase Cloud Messaging background worker.
+/* Hotizy — Firebase Cloud Messaging background worker.
  * Receives web push when the PWA/tab is closed or backgrounded and shows a
  * system notification. Must live at the site root with this exact filename. */
 importScripts('https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js');
@@ -18,7 +18,7 @@ const messaging = firebase.messaging();
 messaging.setBackgroundMessageHandler(function (payload) {
     const n = payload.notification || {};
     const d = payload.data || {};
-    return self.registration.showNotification(n.title || 'StayOS', {
+    return self.registration.showNotification(n.title || 'Hotizy', {
         body: n.body || '',
         icon: 'logo.png',
         badge: 'logo.png',

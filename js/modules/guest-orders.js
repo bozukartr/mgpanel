@@ -1,4 +1,4 @@
-/* StayOS — Guest self-service orders, staff side.
+/* Hotizy — Guest self-service orders, staff side.
  *
  * Drop-in: include AFTER firebase-config.js (and ideally concierge.js) on the
  * Concierge page. Self-contained — injects its own styles, a header button with

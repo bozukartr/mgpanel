@@ -24,7 +24,7 @@ const DEFAULT_TENANT = 'mgallery';
 const TENANT_ID = localStorage.getItem('hotelTenantId') || DEFAULT_TENANT;
 
 // Resolve the hotel (tenant) from the host's subdomain, e.g.
-// mgallery.stayos.org -> "mgallery". Apex domains, *.web.app previews and
+// mgallery.hotizy.com -> "mgallery". Apex domains, *.web.app previews and
 // localhost fall back to the default tenant.
 function resolveTenant() {
     // Explicit ?tenant= override — lets you test any hotel before custom-domain
@@ -39,7 +39,7 @@ function resolveTenant() {
         return DEFAULT_TENANT;
     }
     const parts = host.split('.');
-    if (parts.length < 3) return DEFAULT_TENANT;            // apex, e.g. stayos.org
+    if (parts.length < 3) return DEFAULT_TENANT;            // apex, e.g. hotizy.com
     const sub = parts[0];
     if (sub === 'www' || sub === 'app') return DEFAULT_TENANT;
     return sub;
@@ -93,7 +93,7 @@ function pmsEnabled() {
     return localStorage.getItem('hotelPmsEnabled') === '1';
 }
 
-// --- StayOS F&B (restaurant) access ---
+// --- Hotizy F&B (restaurant) access ---
 // F&B staff sign in with a 5-digit numeric code. Firebase Auth requires a
 // password of at least 6 chars, so the actual auth password is derived from the
 // code with this fixed prefix. Staff only ever type the 5 digits; the system

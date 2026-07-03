@@ -1,4 +1,4 @@
-/* StayOS — Hafif istemci-tarafı hata izleme (kendi içinde, 3. taraf yok).
+/* Hotizy — Hafif istemci-tarafı hata izleme (kendi içinde, 3. taraf yok).
  *
  * Global hataları ve yakalanmamış promise reddini yakalar; ayrıca catch
  * bloklarından Monitor.capture(err, ctx) ile çağrılır. Hatalar tenant-scoped
@@ -125,7 +125,7 @@
         // Her zaman console'a yapılandırılmış çıktı.
         try {
             var fn = (level === 'error') ? 'error' : (level === 'warn' ? 'warn' : 'log');
-            (console[fn] || console.log).call(console, '[StayOS:' + level + ']', d.message, ctx || '', d.stack || '');
+            (console[fn] || console.log).call(console, '[Hotizy:' + level + ']', d.message, ctx || '', d.stack || '');
         } catch (e) { /* yoksay */ }
         persist(level, d.message, d.stack, r, ctxStr);
     }

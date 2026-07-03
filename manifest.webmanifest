@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "StayOS",
-  "short_name": "StayOS",
+  "name": "Hotizy",
+  "short_name": "Hotizy",
   "description": "Otel operasyon konsolu — Concierge, Misafir Kayıtları, CRM",
   "start_url": "/app.html",
   "scope": "/",

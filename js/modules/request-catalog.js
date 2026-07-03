@@ -1,4 +1,4 @@
-/* StayOS — Admin management for the guest self-service catalog (requestCatalog).
+/* Hotizy — Admin management for the guest self-service catalog (requestCatalog).
  *
  * Included on admin.html. Powers the "Hazır Talepler" tab: list items grouped by
  * category, add / edit / delete, toggle active, and seed a sensible default menu.

@@ -1,4 +1,4 @@
-/* StayOS — FCM web push registration (client).
+/* Hotizy — FCM web push registration (client).
  *
  * SETUP (one-time): paste your Web Push certificate public key below.
  *   Firebase Console → Project settings → Cloud Messaging →

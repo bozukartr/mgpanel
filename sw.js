@@ -1,11 +1,11 @@
-/* StayOS service worker — makes the app installable (PWA) and serves an
+/* Hotizy service worker — makes the app installable (PWA) and serves an
  * offline fallback for the app shell. App data stays live via Firestore;
  * we intentionally do NOT cache HTML/JS so deploys are picked up immediately.
  *
  * Web Push (FCM) hooks are stubbed below and will be wired once the sender
  * Cloud Function can be deployed.
  */
-const CACHE = 'stayos-shell-v5';
+const CACHE = 'hotizy-shell-v5';
 const SHELL = ['logo.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -47,7 +47,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
     let data = {};
     try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
-    const title = data.title || 'StayOS';
+    const title = data.title || 'Hotizy';
     const options = {
         body: data.body || 'Yeni bir bildiriminiz var.',
         icon: 'logo.png',

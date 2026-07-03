@@ -1,4 +1,4 @@
-/* ===== StayOS — Superadmin Console ===== */
+/* ===== Hotizy — Superadmin Console ===== */
 (function () {
     'use strict';
 
@@ -143,7 +143,7 @@
         const countEl = $('quotesCount');
         if (countEl) countEl.textContent = quotes.length + ' talep · ' + newCount + ' yeni';
         if (!quotes.length) {
-            body.innerHTML = `<tr><td colspan="6"><div class="empty">Henüz teklif talebi yok. stayos.org'daki "Teklif Al" formu buraya düşer.</div></td></tr>`;
+            body.innerHTML = `<tr><td colspan="6"><div class="empty">Henüz teklif talebi yok. hotizy.com'daki "Teklif Al" formu buraya düşer.</div></td></tr>`;
             return;
         }
         body.innerHTML = quotes.map(q => {
@@ -290,7 +290,7 @@
             const tn = orderTenant(o);
             let action;
             if (tn) {
-                action = `<a class="order-open" href="https://${esc(tn.id)}.stayos.org" target="_blank" rel="noopener">Açıldı · ${esc(tn.id)} ↗</a>`;
+                action = `<a class="order-open" href="https://${esc(tn.id)}.hotizy.com" target="_blank" rel="noopener">Açıldı · ${esc(tn.id)} ↗</a>`;
             } else if (o.status === 'success' && !o.archived) {
                 action = `<button class="btn-primary btn-sm" data-act="provision" data-id="${esc(o.id)}">Otel Aç</button>`;
             } else {
@@ -357,7 +357,7 @@
         // Actions
         const acts = [];
         if (tn) {
-            acts.push(`<a class="btn-ghost btn-sm" href="https://${esc(tn.id)}.stayos.org" target="_blank" rel="noopener">Oteli Aç ↗</a>`);
+            acts.push(`<a class="btn-ghost btn-sm" href="https://${esc(tn.id)}.hotizy.com" target="_blank" rel="noopener">Oteli Aç ↗</a>`);
         } else if (o.status === 'success' && !o.archived) {
             acts.push(`<button class="btn-primary btn-sm" data-oact="provision">Otel Aç</button>`);
         }
@@ -472,7 +472,7 @@
             const chips = MODULE_KEYS.map(k => `<span class="mchip ${mods[k] !== false ? 'on' : 'off'}">${MODULE_LABELS[k]}</span>`).join('');
             return `
             <tr class="row-click" data-hotel="${esc(t.id)}">
-                <td><div class="hotel-cell"><div class="av">${esc(initials(t.name || t.id))}</div><div><b>${esc(t.name || t.id)}</b><div class="mono">${esc(t.id)}.stayos.org</div></div></div></td>
+                <td><div class="hotel-cell"><div class="av">${esc(initials(t.name || t.id))}</div><div><b>${esc(t.name || t.id)}</b><div class="mono">${esc(t.id)}.hotizy.com</div></div></div></td>
                 <td><span class="plan-badge">${esc(planName(t))}</span></td>
                 <td><span class="pill ${s.cls}">${s.label}</span><div class="sub-end">${fmtDate(s.end)}</div></td>
                 <td><span class="${overLimit ? 'usage-over' : ''}">${usage}</span></td>
@@ -635,7 +635,7 @@
 
             $('hotelModal').classList.remove('show');
             currentOrderId = null;
-            toast(name + ' oluşturuldu · ' + slug + '.stayos.org');
+            toast(name + ' oluşturuldu · ' + slug + '.hotizy.com');
             await refresh();
         } catch (e) {
             err.textContent = 'Hata: ' + e.message;
@@ -838,7 +838,7 @@
         const s = statusOf(t);
         $('dAvatar').textContent = initials(t.name || t.id);
         $('dName').textContent = t.name || t.id;
-        $('dSub').innerHTML = '<a href="https://' + esc(t.id) + '.stayos.org" target="_blank" rel="noopener" style="color:inherit">' + esc(t.id) + '.stayos.org ↗</a>';
+        $('dSub').innerHTML = '<a href="https://' + esc(t.id) + '.hotizy.com" target="_blank" rel="noopener" style="color:inherit">' + esc(t.id) + '.hotizy.com ↗</a>';
         $('dPlan').textContent = planName(t);
         $('dStatus').innerHTML = `<span class="pill ${s.cls}">${s.label}</span>`;
         const count = userCountByTenant[t.id] || 0;
@@ -1059,7 +1059,7 @@
         (t.replies || []).forEach(r => {
             const rwhen = r.at ? new Date(r.at).toLocaleString('tr-TR') : '';
             const mine = r.platform;
-            html += `<div class="tk-msg ${mine ? 'tk-mine' : ''}"><div class="tk-who">${esc(r.by || '')} <span class="tk-when">${mine ? 'StayOS' : 'otel'} · ${rwhen}</span></div><div class="tk-text">${esc(r.text || '')}</div></div>`;
+            html += `<div class="tk-msg ${mine ? 'tk-mine' : ''}"><div class="tk-who">${esc(r.by || '')} <span class="tk-when">${mine ? 'Hotizy' : 'otel'} · ${rwhen}</span></div><div class="tk-text">${esc(r.text || '')}</div></div>`;
         });
         $('tkThread').innerHTML = html;
     }
@@ -1072,7 +1072,7 @@
             const upd = { status: status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
             if (text) {
                 upd.replies = firebase.firestore.FieldValue.arrayUnion({
-                    by: 'StayOS Destek', platform: true, text: text, at: new Date().toISOString()
+                    by: 'Hotizy Destek', platform: true, text: text, at: new Date().toISOString()
                 });
             }
             await db.collection('tickets').doc(curTicketId).update(upd);
@@ -1332,7 +1332,7 @@
         $('invBuyerTaxNo').value = '';
         $('invBuyerEmail').value = b.email || '';
         $('invBuyerPhone').value = b.phone || '';
-        $('invDesc').value = 'StayOS · ' + t.detail;
+        $('invDesc').value = 'Hotizy · ' + t.detail;
         $('invGross').value = t.gross;            // EUR
         if ($('invFx') && !$('invFx').value) $('invFx').value = fxRate() || '';
         $('invDate').value = (t.date || new Date()).toISOString().slice(0, 10);
@@ -1363,7 +1363,7 @@
             </div>
             <table class="inv-tbl">
                 <thead><tr><th>Açıklama</th><th class="r">Matrah</th><th class="r">KDV (%${kdvRate})</th><th class="r">Tutar</th></tr></thead>
-                <tbody><tr><td>${esc($('invDesc').value || 'StayOS aboneliği')}</td><td class="r">${m(net)}</td><td class="r">${m(kdv)}</td><td class="r">${m(grossTry)}</td></tr></tbody>
+                <tbody><tr><td>${esc($('invDesc').value || 'Hotizy aboneliği')}</td><td class="r">${m(net)}</td><td class="r">${m(kdv)}</td><td class="r">${m(grossTry)}</td></tr></tbody>
             </table>
             <div class="inv-totals">
                 <div class="row"><span>Matrah</span><span>${m(net)}</span></div>
