@@ -1,4 +1,4 @@
-/* StayOS — room-access.js
+/* Hotizy — room-access.js
  *
  * Staff-side mirror that keeps a PUBLIC, per-room access doc in sync with the
  * hotel's live occupancy (guestDirectory), so the guest QR page can verify

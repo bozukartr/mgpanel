@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>StayOS — Giriş</title>
-    <meta name="description" content="Ultra minimalistic login experience.">
+    <title>Hotizy — Giriş</title>
+    <meta name="description" content="Hotizy otel operasyon platformu — personel girişi.">
+    <link rel="icon" href="logo.png">
     <link rel="stylesheet" href="css/core/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,9 +13,10 @@
 </head>
 <body>
     <div class="container">
-        <!-- Splash / Logo Area -->
-        <div class="logo-wrapper" id="logoWrapper">
-            <img src="logo.png" alt="Logo" class="logo" id="logo">
+        <!-- Statik marka başlığı — animasyon yok, en baştan görünür -->
+        <div class="brand-mark">
+            <img src="logo.png" alt="Hotizy" class="brand-mark-logo">
+            <span class="brand-mark-text">Hotizy</span>
         </div>
 
         <!-- Access Restricted Overlay -->
@@ -33,20 +35,15 @@
             </div>
         </div>
 
-        <!-- Giriş türü seçici -->
-        <div class="login-card" id="chooserCard">
-            <div class="choose-title">Giriş türünü seçin</div>
-            <button type="button" class="choose-btn" id="chooseHotel">
-                <b>StayOS Hotel</b><span>Otel Yönetimi</span>
-            </button>
-            <button type="button" class="choose-btn alt" id="chooseFnb">
-                <b>StayOS F&amp;B</b><span>Restoran &amp; Bar</span>
-            </button>
-        </div>
+        <!-- Ana giriş kartı: sekmeler (Otel / F&B) + ilgili form aynı ekranda -->
+        <div class="login-card" id="mainCard">
+            <div class="login-tabs" id="loginTabs">
+                <button type="button" class="login-tab active" id="tabHotel" data-tab="hotel">Otel Girişi</button>
+                <button type="button" class="login-tab" id="tabFnb" data-tab="fnb">F&amp;B Girişi</button>
+            </div>
 
-        <!-- Hotel Login Form Area -->
-        <div class="login-card" id="loginCard" style="display:none;">
-            <form id="loginForm">
+            <!-- Otel Login Form -->
+            <form id="loginForm" class="login-pane active" data-pane="hotel">
                 <div class="input-group">
                     <input type="text" id="username" required placeholder=" ">
                     <label for="username">Kullanıcı Adı</label>
@@ -55,16 +52,12 @@
                     <input type="password" id="password" required placeholder=" ">
                     <label for="password">Şifre</label>
                 </div>
-                <button type="submit" class="login-btn">Devam Et</button>
-                <button type="button" class="login-back" id="hotelBack">‹ Geri</button>
+                <button type="submit" class="login-btn">Giriş Yap</button>
                 <div id="errorMessage" class="error-message"></div>
             </form>
-        </div>
 
-        <!-- StayOS F&B Login Area -->
-        <div class="login-card" id="fnbCard" style="display:none;">
-            <div class="choose-title">StayOS F&amp;B</div>
-            <form id="fnbForm">
+            <!-- F&B Login Form -->
+            <form id="fnbForm" class="login-pane" data-pane="fnb">
                 <div class="input-group">
                     <input type="password" id="fnbCode" inputmode="numeric" required placeholder=" " autocomplete="off">
                     <label for="fnbCode" id="fnbCodeLabel">5 Haneli Kod</label>
@@ -73,18 +66,15 @@
                     <input type="text" id="fnbUsername" placeholder=" " autocomplete="username">
                     <label for="fnbUsername">Kullanıcı Adı</label>
                 </div>
-                <button type="submit" class="login-btn">Devam Et</button>
-                <button type="button" class="login-back" id="fnbMgrToggle">Yönetici girişi (kullanıcı adı + şifre)</button>
-                <button type="button" class="login-back" id="fnbBack">‹ Geri</button>
+                <button type="submit" class="login-btn">Giriş Yap</button>
+                <button type="button" class="login-link" id="fnbMgrToggle">Yönetici girişi (kullanıcı adı + şifre)</button>
                 <div id="fnbError" class="error-message"></div>
             </form>
         </div>
 
         <!-- Force Password Change Area -->
         <div class="login-card" id="forcePwCard" style="display:none;">
-            <p style="font-size:13px; color:#666; text-align:center; margin:0 0 18px;">
-                Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.
-            </p>
+            <p class="force-pw-note">Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.</p>
             <form id="forcePwForm">
                 <div class="input-group">
                     <input type="password" id="newPassword" required placeholder=" ">

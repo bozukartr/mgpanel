@@ -1,4 +1,4 @@
-/* StayOS — dashboard.js · Ana panel: canlı KPI'lar + aktivite akışı.
+/* Hotizy — dashboard.js · Ana panel: canlı KPI'lar + aktivite akışı.
    Tenant izolasyonu (TENANT_ID) ve modül bayraklarıyla uyumlu. */
 (function () {
     'use strict';

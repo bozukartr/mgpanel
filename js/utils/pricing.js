@@ -1,4 +1,4 @@
-/* StayOS — pricing.js · Kompakt hibrit fiyat hesaplayıcı.
+/* Hotizy — pricing.js · Kompakt hibrit fiyat hesaplayıcı.
    Tek panel: paket + oda (maks 500) + modül seçimi (checkbox) + PMS.
    Sayfada .pr-section varsa kendini bağlar. */
 (function () {

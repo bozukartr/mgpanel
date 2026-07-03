@@ -1,10 +1,10 @@
-# Lemon Squeezy Kurulum Rehberi (StayOS)
+# Lemon Squeezy Kurulum Rehberi (Hotizy)
 
-Bu rehber, StayOS'taki Lemon Squeezy ödeme entegrasyonunu **sıfırdan, uçtan uca**
+Bu rehber, Hotizy'taki Lemon Squeezy ödeme entegrasyonunu **sıfırdan, uçtan uca**
 yapılandırmak içindir. Entegrasyon kodu zaten projede mevcut; burada yapman
 gereken yalnızca **hesap/ürün/anahtar ayarları + deploy**.
 
-> Proje: `panel-d25c9` · Bölge: `us-central1` · Site: `https://stayos.org`
+> Proje: `panel-d25c9` · Bölge: `us-central1` · Site: `https://hotizy.com`
 
 ---
 
@@ -53,7 +53,7 @@ kayıt olarak `lemonOrders`'a yazar.
 3 ürün oluştur: **Starter**, **Pro**, **Enterprise**.
 
 - **Products → New Product**.
-- **Pricing model**: **Single payment (one-time / tek seferlik)** öneririz — StayOS modeli
+- **Pricing model**: **Single payment (one-time / tek seferlik)** öneririz — Hotizy modeli
   "her ödeme = +1 ay" mantığında çalışır ve bu en sade eşleşmedir. (Abonelik de
   kullanılabilir; bkz. Notlar.)
 - **Fiyat**: taban fiyatı gir (Starter €49 / Pro €99 / Enterprise €199). **Gerçek tahsilat
@@ -91,7 +91,7 @@ gösterilmez). Bu `LEMON_API_KEY` olacak.
 
 **Settings → Webhooks → Add endpoint**:
 
-- **Callback URL**: `https://stayos.org/api/lemon-webhook`
+- **Callback URL**: `https://hotizy.com/api/lemon-webhook`
   - (Alternatif/doğrudan URL: `https://us-central1-panel-d25c9.cloudfunctions.net/lemonWebhook`)
 - **Signing secret**: uzun, rastgele bir dize belirle (örn. 32+ karakter). Bunu **not al** —
   `LEMON_WEBHOOK_SECRET` olacak.
@@ -143,7 +143,7 @@ firebase deploy --only functions,hosting
 
 ## 9) Test (test modunda)
 
-1. **Fiyatlandırma akışı**: `https://stayos.org/fiyatlandirma.html` → plan/oda/modül seç →
+1. **Fiyatlandırma akışı**: `https://hotizy.com/fiyatlandirma.html` → plan/oda/modül seç →
    **Hemen Öde** → LS ödeme sayfası açılmalı → test kartı (`4242…`) ile öde →
    `payment-result.html` "Ödemeniz Alındı" göstermeli.
 2. **Webhook**: LS → **Settings → Webhooks → (endpoint) → Recent deliveries** → `200 OK`
@@ -185,7 +185,7 @@ firebase deploy --only functions,hosting
 
 ## Notlar
 
-- **Tek seferlik vs abonelik**: StayOS "her ödeme = +1 ay (yıllıkta +12 ay)" modelindedir.
+- **Tek seferlik vs abonelik**: Hotizy "her ödeme = +1 ay (yıllıkta +12 ay)" modelindedir.
   En basit eşleşme **tek seferlik ürün + `order_created`**'dır. Abonelik ürünü kullanırsan
   ilk ödeme `order_created` ile yine uzatır; otomatik yenileme ödemeleri
   `subscription_payment_success` ile gelir (bu olayda `custom_data` her zaman taşınmayabilir).

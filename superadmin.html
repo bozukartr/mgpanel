@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>StayOS — Yönetim Konsolu</title>
+<title>Hotizy — Yönetim Konsolu</title>
 <meta name="theme-color" content="#0b1120">
 <link rel="icon" href="logo.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,13 +14,13 @@
 <!-- ===== LOGIN ===== -->
 <div id="loginScreen" class="auth-wrap">
     <div class="auth-card">
-        <div class="brand"><img src="logo.png" alt=""><b>StayOS</b></div>
+        <div class="brand"><img src="logo.png" alt=""><b>Hotizy</b></div>
         <span class="tag">Yönetim Konsolu</span>
         <h1>Operatör Girişi</h1>
         <p class="sub">Bu alan yalnızca platform yöneticileri içindir.</p>
         <form id="loginForm">
             <label for="suEmail">E-posta</label>
-            <input id="suEmail" type="email" autocomplete="username" placeholder="operator@stayos.org" required>
+            <input id="suEmail" type="email" autocomplete="username" placeholder="operator@hotizy.com" required>
             <label for="suPass">Şifre</label>
             <input id="suPass" type="password" autocomplete="current-password" placeholder="••••••••" required>
             <button type="submit" class="btn-primary" id="loginBtn">Giriş Yap</button>
@@ -53,7 +53,7 @@
     <aside class="sidebar" id="sidebar">
         <div class="sb-brand">
             <img src="logo.png" alt="">
-            <div><div class="name">StayOS</div><div class="role">Konsol</div></div>
+            <div><div class="name">Hotizy</div><div class="role">Konsol</div></div>
         </div>
         <nav class="sb-nav">
             <button class="sb-link active" data-view="overview">
@@ -337,7 +337,7 @@
                                 </div>
 
                                 <label>Açıklama / Kalem</label>
-                                <input id="invDesc" placeholder="StayOS aboneliği">
+                                <input id="invDesc" placeholder="Hotizy aboneliği">
                                 <div class="fin-form-row">
                                     <div><label>Brüt Tutar (€, KDV dahil)</label><input id="invGross" type="number" min="0" step="0.01" value="0"></div>
                                     <div><label>KDV Oranı %</label><input id="invKdv" type="number" min="0" step="1" value="20"></div>
@@ -424,7 +424,7 @@
                             <input id="setNotes" placeholder="Teşekkür ederiz.">
 
                             <div class="fin-sec-divider">Lemon Squeezy (Online Ödeme)</div>
-                            <div class="fin-note-box">Fiyatlandırma sayfasındaki ve panel içi “Lemon Squeezy ile Öde” butonları için. Lemon Squeezy mağazanızdaki <b>Store ID</b> ve her plan için <b>Variant ID</b> girin. API anahtarı ve webhook gizli anahtarı sunucuda secret olarak tutulur (<code>LEMON_API_KEY</code>, <code>LEMON_WEBHOOK_SECRET</code>). Webhook URL: <code>https://stayos.org/api/lemon-webhook</code></div>
+                            <div class="fin-note-box">Fiyatlandırma sayfasındaki ve panel içi “Lemon Squeezy ile Öde” butonları için. Lemon Squeezy mağazanızdaki <b>Store ID</b> ve her plan için <b>Variant ID</b> girin. API anahtarı ve webhook gizli anahtarı sunucuda secret olarak tutulur (<code>LEMON_API_KEY</code>, <code>LEMON_WEBHOOK_SECRET</code>). Webhook URL: <code>https://hotizy.com/api/lemon-webhook</code></div>
                             <div class="fin-form-row">
                                 <div><label>Store ID</label><input id="setLemonStore" placeholder="örn. 12345"></div>
                                 <div><label>Starter Variant ID</label><input id="setLemonStarter" placeholder="variant id"></div>
@@ -449,7 +449,7 @@
                     <div class="card-head">
                         <div>
                             <h3>Apex Tanıtım Sayfası Durumu</h3>
-                            <div class="sub">stayos.org açılış sayfasında ziyaretçilere ne gösterileceğini belirler.</div>
+                            <div class="sub">hotizy.com açılış sayfasında ziyaretçilere ne gösterileceğini belirler.</div>
                         </div>
                     </div>
                     <div style="padding:6px 4px 4px;">
@@ -505,7 +505,7 @@
             <input id="nhName" placeholder="Grand Hotel İstanbul">
             <label>Otel Kodu (subdomain / tenantId)</label>
             <input id="nhSlug" placeholder="grandhotel" autocapitalize="off" spellcheck="false">
-            <div class="hint" id="nhSlugHint">Küçük harf, rakam ve tire. Örn: grandhotel → grandhotel.stayos.org</div>
+            <div class="hint" id="nhSlugHint">Küçük harf, rakam ve tire. Örn: grandhotel → grandhotel.hotizy.com</div>
             <div class="field-row">
                 <div>
                     <label>Yönetici Kullanıcı Adı</label>

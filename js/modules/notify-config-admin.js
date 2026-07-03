@@ -1,4 +1,4 @@
-/* StayOS — Bildirim ayarları (admin paneli "Bildirimler" sekmesi).
+/* Hotizy — Bildirim ayarları (admin paneli "Bildirimler" sekmesi).
  *
  * Otelin yeni-misafir-talebi bildirimlerini özelleştirir:
  *   notifyConfig/{tenantId} = {

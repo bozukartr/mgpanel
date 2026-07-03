@@ -1,4 +1,4 @@
-/* StayOS PWA bootstrap — injects the manifest link + theme meta and registers
+/* Hotizy PWA bootstrap — injects the manifest link + theme meta and registers
  * the service worker. Drop <script src="pwa.js"></script> on any page to make
  * it installable. Safe to include everywhere; no-ops where unsupported. */
 (function () {
@@ -24,7 +24,7 @@
     meta('mobile-web-app-capable', 'yes');
     meta('apple-mobile-web-app-capable', 'yes');
     meta('apple-mobile-web-app-status-bar-style', 'default');
-    meta('apple-mobile-web-app-title', 'StayOS');
+    meta('apple-mobile-web-app-title', 'Hotizy');
     if (!document.head.querySelector('link[rel="apple-touch-icon"]')) {
         const al = document.createElement('link');
         al.rel = 'apple-touch-icon';

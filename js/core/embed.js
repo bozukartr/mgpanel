@@ -1,4 +1,4 @@
-/* StayOS — embed.js
+/* Hotizy — embed.js
  * Panel sayfaları App Shell (app.html) iframe'i içinde gömülü çalıştığında
  * kendi header/nav/alt-nav'larını gizler ve shell'e hangi sayfada olduğunu bildirir.
  * Bağımsız (standalone) açıldığında HİÇBİR şeyi değiştirmez — mevcut davranış korunur.

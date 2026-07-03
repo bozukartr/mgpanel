@@ -262,7 +262,7 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
-    // --- Quote requests from the public marketing site (stayos.org). Anyone
+    // --- Quote requests from the public marketing site (hotizy.com). Anyone
     //     may create one (lead form) but only with the expected fields and
     //     sane sizes; the platform operator reads, annotates and deletes. ---
     match /quoteRequests/{id} {

@@ -1,6 +1,6 @@
 {
-  "name": "stayos-functions",
-  "description": "StayOS Cloud Functions — PayTR payment integration",
+  "name": "hotizy-functions",
+  "description": "Hotizy Cloud Functions — PayTR payment integration",
   "engines": { "node": "20" },
   "main": "index.js",
   "dependencies": {

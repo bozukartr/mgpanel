@@ -1,4 +1,4 @@
-/* StayOS — Shared issue (department + topic) configuration.
+/* Hotizy — Shared issue (department + topic) configuration.
  *
  * One Firestore doc per hotel: issueConfig/{tenantId} = {
  *   tenantId, departments: [{ name, kind: 'both'|'request'|'complaint', topics: [..] }], updatedAt

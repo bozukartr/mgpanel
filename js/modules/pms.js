@@ -1,4 +1,4 @@
-/* StayOS — PMS guest lookup (client).
+/* Hotizy — PMS guest lookup (client).
  *
  * When the hotel has PMS enabled, typing a guest name or room number queries
  * the hotel's PMS through the pmsLookup Cloud Function (which holds the API

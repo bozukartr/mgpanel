@@ -1,9 +1,9 @@
-/* StayOS — Menüler (PDF) admin yönetimi (admin.html "Hazır Talepler" görünümü).
+/* Hotizy — Menüler (PDF) admin yönetimi (admin.html "Hazır Talepler" görünümü).
  *
  * guestMenus/{id} = { tenantId, name, pdfUrl, sortOrder, active, updatedAt }
  * Misafir QR sayfasındaki "Menüler" carousel kartı bu listeyi okur; her öğe
  * admin'in yapıştırdığı bir PDF bağlantısına (Drive, otel web sitesi vb.)
- * açılır. Dosya yükleme yok — StayOS henüz Firebase Storage kullanmıyor.
+ * açılır. Dosya yükleme yok — Hotizy henüz Firebase Storage kullanmıyor.
  */
 (function () {
     'use strict';

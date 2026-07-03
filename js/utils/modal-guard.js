@@ -1,4 +1,4 @@
-/* StayOS — modal-guard.js
+/* Hotizy — modal-guard.js
  *
  * Global guard: closing a modal by clicking OUTSIDE it (on the backdrop) asks
  * for confirmation IF the user has changed/typed something inside. Explicit

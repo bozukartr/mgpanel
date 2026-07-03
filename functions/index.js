@@ -1,4 +1,4 @@
-/* StayOS — PayTR payment integration (one-time monthly subscription).
+/* Hotizy — PayTR payment integration (one-time monthly subscription).
  *
  * Two functions:
  *   createPayment  (callable) — an authenticated hotel admin starts a payment;
@@ -52,7 +52,7 @@ const ANNUAL_DISCOUNT = 0.18;
 // '1' uses PayTR test cards (no real charge). Switch to '0' when going live.
 const TEST_MODE = '1';
 
-const BASE_URL = 'https://stayos.org';
+const BASE_URL = 'https://hotizy.com';
 const REGION = 'us-central1';
 
 exports.createPayment = onCall(
@@ -85,7 +85,7 @@ exports.createPayment = onCall(
     const req = request.rawRequest;
     const userIp = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.ip || '127.0.0.1';
     const basket = Buffer.from(JSON.stringify([
-      ['StayOS ' + plan + ' aboneliği (1 ay)', price.toFixed(2), 1]
+      ['Hotizy ' + plan + ' aboneliği (1 ay)', price.toFixed(2), 1]
     ])).toString('base64');
 
     const noInstallment = '1';
@@ -116,8 +116,8 @@ exports.createPayment = onCall(
       debug_on: '1',
       no_installment: noInstallment,
       max_installment: maxInstallment,
-      user_name: user.username || 'StayOS',
-      user_address: tenant.name || 'StayOS',
+      user_name: user.username || 'Hotizy',
+      user_address: tenant.name || 'Hotizy',
       user_phone: '05000000000',
       merchant_ok_url: BASE_URL + '/payment-result.html?status=ok',
       merchant_fail_url: BASE_URL + '/payment-result.html?status=fail',
@@ -174,7 +174,7 @@ exports.createCheckout = onRequest(
 
       const oid = 'CHK' + Date.now() + Math.floor(Math.random() * 1000);
       const basket = Buffer.from(JSON.stringify([
-        ['StayOS ' + (cycle === 'annual' ? 'Yıllık' : 'Aylık') + ' Paket', priceTRY.toFixed(2), 1]
+        ['Hotizy ' + (cycle === 'annual' ? 'Yıllık' : 'Aylık') + ' Paket', priceTRY.toFixed(2), 1]
       ])).toString('base64');
       const userIp = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.ip || '127.0.0.1';
       const noInstallment = '1', maxInstallment = '0', currency = 'TL';
@@ -307,7 +307,7 @@ exports.onNotificationCreate = onDocumentCreated(
       ? '/app.html#concierge' + (recordId ? '?order=' + encodeURIComponent(recordId) : '')
       : '/app.html#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
     const message = {
-      notification: { title: n.title || 'StayOS', body: n.body || '' },
+      notification: { title: n.title || 'Hotizy', body: n.body || '' },
       data: {
         recordId: recordId,
         type: n.type || 'request',
@@ -833,7 +833,7 @@ exports.getGuestStay = onCall({ region: REGION }, async (request) => {
 //   3) Secret'ları tanımlayın: LEMON_API_KEY, LEMON_WEBHOOK_SECRET
 //   4) Lemon Squeezy webhook'unu şu olaylarla kaydedin (order_created +
 //      subscription_payment_success), URL:
-//        https://stayos.org/api/lemon-webhook
+//        https://hotizy.com/api/lemon-webhook
 //      (veya doğrudan https://us-central1-panel-d25c9.cloudfunctions.net/lemonWebhook)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -954,7 +954,7 @@ exports.createLemonCheckout = onCall(
     try {
       const url = await lsCreateCheckout({
         apiKey, storeId: ls.storeId, variantId, priceCents: Math.round(price * 100),
-        email: user.email || '', name: tenant.name || user.username || 'StayOS',
+        email: user.email || '', name: tenant.name || user.username || 'Hotizy',
         custom: strMap({ tenant_id: tenantId, plan, cycle: 'monthly', oid }),
         redirectUrl: BASE_URL + '/payment-result.html?status=ok&provider=lemon'
       });

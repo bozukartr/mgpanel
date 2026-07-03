@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ödeme Sonucu · StayOS</title>
+<title>Ödeme Sonucu · Hotizy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -29,7 +29,7 @@
 <body>
     <div class="card" id="card">
         <div class="ico" id="ico"></div>
-        <span class="eyebrow">StayOS · Ödeme</span>
+        <span class="eyebrow">Hotizy · Ödeme</span>
         <h1 id="title">İşleniyor…</h1>
         <p id="msg">Lütfen bekleyin.</p>
         <a id="backLink" href="/app" style="display:none;margin-top:22px;background:#10564a;color:#fff;font-weight:600;font-size:14px;padding:12px 22px;border-radius:12px;text-decoration:none;">Panele Dön</a>
@@ -56,7 +56,7 @@
             document.getElementById('backLink').style.display = 'inline-block';
         } else {
             // PayTR iframe içinde (aynı origin) — paneli bilgilendir.
-            try { window.parent.postMessage({ source: 'stayos-payment', status: ok ? 'ok' : 'fail' }, '*'); } catch (e) {}
+            try { window.parent.postMessage({ source: 'hotizy-payment', status: ok ? 'ok' : 'fail' }, '*'); } catch (e) {}
         }
     </script>
 </body>

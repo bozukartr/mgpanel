@@ -1,4 +1,4 @@
-/* StayOS — app-shell.js
+/* Hotizy — app-shell.js
  * Tek kalıcı header + iframe içerik kabuğunun yönlendiricisi.
  * Paneller iframe içinde gömülü (?embed=1) çalışır; header sabit kalır,
  * yalnızca iframe içeriği değişir. Admin paneli kabuğun DIŞINDADIR (üst pencere). */
@@ -41,7 +41,7 @@
         });
         if (CTX === 'fnb') {
             var brand = document.querySelector('.sh-logo span');
-            if (brand) brand.textContent = 'StayOS F&B';
+            if (brand) brand.textContent = 'Hotizy F&B';
         }
     }
 

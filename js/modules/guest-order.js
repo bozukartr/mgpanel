@@ -1,4 +1,4 @@
-/* StayOS — Misafir Hizmetleri (guest-order.html)
+/* Hotizy — Misafir Hizmetleri (guest-order.html)
  *
  * QR ile açılan, giriş gerektirmeyen mobil-uygulama deneyimi:
  *   Ana Sayfa (selamlama + otel bilgi carousel'i + hizmet kategorileri),
@@ -311,7 +311,7 @@
     }
 
     // ── Config → görünüm ───────────────────────────────────────
-    function prettyTenant(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'StayOS'; }
+    function prettyTenant(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Hotizy'; }
     function applyConfig() {
         $('goApp').setAttribute('aria-busy', 'false');
         renderGreeting();

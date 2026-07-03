@@ -1,4 +1,4 @@
-/* StayOS — Admin management for guest-record departments & topics (issueConfig).
+/* Hotizy — Admin management for guest-record departments & topics (issueConfig).
  *
  * Included on admin.html. Powers the "Departman & Konu" tab: a single list of
  * departments, each tagged talep / şikayet / her ikisi, with optional topics

@@ -1,4 +1,4 @@
-/* StayOS — Realtime presence + in-app notifications + bell UI.
+/* Hotizy — Realtime presence + in-app notifications + bell UI.
  *
  * Drop-in: include AFTER firebase-config.js on any authenticated page.
  *   <script src="realtime.js"></script>
