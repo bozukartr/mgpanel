@@ -6,3 +6,9 @@ firebase-debug.log
 .env.local
 .DS_Store
 Thumbs.db
+
+# wrangler (Cloudflare Workers) local files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

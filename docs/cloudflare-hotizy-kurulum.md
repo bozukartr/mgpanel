@@ -55,18 +55,35 @@ yönlendirme mantığı da bu Worker üzerinden çalışır.
 
 ---
 
-## 2) Worker'ı oluştur
+## 2) Worker'ı oluştur (GitHub ile bağlı — otomatik deploy)
 
-1. Cloudflare panelinde **Workers & Pages → Create → Create Worker**.
-2. Adını verin (ör. `hotizy-subdomain-proxy`).
-3. Kod editöründe [`cloudflare/hotizy-subdomain-proxy.js`](../cloudflare/hotizy-subdomain-proxy.js)
-   dosyasının **tüm içeriğini** yapıştırın, **Deploy**'a basın.
-4. Worker'ın **Settings → Domains & Routes → Add → Route** kısmından:
-   - Route: `*.hotizy.com/*`
-   - Zone: `hotizy.com`
-5. Apex ve `www` için de trafiğin bu Worker'dan geçmesini istiyorsanız aynı
-   route deseniyle kapsanır (`*.hotizy.com/*` yalnızca gerçek subdomain'leri
-   kapsar — apex için ayrıca `hotizy.com/*` route'u da ekleyin).
+Worker, Cloudflare'in **GitHub entegrasyonu** ile `bozukartr/mgpanel` reposuna
+bağlanmış (`Workers & Pages → Create → Import a repository`). Bu sayede kod
+manuel yapıştırılmıyor — repoda `main` dalına her push, Worker'ı otomatik
+yeniden deploy ediyor.
+
+Bu bağlantının çalışması için repo kökünde iki dosya bulunur:
+
+- **`wrangler.jsonc`** — Worker adı (`hotizy-proxy`) ve giriş noktası
+  (`cloudflare/hotizy-subdomain-proxy.js`) burada tanımlı.
+- **`cloudflare/hotizy-subdomain-proxy.js`** — asıl reverse-proxy kodu.
+
+> ⚠️ Cloudflare'in GitHub entegrasyonu repoyu ilk bağladığınızda otomatik bir
+> `wrangler.jsonc` **PR'ı** açar ve genelde Worker'ı "statik dosya sunucusu"
+> (`"assets": {"directory": "."}`) olarak yapılandırmayı önerir — bu, tüm
+> repoyu doğrudan Cloudflare'den servis edip **Firebase Hosting'i (ve
+> `/api/lemon-checkout`, `/api/lemon-webhook` rewrite'larını) bypass eder**.
+> Bu PR'ı **merge etmeyin** — bu repodaki `wrangler.jsonc` zaten doğru
+> (reverse-proxy) yapılandırmayı içeriyor; bot'un önerdiği versiyon yerine
+> bu dosya kullanılmalı.
+
+Worker'ın **Settings → Domains & Routes → Add → Route** kısmından:
+- Route: `*.hotizy.com/*`
+- Zone: `hotizy.com`
+
+Apex ve `www` için de trafiğin bu Worker'dan geçmesini istiyorsanız aynı
+route deseniyle kapsanır (`*.hotizy.com/*` yalnızca gerçek subdomain'leri
+kapsar — apex için ayrıca `hotizy.com/*` route'u da ekleyin).
 
 ---
 

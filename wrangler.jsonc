@@ -1,0 +1,17 @@
+{
+  // Hotizy — Cloudflare Worker yapılandırması. Bu Worker, *.hotizy.com
+  // altındaki wildcard subdomain (otel) trafiğini Firebase Hosting'e
+  // (panel-d25c9.web.app) yönlendiren saf bir reverse-proxy'dir — statik
+  // dosya sunmaz (bkz. cloudflare/hotizy-subdomain-proxy.js). Böylece
+  // Firebase Hosting tek doğruluk kaynağı olarak kalır: hem statik
+  // dosyalar hem de /api/lemon-checkout, /api/lemon-webhook gibi Cloud
+  // Functions rewrite'ları buradan geçmeye devam eder. Ayrıntılar:
+  // docs/cloudflare-hotizy-kurulum.md
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hotizy-proxy",
+  "main": "cloudflare/hotizy-subdomain-proxy.js",
+  "compatibility_date": "2026-07-03",
+  "observability": {
+    "enabled": true
+  }
+}

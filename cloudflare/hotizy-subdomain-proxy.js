@@ -20,20 +20,13 @@
  * gerçek subdomain (ör. grandhotel.hotizy.com) görünmeye devam eder — bu
  * Worker'ın arka planda hangi Firebase adresine gittiği tamamen görünmez.
  *
- * ── Deploy adımları (Cloudflare panelinde) ──────────────────────────────
- * 1. DNS  → wildcard kaydı ekle:
- *      Tür: AAAA   İsim: *   İçerik: 100::   Proxy: AÇIK (turuncu bulut)
- *    (100:: bir IPv6 "discard" adresidir — gerçek bir sunucuya gitmez;
- *    yalnızca Cloudflare'in isteği yakalayıp bu Worker'a yönlendirmesi
- *    için placeholder bir DNS kaydı gerekiyor.)
- * 2. Workers & Pages → Create Worker → bu dosyanın içeriğini yapıştır.
- * 3. Worker → Settings → Domains & Routes → Route ekle: *.hotizy.com/*
- * 4. SSL/TLS → Overview → mod: Full
- * 5. Firebase Hosting Console'da hotizy.com'u custom domain olarak
- *    EKLEMEYİN — bu Worker onun yerine geçiyor. (İsteğe bağlı: apex
- *    hotizy.com ve www.hotizy.com'u ayrıca Firebase'e custom domain olarak
- *    eklemek isterseniz sorun değil, wildcard limiti yalnızca subdomain
- *    SAYISINI etkiler; ama bu Worker zaten hepsini kapsadığından gerek yok.)
+ * ── Deploy ───────────────────────────────────────────────────────────────
+ * Bu Worker (`hotizy-proxy`), Cloudflare'in GitHub entegrasyonu ile bu
+ * repoya bağlı — `main`'e her push otomatik yeniden deploy eder (repo
+ * kökündeki wrangler.jsonc, giriş noktası olarak bu dosyayı gösterir).
+ * Manuel "kod yapıştır" adımı yok. Diğer tüm kurulum adımları (DNS wildcard
+ * kaydı, Worker route'u, SSL modu, Firebase Console'da YAPILMAMASI
+ * gerekenler) için: docs/cloudflare-hotizy-kurulum.md
  *
  * FIREBASE_PROJECT_ID değişirse (yeni bir Firebase projesine taşınırsa)
  * yalnızca aşağıdaki sabiti güncelleyin.
