@@ -11,7 +11,7 @@
             var h = (location.hostname || '').toLowerCase();
             var p = h.split('.');
             if (h.indexOf('hotizy.com') !== -1 && p.length >= 3 && p[0] !== 'www') {
-                location.replace('/login.html'); return;
+                location.replace('/login'); return;
             }
         } catch (e) {}
         // Apex display-mode gate (Açık / Yakında / Bakımda — superadmin'den ayarlanır).

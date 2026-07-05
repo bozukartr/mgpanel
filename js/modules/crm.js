@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (userNameDisplay) userNameDisplay.textContent = loggedUsername;
 
     auth.onAuthStateChanged(async (user) => {
-        if (!user) { window.location.href = 'login.html'; return; }
+        if (!user) { window.location.href = 'login'; return; }
         // Confirm admin from Firestore (source of truth) and reveal the Admin link.
         try {
             const doc = await db.collection('systemUsers').doc(user.uid).get();
@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
         auth.signOut().then(() => {
             localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
-            window.location.href = 'login.html';
+            window.location.href = 'login';
         });
     });
 

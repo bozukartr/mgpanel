@@ -11,8 +11,8 @@
     var ROLE = (localStorage.getItem('hotelRole') || '').toLowerCase();
 
     // Oturum yoksa girişe (üst pencere).
-    if (!USERNAME) { location.replace('login.html'); return; }
-    auth.onAuthStateChanged(function (u) { if (!u) location.replace('login.html'); });
+    if (!USERNAME) { location.replace('login'); return; }
+    auth.onAuthStateChanged(function (u) { if (!u) location.replace('login'); });
 
     var ROUTES = {
         dashboard: { page: 'dashboard.html', module: null },
@@ -141,7 +141,7 @@
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) {
             document.querySelectorAll('.sh-orders').forEach(function (el) { el.style.display = 'none'; });
         }
-        $('shLogout').onclick = function () { try { auth.signOut(); } catch (e) {} location.href = 'login.html'; };
+        $('shLogout').onclick = function () { try { auth.signOut(); } catch (e) {} location.href = 'login'; };
         fromHash();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
