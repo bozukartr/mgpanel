@@ -10,87 +10,82 @@
     <link rel="stylesheet" href="css/core/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="auth">
-        <!-- Sol: marka paneli (mobilde gizlenir) -->
-        <aside class="auth-side">
-            <a class="side-brand" href="/">
-                <img src="logo.png" alt="Hotizy"><span>Hotizy</span>
-            </a>
-            <div class="side-mid">
-                <h2>Operasyonun<br><em>Kolay Yolu.</em></h2>
-                <p>Kolay operasyon, mutlu misafir!</p>
-            </div>
-            <div class="side-foot">© <span id="sideYear"></span> Hotizy · Otel Operasyon Platformu</div>
-        </aside>
-
-        <!-- Sağ: giriş alanı -->
-        <main class="auth-main">
-            <div class="auth-box">
-                <a class="m-brand" href="/">
-                    <img src="logo.png" alt="Hotizy"><span>Hotizy</span>
-                </a>
-
-                <div class="auth-tenant" id="tenantChip" hidden>
-                    <span class="dot"></span><span class="mono" id="tenantHost"></span>
-                </div>
-
-                <h1 class="auth-title">Personel Girişi</h1>
-                <p class="auth-sub">Devam etmek için hesabınızla giriş yapın.</p>
-
-                <!-- Ana giriş kartı: sekmeler (Otel / F&B) + ilgili form -->
-                <div class="login-card" id="mainCard">
-                    <div class="login-tabs" id="loginTabs">
-                        <button type="button" class="login-tab active" id="tabHotel" data-tab="hotel">Otel Girişi</button>
-                        <button type="button" class="login-tab" id="tabFnb" data-tab="fnb">F&amp;B Girişi</button>
-                    </div>
-
-                    <!-- Otel Login Form -->
-                    <form id="loginForm" class="login-pane active" data-pane="hotel">
-                        <label class="f-label" for="username">Kullanıcı Adı</label>
-                        <input class="f-input" type="text" id="username" required placeholder="kullanici.adi"
-                               autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
-                        <label class="f-label" for="password">Şifre</label>
-                        <input class="f-input" type="password" id="password" required placeholder="••••••••" autocomplete="current-password">
-                        <div class="caps-hint" id="capsHint" hidden>⇪ Caps Lock açık</div>
-                        <button type="submit" class="login-btn">Giriş Yap</button>
-                        <div id="errorMessage" class="error-message"></div>
-                    </form>
-
-                    <!-- F&B Login Form -->
-                    <form id="fnbForm" class="login-pane" data-pane="fnb">
-                        <label class="f-label" for="fnbCode" id="fnbCodeLabel">5 Haneli Kod</label>
-                        <input class="f-input" type="password" id="fnbCode" inputmode="numeric" required placeholder="•••••" autocomplete="off">
-                        <div id="fnbUserGroup" style="display:none;">
-                            <label class="f-label" for="fnbUsername">Kullanıcı Adı</label>
-                            <input class="f-input" type="text" id="fnbUsername" placeholder="kullanici.adi"
-                                   autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
-                        </div>
-                        <button type="submit" class="login-btn">Giriş Yap</button>
-                        <button type="button" class="login-link" id="fnbMgrToggle">Yönetici girişi (kullanıcı adı + şifre)</button>
-                        <div id="fnbError" class="error-message"></div>
-                    </form>
-                </div>
-
-                <!-- Zorunlu şifre değiştirme -->
-                <div class="login-card" id="forcePwCard" style="display:none;">
-                    <p class="force-pw-note">Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.</p>
-                    <form id="forcePwForm">
-                        <label class="f-label" for="newPassword">Yeni Şifre</label>
-                        <input class="f-input" type="password" id="newPassword" required placeholder="••••••••" autocomplete="new-password">
-                        <label class="f-label" for="newPassword2">Yeni Şifre (Tekrar)</label>
-                        <input class="f-input" type="password" id="newPassword2" required placeholder="••••••••" autocomplete="new-password">
-                        <button type="submit" class="login-btn">Şifreyi Kaydet</button>
-                        <div id="pwError" class="error-message"></div>
-                    </form>
-                </div>
-
-                <p class="auth-help">Giriş sorunu mu yaşıyorsunuz? Otel yöneticinize başvurun.</p>
-            </div>
-        </main>
+    <!-- Dekoratif arka plan: otelcilik ikonları, ultra ince, rastgele yüzer.
+         Yalnızca görsel — tıklanamaz (pointer-events:none), erişilebilirlikten gizli. -->
+    <div class="bg-particles" aria-hidden="true">
+        <i data-lucide="bed-double"        style="top:9%;  left:11%; --sz:64px; --dur:26s; --delay:0s;   --dx:16px; --dy:-12px; --rot:5deg"></i>
+        <i data-lucide="concierge-bell"    style="top:17%; left:83%; --sz:52px; --dur:31s; --delay:2s;   --dx:-14px; --dy:14px; --rot:-4deg"></i>
+        <i data-lucide="key-round"         style="top:68%; left:7%;  --sz:46px; --dur:27s; --delay:4s;   --dx:18px; --dy:10px;  --rot:6deg"></i>
+        <i data-lucide="luggage"           style="top:79%; left:88%; --sz:58px; --dur:23s; --delay:1s;   --dx:-16px; --dy:-10px; --rot:-3deg"></i>
+        <i data-lucide="martini"           style="top:31%; left:5%;  --sz:42px; --dur:29s; --delay:6s;   --dx:12px; --dy:16px;  --rot:7deg"></i>
+        <i data-lucide="umbrella"          style="top:7%;  left:56%; --sz:54px; --dur:33s; --delay:3s;   --dx:-18px; --dy:12px; --rot:-5deg"></i>
+        <i data-lucide="waves"             style="top:84%; left:41%; --sz:48px; --dur:28s; --delay:5s;   --dx:16px; --dy:-14px; --rot:4deg"></i>
+        <i data-lucide="coffee"            style="top:46%; left:93%; --sz:38px; --dur:25s; --delay:2.5s; --dx:-12px; --dy:-16px; --rot:-6deg"></i>
+        <i data-lucide="car"               style="top:60%; left:19%; --sz:44px; --dur:30s; --delay:1.5s; --dx:14px; --dy:10px;  --rot:5deg"></i>
+        <i data-lucide="sparkles"          style="top:23%; left:35%; --sz:36px; --dur:24s; --delay:4.5s; --dx:-10px; --dy:14px; --rot:-4deg"></i>
+        <i data-lucide="utensils-crossed"  style="top:90%; left:63%; --sz:42px; --dur:32s; --delay:0.8s; --dx:14px; --dy:-12px; --rot:6deg"></i>
+        <i data-lucide="plane"             style="top:5%;  left:30%; --sz:40px; --dur:22s; --delay:3.5s; --dx:-16px; --dy:8px;  --rot:-5deg"></i>
     </div>
+
+    <main class="wrap">
+        <div class="box">
+            <a class="mark" href="/" aria-label="Hotizy"><img src="logo.png" alt="Hotizy"></a>
+
+            <p class="tenant" id="tenantChip" hidden><span class="mono" id="tenantHost"></span></p>
+
+            <!-- Ana giriş kartı: sekmeler (Otel / F&B) + ilgili form -->
+            <div class="login-card" id="mainCard">
+                <div class="login-tabs" id="loginTabs">
+                    <button type="button" class="login-tab active" id="tabHotel" data-tab="hotel">Otel Girişi</button>
+                    <button type="button" class="login-tab" id="tabFnb" data-tab="fnb">F&amp;B Girişi</button>
+                </div>
+
+                <!-- Otel Login Form -->
+                <form id="loginForm" class="login-pane active" data-pane="hotel">
+                    <label class="f-label" for="username">Kullanıcı Adı</label>
+                    <input class="f-input" type="text" id="username" required placeholder="kullanici.adi"
+                           autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+                    <label class="f-label" for="password">Şifre</label>
+                    <input class="f-input" type="password" id="password" required placeholder="••••••••" autocomplete="current-password">
+                    <p class="caps-hint" id="capsHint" hidden>Caps Lock açık</p>
+                    <button type="submit" class="login-btn">Giriş Yap</button>
+                    <div id="errorMessage" class="error-message"></div>
+                </form>
+
+                <!-- F&B Login Form -->
+                <form id="fnbForm" class="login-pane" data-pane="fnb">
+                    <label class="f-label" for="fnbCode" id="fnbCodeLabel">5 Haneli Kod</label>
+                    <input class="f-input" type="password" id="fnbCode" inputmode="numeric" required placeholder="•••••" autocomplete="off">
+                    <div id="fnbUserGroup" style="display:none;">
+                        <label class="f-label" for="fnbUsername">Kullanıcı Adı</label>
+                        <input class="f-input" type="text" id="fnbUsername" placeholder="kullanici.adi"
+                               autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+                    </div>
+                    <button type="submit" class="login-btn">Giriş Yap</button>
+                    <button type="button" class="login-link" id="fnbMgrToggle">Yönetici girişi (kullanıcı adı + şifre)</button>
+                    <div id="fnbError" class="error-message"></div>
+                </form>
+            </div>
+
+            <!-- Zorunlu şifre değiştirme -->
+            <div class="login-card" id="forcePwCard" style="display:none;">
+                <p class="force-pw-note">Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.</p>
+                <form id="forcePwForm">
+                    <label class="f-label" for="newPassword">Yeni Şifre</label>
+                    <input class="f-input" type="password" id="newPassword" required placeholder="••••••••" autocomplete="new-password">
+                    <label class="f-label" for="newPassword2">Yeni Şifre (Tekrar)</label>
+                    <input class="f-input" type="password" id="newPassword2" required placeholder="••••••••" autocomplete="new-password">
+                    <button type="submit" class="login-btn">Şifreyi Kaydet</button>
+                    <div id="pwError" class="error-message"></div>
+                </form>
+            </div>
+
+            <p class="help">Giriş sorunu mu yaşıyorsunuz? Otel yöneticinize başvurun.</p>
+        </div>
+    </main>
 
     <!-- Access Restricted Overlay -->
     <div id="paymentOverlay" class="payment-overlay">
@@ -116,6 +111,10 @@
     <script src="js/core/pwa.js"></script>
     <script src="js/core/monitor.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
+
+    <!-- Lucide: yalnızca dekoratif arka plan ikonları için (UMD, index.html ile aynı sürüm) -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.525.0/dist/umd/lucide.min.js"></script>
+    <script>try { if (window.lucide && lucide.createIcons) lucide.createIcons({ attrs: { 'stroke-width': '1' } }); } catch (e) {}</script>
 
     <script src="js/modules/app.js"></script>
 </body>
