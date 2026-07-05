@@ -67,6 +67,57 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tabHotel').onclick = () => switchTab('hotel');
     document.getElementById('tabFnb').onclick = () => switchTab('fnb');
 
+    // Kullanıcı adı alanları HER KOŞULDA küçük harf — Caps Lock açık olsa,
+    // mobil klavye baş harfi büyütse ya da yapıştırılan metin büyük olsa bile.
+    // Eşleme kuralı: kullanıcı adları e-posta ürettiğinden (userEmail) fiilen
+    // ASCII'dir; bu yüzden hem 'İ' (TR klavye caps) hem 'I' (EN klavye caps)
+    // 'i'ye iner — tr-TR locale'in I→ı eşlemesi burada "ADMIN"→"admın" yapıp
+    // girişi bozardı. Diğer Türkçe harfler (Ş→ş, Ğ→ğ…) normal küçülür.
+    function lowerUsername(s) { return String(s || '').replace(/İ/g, 'i').toLowerCase(); }
+    function forceLowercase(el) {
+        if (!el) return;
+        el.addEventListener('input', () => {
+            const lower = lowerUsername(el.value);
+            if (el.value === lower) return;
+            const pos = el.selectionStart;
+            el.value = lower;
+            try { el.setSelectionRange(pos, pos); } catch (e) {}
+        });
+    }
+    forceLowercase(document.getElementById('username'));
+    forceLowercase(document.getElementById('fnbUsername'));
+
+    // Caps Lock açık uyarısı (şifre alanında).
+    (function () {
+        const pw = document.getElementById('password');
+        const hint = document.getElementById('capsHint');
+        if (!pw || !hint) return;
+        function check(e) {
+            try { hint.hidden = !e.getModifierState || !e.getModifierState('CapsLock'); }
+            catch (err) { hint.hidden = true; }
+        }
+        pw.addEventListener('keydown', check);
+        pw.addEventListener('keyup', check);
+        pw.addEventListener('blur', () => { hint.hidden = true; });
+    })();
+
+    // Otel alt alan adındaysak (ör. grandhotel.hotizy.com) girişin hangi otele
+    // yapıldığını gösteren rozet.
+    (function () {
+        try {
+            const chip = document.getElementById('tenantChip');
+            const hostEl = document.getElementById('tenantHost');
+            const h = (location.hostname || '').toLowerCase();
+            if (chip && hostEl && h.indexOf('hotizy.com') !== -1 && h.split('.').length >= 3 && h.split('.')[0] !== 'www') {
+                hostEl.textContent = h;
+                chip.hidden = false;
+            }
+        } catch (e) {}
+    })();
+
+    const sideYear = document.getElementById('sideYear');
+    if (sideYear) sideYear.textContent = new Date().getFullYear();
+
     function fnbShake(msg) { fnbCard.classList.add('shake'); fnbError.textContent = msg; fnbError.classList.add('show'); setTimeout(() => fnbCard.classList.remove('shake'), 500); }
 
     if (document.getElementById('fnbMgrToggle')) document.getElementById('fnbMgrToggle').onclick = () => {
@@ -116,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         loginContext = 'hotel';
-        const userInput = document.getElementById('username').value.trim();
+        const userInput = document.getElementById('username').value.trim().replace(/İ/g, 'i').toLowerCase();
         const email = userInput.includes('@') ? userInput : userEmail(userInput, resolveTenant());
         const password = document.getElementById('password').value;
 
@@ -174,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fnbForm) fnbForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         fnbError.classList.remove('show');
-        const userInput = (document.getElementById('fnbUsername').value || '').trim();
+        const userInput = (document.getElementById('fnbUsername').value || '').trim().replace(/İ/g, 'i').toLowerCase();
         const code = document.getElementById('fnbCode').value.trim();
         const tenant = resolveTenant();
         let email, attempts = [];
