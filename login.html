@@ -5,88 +5,106 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hotizy — Giriş</title>
     <meta name="description" content="Hotizy otel operasyon platformu — personel girişi.">
+    <meta name="theme-color" content="#ffffff">
     <link rel="icon" href="logo.png">
     <link rel="stylesheet" href="css/core/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <!-- Statik marka başlığı — animasyon yok, en baştan görünür -->
-        <div class="brand-mark">
-            <img src="logo.png" alt="Hotizy" class="brand-mark-logo">
-            <span class="brand-mark-text">Hotizy</span>
-        </div>
-
-        <!-- Access Restricted Overlay -->
-        <div id="paymentOverlay" class="payment-overlay">
-            <div class="payment-card">
-                <div class="restricted-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                </div>
-                <div class="payment-header">
-                    <h2>Erişim Kısıtlandı</h2>
-                </div>
-                <button id="paymentCloseBtn" class="payment-close-btn">Geri Dön</button>
+    <div class="auth">
+        <!-- Sol: marka paneli (mobilde gizlenir) -->
+        <aside class="auth-side">
+            <a class="side-brand" href="/">
+                <img src="logo.png" alt="Hotizy"><span>Hotizy</span>
+            </a>
+            <div class="side-mid">
+                <h2>Operasyonun<br><em>Kolay Yolu.</em></h2>
+                <p>Kolay operasyon, mutlu misafir!</p>
             </div>
-        </div>
+            <div class="side-foot">© <span id="sideYear"></span> Hotizy · Otel Operasyon Platformu</div>
+        </aside>
 
-        <!-- Ana giriş kartı: sekmeler (Otel / F&B) + ilgili form aynı ekranda -->
-        <div class="login-card" id="mainCard">
-            <div class="login-tabs" id="loginTabs">
-                <button type="button" class="login-tab active" id="tabHotel" data-tab="hotel">Otel Girişi</button>
-                <button type="button" class="login-tab" id="tabFnb" data-tab="fnb">F&amp;B Girişi</button>
+        <!-- Sağ: giriş alanı -->
+        <main class="auth-main">
+            <div class="auth-box">
+                <a class="m-brand" href="/">
+                    <img src="logo.png" alt="Hotizy"><span>Hotizy</span>
+                </a>
+
+                <div class="auth-tenant" id="tenantChip" hidden>
+                    <span class="dot"></span><span class="mono" id="tenantHost"></span>
+                </div>
+
+                <h1 class="auth-title">Personel Girişi</h1>
+                <p class="auth-sub">Devam etmek için hesabınızla giriş yapın.</p>
+
+                <!-- Ana giriş kartı: sekmeler (Otel / F&B) + ilgili form -->
+                <div class="login-card" id="mainCard">
+                    <div class="login-tabs" id="loginTabs">
+                        <button type="button" class="login-tab active" id="tabHotel" data-tab="hotel">Otel Girişi</button>
+                        <button type="button" class="login-tab" id="tabFnb" data-tab="fnb">F&amp;B Girişi</button>
+                    </div>
+
+                    <!-- Otel Login Form -->
+                    <form id="loginForm" class="login-pane active" data-pane="hotel">
+                        <label class="f-label" for="username">Kullanıcı Adı</label>
+                        <input class="f-input" type="text" id="username" required placeholder="kullanici.adi"
+                               autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+                        <label class="f-label" for="password">Şifre</label>
+                        <input class="f-input" type="password" id="password" required placeholder="••••••••" autocomplete="current-password">
+                        <div class="caps-hint" id="capsHint" hidden>⇪ Caps Lock açık</div>
+                        <button type="submit" class="login-btn">Giriş Yap</button>
+                        <div id="errorMessage" class="error-message"></div>
+                    </form>
+
+                    <!-- F&B Login Form -->
+                    <form id="fnbForm" class="login-pane" data-pane="fnb">
+                        <label class="f-label" for="fnbCode" id="fnbCodeLabel">5 Haneli Kod</label>
+                        <input class="f-input" type="password" id="fnbCode" inputmode="numeric" required placeholder="•••••" autocomplete="off">
+                        <div id="fnbUserGroup" style="display:none;">
+                            <label class="f-label" for="fnbUsername">Kullanıcı Adı</label>
+                            <input class="f-input" type="text" id="fnbUsername" placeholder="kullanici.adi"
+                                   autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+                        </div>
+                        <button type="submit" class="login-btn">Giriş Yap</button>
+                        <button type="button" class="login-link" id="fnbMgrToggle">Yönetici girişi (kullanıcı adı + şifre)</button>
+                        <div id="fnbError" class="error-message"></div>
+                    </form>
+                </div>
+
+                <!-- Zorunlu şifre değiştirme -->
+                <div class="login-card" id="forcePwCard" style="display:none;">
+                    <p class="force-pw-note">Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.</p>
+                    <form id="forcePwForm">
+                        <label class="f-label" for="newPassword">Yeni Şifre</label>
+                        <input class="f-input" type="password" id="newPassword" required placeholder="••••••••" autocomplete="new-password">
+                        <label class="f-label" for="newPassword2">Yeni Şifre (Tekrar)</label>
+                        <input class="f-input" type="password" id="newPassword2" required placeholder="••••••••" autocomplete="new-password">
+                        <button type="submit" class="login-btn">Şifreyi Kaydet</button>
+                        <div id="pwError" class="error-message"></div>
+                    </form>
+                </div>
+
+                <p class="auth-help">Giriş sorunu mu yaşıyorsunuz? Otel yöneticinize başvurun.</p>
             </div>
+        </main>
+    </div>
 
-            <!-- Otel Login Form -->
-            <form id="loginForm" class="login-pane active" data-pane="hotel">
-                <div class="input-group">
-                    <input type="text" id="username" required placeholder=" ">
-                    <label for="username">Kullanıcı Adı</label>
-                </div>
-                <div class="input-group">
-                    <input type="password" id="password" required placeholder=" ">
-                    <label for="password">Şifre</label>
-                </div>
-                <button type="submit" class="login-btn">Giriş Yap</button>
-                <div id="errorMessage" class="error-message"></div>
-            </form>
-
-            <!-- F&B Login Form -->
-            <form id="fnbForm" class="login-pane" data-pane="fnb">
-                <div class="input-group">
-                    <input type="password" id="fnbCode" inputmode="numeric" required placeholder=" " autocomplete="off">
-                    <label for="fnbCode" id="fnbCodeLabel">5 Haneli Kod</label>
-                </div>
-                <div class="input-group" id="fnbUserGroup" style="display:none;">
-                    <input type="text" id="fnbUsername" placeholder=" " autocomplete="username">
-                    <label for="fnbUsername">Kullanıcı Adı</label>
-                </div>
-                <button type="submit" class="login-btn">Giriş Yap</button>
-                <button type="button" class="login-link" id="fnbMgrToggle">Yönetici girişi (kullanıcı adı + şifre)</button>
-                <div id="fnbError" class="error-message"></div>
-            </form>
-        </div>
-
-        <!-- Force Password Change Area -->
-        <div class="login-card" id="forcePwCard" style="display:none;">
-            <p class="force-pw-note">Şifrenizin yenilenmesi gerekiyor. Lütfen yeni bir şifre belirleyin.</p>
-            <form id="forcePwForm">
-                <div class="input-group">
-                    <input type="password" id="newPassword" required placeholder=" ">
-                    <label for="newPassword">Yeni Şifre</label>
-                </div>
-                <div class="input-group">
-                    <input type="password" id="newPassword2" required placeholder=" ">
-                    <label for="newPassword2">Yeni Şifre (Tekrar)</label>
-                </div>
-                <button type="submit" class="login-btn">Şifreyi Kaydet</button>
-                <div id="pwError" class="error-message"></div>
-            </form>
+    <!-- Access Restricted Overlay -->
+    <div id="paymentOverlay" class="payment-overlay">
+        <div class="payment-card">
+            <div class="restricted-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+            <div class="payment-header">
+                <h2>Erişim Kısıtlandı</h2>
+            </div>
+            <button id="paymentCloseBtn" class="payment-close-btn">Geri Dön</button>
         </div>
     </div>
 
