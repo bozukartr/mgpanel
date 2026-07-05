@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     localStorage.setItem('hotelUsername', userInput);
                 }
-                window.location.href = 'admin.html';
+                window.location.href = 'admin';
             } else {
                 await auth.signOut();
                 errEl.textContent = 'Yalnızca yöneticiler erişebilir.';

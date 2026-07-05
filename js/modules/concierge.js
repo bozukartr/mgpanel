@@ -23,7 +23,7 @@ function curSym(cur) { return CUR_SYM[cur] || '€'; }
         if (!doc.exists) return;
         const d = doc.data();
         const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
-        if (d.enabled && ends && ends > new Date()) window.location.replace('maintenance.html');
+        if (d.enabled && ends && ends > new Date()) window.location.replace('maintenance');
     }, function () {});
 })();
 

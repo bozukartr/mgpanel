@@ -12,7 +12,7 @@
             const d = doc.data();
             const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
             const active = d.enabled && ends && ends > new Date();
-            if (active) window.location.replace('maintenance.html');
+            if (active) window.location.replace('maintenance');
         }, function () { /* ignore read errors */ });
     } catch (e) { /* firebase not ready — ignore */ }
 })();

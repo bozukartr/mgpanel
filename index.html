@@ -332,8 +332,8 @@
         <header class="topbar">
             <a class="brand" href="/"><img src="logo.png" alt="Hotizy"><span>Hotizy</span></a>
             <nav class="topnav">
-                <a class="navlink" href="fiyatlandirma.html">Fiyatlandırma</a>
-                <a class="navlink" href="hakkimizda.html">Hakkımızda</a>
+                <a class="navlink" href="fiyatlandirma">Fiyatlandırma</a>
+                <a class="navlink" href="hakkimizda">Hakkımızda</a>
                 <button class="btn btn-primary" data-quote style="padding:11px 22px">Teklif Alın</button>
             </nav>
         </header>
@@ -479,25 +479,25 @@
 
         <!-- Alt şerit -->
         <footer class="bottombar">
-            <a class="price-line" href="fiyatlandirma.html">
+            <a class="price-line" href="fiyatlandirma">
                 Starter <b>€49</b> · Pro <b>€99</b> · Business <b>€199</b> /ay <i data-lucide="arrow-up-right"></i>
             </a>
             <div class="bottom-right">
                 <span>© <span id="year"></span> Hotizy</span>
-                <a href="hakkimizda.html">Künye</a>
+                <a href="hakkimizda">Künye</a>
                 <details class="legal" id="legalMenu">
                     <summary>Yasal</summary>
                     <div class="legal-menu">
                         <a href="legal/gizlilik-kvkk.pdf" target="_blank" rel="noopener">Gizlilik Politikası &amp; KVKK</a>
-                        <a href="legal/kvkk-aydinlatma.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>
-                        <a href="legal/acik-riza.html" target="_blank" rel="noopener">Açık Rıza Metni</a>
-                        <a href="legal/cerez-politikasi.html" target="_blank" rel="noopener">Çerez Politikası</a>
+                        <a href="legal/kvkk-aydinlatma" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>
+                        <a href="legal/acik-riza" target="_blank" rel="noopener">Açık Rıza Metni</a>
+                        <a href="legal/cerez-politikasi" target="_blank" rel="noopener">Çerez Politikası</a>
                         <a href="legal/kullanim-kosullari.pdf" target="_blank" rel="noopener">Kullanım Koşulları</a>
-                        <a href="legal/mesafeli-satis.html" target="_blank" rel="noopener">Mesafeli Satış Sözleşmesi</a>
-                        <a href="legal/on-bilgilendirme.html" target="_blank" rel="noopener">Ön Bilgilendirme Formu</a>
+                        <a href="legal/mesafeli-satis" target="_blank" rel="noopener">Mesafeli Satış Sözleşmesi</a>
+                        <a href="legal/on-bilgilendirme" target="_blank" rel="noopener">Ön Bilgilendirme Formu</a>
                         <a href="legal/iptal-iade.pdf" target="_blank" rel="noopener">İptal &amp; İade Politikası</a>
-                        <a href="legal/veri-isleyen-sozlesmesi.html" target="_blank" rel="noopener">Veri İşleyen Sözleşmesi (DPA)</a>
-                        <a href="legal/ticari-elektronik-ileti.html" target="_blank" rel="noopener">Ticari Elektronik İleti Onayı</a>
+                        <a href="legal/veri-isleyen-sozlesmesi" target="_blank" rel="noopener">Veri İşleyen Sözleşmesi (DPA)</a>
+                        <a href="legal/ticari-elektronik-ileti" target="_blank" rel="noopener">Ticari Elektronik İleti Onayı</a>
                     </div>
                 </details>
             </div>
@@ -555,7 +555,7 @@
     <!-- ══ Çerez onay bandı ══ -->
     <div id="cookieBar" role="dialog" aria-label="Çerez onayı">
         <p>Deneyiminizi iyileştirmek için zorunlu çerezler kullanıyoruz. Analitik/pazarlama çerezleri yalnızca onayınızla çalışır.
-            <a href="legal/cerez-politikasi.html" target="_blank" rel="noopener">Çerez Politikası</a></p>
+            <a href="legal/cerez-politikasi" target="_blank" rel="noopener">Çerez Politikası</a></p>
         <div class="cb-actions">
             <button class="cb-reject" id="cbReject">Reddet</button>
             <button class="cb-accept" id="cbAccept">Kabul Et</button>
@@ -575,8 +575,8 @@
         var db; try { db = firebase.firestore(); } catch (e) { reveal(); return; }
         db.collection('siteConfig').doc('apex').get().then(function (doc) {
             var mode = doc.exists ? (doc.data().mode || 'open') : 'open';
-            if (mode === 'maintenance') { location.replace('apex-bakim.html'); return; }
-            if (mode === 'coming_soon') { location.replace('apex-yakinda.html'); return; }
+            if (mode === 'maintenance') { location.replace('apex-bakim'); return; }
+            if (mode === 'coming_soon') { location.replace('apex-yakinda'); return; }
             reveal();
         }).catch(reveal);
     })();

@@ -12,7 +12,7 @@
         if (!doc.exists) return;
         const d = doc.data();
         const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
-        if (d.enabled && ends && ends > new Date()) window.location.replace('maintenance.html');
+        if (d.enabled && ends && ends > new Date()) window.location.replace('maintenance');
     }, function () {});
 })();
 
@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainCard.classList.add('fade-hide');
         forcePwCard.classList.add('fade-hide');
         setTimeout(() => {
-            window.location.href = 'app.html';
+            window.location.href = 'app';
         }, 250);
     }
 

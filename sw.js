@@ -52,7 +52,7 @@ self.addEventListener('push', (event) => {
         body: data.body || 'Yeni bir bildiriminiz var.',
         icon: 'logo.png',
         badge: 'logo.png',
-        data: { url: data.url || '/app.html#kayitlar' },
+        data: { url: data.url || '/app#kayitlar' },
         vibrate: [60, 40, 60]
     };
     event.waitUntil(self.registration.showNotification(title, options));
@@ -60,7 +60,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const url = (event.notification.data && event.notification.data.url) || '/app.html#kayitlar';
+    const url = (event.notification.data && event.notification.data.url) || '/app#kayitlar';
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
             for (const c of list) { if ('focus' in c) { c.navigate(url); return c.focus(); } }

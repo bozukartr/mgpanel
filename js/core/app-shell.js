@@ -15,12 +15,12 @@
     auth.onAuthStateChanged(function (u) { if (!u) location.replace('login'); });
 
     var ROUTES = {
-        dashboard: { page: 'dashboard.html', module: null },
-        concierge: { page: 'concierge.html', module: 'concierge' },
-        kayitlar:  { page: 'panel.html',      module: 'guestIssues' },
-        raporlar:  { page: 'reports.html',     module: 'reports' },
-        crm:       { page: 'crm.html',         module: 'crm' },
-        restoran:  { page: 'restaurant.html',  module: 'restaurant' }
+        dashboard: { page: 'dashboard', module: null },
+        concierge: { page: 'concierge', module: 'concierge' },
+        kayitlar:  { page: 'panel',      module: 'guestIssues' },
+        raporlar:  { page: 'reports',     module: 'reports' },
+        crm:       { page: 'crm',         module: 'crm' },
+        restoran:  { page: 'restaurant',  module: 'restaurant' }
     };
     function moduleOn(key) {
         if (!key) return true;
@@ -73,7 +73,7 @@
     }
 
     // Hash değişimi → görünüm yükle. Hash'te bir sorgu olabilir
-    // (ör. app.html#concierge?order=ID veya #kayitlar?open=ID); bunu iframe'e
+    // (ör. app#concierge?order=ID veya #kayitlar?open=ID); bunu iframe'e
     // ilet ki bildirimle gelen kayıt odaklansın.
     function fromHash() {
         var raw = (location.hash || '').replace(/^#/, '');
