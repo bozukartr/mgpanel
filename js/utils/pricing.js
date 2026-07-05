@@ -108,7 +108,7 @@
     }
 
     // ── Teklif Al (CTA) ────────────────────────────────────────
-    // index.html'de quote modal kendi handler'ıyla açılır (data-quote);
+    // index'de quote modal kendi handler'ıyla açılır (data-quote);
     // standalone fiyatlandirma sayfasında ana siteye yönlendiririz.
     qa('[data-quote]').forEach(function (b) {
         b.addEventListener('click', function (e) {
@@ -141,7 +141,7 @@
                     window.LemonSqueezy.Setup({ eventHandler: function (e) {
                         var name = e && (e.event || e.type || e.name);
                         if (name === 'Checkout.Success') {
-                            window.location.href = '/payment-result.html?status=ok&provider=lemon';
+                            window.location.href = '/payment-result?status=ok&provider=lemon';
                         }
                     } });
                 }

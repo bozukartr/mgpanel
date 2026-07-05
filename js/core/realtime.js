@@ -257,18 +257,18 @@
     // Opens the record referenced by a notification. A registered opener for the
     // notification's type wins; otherwise pages that show requests
     // (panel.html) override RT.onOpen; otherwise we navigate into the App Shell
-    // (app.html#route) — NOT the legacy standalone pages — so the persistent
+    // (app#route) — NOT the legacy standalone pages — so the persistent
     // header/nav stays and the URL matches the current /app#route scheme.
     RT.openRecord = function (recordId, type) {
         if (type && RT.openers[type]) { RT.openers[type](recordId); return; }
         // Guest-order notifications live in the Concierge drawer; from any other
         // page, jump there and let it focus the order via ?order=.
         if (type === 'guestOrder') {
-            window.location.href = 'app.html#concierge' + (recordId ? '?order=' + encodeURIComponent(recordId) : '');
+            window.location.href = 'app#concierge' + (recordId ? '?order=' + encodeURIComponent(recordId) : '');
             return;
         }
         if (typeof RT.onOpen === 'function') { RT.onOpen(recordId); return; }
-        window.location.href = 'app.html#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
+        window.location.href = 'app#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
     };
     // Notifications are removed once read / interacted with (no read-archive).
     RT.markRead = async function (id) { try { await db.collection('notifications').doc(id).delete(); } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'RT.markRead', id: id }); } };

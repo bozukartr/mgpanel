@@ -16,11 +16,11 @@
     <header class="dash-header">
         <div class="dash-logo"><img src="logo.png" alt="Hotizy"><span>Hotizy</span></div>
         <nav class="dash-nav">
-            <a href="dashboard.html" class="active">Panel</a>
-            <a href="concierge.html" data-module="concierge">Concierge</a>
-            <a href="panel.html" data-module="guestIssues">Misafir Kayıtları</a>
-            <a href="crm.html" data-module="crm">CRM</a>
-            <a href="admin.html" class="admin-only" id="dashAdminNav" style="display:none;">Ayarlar</a>
+            <a href="dashboard" class="active">Panel</a>
+            <a href="concierge" data-module="concierge">Concierge</a>
+            <a href="panel" data-module="guestIssues">Misafir Kayıtları</a>
+            <a href="crm" data-module="crm">CRM</a>
+            <a href="admin" class="admin-only" id="dashAdminNav" style="display:none;">Ayarlar</a>
         </nav>
         <div class="dash-user">
             <div id="rt-bell"></div>
@@ -99,15 +99,15 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
             <span>Panel</span>
         </button>
-        <button class="dash-bn" data-module="concierge" onclick="window.location.href='concierge.html'">
+        <button class="dash-bn" data-module="concierge" onclick="window.location.href='concierge'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 20a6 6 0 0 1 12 0"/><path d="M12 4v3"/><path d="M10 4h4"/></svg>
             <span>Concierge</span>
         </button>
-        <button class="dash-bn" data-module="guestIssues" onclick="window.location.href='panel.html'">
+        <button class="dash-bn" data-module="guestIssues" onclick="window.location.href='panel'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span>Kayıtlar</span>
         </button>
-        <button class="dash-bn" data-module="crm" onclick="window.location.href='crm.html'">
+        <button class="dash-bn" data-module="crm" onclick="window.location.href='crm'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>CRM</span>
         </button>

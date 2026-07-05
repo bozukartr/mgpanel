@@ -135,8 +135,8 @@
             // Resolve guest-order.html relative to wherever the panel is served
             // (works on Firebase Hosting, github.io subpaths, etc.).
             let base;
-            try { base = new URL('guest-order.html', location.href).href; }
-            catch (e) { base = 'guest-order.html'; }
+            try { base = new URL('guest-order', location.href).href; }
+            catch (e) { base = 'guest-order'; }
             const url = `${base}?tenant=${encodeURIComponent(TENANT_ID)}&room=ODA_NO`;
             hint.innerHTML = `<div class="cat-qr">📱 Misafir QR adresi: <code>${esc(url)}</code> — her oda için <code>ODA_NO</code> yerine oda numarasını yazıp QR oluşturun.</div>`;
         }
@@ -310,8 +310,8 @@
     // ── Room QR generator ──────────────────────────────────────
     function roomUrl(room) {
         let base;
-        try { base = new URL('guest-order.html', location.href).href; }
-        catch (e) { base = 'guest-order.html'; }
+        try { base = new URL('guest-order', location.href).href; }
+        catch (e) { base = 'guest-order'; }
         return base + '?tenant=' + encodeURIComponent(TENANT_ID) + '&room=' + encodeURIComponent(room);
     }
     // "101-110, 201, 305" -> ['101'..'110','201','305'] (deduped, max 200).
