@@ -1,6 +1,7 @@
 /* Hotizy — giriş sayfası (login.html) stilleri.
-   Kurumsal split-screen: sol lacivert marka paneli + sağ form kolonu.
-   Marka dili landing (index.html) ile aynı: lacivert #14233f + altın. */
+   Ultra minimal, tek kolon, ortalanmış: logo + sekme + form + yardım satırı.
+   Arka planda otelcilik ikonlarından oluşan, dekoratif/etkileşimsiz bir
+   parçacık dokusu (ultra ince çizgi, düşük opaklık, yavaş rastgele hareket). */
 :root {
     --background: #ffffff;
     --surface: #f7f8fa;
@@ -9,10 +10,9 @@
     --faint: #9aa2af;
     --primary: #14233f;
     --gold: #ab8636;
-    --gold-bright: #e2c27c;
     --border: #e7e9ee;
     --border-strong: #d9dde4;
-    --ring: rgba(20, 35, 63, .22);
+    --ring: rgba(20, 35, 63, .18);
     --font-body: 'Outfit', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
@@ -24,132 +24,93 @@ body {
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh; min-height: 100svh;
+    overflow-x: hidden;
 }
 .mono { font-family: var(--font-mono); }
 
-/* ── İskelet: sol panel + sağ form ─────────────────────────── */
-.auth { display: grid; grid-template-columns: minmax(380px, 44%) 1fr; min-height: 100vh; min-height: 100svh; }
+/* ── Dekoratif arka plan parçacıkları ──────────────────────── */
+.bg-particles { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.bg-particles svg {
+    position: absolute;
+    width: var(--sz, 48px); height: var(--sz, 48px);
+    color: var(--primary); opacity: .07;
+    animation: floaty var(--dur, 26s) ease-in-out var(--delay, 0s) infinite;
+}
+@keyframes floaty {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    25%  { transform: translate(var(--dx, 16px), calc(var(--dy, -12px) * -1)) rotate(var(--rot, 5deg)); }
+    50%  { transform: translate(calc(var(--dx, 16px) * -1), var(--dy, -12px)) rotate(calc(var(--rot, 5deg) * -1)); }
+    75%  { transform: translate(var(--dy, -12px), var(--dx, 16px)) rotate(calc(var(--rot, 5deg) * .6)); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
 
-/* Sol marka paneli */
-.auth-side {
-    background: var(--primary);
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 40px 48px;
-    position: relative;
-    overflow: hidden;
-}
-.auth-side::before {
-    content: "";
-    position: absolute; top: -180px; right: -140px; width: 560px; height: 560px;
-    background: radial-gradient(circle, rgba(171,134,54,.25), transparent 65%);
-    pointer-events: none;
-}
-.auth-side::after {
-    content: "";
-    position: absolute; bottom: -220px; left: -160px; width: 520px; height: 520px;
-    background: radial-gradient(circle, rgba(56,92,168,.28), transparent 65%);
-    pointer-events: none;
-}
-.side-brand {
-    display: inline-flex; align-items: center; gap: 11px;
-    font-weight: 700; font-size: 19px; letter-spacing: -.02em;
-    color: #fff; text-decoration: none; position: relative; z-index: 1; width: max-content;
-}
-.side-brand img { width: 32px; height: 32px; border-radius: 9px; }
-.side-mid { position: relative; z-index: 1; }
-.side-mid h2 {
-    font-size: clamp(34px, 3.4vw, 46px); font-weight: 700;
-    letter-spacing: -.035em; line-height: 1.08; margin-bottom: 14px;
-}
-.side-mid h2 em { font-style: normal; color: var(--gold-bright); }
-.side-mid p { color: rgba(255,255,255,.66); font-size: 15px; }
-.side-foot { position: relative; z-index: 1; font-size: 12px; color: rgba(255,255,255,.45); }
+/* ── İskelet: tek kolon, ortalanmış ─────────────────────────── */
+.wrap { position: relative; z-index: 1; min-height: 100vh; min-height: 100svh;
+    display: flex; align-items: center; justify-content: center; padding: 40px 24px; }
+.box { width: 100%; max-width: 336px; }
 
-/* Sağ form kolonu */
-.auth-main { display: flex; align-items: center; justify-content: center; padding: 40px 28px; }
-.auth-box { width: 100%; max-width: 372px; }
-.m-brand { display: none; }
+.mark { display: block; width: 40px; height: 40px; margin: 0 auto 36px; }
+.mark img { width: 100%; height: 100%; border-radius: 11px; display: block; }
 
-.auth-tenant[hidden], .caps-hint[hidden] { display: none; }
-.auth-tenant {
-    display: inline-flex; align-items: center; gap: 8px;
-    border: 1px solid var(--border-strong); border-radius: 999px;
-    padding: 6px 14px; margin-bottom: 22px;
-    font-size: 12px; color: var(--muted-foreground);
-}
-.auth-tenant .dot { width: 7px; height: 7px; border-radius: 50%; background: #2fbf71; }
-.auth-tenant .mono { font-size: 11.5px; }
+.tenant[hidden] { display: none; }
+.tenant { text-align: center; font-size: 12px; color: var(--faint); margin-bottom: 18px; }
 
-.auth-title { font-size: 26px; font-weight: 700; letter-spacing: -.03em; }
-.auth-sub { color: var(--muted-foreground); font-size: 14px; margin: 6px 0 28px; }
-.auth-help { font-size: 12px; color: var(--faint); text-align: center; margin-top: 26px; }
-
-/* ── Giriş kartı / sekmeler ────────────────────────────────── */
-.login-card { transition: opacity .25s ease; }
-.login-card.fade-hide { opacity: 0; pointer-events: none; }
-
-.login-tabs {
-    display: flex; background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 11px; padding: 4px; margin-bottom: 24px;
-}
+/* ── Sekmeler: metin + altın alt çizgi, kutu yok ───────────── */
+.login-tabs { display: flex; justify-content: center; gap: 22px; margin-bottom: 32px; }
 .login-tab {
-    flex: 1; padding: 10px 8px; border: none; background: transparent;
-    border-radius: 8px; font-family: inherit; font-size: 13.5px; font-weight: 600;
-    color: var(--faint); cursor: pointer; transition: all .18s;
+    background: none; border: none; border-bottom: 2px solid transparent;
+    font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--faint);
+    padding: 0 0 6px; cursor: pointer; transition: color .18s, border-color .18s;
 }
-.login-tab.active { background: #fff; color: var(--primary); box-shadow: 0 1px 4px rgba(15,23,42,.1); }
+.login-tab.active { color: var(--foreground); border-color: var(--gold); }
 
 .login-pane { display: none; }
 .login-pane.active { display: block; }
+.login-card { transition: opacity .25s ease; }
+.login-card.fade-hide { opacity: 0; pointer-events: none; }
 
 /* ── Form elemanları ───────────────────────────────────────── */
 .f-label {
-    display: block; font-size: 12.5px; font-weight: 600;
-    color: var(--foreground); margin: 0 0 7px 2px; letter-spacing: .01em;
+    display: block; font-size: 11.5px; font-weight: 600;
+    color: var(--muted-foreground); margin: 0 0 6px 1px; letter-spacing: .02em;
 }
 .f-input {
     width: 100%; background: #fff;
-    border: 1px solid var(--border-strong); border-radius: 10px;
-    color: var(--foreground); font-family: inherit; font-size: 15px;
-    padding: 13px 15px; outline: none; margin-bottom: 18px;
+    border: 1px solid var(--border); border-radius: 9px;
+    color: var(--foreground); font-family: inherit; font-size: 14.5px;
+    padding: 12px 13px; outline: none; margin-bottom: 20px;
     transition: border-color .16s, box-shadow .16s;
 }
-.f-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--ring); }
+.f-input:focus { border-color: var(--foreground); box-shadow: 0 0 0 3px var(--ring); }
 .f-input::placeholder { color: var(--faint); }
-.caps-hint {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 12px; font-weight: 600; color: #b07a1e;
-    background: #fdf6e7; border: 1px solid #efd9a8; border-radius: 8px;
-    padding: 7px 12px; margin: -8px 0 14px;
-}
+
+.caps-hint[hidden] { display: none; }
+.caps-hint { font-size: 11.5px; color: var(--gold); margin: -12px 0 16px; }
 
 .login-btn {
-    width: 100%; padding: 14px;
-    background: var(--primary); color: #fff;
-    border: none; border-radius: 10px;
-    font-family: inherit; font-size: 14.5px; font-weight: 600;
-    cursor: pointer; transition: background .18s, transform .18s;
+    width: 100%; padding: 13px;
+    background: var(--foreground); color: #fff;
+    border: none; border-radius: 9px;
+    font-family: inherit; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity .18s;
 }
-.login-btn:hover { background: #0d1830; transform: translateY(-1px); }
+.login-btn:hover { opacity: .88; }
 .login-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
 
 .login-link {
-    width: 100%; margin-top: 12px; padding: 8px;
+    display: block; width: 100%; margin-top: 12px; padding: 6px;
     background: none; border: none; color: var(--muted-foreground);
-    font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+    font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
     transition: color .16s;
 }
-.login-link:hover { color: var(--primary); }
+.login-link:hover { color: var(--foreground); }
 
-.force-pw-note { font-size: 13.5px; color: var(--muted-foreground); margin: 0 0 20px; line-height: 1.55; }
+.force-pw-note { font-size: 13px; color: var(--muted-foreground); margin: 0 0 20px; line-height: 1.55; }
 
 .error-message {
-    color: #c62828; font-size: 13px; font-weight: 500;
-    text-align: center; margin-top: 14px;
+    color: #c62828; font-size: 12.5px; font-weight: 500;
+    text-align: center; margin-top: 13px;
     opacity: 0; transition: .3s;
 }
 .error-message.show { opacity: 1; }
@@ -161,6 +122,8 @@ body {
     30%, 50%, 70% { transform: translateX(-4px); }
     40%, 60% { transform: translateX(4px); }
 }
+
+.help { font-size: 11.5px; color: var(--faint); text-align: center; margin-top: 26px; }
 
 /* ── Erişim kısıtlandı overlay ─────────────────────────────── */
 .payment-overlay {
@@ -180,31 +143,22 @@ body {
 .restricted-icon {
     width: 60px; height: 60px; margin: 0 auto 20px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 16px; background: var(--surface); color: var(--primary);
+    border-radius: 16px; background: var(--surface); color: var(--foreground);
 }
 .restricted-icon svg { width: 28px; height: 28px; }
 .payment-header h2 { font-size: 23px; font-weight: 700; letter-spacing: -.02em; }
 .payment-close-btn {
     width: 100%; margin-top: 28px; padding: 14px;
-    background: var(--primary); color: #fff;
+    background: var(--foreground); color: #fff;
     border: none; border-radius: 10px;
     font-family: inherit; font-size: 13.5px; font-weight: 600;
-    cursor: pointer; transition: background .2s;
+    cursor: pointer; transition: opacity .2s;
 }
-.payment-close-btn:hover { background: #0d1830; }
+.payment-close-btn:hover { opacity: .88; }
 
 /* ── Responsive ────────────────────────────────────────────── */
-@media (max-width: 860px) {
-    .auth { grid-template-columns: 1fr; }
-    .auth-side { display: none; }
-    .auth-main { padding: 36px 24px; align-items: flex-start; }
-    .auth-box { margin-top: 6vh; }
-    .m-brand {
-        display: inline-flex; align-items: center; gap: 10px;
-        font-weight: 700; font-size: 18px; letter-spacing: -.02em;
-        color: var(--foreground); text-decoration: none; margin-bottom: 30px;
-    }
-    .m-brand img { width: 30px; height: 30px; border-radius: 8px; }
+@media (max-width: 480px) {
+    .wrap { padding: 32px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

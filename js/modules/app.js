@@ -115,9 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {}
     })();
 
-    const sideYear = document.getElementById('sideYear');
-    if (sideYear) sideYear.textContent = new Date().getFullYear();
-
     function fnbShake(msg) { fnbCard.classList.add('shake'); fnbError.textContent = msg; fnbError.classList.add('show'); setTimeout(() => fnbCard.classList.remove('shake'), 500); }
 
     if (document.getElementById('fnbMgrToggle')) document.getElementById('fnbMgrToggle').onclick = () => {
