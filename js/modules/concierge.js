@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
     const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
     const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
-    if (!loggedUsername) { window.location.href = 'login.html'; return; }
+    if (!loggedUsername) { window.location.href = 'login'; return; }
 
     // Bu otelin (tenant) görünen adı — PDF/çıktılarda kullanılır. Sabit yazmak
     // başka bir tenant'a MGallery markasını sızdırır; bu yüzden guestConfig'ten
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ensureHotelName();
     auth.onAuthStateChanged(async (u) => {
         if (!u) {
-            window.location.href = 'login.html';
+            window.location.href = 'login';
         } else {
             // Doğrudan Firestore'dan güncel yetkiyi çek
             try {
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('c-logoutBtn')?.addEventListener('click', () => {
         auth.signOut().then(() => {
             localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
-            window.location.href = 'login.html';
+            window.location.href = 'login';
         });
     });
 
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutTimer = setTimeout(() => {
             auth.signOut().then(() => {
                 localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
-                window.location.href = 'login.html';
+                window.location.href = 'login';
             });
         }, 15 * 60 * 1000); // 15 minutes
     }

@@ -35,7 +35,7 @@
     // App Shell iframe'i içinde gömülüyken yönlendirmeyi kabuk yapar; burada sadece nav gizlenir.
     if (current && !enabled(current.key) && !window.__EMBED__) {
         const dest = MAP.find(x => enabled(x.key));
-        window.location.replace(dest ? dest.page : 'login.html');
+        window.location.replace(dest ? dest.page : 'login');
         return;
     }
 

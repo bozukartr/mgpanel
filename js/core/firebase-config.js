@@ -28,7 +28,7 @@ const TENANT_ID = localStorage.getItem('hotelTenantId') || DEFAULT_TENANT;
 // localhost fall back to the default tenant.
 function resolveTenant() {
     // Explicit ?tenant= override — lets you test any hotel before custom-domain
-    // subdomains exist (e.g. .../login.html?tenant=testhotel).
+    // subdomains exist (e.g. .../login?tenant=testhotel).
     try {
         const q = (new URLSearchParams(window.location.search).get('tenant') || '').toLowerCase();
         if (/^[a-z0-9-]{2,24}$/.test(q)) return q;

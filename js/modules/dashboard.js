@@ -48,7 +48,7 @@
         if (ROLE === 'admin' || USERNAME.toLowerCase() === 'admin') {
             const a = $('dashAdminNav'); if (a) a.style.display = '';
         }
-        $('dashLogout').onclick = () => { try { auth.signOut(); } catch (e) {} location.href = 'login.html'; };
+        $('dashLogout').onclick = () => { try { auth.signOut(); } catch (e) {} location.href = 'login'; };
     }
 
     // ── KPI hesapları ──────────────────────────────────────────
@@ -155,6 +155,6 @@
     let started = false;
     function start() { if (started) return; started = true; initHeader(); listen(); }
 
-    if (!USERNAME) { location.href = 'login.html'; return; }
-    auth.onAuthStateChanged(u => { if (!u) { location.href = 'login.html'; return; } start(); });
+    if (!USERNAME) { location.href = 'login'; return; }
+    auth.onAuthStateChanged(u => { if (!u) { location.href = 'login'; return; } start(); });
 })();

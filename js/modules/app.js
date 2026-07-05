@@ -1,6 +1,6 @@
 // Giriş sayfası bir App Shell iframe'i içinde (oturum düşmesi vb.) yüklenirse,
 // üst pencerede tam ekran açılmalı — iframe içinde login gösterme.
-(function () { try { if (window.top !== window.self) window.top.location.replace('login.html'); } catch (e) {} })();
+(function () { try { if (window.top !== window.self) window.top.location.replace('login'); } catch (e) {} })();
 
 // Maintenance enforcement — runs on the login page (and as a fallback on cached
 // pages). Pre-auth, the relevant hotel comes from the URL (subdomain / ?tenant),
@@ -99,20 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pw.addEventListener('keydown', check);
         pw.addEventListener('keyup', check);
         pw.addEventListener('blur', () => { hint.hidden = true; });
-    })();
-
-    // Otel alt alan adındaysak (ör. grandhotel.hotizy.com) girişin hangi otele
-    // yapıldığını gösteren rozet.
-    (function () {
-        try {
-            const chip = document.getElementById('tenantChip');
-            const hostEl = document.getElementById('tenantHost');
-            const h = (location.hostname || '').toLowerCase();
-            if (chip && hostEl && h.indexOf('hotizy.com') !== -1 && h.split('.').length >= 3 && h.split('.')[0] !== 'www') {
-                hostEl.textContent = h;
-                chip.hidden = false;
-            }
-        } catch (e) {}
     })();
 
     function fnbShake(msg) { fnbCard.classList.add('shake'); fnbError.textContent = msg; fnbError.classList.add('show'); setTimeout(() => fnbCard.classList.remove('shake'), 500); }
@@ -284,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (!pendingPwUser) {
-            window.location.href = 'login.html';
+            window.location.href = 'login';
             return;
         }
 
