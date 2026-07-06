@@ -151,9 +151,27 @@
 .pr-r-note { font-size: 11.5px; color: rgba(255,255,255,.65); line-height: 1.5; margin-top: 14px; }
 
 @media (max-width: 760px) {
-    .pr-panel { grid-template-columns: 1fr; max-width: 460px; }
-    .pr-config { padding: 22px; }
-    .pr-plans { grid-template-columns: 1fr; }
-    .pr-plan-opt { flex-direction: row; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
-    .pr-mods { grid-template-columns: 1fr; }
+    .pr-section { padding: 40px 0; }
+    .pr-panel { grid-template-columns: 1fr; max-width: 460px; border-radius: 18px; }
+    .pr-config { padding: 18px; }
+    .pr-field { margin-bottom: 13px; }
+    .pr-toggle-wrap { text-align: center !important; }
+    .pr-config .pr-toggle-wrap { text-align: center; }
+
+    /* Paket seçimi: masaüstüyle aynı 3'lü ızgara ama ufaltılmış; açıklama
+       yalnız seçili pakette görünür, taşmayı ve gereksiz kaydırmayı önler. */
+    .pr-plans { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .pr-plan-opt { padding: 9px 8px 8px; border-radius: 11px; }
+    .pr-plan-opt b { font-size: 12px; }
+    .pr-plan-opt .amt { font-size: 16px; }
+    .pr-plan-opt small { display: none; }
+    .pr-plan-opt.active small { display: block; margin-top: 1px; }
+    .pr-plan-tag { font-size: 8px; padding: 2px 6px; top: -8px; }
+
+    .pr-mods { grid-template-columns: 1fr 1fr; gap: 7px; }
+    .pr-mod { padding: 9px 10px; font-size: 12.5px; }
+    .pr-mod input { width: 16px; height: 16px; }
+
+    .pr-panel .pr-result { padding: 20px; }
+    .pr-result .pr-r-total { font-size: 36px; }
 }

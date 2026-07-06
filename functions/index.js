@@ -845,6 +845,12 @@ const LS_PLANS = {
 };
 const LS_PMS = 99, LS_EXTRA = 19, LS_DISCOUNT = 0.18, LS_MIN_ROOMS = 25, LS_MAX_ROOMS = 500;
 
+// Sitedeki tüm fiyatlar KDV hariç gösterilir; Lemon Squeezy ödeme ekranında
+// gerçek tahsilat için üstüne KDV eklenir (muhasebedeki "amount" alanı KDV
+// hariç kalır — devlete ödenecek KDV, şirket cirosu değildir).
+const VAT_RATE = 0.20;
+function withVat(eur) { return Math.round(eur * (1 + VAT_RATE) * 100) / 100; }
+
 function normalizePlan(plan) {
   const p = String(plan || '').toLowerCase();
   if (p === 'business' || p === 'enterprise') return 'enterprise';
@@ -944,16 +950,18 @@ exports.createLemonCheckout = onCall(
     if (!apiKey || !ls.storeId || !variantId) {
       throw new HttpsError('failed-precondition', 'Lemon Squeezy henüz yapılandırılmamış.');
     }
-    const price = configuredPlanPrice(plan, cfg); // EUR
+    const price = configuredPlanPrice(plan, cfg); // EUR, KDV hariç
+    const priceWithVat = withVat(price);
     const oid = 'LS' + tenantId.replace(/[^a-zA-Z0-9]/g, '') + Date.now();
     await db.collection('payments').doc(oid).set({
-      oid, tenantId, plan, amount: price, currency: 'EUR', status: 'pending',
+      oid, tenantId, plan, amount: price, amountWithVat: priceWithVat, vatRate: VAT_RATE,
+      currency: 'EUR', status: 'pending',
       provider: 'lemonsqueezy', cycle: 'monthly', createdBy: uid,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     try {
       const url = await lsCreateCheckout({
-        apiKey, storeId: ls.storeId, variantId, priceCents: Math.round(price * 100),
+        apiKey, storeId: ls.storeId, variantId, priceCents: Math.round(priceWithVat * 100),
         email: user.email || '', name: tenant.name || user.username || 'Hotizy',
         custom: strMap({ tenant_id: tenantId, plan, cycle: 'monthly', oid }),
         redirectUrl: BASE_URL + '/payment-result.html?status=ok&provider=lemon'
@@ -980,7 +988,8 @@ exports.lemonCheckout = onRequest(
       const plan = normalizePlan(b.plan);
       const cycle = b.cycle === 'annual' ? 'annual' : 'monthly';
       const modsCount = Array.isArray(b.mods) ? b.mods.length : (parseInt(b.mods, 10) || 1);
-      const quote = computeQuoteEUR(plan, b.rooms, modsCount, !!b.pms, cycle);
+      const quote = computeQuoteEUR(plan, b.rooms, modsCount, !!b.pms, cycle); // KDV hariç
+      const totalWithVat = withVat(quote.total);
 
       const billingSnap = await db.collection('siteConfig').doc('billing').get();
       const cfg = billingSnap.exists ? billingSnap.data() : {};
@@ -996,17 +1005,18 @@ exports.lemonCheckout = onRequest(
       const oid = 'LSC' + Date.now() + Math.floor(Math.random() * 1000);
       await db.collection('lemonOrders').doc(oid).set({
         oid, plan, cycle, rooms: quote.rooms, mods: Array.isArray(b.mods) ? b.mods : [], pms: !!b.pms,
-        amount: quote.total, currency: 'EUR', status: 'pending', provider: 'lemonsqueezy',
+        amount: quote.total, amountWithVat: totalWithVat, vatRate: VAT_RATE,
+        currency: 'EUR', status: 'pending', provider: 'lemonsqueezy',
         buyer: { email, name: String(buyer.name || ''), hotel: String(buyer.hotel || '') },
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
       const url = await lsCreateCheckout({
-        apiKey, storeId: ls.storeId, variantId, priceCents: Math.round(quote.total * 100),
+        apiKey, storeId: ls.storeId, variantId, priceCents: Math.round(totalWithVat * 100),
         email, name: String(buyer.name || ''),
         custom: strMap({ plan, cycle, oid, rooms: quote.rooms, signup: '1' }),
         redirectUrl: BASE_URL + '/payment-result.html?status=ok&provider=lemon'
       });
-      res.json({ url, oid, amount: quote.total, cycle });
+      res.json({ url, oid, amount: quote.total, amountWithVat: totalWithVat, cycle });
     } catch (e) {
       res.status(500).json({ error: e.message || 'hata' });
     }
