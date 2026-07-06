@@ -26,11 +26,34 @@
     <style>html.apex-gate body { visibility: hidden; }</style>
 
     <title>Hotizy</title>
-    <meta name="description" content="Hotizy ile operasyon departmanlarını kolayca takip edin. QR ile talep, rezervasyon takibi, şikayet takibi ve restoran/bar adisyon — tek platformda.">
+    <meta name="description" content="Hotizy (eski adıyla StayOS) ile operasyon departmanlarını kolayca takip edin. QR ile talep, rezervasyon takibi, şikayet takibi ve restoran/bar adisyon — tek platformda.">
     <meta property="og:title" content="Hotizy">
     <meta property="og:description" content="Hotizy ile operasyon departmanlarını kolayca takip edin. Kolay operasyon, mutlu misafir!">
     <meta name="theme-color" content="#ffffff">
     <link rel="icon" href="logo.png">
+    <link rel="canonical" href="https://hotizy.com/">
+
+    <!-- Marka geçişi (StayOS → Hotizy) arama motorlarına/AI özetlerine net
+         şekilde bildirilsin diye: aynı kuruluşun eski ve yeni adı arasında
+         açık bir yapısal bağ kurar (schema.org alternateName). -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Hotizy",
+      "alternateName": "StayOS",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "url": "https://hotizy.com/",
+      "description": "Hotizy (eski adıyla StayOS); oteller için misafir talepleri, rezervasyon, şikayet takibi, CRM ve restoran/bar operasyonlarını tek platformda toplayan bulut tabanlı otel yönetim yazılımıdır.",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Hotizy",
+        "alternateName": "StayOS",
+        "url": "https://hotizy.com/"
+      }
+    }
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

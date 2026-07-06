@@ -1,0 +1,25 @@
+User-agent: *
+Allow: /$
+Allow: /fiyatlandirma
+Allow: /hakkimizda
+Allow: /legal/
+Disallow: /login
+Disallow: /app
+Disallow: /panel
+Disallow: /concierge
+Disallow: /crm
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /restaurant
+Disallow: /reports
+Disallow: /superadmin
+Disallow: /guest-order
+Disallow: /maintenance
+Disallow: /apex-bakim
+Disallow: /apex-yakinda
+Disallow: /payment-result
+Disallow: /js/
+Disallow: /css/
+Disallow: /cloudflare/
+
+Sitemap: https://hotizy.com/sitemap.xml
