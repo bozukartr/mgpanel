@@ -1,31 +1,5 @@
-# Hotizy — robots.txt
-#
-# Bu dosya yalnızca ARAMA MOTORU TARAMA davranışını yönetir; bir erişim
-# kontrolü mekanizması DEĞİLDİR (robots.txt herkese açık, herhangi biri
-# indirebilir — uyumlu olmayan bir bot veya kötü niyetli biri buradaki
-# Disallow kurallarını görmezden gelip o adrese doğrudan gidebilir). Bu
-# yüzden kimlik doğrulaması gerektiren uygulama sayfaları (giriş, panel,
-# yönetim konsolları, restoran POS, raporlar vb.) burada TEK TEK
-# listelenmiyor — bunları burada saymak onları gizlemez, tam tersine bir
-# haritasını herkese açık halde yayınlamış olur.
-#
-# Bu sayfaların arama sonuçlarında görünmemesi iki gerçek mekanizmayla
-# sağlanıyor:
-#   1) Firebase Authentication + Firestore güvenlik kuralları — veriye
-#      girişi zaten engelliyor (asıl erişim kontrolü burada).
-#   2) `X-Robots-Tag: noindex, nofollow` HTTP başlığı (bkz. firebase.json →
-#      hosting.headers) — arama motorlarına bu sayfaları taramaya devam
-#      etmelerini ama SONUÇLARA KOYMAMALARINI söyler. Disallow'un aksine bu
-#      yöntem, sayfaya dışarıdan bir bağlantı olsa bile arama sonucunda
-#      "boş" bir kayıt olarak bile görünmesini engeller.
-#
-# /js/ ve /css/ kasıtlı olarak ENGELLENMEDİ: Google, sayfaları doğru
-# render edip mobil uyumluluk/içerik değerlendirmesi yapabilmek için bu
-# dosyaları çekebilmelidir — CSS/JS'i robots.txt ile engellemek güncel
-# Google rehberliğine aykırıdır ve halka açık sayfaların (ör. JS tabanlı
-# fiyat hesaplayıcısı olan /fiyatlandirma) doğru indekslenmesine zarar
-# verebilir.
-
+# noindex için X-Robots-Tag başlığı kullanılıyor (bkz. firebase.json), erişim
+# kontrolü Firebase Auth + Firestore kuralları — robots.txt yalnızca tarama.
 User-agent: *
 Allow: /
 
