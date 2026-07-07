@@ -104,7 +104,9 @@ service cloud.firestore {
     // --- Restaurant (POS) module, all tenant-scoped to the caller's hotel ---
     // Per-hotel restaurant settings (tax, currency, receipt). Admin writes.
     match /restConfig/{tid} {
-      allow read:  if signedIn();
+      // Yalnızca personel sayfalarından okunur (restaurant.html) — misafir
+      // akışı hiç kullanmaz, bu yüzden tenant kilidi kayıpsız uygulanabilir.
+      allow read:  if signedIn() && tid == callerTenant();
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
     // Sıralı adisyon numarası sayacı (her personel artırabilir).
@@ -301,7 +303,10 @@ service cloud.firestore {
     //     signed-in client (incl. anonymous guests) may READ it; only the hotel's
     //     admin writes it. Holds no guest data. ---
     match /guestConfig/{tid} {
-      allow read:  if signedIn();
+      // Misafir (anonim) tarafı gerçekten her oteli okuyabilmeli (kendi
+      // tenant claim'i yok) — bu yalnızca personel tarafını kendi oteline
+      // kilitler; anonim misafirler etkilenmez.
+      allow read:  if signedIn() && (!isStaff() || tid == callerTenant());
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
 
@@ -319,7 +324,9 @@ service cloud.firestore {
     //     talep and şikayet. Any signed-in staff member READS it; only the
     //     hotel's admin writes it. Holds no guest data. ---
     match /issueConfig/{tid} {
-      allow read:  if signedIn();
+      // Yalnızca personel sayfalarından okunur (admin/panel/reports) —
+      // misafir akışı hiç kullanmaz, tenant kilidi kayıpsız uygulanabilir.
+      allow read:  if signedIn() && tid == callerTenant();
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
 
@@ -328,7 +335,9 @@ service cloud.firestore {
     //     fills itself); only the hotel's admin may DELETE one. Holds no guest
     //     data — just the curatable list of topic labels. ---
     match /issueTopics/{id} {
-      allow read:   if signedIn();
+      // Yalnızca personel sayfalarından okunur (issue-config.js: admin/panel/
+      // reports) — misafir akışı hiç kullanmaz, tenant kilidi kayıpsız.
+      allow read:   if signedIn() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow create: if isStaff()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow delete: if isStaff() && isAdmin()
@@ -340,7 +349,11 @@ service cloud.firestore {
     //     only the hotel's own admin can add/edit/remove items. The catalog holds
     //     no guest data, just the list of services the hotel offers. ---
     match /requestCatalog/{id} {
-      allow read:   if signedIn();
+      // guest-order.js gerçekten anonim misafirden okur — anon tarafı açık
+      // kalmalı; STAFF tarafı ise kendi oteline kilitlenir (rakip otelin
+      // kataloğunu personel üzerinden okumayı engeller).
+      allow read:   if signedIn()
+        && (!isStaff() || resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
       allow create: if isStaff() && isAdmin()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow update: if isStaff() && isAdmin()
@@ -354,7 +367,9 @@ service cloud.firestore {
     //     hosted PDF link (no Storage upload); guests only ever read the list.
     //     Same read/write shape as requestCatalog. ---
     match /guestMenus/{id} {
-      allow read:   if signedIn();
+      // Aynı desen: anonim misafir tarafı açık, personel kendi oteline kilitli.
+      allow read:   if signedIn()
+        && (!isStaff() || resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
       allow create: if isStaff() && isAdmin()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow update: if isStaff() && isAdmin()
@@ -408,17 +423,18 @@ service cloud.firestore {
     //     verify surname + room; written only by the hotel's own staff. ---
     match /roomAccess/{id} {
       // Anonymous guests have no tenant claim (tenant is resolved client-side
-      // from the subdomain, not embedded in the anon Auth token), so this
-      // cannot be scoped to "the caller's own tenant" the way staff-facing
-      // rules are. Every client (staff and guest-order.js) only ever reads a
-      // single doc it already knows the id of (`{tenantId}__{room}`) — never
-      // a query — so `get` stays open to any signed-in caller (needed for the
-      // anonymous verification gate) while `list` is denied outright. This
-      // stops bulk cross-tenant enumeration (dumping every hotel's live room
-      // occupancy + hashed guest names in one query) while leaving the
-      // legitimate single-room lookup untouched.
-      allow get:            if signedIn();
-      allow list:           if false;
+      // from the subdomain, not embedded in the anon Auth token), so their
+      // `get` cannot be scoped to "the caller's own tenant" the way
+      // staff-facing rules are — every guest-order.js read stays open by
+      // necessity (needed for the anonymous verification gate). STAFF callers
+      // DO carry a tenant claim, so their `get` is locked to their own hotel's
+      // rooms — closes the cross-tenant leak where any hotel's logged-in
+      // staff could read another hotel's live room-occupancy + hashed guest
+      // names by guessing `{tenantId}__{room}`. `list` stays denied outright
+      // (stops bulk enumeration for both audiences).
+      allow get:  if signedIn()
+        && (!isStaff() || resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      allow list: if false;
       allow create, update: if isStaff()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow delete:        if isStaff()
