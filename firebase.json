@@ -12,7 +12,8 @@
     "cleanUrls": true,
     "rewrites": [
       { "source": "/api/lemon-checkout", "function": { "functionId": "lemonCheckout", "region": "us-central1" } },
-      { "source": "/api/lemon-webhook", "function": { "functionId": "lemonWebhook", "region": "us-central1" } }
+      { "source": "/api/lemon-webhook", "function": { "functionId": "lemonWebhook", "region": "us-central1" } },
+      { "source": "/api/mint-guest-claim", "function": { "functionId": "mintGuestClaim", "region": "us-central1" } }
     ],
     "ignore": [
       "firebase.json",

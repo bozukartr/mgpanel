@@ -33,6 +33,17 @@ service cloud.firestore {
       return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
+    // Anonim misafir oturumuna functions/index.js:mintGuestClaim tarafından
+    // yazılan, Cloudflare Worker'ın imzaladığı GERÇEK subdomain'den türetilmiş
+    // tenant claim'i. mintGuestClaim çağrılmadıysa (ör. Worker'ın önünde
+    // olmayan yerel geliştirme, ya da istemci mint isteğini hiç göndermediyse)
+    // null döner — bu durumda çağıran taraf kuralları GERİYE DÖNÜK UYUMLU
+    // (claim'siz, eski) davranışa düşürmelidir; null asla "her şeye izin ver"
+    // anlamına gelmemeli, yalnızca "doğrulanmış bilgi yok" anlamına gelir.
+    function guestClaimTenant() {
+      return request.auth.token.get('tenantId', null);
+    }
+
     // Per-hotel guest-page setting: does this hotel require a guest to verify
     // (surname + room) before ordering? Default false (opt-in).
     function verificationRequired(tid) {
@@ -303,10 +314,14 @@ service cloud.firestore {
     //     signed-in client (incl. anonymous guests) may READ it; only the hotel's
     //     admin writes it. Holds no guest data. ---
     match /guestConfig/{tid} {
-      // Misafir (anonim) tarafı gerçekten her oteli okuyabilmeli (kendi
-      // tenant claim'i yok) — bu yalnızca personel tarafını kendi oteline
-      // kilitler; anonim misafirler etkilenmez.
-      allow read:  if signedIn() && (!isStaff() || tid == callerTenant());
+      // Personel her zaman kendi oteline kilitli. Anonim misafir: Worker'ın
+      // imzaladığı doğrulanmış claim VARSA yalnızca kendi oteline kilitli;
+      // claim yoksa (mintGuestClaim çağrılmadı/başarısız oldu) eski açık
+      // davranışa düşülür — geriye dönük uyumlu, hiçbir şey kırılmaz.
+      allow read:  if signedIn() && (
+        (isStaff() && tid == callerTenant())
+        || (!isStaff() && (guestClaimTenant() == null || guestClaimTenant() == tid))
+      );
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
 
@@ -349,11 +364,14 @@ service cloud.firestore {
     //     only the hotel's own admin can add/edit/remove items. The catalog holds
     //     no guest data, just the list of services the hotel offers. ---
     match /requestCatalog/{id} {
-      // guest-order.js gerçekten anonim misafirden okur — anon tarafı açık
-      // kalmalı; STAFF tarafı ise kendi oteline kilitlenir (rakip otelin
-      // kataloğunu personel üzerinden okumayı engeller).
-      allow read:   if signedIn()
-        && (!isStaff() || resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      // guest-order.js gerçekten anonim misafirden okur. STAFF her zaman
+      // kendi oteline kilitli. Anonim tarafta doğrulanmış claim VARSA aynı
+      // kilit uygulanır; claim yoksa eski açık davranışa düşülür (geriye
+      // dönük uyumlu).
+      allow read:   if signedIn() && (
+        (isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant())
+        || (!isStaff() && (guestClaimTenant() == null || guestClaimTenant() == resource.data.get('tenantId', 'NO_TENANT_DOC')))
+      );
       allow create: if isStaff() && isAdmin()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow update: if isStaff() && isAdmin()
@@ -367,9 +385,12 @@ service cloud.firestore {
     //     hosted PDF link (no Storage upload); guests only ever read the list.
     //     Same read/write shape as requestCatalog. ---
     match /guestMenus/{id} {
-      // Aynı desen: anonim misafir tarafı açık, personel kendi oteline kilitli.
-      allow read:   if signedIn()
-        && (!isStaff() || resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      // Aynı desen: STAFF her zaman kendi oteline kilitli; anonim tarafta
+      // claim varsa aynı kilit, yoksa geriye dönük uyumlu açık davranış.
+      allow read:   if signedIn() && (
+        (isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant())
+        || (!isStaff() && (guestClaimTenant() == null || guestClaimTenant() == resource.data.get('tenantId', 'NO_TENANT_DOC')))
+      );
       allow create: if isStaff() && isAdmin()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow update: if isStaff() && isAdmin()
@@ -398,7 +419,12 @@ service cloud.firestore {
         // If the hotel requires verification, the room must be currently open
         // (an in-house guest exists) — blocks checked-out rooms reusing the QR.
         && (!verificationRequired(request.resource.data.tenantId)
-            || roomIsOpen(request.resource.data.tenantId, request.resource.data.room));
+            || roomIsOpen(request.resource.data.tenantId, request.resource.data.room))
+        // Worker-doğrulanmış claim VARSA sipariş yalnızca o gerçek tenant'a
+        // yazılabilir (?tenant= veya başka bir client-taraflı iddia ile
+        // farklı bir otele sahte sipariş enjekte edilemez). Claim yoksa
+        // (Worker'ın önünde olmayan ortam) eski davranışa düşülür.
+        && (guestClaimTenant() == null || guestClaimTenant() == request.resource.data.tenantId);
 
       // Staff manage status/assignment within their hotel (tenant + owner frozen);
       // OR the guest cancels their own still-pending order.
@@ -422,18 +448,20 @@ service cloud.firestore {
     //     Readable by anyone signed in (incl. anonymous guests) so the QR page can
     //     verify surname + room; written only by the hotel's own staff. ---
     match /roomAccess/{id} {
-      // Anonymous guests have no tenant claim (tenant is resolved client-side
-      // from the subdomain, not embedded in the anon Auth token), so their
-      // `get` cannot be scoped to "the caller's own tenant" the way
-      // staff-facing rules are — every guest-order.js read stays open by
-      // necessity (needed for the anonymous verification gate). STAFF callers
-      // DO carry a tenant claim, so their `get` is locked to their own hotel's
-      // rooms — closes the cross-tenant leak where any hotel's logged-in
-      // staff could read another hotel's live room-occupancy + hashed guest
-      // names by guessing `{tenantId}__{room}`. `list` stays denied outright
-      // (stops bulk enumeration for both audiences).
-      allow get:  if signedIn()
-        && (!isStaff() || resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      // STAFF callers carry a real tenant (their own systemUsers doc), so
+      // their `get` is locked to their own hotel's rooms — closes the
+      // cross-tenant leak where any hotel's logged-in staff could read
+      // another hotel's live room-occupancy + hashed guest names by
+      // guessing `{tenantId}__{room}`. Anonymous guests: if mintGuestClaim
+      // verified their real subdomain (see guestClaimTenant()), the same
+      // lock applies; otherwise (Worker not in front, e.g. local dev) falls
+      // back to the old open behavior needed for the anonymous verification
+      // gate — geriye dönük uyumlu. `list` stays denied outright (stops bulk
+      // enumeration for both audiences).
+      allow get:  if signedIn() && (
+        (isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant())
+        || (!isStaff() && (guestClaimTenant() == null || guestClaimTenant() == resource.data.get('tenantId', 'NO_TENANT_DOC')))
+      );
       allow list: if false;
       allow create, update: if isStaff()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();

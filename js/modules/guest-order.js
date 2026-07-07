@@ -273,11 +273,36 @@
 
         applyConfig();
         let started = false;
-        auth.onAuthStateChanged(u => { if (u && !started) { started = true; sessionUid = u.uid; loadData(); listenOrders(); } });
+        auth.onAuthStateChanged(u => {
+            if (u && !started) {
+                started = true; sessionUid = u.uid;
+                mintTenantClaim(); // best-effort, arka planda — sonucu beklenmez
+                loadData(); listenOrders();
+            }
+        });
         auth.signInAnonymously().catch(err => {
             console.error('Anon sign-in failed', err);
             toast('Bağlantı kurulamadı. ?demo ile test edebilirsiniz.', true);
         });
+    }
+
+    // Cloudflare Worker, gerçek gelen subdomain'i imzalı header'lar olarak
+    // iletir (yalnızca aynı origin'den /api/... rewrite'ı üzerinden — bu
+    // yüzden fetch('/api/...') kullanılır, fns.httpsCallable() DEĞİL: o
+    // doğrudan cloudfunctions.net'e gider ve Worker'ı atlar). Sunucu bu
+    // imzayı doğrulayıp anonim oturuma gerçek tenant'ı bir custom claim
+    // olarak yazar; firestore.rules bunu kullanarak "bu misafir gerçekten bu
+    // otelin subdomain'inden mi geldi" diye teyit eder. Worker'ın önünde
+    // olmayan ortamlarda (yerel geliştirme, ?tenant= ile test) imza
+    // bulunmaz — istek reddedilir, hata sessizce yutulur, misafir tarafı
+    // firestore.rules'daki eski (claim'siz) davranışa düşer.
+    function mintTenantClaim() {
+        if (!auth || !auth.currentUser) return;
+        auth.currentUser.getIdToken().then(idToken => fetch('/api/mint-guest-claim', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + idToken }
+        })).then(res => { if (res.ok) return auth.currentUser.getIdToken(true); })
+          .catch(() => { /* claim'siz devam — geriye dönük uyumlu */ });
     }
 
     // guestConfig/requestCatalog daha önce tek seferlik .get() ile
