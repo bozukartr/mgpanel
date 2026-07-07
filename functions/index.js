@@ -664,12 +664,53 @@ function _istanbulToday() {
   return d.toISOString().slice(0, 10);
 }
 
+// ── Hız sınırlama: getGuestName/getGuestStay kimlik doğrulaması gerektirmez
+//    (misafir henüz "doğrulanmadan" çağırıyor), bu yüzden kötüye kullanıma
+//    karşı tek savunma budur. İki ayrı pencereli sayaç paylaşılır: IP başına
+//    (kaynak rotasyonuna karşı) ve hedef oda başına (tek bir odaya karşı
+//    otomatik soyadı denemesine karşı) — ikisi de aşılırsa istek reddedilir.
+//    Firestore transaction ile atomik; `_rateLimits` yalnızca Admin SDK'dan
+//    yazıldığından ayrı bir kural gerekmez (client'a hiç açık değil).
+const RATE_WINDOW_MS = 10 * 60 * 1000; // 10 dakikalık kayan pencere
+const RATE_MAX_IP = 20;                // bir IP, pencere başına iki fonksiyon toplamı en fazla 20 deneme
+const RATE_MAX_TARGET = 8;             // aynı (tenant+oda) hedefi, pencere başına en fazla 8 deneme
+
+function callerIp(request) {
+  const req = request.rawRequest;
+  if (!req) return 'unknown';
+  return ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || req.ip || 'unknown';
+}
+async function withinRateLimit(key, max) {
+  const ref = db.collection('_rateLimits').doc(key);
+  const now = Date.now();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const cur = snap.exists ? snap.data() : null;
+    if (cur && cur.windowStart && (now - cur.windowStart) < RATE_WINDOW_MS) {
+      if (cur.count >= max) return false;
+      tx.update(ref, { count: admin.firestore.FieldValue.increment(1) });
+    } else {
+      tx.set(ref, { windowStart: now, count: 1 });
+    }
+    return true;
+  });
+}
+// İki misafir-arama fonksiyonu aynı bütçeyi paylaşır (aksi halde biri
+// tükenince diğerine geçilip sınır iki katına çıkarılabilirdi).
+async function checkGuestLookupRateLimit(request, tenant, room) {
+  const ip = callerIp(request);
+  const ipOk = await withinRateLimit('glookup_ip_' + ip, RATE_MAX_IP);
+  if (!ipOk) return false;
+  return withinRateLimit('glookup_target_' + tenant + '_' + room, RATE_MAX_TARGET);
+}
+
 exports.getGuestName = onCall({ region: REGION }, async (request) => {
   const d = request.data || {};
   const tenant = String(d.tenant || '').trim().toLowerCase().slice(0, 40);
   const room = String(d.room || '').trim().slice(0, 40);
   const surname = String(d.surname || '').trim().slice(0, 60);
   if (!tenant || !room || !surname) return { ok: false };
+  if (!(await checkGuestLookupRateLimit(request, tenant, room))) return { ok: false };
 
   // Tek alan (room) sorgusu → bileşik index gerektirmez; tenant kodda süzülür.
   let snap;
@@ -714,6 +755,7 @@ exports.getGuestStay = onCall({ region: REGION }, async (request) => {
   const room = String(d.room || '').trim().slice(0, 40);
   const surname = String(d.surname || '').trim().slice(0, 60);
   if (!tenant || !room || !surname) return { ok: false };
+  if (!(await checkGuestLookupRateLimit(request, tenant, room))) return { ok: false };
 
   let dirSnap;
   try {
