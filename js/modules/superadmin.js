@@ -1601,6 +1601,153 @@
     }
     if ($('errorSearch')) $('errorSearch').addEventListener('input', renderErrors);
 
+    // ── "Stres" sekmesi: dış servis izleme + kendi sağlık kontrolü + izole
+    //    yük testi. Sekme ilk açıldığında bir kez kurulur; interval'lar
+    //    yalnızca sekme görünürken çalışır (başka sekmeye geçince durur) —
+    //    diğer sekmelerin aksine kalıcı arka plan yükü eklemez.
+    const FN_BASE = 'https://us-central1-panel-d25c9.cloudfunctions.net';
+    let stressInited = false;
+    let stOutageTimer = null, stHealthTimer = null;
+
+    function stSetDot(id, level) {
+        const el = $(id); if (!el) return;
+        el.className = 'st-dot st-dot-' + level;
+    }
+    async function fetchJsonTimeout(url, ms) {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), ms || 6000);
+        try {
+            const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return await res.json();
+        } finally { clearTimeout(t); }
+    }
+    async function checkOutages() {
+        // Cloudflare — statuspage.io tabanlı, tarayıcıdan CORS ile erişilebilir, resmi.
+        try {
+            const d = await fetchJsonTimeout('https://www.cloudflarestatus.com/api/v2/summary.json', 7000);
+            const ind = (d && d.status && d.status.indicator) || 'none';
+            stSetDot('stCfDot', ind === 'none' ? 'green' : (ind === 'minor' ? 'amber' : 'red'));
+            const active = (d.incidents || []).filter(i => i.status !== 'resolved');
+            if ($('stCfDetail')) $('stCfDetail').textContent = active.length
+                ? active.length + ' aktif olay: ' + active[0].name
+                : ((d.status && d.status.description) || 'Sorun bildirilmedi');
+        } catch (e) {
+            stSetDot('stCfDot', 'gray');
+            if ($('stCfDetail')) $('stCfDetail').textContent = 'Bu tarayıcıdan durum bilgisine ulaşılamadı — resmi sayfaya bakın.';
+        }
+        // Google Cloud / Firebase — JSON geçmişi CORS garantili değil; başarısız
+        // olursa yalnızca "resmi sayfaya bakın" göster, sekmeyi kırma.
+        try {
+            const list = await fetchJsonTimeout('https://status.cloud.google.com/incidents.json', 7000);
+            const relevant = ['Firebase', 'Cloud Firestore', 'Cloud Functions', 'Firebase Hosting', 'Identity Platform'];
+            const active = (Array.isArray(list) ? list : []).filter(i => !i.end
+                && Array.isArray(i.affected_products) && i.affected_products.some(p => relevant.includes(p.title)));
+            stSetDot('stGcpDot', active.length ? (active.some(i => i.severity === 'high') ? 'red' : 'amber') : 'green');
+            if ($('stGcpDetail')) $('stGcpDetail').textContent = active.length
+                ? active.length + ' aktif olay: ' + active[0].external_desc
+                : 'Firestore, Functions, Hosting, Auth için sorun bildirilmedi';
+        } catch (e) {
+            stSetDot('stGcpDot', 'gray');
+            if ($('stGcpDetail')) $('stGcpDetail').textContent = 'Bu tarayıcıdan durum bilgisine ulaşılamadı — resmi sayfaya bakın.';
+        }
+        if ($('stOutageMeta')) $('stOutageMeta').textContent = 'Son kontrol: ' + new Date().toLocaleTimeString('tr-TR');
+    }
+    function stLevelForMs(ms) { return ms < 400 ? 'green' : (ms < 1200 ? 'amber' : 'red'); }
+    async function checkHealth() {
+        const uid = (auth.currentUser && auth.currentUser.uid) || 'anon';
+        // Firestore: kendi ping belgemize yaz + sunucudan geri oku, gidiş-dönüşü ölç.
+        try {
+            const t0 = performance.now();
+            const ref = db.collection('_health').doc(uid);
+            await ref.set({ at: firebase.firestore.FieldValue.serverTimestamp() });
+            await ref.get({ source: 'server' });
+            const ms = Math.round(performance.now() - t0);
+            stSetDot('stFsDot', stLevelForMs(ms));
+            if ($('stFsMs')) $('stFsMs').textContent = ms + ' ms';
+        } catch (e) {
+            stSetDot('stFsDot', 'red');
+            if ($('stFsMs')) $('stFsMs').textContent = 'hata';
+        }
+        // Cloud Functions: minimal, kimliksiz canlılık ucu (healthCheck).
+        try {
+            const t0 = performance.now();
+            const res = await fetch(FN_BASE + '/healthCheck', { cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            await res.json();
+            const ms = Math.round(performance.now() - t0);
+            stSetDot('stFnDot', stLevelForMs(ms));
+            if ($('stFnMs')) $('stFnMs').textContent = ms + ' ms';
+        } catch (e) {
+            stSetDot('stFnDot', 'red');
+            if ($('stFnMs')) $('stFnMs').textContent = 'hata';
+        }
+        // Hosting: bu konsolun kendi statik varlık yanıt süresi.
+        try {
+            const t0 = performance.now();
+            await fetch(location.origin + '/logo.png', { cache: 'no-store', method: 'HEAD' });
+            const ms = Math.round(performance.now() - t0);
+            stSetDot('stHsDot', stLevelForMs(ms));
+            if ($('stHsMs')) $('stHsMs').textContent = ms + ' ms';
+        } catch (e) {
+            stSetDot('stHsDot', 'red');
+            if ($('stHsMs')) $('stHsMs').textContent = 'hata';
+        }
+        if ($('stHealthMeta')) $('stHealthMeta').textContent = 'Son ölçüm: ' + new Date().toLocaleTimeString('tr-TR');
+    }
+    function stResultRow(label, phase, maxOps) {
+        if (!phase) return '';
+        const pct = maxOps ? Math.max(4, Math.round(phase.opsPerSec / maxOps * 100)) : 0;
+        return '<div class="st-result-row">'
+            + '<b>' + esc(label) + '</b>'
+            + '<div class="st-result-bar"><i style="width:' + pct + '%"></i></div>'
+            + '<span class="st-result-num">' + phase.count + ' · ' + phase.ms + ' ms · ' + phase.opsPerSec + '/sn</span>'
+            + '</div>';
+    }
+    async function runStressTest() {
+        const writes = parseInt($('stWrites').value, 10) || 0;
+        const reads = parseInt($('stReads').value, 10) || 0;
+        const delRaw = $('stDeletes').value.trim();
+        const deletes = delRaw ? (parseInt(delRaw, 10) || 0) : undefined;
+        if (!writes && !reads && !deletes) { $('stErr').textContent = 'En az bir faz için sayı girin.'; return; }
+        if (!confirm('İzole test koleksiyonuna (_stressTest) ' + writes + ' yazma, ' + reads + ' okuma, '
+            + (deletes == null ? writes : deletes) + ' silme yapılacak. Devam edilsin mi?')) return;
+
+        const btn = $('stRunBtn'); const err = $('stErr'); const out = $('stResults');
+        btn.disabled = true; btn.textContent = 'Çalışıyor…'; err.textContent = ''; out.hidden = true;
+        try {
+            const call = firebase.app().functions('us-central1').httpsCallable('stressTestRun');
+            const res = await call({ writes, reads, deletes });
+            const d = res.data || {};
+            const maxOps = Math.max(
+                (d.writes && d.writes.opsPerSec) || 0,
+                (d.reads && d.reads.opsPerSec) || 0,
+                (d.deletes && d.deletes.opsPerSec) || 0, 1);
+            let html = stResultRow('Yazma', d.writes, maxOps) + stResultRow('Okuma', d.reads, maxOps) + stResultRow('Silme', d.deletes, maxOps);
+            if (d.errors && d.errors.length) html += '<div class="st-result-errs">' + d.errors.map(esc).join('<br>') + '</div>';
+            out.innerHTML = html; out.hidden = false;
+            toast('Yük testi tamamlandı (' + d.runId + ')');
+        } catch (e) {
+            err.textContent = 'Test başarısız: ' + esc(e.message || 'hata');
+        } finally { btn.disabled = false; btn.textContent = 'Testi Çalıştır'; }
+    }
+    function stopStressTimers() {
+        if (stOutageTimer) { clearInterval(stOutageTimer); stOutageTimer = null; }
+        if (stHealthTimer) { clearInterval(stHealthTimer); stHealthTimer = null; }
+    }
+    function initStress() {
+        if (!stressInited) {
+            stressInited = true;
+            if ($('stOutageRefresh')) $('stOutageRefresh').addEventListener('click', checkOutages);
+            if ($('stHealthRefresh')) $('stHealthRefresh').addEventListener('click', checkHealth);
+            if ($('stRunBtn')) $('stRunBtn').addEventListener('click', runStressTest);
+        }
+        checkOutages(); checkHealth();
+        stopStressTimers();
+        stOutageTimer = setInterval(checkOutages, 60000);
+        stHealthTimer = setInterval(checkHealth, 30000);
+    }
+
     // Navigation
     document.querySelectorAll('.sb-link').forEach(link => link.addEventListener('click', () => {
         document.querySelectorAll('.sb-link').forEach(l => l.classList.remove('active'));
@@ -1608,8 +1755,9 @@
         const view = link.dataset.view;
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         $('view-' + view).classList.add('active');
-        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], tickets: ['Destek', 'Otellerden gelen sorun, istek ve öneriler'], finance: ['Muhasebe', 'Gelir, KDV, abonelik ve fatura'], site: ['Site', 'Apex tanıtım sayfası görünümü'], errors: ['Hatalar', 'İstemci tarafı hata günlükleri'] };
+        const titles = { overview: ['Genel Bakış', 'Platform genelinde özet'], hotels: ['Oteller', 'Tüm otelleri yönetin'], orders: ['Siparişler', 'Tanıtım sitesinden gelen ödemeler'], tickets: ['Destek', 'Otellerden gelen sorun, istek ve öneriler'], finance: ['Muhasebe', 'Gelir, KDV, abonelik ve fatura'], site: ['Site', 'Apex tanıtım sayfası görünümü'], errors: ['Hatalar', 'İstemci tarafı hata günlükleri'], stress: ['Stres', 'Dış servis durumu, kendi sağlık kontrolümüz ve izole yük testi'] };
         if (view === 'errors') loadErrors();
+        if (view === 'stress') initStress(); else stopStressTimers();
         $('pageTitle').textContent = titles[view][0];
         $('pageSub').textContent = titles[view][1];
         closeSidebar();

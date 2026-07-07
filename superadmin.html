@@ -87,6 +87,10 @@
                 Hatalar
                 <span class="nav-badge" id="errorsBadge" hidden></span>
             </button>
+            <button class="sb-link" data-view="stress">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m13 2-9 12h9l-1 8 9-12h-9l1-8z"/></svg>
+                Stres
+            </button>
         </nav>
         <div class="sb-foot">
             <div class="sb-user">
@@ -490,6 +494,61 @@
                     .apex-txt b { display:block; font-size:14.5px; color:#1e293b; }
                     .apex-txt small { color:#64748b; font-size:12.5px; }
                 </style>
+            </section>
+
+            <!-- STRES: dış servis izleme + kendi sağlık kontrolü + izole yük testi -->
+            <section class="view" id="view-stress">
+                <div class="card" style="margin-bottom:22px;">
+                    <div class="card-head">
+                        <div><h3>Dış Servis Durumu</h3><div class="sub">Firebase/Google Cloud ve Cloudflare'in resmi durum sayfaları · 60 sn'de bir otomatik yenilenir</div></div>
+                        <button class="btn-ghost" id="stOutageRefresh">Yenile</button>
+                    </div>
+                    <div class="st-outage-grid" id="stOutageGrid">
+                        <div class="st-outage-row">
+                            <span class="st-dot st-dot-gray" id="stGcpDot"></span>
+                            <div class="st-outage-info"><b>Firebase / Google Cloud</b><small id="stGcpDetail">Kontrol ediliyor…</small></div>
+                            <a href="https://status.cloud.google.com/" target="_blank" rel="noopener" class="st-outage-link">Resmi sayfa →</a>
+                        </div>
+                        <div class="st-outage-row">
+                            <span class="st-dot st-dot-gray" id="stCfDot"></span>
+                            <div class="st-outage-info"><b>Cloudflare</b><small id="stCfDetail">Kontrol ediliyor…</small></div>
+                            <a href="https://www.cloudflarestatus.com/" target="_blank" rel="noopener" class="st-outage-link">Resmi sayfa →</a>
+                        </div>
+                    </div>
+                    <div class="st-meta" id="stOutageMeta">—</div>
+                </div>
+
+                <div class="card" style="margin-bottom:22px;">
+                    <div class="card-head">
+                        <div><h3>Kendi Sağlık Durumumuz</h3><div class="sub">Bu tarayıcıdan ölçülen gerçek gidiş-dönüş gecikmesi · 30 sn'de bir otomatik yenilenir</div></div>
+                        <button class="btn-ghost" id="stHealthRefresh">Yenile</button>
+                    </div>
+                    <div class="st-health-grid" id="stHealthGrid">
+                        <div class="st-health-item"><span class="st-dot st-dot-gray" id="stFsDot"></span><b>Firestore</b><span class="st-health-ms" id="stFsMs">—</span></div>
+                        <div class="st-health-item"><span class="st-dot st-dot-gray" id="stFnDot"></span><b>Cloud Functions</b><span class="st-health-ms" id="stFnMs">—</span></div>
+                        <div class="st-health-item"><span class="st-dot st-dot-gray" id="stHsDot"></span><b>Hosting</b><span class="st-health-ms" id="stHsMs">—</span></div>
+                    </div>
+                    <div class="st-meta" id="stHealthMeta">—</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-head">
+                        <div><h3>İzole Yük Testi</h3><div class="sub">Otel (tenant) verisine hiç dokunmaz — ayrı bir _stressTest koleksiyonuna yazar/okur/siler, sonunda kendini temizler</div></div>
+                    </div>
+                    <div class="fin-form-body" style="padding:18px 20px 6px;">
+                        <div class="fin-form-row">
+                            <div><label>Yazma sayısı (maks. 300)</label><input id="stWrites" type="number" min="0" max="300" value="100"></div>
+                            <div><label>Okuma sayısı (maks. 300)</label><input id="stReads" type="number" min="0" max="300" value="100"></div>
+                        </div>
+                        <div class="fin-form-row">
+                            <div><label>Silme sayısı (boş = yazma kadar)</label><input id="stDeletes" type="number" min="0" max="300" placeholder="otomatik"></div>
+                            <div><label>&nbsp;</label><button class="btn-primary" id="stRunBtn" style="width:100%;">Testi Çalıştır</button></div>
+                        </div>
+                        <div class="st-hint">Her faz sunucu tarafında 300 ile sınırlıdır ve yalnızca izole test koleksiyonunu kullanır; gerçek kiracı verisi/kotası etkilenmez. Küçük bir Firebase kullanım maliyeti oluşturur.</div>
+                    </div>
+                    <div class="modal-err" id="stErr" style="padding:0 20px;"></div>
+                    <div id="stResults" class="st-results" hidden></div>
+                </div>
             </section>
         </div>
     </div>
