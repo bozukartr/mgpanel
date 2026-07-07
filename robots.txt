@@ -1,6 +1,47 @@
-# noindex için X-Robots-Tag başlığı kullanılıyor (bkz. firebase.json), erişim
-# kontrolü Firebase Auth + Firestore kuralları — robots.txt yalnızca tarama.
 User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /app
+Disallow: /panel
+Disallow: /concierge
+Disallow: /crm
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /restaurant
+Disallow: /reports
+Disallow: /superadmin
+Disallow: /guest-order
+Disallow: /maintenance
+Disallow: /payment-result
+Disallow: /apex-bakim
+Disallow: /apex-yakinda
+
+# AI eğitim/toplu tarama botları — içerik model eğitiminde izinsiz
+# kullanılmasın diye engellenir.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+# AI arama/asistan botları (kullanıcı sorgusu üzerine anlık getirme) — marka
+# görünürlüğü için izinli.
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Claude-User
 Allow: /
 
 Sitemap: https://hotizy.com/sitemap.xml
