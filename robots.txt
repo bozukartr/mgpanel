@@ -1,20 +1,12 @@
 User-agent: *
 Allow: /
-Disallow: /login
-Disallow: /app
-Disallow: /panel
-Disallow: /concierge
-Disallow: /crm
-Disallow: /admin
-Disallow: /dashboard
-Disallow: /restaurant
-Disallow: /reports
-Disallow: /superadmin
-Disallow: /guest-order
-Disallow: /maintenance
-Disallow: /payment-result
-Disallow: /apex-bakim
-Disallow: /apex-yakinda
+
+# Kimlik doğrulaması gereken uygulama sayfaları (login, admin, panel vb.)
+# BURADA listelenmiyor: robots.txt herkese açık tek bir dosyadır ve rota
+# adlarını burada saymak onları gizlemez, saldırganlara hazır bir hedef
+# listesi sunar. Bu sayfalar zaten Firebase Auth + Firestore kurallarıyla
+# korunuyor; arama sonuçlarından çıkarılmaları X-Robots-Tag: noindex HTTP
+# başlığıyla sağlanıyor (bkz. firebase.json → hosting.headers).
 
 # AI eğitim/toplu tarama botları — içerik model eğitiminde izinsiz
 # kullanılmasın diye engellenir.
