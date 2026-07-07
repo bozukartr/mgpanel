@@ -22,6 +22,8 @@
       "**/.*",
       "**/node_modules/**",
       "functions/**",
+      "cloudflare/**",
+      "wrangler.jsonc",
       "README.md",
       "*.md"
     ],
@@ -36,6 +38,18 @@
         "source": "**/*.@(png|jpg|jpeg|svg|ico|webp)",
         "headers": [
           { "key": "Cache-Control", "value": "public, max-age=86400" }
+        ]
+      },
+      {
+        "source": "/{login,app,panel,concierge,crm,admin,dashboard,restaurant,reports,superadmin,guest-order,maintenance,apex-bakim,apex-yakinda,payment-result}",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+        ]
+      },
+      {
+        "source": "/{login,app,panel,concierge,crm,admin,dashboard,restaurant,reports,superadmin,guest-order,maintenance,apex-bakim,apex-yakinda,payment-result}.html",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
         ]
       }
     ]
