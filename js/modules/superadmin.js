@@ -721,49 +721,119 @@
     }
 
     // ---------- PMS integration ----------
+    // Sağlayıcı ön ayarları (preset): her biri gerçek provider/authType'a
+    // eşlenir + ilgili alan gruplarını gösterir + kısa bir yardım metni
+    // basar. OPERA Cloud/ElektraWeb için tam uç nokta/kimlik bilgisi
+    // otelin/operatörün kendi hesabından gelmeli — burada yalnızca DOĞRU
+    // KİMLİK DOĞRULAMA ŞEKLİNİ (OAuth2 vs statik anahtar) ve bilinen zorunlu
+    // header adlarını (ör. OPERA'nın x-app-key'i) önceden dolduruyoruz;
+    // sahte/varsayımsal URL değerleri YAZMIYORUZ. Yalnızca OKUMA (misafir
+    // arama) — bu adaptör hiçbir zaman PMS'e yazmaz.
+    const PMS_PRESETS = {
+        mock: { provider: 'mock', authType: 'apikey', hint: '' },
+        generic: { provider: 'generic', authType: 'apikey', hint: '' },
+        generic_oauth2: {
+            provider: 'generic', authType: 'oauth2',
+            hint: 'OAuth2 client-credentials akışını destekleyen herhangi bir PMS için.'
+        },
+        opera_cloud: {
+            provider: 'generic', authType: 'oauth2',
+            hint: 'Oracle OPERA Cloud (OHIP): Token URL + Client ID/Secret, Oracle geliştirici konsolunuzdan (OHIP Identity/OCIM) alınır. "x-app-key" OHIP\'in her istekte zorunlu tuttuğu uygulama anahtarıdır. Base URL/Arama Yolu, size özel OHIP gateway adresine göre doldurulmalı — Oracle onayı/hesabı gerektirir, burada önceden doldurulamaz.',
+            extraHeader1Key: 'x-app-key'
+        },
+        elektraweb: {
+            provider: 'generic', authType: 'apikey',
+            hint: 'ElektraWeb için herkese açık bir self-servis API dokümanı bulunamadı — API erişimi ve dokümantasyon için doğrudan ElektraWeb ile görüşün. Aldığınız bilgilere göre bu alanları siz dolduracaksınız; erişim OAuth2 gerektiriyorsa Sağlayıcı\'yı "Jenerik REST — OAuth2" olarak değiştirin.'
+        }
+    };
+    function pmsPresetIdFor(c) {
+        if (c.presetId && PMS_PRESETS[c.presetId]) return c.presetId;
+        if (!c.provider || c.provider === 'mock') return 'mock';
+        return c.authType === 'oauth2' ? 'generic_oauth2' : 'generic';
+    }
+    function applyPmsPreset(presetId) {
+        const p = PMS_PRESETS[presetId] || PMS_PRESETS.generic;
+        $('pmsGenericFields').style.display = p.provider === 'generic' ? 'block' : 'none';
+        $('pmsApiKeyFields').style.display = (p.provider === 'generic' && p.authType !== 'oauth2') ? 'block' : 'none';
+        $('pmsOAuth2Fields').style.display = (p.provider === 'generic' && p.authType === 'oauth2') ? 'block' : 'none';
+        const hintEl = $('pmsPresetHint');
+        if (p.hint) { hintEl.textContent = p.hint; hintEl.style.display = 'block'; } else { hintEl.style.display = 'none'; }
+        if (p.extraHeader1Key && !$('pmsExtraHeader1Key').value) $('pmsExtraHeader1Key').value = p.extraHeader1Key;
+    }
+
     let currentPmsTenant = null;
     function pmsSetField(id, v) { const e = $(id); if (e) e.value = v || ''; }
-    function togglePmsGeneric() {
-        $('pmsGenericFields').style.display = $('pmsProvider').value === 'generic' ? 'block' : 'none';
+    function renderPmsLastTest(lt) {
+        const el = $('pmsLastTest'); if (!el) return;
+        if (!lt) { el.textContent = ''; return; }
+        const when = lt.at && lt.at.toDate ? lt.at.toDate().toLocaleString('tr-TR') : '';
+        el.innerHTML = lt.ok
+            ? '✓ Son test başarılı' + (lt.count != null ? ' — ' + lt.count + ' sonuç' : '') + (when ? ' · ' + esc(when) : '')
+            : '<span style="color:var(--red);">✗ Son test başarısız: ' + esc(lt.message || '') + (when ? ' · ' + esc(when) : '') + '</span>';
     }
     async function openPmsModal(id) {
         const t = tenants.find(x => x.id === id); if (!t) return;
         currentPmsTenant = id;
         $('pmsHotel').textContent = (t.name || id) + ' · ' + id;
-        $('pmsErr').textContent = ''; $('pmsTestOut').innerHTML = '';
+        $('pmsErr').textContent = ''; $('pmsTestOut').innerHTML = ''; $('pmsLastTest').textContent = '';
         // Defaults
         $('pmsEnabledChk').checked = false;
         $('pmsProvider').value = 'mock';
         ['pmsBaseUrl', 'pmsSearchPath', 'pmsResultsPath', 'pmsApiKey', 'pmsAuthHeader', 'pmsAuthPrefix',
+            'pmsOAuthTokenUrl', 'pmsOAuthClientId', 'pmsOAuthClientSecret', 'pmsOAuthScope',
+            'pmsExtraHeader1Key', 'pmsExtraHeader1Val', 'pmsExtraHeader2Key', 'pmsExtraHeader2Val',
             'pmsMapName', 'pmsMapRoom', 'pmsMapCheckIn', 'pmsMapCheckOut', 'pmsMapPhone', 'pmsMapEmail'].forEach(x => pmsSetField(x, ''));
         try {
             const snap = await db.collection('pmsConfig').doc(id).get();
             if (snap.exists) {
                 const c = snap.data();
                 $('pmsEnabledChk').checked = !!c.enabled;
-                $('pmsProvider').value = c.provider || 'mock';
+                $('pmsProvider').value = pmsPresetIdFor(c);
                 pmsSetField('pmsBaseUrl', c.baseUrl); pmsSetField('pmsSearchPath', c.searchPath);
                 pmsSetField('pmsResultsPath', c.resultsPath); pmsSetField('pmsApiKey', c.apiKey);
                 pmsSetField('pmsAuthHeader', c.authHeader); pmsSetField('pmsAuthPrefix', c.authPrefix);
+                const o = c.oauth2 || {};
+                pmsSetField('pmsOAuthTokenUrl', o.tokenUrl); pmsSetField('pmsOAuthClientId', o.clientId);
+                pmsSetField('pmsOAuthClientSecret', o.clientSecret); pmsSetField('pmsOAuthScope', o.scope);
+                const eh = c.extraHeaders || {}; const ehKeys = Object.keys(eh);
+                pmsSetField('pmsExtraHeader1Key', ehKeys[0]); pmsSetField('pmsExtraHeader1Val', ehKeys[0] ? eh[ehKeys[0]] : '');
+                pmsSetField('pmsExtraHeader2Key', ehKeys[1]); pmsSetField('pmsExtraHeader2Val', ehKeys[1] ? eh[ehKeys[1]] : '');
                 const m = c.map || {};
                 pmsSetField('pmsMapName', m.name); pmsSetField('pmsMapRoom', m.room);
                 pmsSetField('pmsMapCheckIn', m.checkIn); pmsSetField('pmsMapCheckOut', m.checkOut);
                 pmsSetField('pmsMapPhone', m.phone); pmsSetField('pmsMapEmail', m.email);
+                renderPmsLastTest(c._lastTest);
             }
         } catch (e) { $('pmsErr').textContent = 'Yapılandırma okunamadı: ' + e.message; }
-        togglePmsGeneric();
+        applyPmsPreset($('pmsProvider').value);
         $('pmsModal').classList.add('show');
     }
     function readPmsConfig() {
+        const presetId = $('pmsProvider').value;
+        const preset = PMS_PRESETS[presetId] || PMS_PRESETS.generic;
+        const eh = {};
+        const k1 = $('pmsExtraHeader1Key').value.trim(), v1 = $('pmsExtraHeader1Val').value.trim();
+        const k2 = $('pmsExtraHeader2Key').value.trim(), v2 = $('pmsExtraHeader2Val').value.trim();
+        if (k1 && v1) eh[k1] = v1;
+        if (k2 && v2) eh[k2] = v2;
         return {
             enabled: $('pmsEnabledChk').checked,
-            provider: $('pmsProvider').value,
+            presetId,
+            provider: preset.provider,
+            authType: preset.authType,
             baseUrl: $('pmsBaseUrl').value.trim(),
             searchPath: $('pmsSearchPath').value.trim(),
             resultsPath: $('pmsResultsPath').value.trim(),
-            apiKey: $('pmsApiKey').value.trim(),
+            apiKey: preset.authType === 'oauth2' ? '' : $('pmsApiKey').value.trim(),
+            oauth2: preset.authType === 'oauth2' ? {
+                tokenUrl: $('pmsOAuthTokenUrl').value.trim(),
+                clientId: $('pmsOAuthClientId').value.trim(),
+                clientSecret: $('pmsOAuthClientSecret').value.trim(),
+                scope: $('pmsOAuthScope').value.trim()
+            } : null,
             authHeader: $('pmsAuthHeader').value.trim() || 'Authorization',
             authPrefix: $('pmsAuthPrefix').value,
+            extraHeaders: eh,
             map: {
                 name: $('pmsMapName').value.trim(), room: $('pmsMapRoom').value.trim(),
                 checkIn: $('pmsMapCheckIn').value.trim(), checkOut: $('pmsMapCheckOut').value.trim(),
@@ -787,19 +857,25 @@
     async function testPms() {
         const btn = $('pmsTestBtn'); const out = $('pmsTestOut');
         btn.disabled = true; btn.textContent = 'Test ediliyor…'; out.innerHTML = '';
+        const nowShim = { toDate: () => new Date() };
         try {
             const call = firebase.app().functions('us-central1').httpsCallable('pmsTestConfig');
-            const res = await call({ config: readPmsConfig(), query: $('pmsTestQuery').value.trim() || 'a' });
+            const res = await call({ config: readPmsConfig(), query: $('pmsTestQuery').value.trim() || 'a', tenantId: currentPmsTenant });
             renderPmsResults(res.data);
+            renderPmsLastTest({ ok: true, count: res.data.results.length, at: nowShim });
         } catch (e) {
             out.innerHTML = '<div class="pms-test-msg err">Test başarısız: ' + esc(e.message || 'hata') + '</div>';
+            renderPmsLastTest({ ok: false, message: e.message, at: nowShim });
         } finally { btn.disabled = false; btn.textContent = 'Bağlantıyı Test Et'; }
     }
     async function savePms() {
         const cfg = readPmsConfig();
         const err = $('pmsErr'); err.textContent = '';
         if (cfg.enabled && cfg.provider === 'generic' && !cfg.baseUrl) {
-            return err.textContent = 'Generic sağlayıcı için API adresi gerekli.';
+            return err.textContent = 'API adresi (Base URL) gerekli.';
+        }
+        if (cfg.enabled && cfg.authType === 'oauth2' && (!cfg.oauth2 || !cfg.oauth2.tokenUrl || !cfg.oauth2.clientId || !cfg.oauth2.clientSecret)) {
+            return err.textContent = 'OAuth2 için Token URL, Client ID ve Client Secret gerekli.';
         }
         const btn = $('pmsSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
         try {
@@ -814,7 +890,7 @@
             err.textContent = 'Hata: ' + e.message;
         } finally { btn.disabled = false; btn.textContent = 'Kaydet'; }
     }
-    $('pmsProvider').addEventListener('change', togglePmsGeneric);
+    $('pmsProvider').addEventListener('change', () => applyPmsPreset($('pmsProvider').value));
     $('pmsTestBtn').addEventListener('click', testPms);
     $('pmsSave').addEventListener('click', savePms);
 

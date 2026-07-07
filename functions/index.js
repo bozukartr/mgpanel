@@ -422,9 +422,19 @@ exports.onGuestOrderCreate = onDocumentCreated(
 // PMS INTEGRATION
 // Per-hotel PMS config lives in pmsConfig/{tenantId} (superadmin-only via
 // rules; the function reads it with the Admin SDK). Guest lookups are
-// proxied here so the hotel's API key never reaches the browser and CORS
-// is never an issue. Two providers: 'mock' (demo, always works) and
-// 'generic' (configurable REST adapter for whatever API the hotel gives us).
+// proxied here so the hotel's credentials never reach the browser and CORS
+// is never an issue. Providers: 'mock' (demo, always works) and 'generic'
+// (configurable REST adapter). 'generic' supports two auth shapes:
+//   - authType 'apikey' (default, back-compat): static header (ör. otelin
+//     verdiği sabit bir API anahtarı).
+//   - authType 'oauth2': OAuth2 client-credentials akışı (ör. Oracle OPERA
+//     Cloud/OHIP gibi süreli token isteyen sistemler) — token alınır,
+//     süresine kadar önbelleklenir, süresi dolunca otomatik yenilenir.
+// cfg.extraHeaders, sağlayıcının gerektirdiği sabit ek header'lar içindir
+// (ör. OPERA'nın x-app-key'i) — auth türünden bağımsız, her zaman eklenir.
+//
+// Yalnızca OKUMA: bu adaptör hiçbir zaman PMS'e yazmaz (rezervasyon
+// oluşturma/iptal yok) — kasıtlı bir kapsam sınırı, bkz. superadmin.js.
 // ═══════════════════════════════════════════════════════════════════
 
 // Demo guests for the 'mock' provider — lets the whole flow work end-to-end
@@ -462,9 +472,70 @@ function pmsNormalize(item, map) {
   return g;
 }
 
+// Bellek-içi OAuth2 token önbelleği (aynı Cloud Functions instance'ı
+// sıcakken tekrar tekrar token almayı önler). Kalıcı önbellek (soğuk
+// başlangıçlar/instance'lar arası) için tenantId verildiğinde
+// pmsConfig/{tenantId}._oauthCache kullanılır — bu alan yalnızca Admin
+// SDK'dan yazılır/okunur, client'a hiç dönmez (pmsConfig zaten
+// superadmin-only bir koleksiyon).
+const oauthMemCache = new Map(); // key: tenantId || '_test' -> { token, expiresAt }
+
+async function fetchOAuth2Token(oauth2) {
+  if (!oauth2 || !oauth2.tokenUrl) throw new HttpsError('failed-precondition', 'OAuth2 token URL tanımlı değil.');
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: oauth2.clientId || '',
+    client_secret: oauth2.clientSecret || ''
+  });
+  if (oauth2.scope) body.set('scope', oauth2.scope);
+  let resp;
+  try {
+    resp = await fetch(oauth2.tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+      body: body.toString()
+    });
+  } catch (e) {
+    throw new HttpsError('unavailable', 'PMS OAuth2 token isteği başarısız: ' + (e.message || e.name));
+  }
+  if (!resp.ok) throw new HttpsError('unavailable', 'PMS OAuth2 token alınamadı: HTTP ' + resp.status);
+  const data = await resp.json().catch(() => ({}));
+  if (!data.access_token) throw new HttpsError('unavailable', 'PMS OAuth2 yanıtında access_token yok.');
+  const expiresInMs = (Number(data.expires_in) || 300) * 1000;
+  return { token: data.access_token, expiresAt: Date.now() + Math.max(30000, expiresInMs - 15000) };
+}
+
+async function getOAuth2Token(oauth2, tenantId) {
+  const cacheKey = tenantId || '_test';
+  const now = Date.now();
+  const mem = oauthMemCache.get(cacheKey);
+  if (mem && mem.expiresAt > now) return mem.token;
+
+  if (tenantId) {
+    try {
+      const snap = await db.collection('pmsConfig').doc(tenantId).get();
+      const cached = snap.exists ? (snap.data() || {})._oauthCache : null;
+      if (cached && cached.expiresAt > now) {
+        oauthMemCache.set(cacheKey, cached);
+        return cached.token;
+      }
+    } catch (e) { /* önbellek okunamadı — sıfırdan token al */ }
+  }
+
+  const fresh = await fetchOAuth2Token(oauth2);
+  oauthMemCache.set(cacheKey, fresh);
+  if (tenantId) {
+    db.collection('pmsConfig').doc(tenantId).set({ _oauthCache: fresh }, { merge: true }).catch(() => {});
+  }
+  return fresh.token;
+}
+
 // Run a lookup against a given config (used by both pmsLookup and the
-// superadmin test). Returns a normalized array of guests.
-async function pmsRunLookup(cfg, query) {
+// superadmin test). Returns a normalized array of guests. `tenantId` is
+// only present for real (saved-config) calls — pmsTestConfig tests
+// in-progress/unsaved form values and passes none, so OAuth2 tokens fetched
+// during a test are only cached in-memory for that invocation.
+async function pmsRunLookup(cfg, query, tenantId) {
   const q = String(query || '').trim();
   if (!cfg || cfg.enabled === false) return { enabled: false, results: [] };
   if (q.length < 2) return { enabled: true, results: [] };
@@ -478,13 +549,25 @@ async function pmsRunLookup(cfg, query) {
     return { enabled: true, results, source: 'mock' };
   }
 
-  // generic REST adapter
+  // generic REST adapter (statik anahtar VEYA OAuth2 client-credentials)
   if (provider === 'generic') {
     if (!cfg.baseUrl) throw new HttpsError('failed-precondition', 'PMS baseUrl tanımlı değil.');
     const path = (cfg.searchPath || '?q={q}').replace(/\{q\}/g, encodeURIComponent(q));
     const url = cfg.baseUrl.replace(/\/+$/, '') + (path.startsWith('/') || path.startsWith('?') ? path : '/' + path);
     const headers = { 'Accept': 'application/json' };
-    if (cfg.apiKey) headers[cfg.authHeader || 'Authorization'] = (cfg.authPrefix || '') + cfg.apiKey;
+
+    if (cfg.authType === 'oauth2') {
+      const token = await getOAuth2Token(cfg.oauth2, tenantId);
+      headers[cfg.authHeader || 'Authorization'] = (cfg.authPrefix != null ? cfg.authPrefix : 'Bearer ') + token;
+    } else if (cfg.apiKey) {
+      headers[cfg.authHeader || 'Authorization'] = (cfg.authPrefix || '') + cfg.apiKey;
+    }
+    if (cfg.extraHeaders && typeof cfg.extraHeaders === 'object') {
+      Object.keys(cfg.extraHeaders).forEach((k) => {
+        const v = cfg.extraHeaders[k];
+        if (k && v) headers[k] = String(v);
+      });
+    }
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 7000);
@@ -518,17 +601,37 @@ exports.pmsLookup = onCall({ region: REGION }, async (request) => {
 
   const cfgSnap = await db.collection('pmsConfig').doc(tenantId).get();
   if (!cfgSnap.exists) return { enabled: false, results: [] };
-  return pmsRunLookup(cfgSnap.data(), request.data && request.data.query);
+  return pmsRunLookup(cfgSnap.data(), request.data && request.data.query, tenantId);
 });
 
 // Superadmin-only: validate a config (before saving) by running a live query.
+// If `tenantId` is passed (testing an EXISTING hotel's already-saved config,
+// as opposed to a brand-new/unsaved form), the outcome is persisted to
+// pmsConfig/{tenantId}._lastTest so the modal can show "son test" next time
+// it's opened without requiring another live call.
 exports.pmsTestConfig = onCall({ region: REGION }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
   const su = await db.collection('superAdmins').doc(request.auth.uid).get();
   if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
   const cfg = (request.data && request.data.config) || {};
   const query = (request.data && request.data.query) || 'a';
-  return pmsRunLookup(Object.assign({}, cfg, { enabled: true }), query);
+  const tenantId = (request.data && request.data.tenantId) || null;
+  try {
+    const result = await pmsRunLookup(Object.assign({}, cfg, { enabled: true }), query, tenantId);
+    if (tenantId) {
+      db.collection('pmsConfig').doc(tenantId).set({
+        _lastTest: { ok: true, count: result.results.length, at: admin.firestore.FieldValue.serverTimestamp() }
+      }, { merge: true }).catch(() => {});
+    }
+    return result;
+  } catch (e) {
+    if (tenantId) {
+      db.collection('pmsConfig').doc(tenantId).set({
+        _lastTest: { ok: false, message: String((e && e.message) || 'hata').slice(0, 200), at: admin.firestore.FieldValue.serverTimestamp() }
+      }, { merge: true }).catch(() => {});
+    }
+    throw e;
+  }
 });
 
 /* ── Hotel / user deletion (Admin SDK) ─────────────────────────────────────
