@@ -439,6 +439,16 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // --- Süperadmin "Stres" sekmesi: kendi sağlık kontrolümüz. Tarayıcıdan
+    //     doğrudan yazılıp okunan bir "ping" belgesi ile Firestore gidiş-dönüş
+    //     gecikmesi ölçülür. Tenant verisiyle hiçbir ilişkisi yoktur; yalnızca
+    //     platform operatörü erişebilir. (İzole yük testi `_stressTest`
+    //     koleksiyonuna Admin SDK ile yazılır — kurallar orada devre dışıdır,
+    //     bu yüzden ayrı bir match'e gerek yoktur.) ---
+    match /_health/{id} {
+      allow read, write: if isSuperAdmin();
+    }
+
     // --- Deny everything else ---
     match /{document=**} {
       allow read, write: if false;
