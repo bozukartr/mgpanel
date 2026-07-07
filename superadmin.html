@@ -815,8 +815,12 @@
             <label>Sağlayıcı</label>
             <select id="pmsProvider" class="m-select">
                 <option value="mock">Demo (Mock) — test için hazır veri</option>
-                <option value="generic">Generic REST API — otelin kendi API'si</option>
+                <option value="generic">Jenerik REST — Statik API Anahtarı</option>
+                <option value="generic_oauth2">Jenerik REST — OAuth2 (Client Credentials)</option>
+                <option value="opera_cloud">Oracle OPERA Cloud (OHIP)</option>
+                <option value="elektraweb">ElektraWeb</option>
             </select>
+            <div class="hint" id="pmsPresetHint" style="display:none;"></div>
 
             <div id="pmsGenericFields">
                 <label>API Adresi (Base URL)</label>
@@ -832,8 +836,21 @@
                         <input id="pmsResultsPath" placeholder="data.guests (boş = kök dizi)">
                     </div>
                 </div>
-                <label>API Anahtarı</label>
-                <input id="pmsApiKey" placeholder="Otelin verdiği anahtar / token">
+
+                <div id="pmsApiKeyFields">
+                    <label>API Anahtarı</label>
+                    <input id="pmsApiKey" placeholder="Otelin verdiği anahtar / token">
+                </div>
+                <div id="pmsOAuth2Fields" style="display:none;">
+                    <label>OAuth2 Token URL</label>
+                    <input id="pmsOAuthTokenUrl" placeholder="https://…/oauth/v1/tokens">
+                    <div class="field-row">
+                        <div><label>Client ID</label><input id="pmsOAuthClientId" autocapitalize="off" spellcheck="false"></div>
+                        <div><label>Client Secret</label><input id="pmsOAuthClientSecret" type="password"></div>
+                    </div>
+                    <label>Scope <small>(opsiyonel)</small></label>
+                    <input id="pmsOAuthScope" placeholder="ör. OHIP">
+                </div>
                 <div class="field-row">
                     <div>
                         <label>Auth Header</label>
@@ -844,6 +861,17 @@
                         <input id="pmsAuthPrefix" placeholder="Bearer ">
                     </div>
                 </div>
+
+                <label>Ek Header'lar <small>(sağlayıcının gerektirdiği sabit header'lar, ör. OPERA'nın x-app-key'i)</small></label>
+                <div class="field-row">
+                    <div><input id="pmsExtraHeader1Key" placeholder="Header adı, ör. x-app-key" autocapitalize="off" spellcheck="false"></div>
+                    <div><input id="pmsExtraHeader1Val" placeholder="Değer"></div>
+                </div>
+                <div class="field-row">
+                    <div><input id="pmsExtraHeader2Key" placeholder="Header adı, ör. x-hotel-id" autocapitalize="off" spellcheck="false"></div>
+                    <div><input id="pmsExtraHeader2Val" placeholder="Değer"></div>
+                </div>
+
                 <label>Alan Eşlemesi (yanıttaki alan yolları)</label>
                 <div class="field-row">
                     <div><label class="sub">İsim</label><input id="pmsMapName" placeholder="name"></div>
@@ -865,6 +893,7 @@
                     <button class="btn-ghost" id="pmsTestBtn" style="white-space:nowrap;">Bağlantıyı Test Et</button>
                 </div>
                 <div class="pms-test-out" id="pmsTestOut"></div>
+                <div class="sub" id="pmsLastTest" style="margin-top:8px;"></div>
             </div>
 
             <div class="modal-err" id="pmsErr"></div>
