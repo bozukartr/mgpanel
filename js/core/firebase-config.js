@@ -23,16 +23,31 @@ const DEFAULT_TENANT = 'mgallery';
 // localStorage, so every page stamps documents with the signed-in user's hotel.
 const TENANT_ID = localStorage.getItem('hotelTenantId') || DEFAULT_TENANT;
 
+// Canlı (prod) barındırma: hotizy.com ve tüm alt alan adları. ?tenant=
+// override'ı yalnızca bunun DIŞINDAki ortamlarda (yerel geliştirme, Firebase
+// önizleme kanalları) kabul edilir — aksi halde herhangi biri
+// hotizy.com/guest-order?tenant=baskaOtel gibi bir URL ile misafir olarak
+// başka bir otelin talep kuyruğuna sahte kayıt enjekte edebilirdi (kimlik
+// doğrulaması gerekmeyen anonim misafir akışında). Prod'da tenant HER ZAMAN
+// gerçek subdomain'den çözülür, client'ın iddia ettiği değerden değil.
+function isProdHost() {
+    const host = (window.location.hostname || '').toLowerCase();
+    return host === 'hotizy.com' || host.endsWith('.hotizy.com');
+}
+
 // Resolve the hotel (tenant) from the host's subdomain, e.g.
 // mgallery.hotizy.com -> "mgallery". Apex domains, *.web.app previews and
 // localhost fall back to the default tenant.
 function resolveTenant() {
-    // Explicit ?tenant= override — lets you test any hotel before custom-domain
-    // subdomains exist (e.g. .../login?tenant=testhotel).
-    try {
-        const q = (new URLSearchParams(window.location.search).get('tenant') || '').toLowerCase();
-        if (/^[a-z0-9-]{2,24}$/.test(q)) return q;
-    } catch (e) { /* ignore */ }
+    // Explicit ?tenant= override — yalnızca prod DIŞINDA: yerel/önizleme
+    // ortamlarında custom-domain subdomain'i olmadan test etmeyi sağlar
+    // (e.g. .../login?tenant=testhotel).
+    if (!isProdHost()) {
+        try {
+            const q = (new URLSearchParams(window.location.search).get('tenant') || '').toLowerCase();
+            if (/^[a-z0-9-]{2,24}$/.test(q)) return q;
+        } catch (e) { /* ignore */ }
+    }
 
     const host = (window.location.hostname || '').toLowerCase();
     if (!host || host === 'localhost' || host.endsWith('.web.app') || host.endsWith('.firebaseapp.com')) {
@@ -58,13 +73,16 @@ function userEmail(username, tenantId) {
     return username + '@' + tenantEmailDomain(tenantId);
 }
 
-// Which hotel's state (e.g. maintenance) applies to the current page:
-// an explicit ?tenant override wins, then the signed-in hotel, then the host.
+// Which hotel's state (e.g. maintenance) applies to the current page: an
+// explicit ?tenant override wins (non-prod only — see resolveTenant()), then
+// the signed-in hotel, then the host.
 function guardTenant() {
-    try {
-        const q = (new URLSearchParams(window.location.search).get('tenant') || '').toLowerCase();
-        if (/^[a-z0-9-]{2,24}$/.test(q)) return q;
-    } catch (e) { /* ignore */ }
+    if (!isProdHost()) {
+        try {
+            const q = (new URLSearchParams(window.location.search).get('tenant') || '').toLowerCase();
+            if (/^[a-z0-9-]{2,24}$/.test(q)) return q;
+        } catch (e) { /* ignore */ }
+    }
     return localStorage.getItem('hotelTenantId') || resolveTenant();
 }
 
