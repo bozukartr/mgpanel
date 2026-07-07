@@ -31,6 +31,12 @@ const MERCHANT_SALT = defineSecret('PAYTR_MERCHANT_SALT');
 const LEMON_API_KEY = defineSecret('LEMON_API_KEY');
 const LEMON_WEBHOOK_SECRET = defineSecret('LEMON_WEBHOOK_SECRET');
 
+// Cloudflare Worker'ın (cloudflare/hotizy-subdomain-proxy.js) gerçek gelen
+// subdomain'i imzalamak için kullandığı paylaşılan sır — mintGuestClaim bu
+// imzayı doğrular. Worker'daki Cloudflare secret ile AYNI değer olmalı.
+//   firebase functions:secrets:set TENANT_SIG_SECRET
+const TENANT_SIG_SECRET = defineSecret('TENANT_SIG_SECRET');
+
 // Monthly price per plan, in EUR (server-authoritative — clients can't tamper).
 // Revenue is collected in EUR; the superadmin Muhasebe panel converts to TRY
 // for accounting with a manual rate. Operators can override these amounts in
@@ -642,6 +648,67 @@ exports.deleteUser = onCall({ region: REGION }, async (request) => {
   await deleteByQuery(db.collection('pushTokens').where('uid', '==', uid));
   await deleteByQuery(db.collection('notifications').where('toUid', '==', uid));
   return { deleted: true };
+});
+
+// ── Misafir tenant claim'i (anonim oturuma DOĞRULANMIŞ otel kimliği) ────
+// Anonim misafir Auth token'ında hangi otele ait olduğuna dair hiçbir bilgi
+// yok — client'ın window.location.hostname'den okuyup iddia ettiği tenant
+// güvenilemez (biri doğrudan SDK çağrısıyla farklı bir tenant iddia edebilir).
+// Cloudflare Worker (cloudflare/hotizy-subdomain-proxy.js) GERÇEK gelen
+// subdomain'i HMAC ile imzalayıp X-Hotizy-Tenant-* header'ları olarak iletir;
+// bu fonksiyon imzayı doğrulayıp doğrulanmış tenant'ı bir Firebase Auth
+// custom claim'i olarak yazar. firestore.rules sonra bu claim'i kullanarak
+// misafirin gerçekten o otelin subdomain'inden geldiğini teyit eder.
+//
+// ÖNEMLİ: onCall DEĞİL onRequest — Functions SDK'nın httpsCallable() çağrısı
+// doğrudan cloudfunctions.net'e gider, Cloudflare Worker'ı ATLAR. Bu yüzden
+// bu fonksiyon yalnızca bir Hosting rewrite'ı (/api/mint-guest-claim,
+// firebase.json) üzerinden, aynı origin'den (hotizy.com) çağrılmalı — ancak
+// o zaman istek Worker'dan geçip imzalı header'ları taşır.
+//
+// Secret henüz tanımlı değilse veya imza doğrulanamazsa istek reddedilir;
+// client (guest-order.js) bunu best-effort çağırır ve hatayı yutar — claim
+// yoksa firestore.rules eski (claim'siz) davranışa düşer, hiçbir şey kırılmaz.
+exports.mintGuestClaim = onRequest({ region: REGION, secrets: [TENANT_SIG_SECRET] }, async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST') { res.status(405).json({ error: 'method' }); return; }
+  try {
+    const authHeader = String(req.headers.authorization || '');
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!idToken) { res.status(401).json({ error: 'Giriş gerekli.' }); return; }
+    const decoded = await admin.auth().verifyIdToken(idToken);
+
+    const host = req.headers['x-hotizy-tenant-host'];
+    const ts = req.headers['x-hotizy-tenant-ts'];
+    const sig = req.headers['x-hotizy-tenant-sig'];
+    if (!host || !ts || !sig) { res.status(412).json({ error: 'Doğrulanabilir subdomain bulunamadı.' }); return; }
+    const age = Date.now() - Number(ts);
+    if (!(age >= 0 && age < 5 * 60 * 1000)) { res.status(412).json({ error: 'İmza süresi doldu.' }); return; }
+
+    const expected = crypto.createHmac('sha256', TENANT_SIG_SECRET.value())
+      .update(String(host) + '.' + String(ts)).digest('hex');
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(String(sig), 'utf8');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      res.status(403).json({ error: 'Geçersiz imza.' });
+      return;
+    }
+
+    const parts = String(host).toLowerCase().split('.');
+    const tenantId = (parts.length >= 3 && parts[0] !== 'www' && parts[0] !== 'app') ? parts[0] : null;
+    if (!tenantId || !/^[a-z0-9-]{2,24}$/.test(tenantId)) {
+      res.status(412).json({ error: 'Alt alan adından otel çözülemedi.' });
+      return;
+    }
+
+    await admin.auth().setCustomUserClaims(decoded.uid, { tenantId });
+    res.json({ ok: true, tenantId });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'hata' });
+  }
 });
 
 // ── Misafir adı (QR self-servis) — güvenli ad çözümleme ─────────────

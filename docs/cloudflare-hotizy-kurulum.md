@@ -120,3 +120,45 @@ giden ödeme webhook'ları dahil) bu adres üzerinden değişmeden çalışır.
    erişilebilir olduğunu doğrulayın.
 4. Fiyatlandırma sayfasındaki ödeme akışının (`/api/lemon-checkout`,
    `/api/lemon-webhook`) hâlâ çalıştığını doğrulayın.
+
+---
+
+## 6) Misafir tenant imzası (`TENANT_SIG_SECRET`) — güvenlik sıkılaştırması
+
+Bu Worker, gelen **gerçek** subdomain'i (`incomingUrl.hostname`) artık
+HMAC-SHA256 ile imzalayıp `X-Hotizy-Tenant-*` header'ları olarak Firebase'e
+iletiyor (`cloudflare/hotizy-subdomain-proxy.js`). `functions/index.js`'teki
+`mintGuestClaim` bu imzayı doğrulayıp anonim misafir oturumuna **sunucu
+tarafında doğrulanmış** bir tenant kimliği (Firebase Auth custom claim)
+yazıyor; `firestore.rules` bu claim'i kullanarak bir misafirin gerçekten o
+otelin subdomain'inden geldiğini teyit ediyor (bkz. `guestClaimTenant()`).
+
+Bu mekanizmanın çalışması için **aynı gizli değer** iki yerde de tanımlı
+olmalı — biri eksikse veya değerler uyuşmuyorsa `mintGuestClaim` imza
+doğrulamasını reddeder ve sistem otomatik olarak eski (claim'siz) davranışa
+düşer, **hiçbir şey kırılmaz**, yalnızca bu ek sıkılaştırma devre dışı kalır.
+
+**a) Rastgele bir sır üretin** (yerel terminalinizde, tek seferlik):
+```
+openssl rand -hex 32
+```
+
+**b) Cloudflare Worker tarafı** — Cloudflare panelinde `hotizy-proxy` Worker'ı
+açın → **Settings → Variables and Secrets → Add** → Type: **Secret** →
+İsim: `TENANT_SIG_SECRET` → Value: (yukarıda ürettiğiniz değer). Kaydedin —
+Worker otomatik yeniden başlar, ek bir deploy gerekmez.
+
+**c) Firebase Functions tarafı** — aynı değeri Firebase'e tanımlayın:
+```
+firebase functions:secrets:set TENANT_SIG_SECRET
+```
+(İstenince aynı değeri yapıştırın.) Ardından fonksiyonu deploy edin:
+```
+firebase deploy --only functions:mintGuestClaim,hosting,firestore:rules
+```
+
+**d) Doğrulama:** Bir otelin `guest-order` sayfasını (`https://<slug>.hotizy.com/guest-order?room=1`)
+açın, tarayıcı DevTools → Network sekmesinde `mint-guest-claim` isteğinin
+`200` döndüğünü kontrol edin. Bu istek başarısız olsa bile sayfa normal
+çalışmaya devam eder (geriye dönük uyumlu düşüş) — bu adım yalnızca ek bir
+sıkılaştırmadır, misafir deneyimini bloklamaz.
