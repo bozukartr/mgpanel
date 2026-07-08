@@ -203,6 +203,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Şifremi Unuttum: personel e-postaları gerçek bir kutuya gitmediğinden
+    // (kullanici@oteladi.com, yalnızca Firebase Auth için türetilmiş bir ad)
+    // standart e-posta bazlı sıfırlama linki burada işe yaramaz. Bunun
+    // yerine otelin admin'ine bildirim gönderilir (bkz. forgotPasswordRequest,
+    // functions/index.js); admin panelden gerçek bir şifre sıfırlaması yapıp
+    // yeni şifreyi çalışana iletir. Kullanıcı adının var/yok olduğu hiçbir
+    // zaman sızdırılmaz — her durumda aynı mesaj gösterilir.
+    const forgotPwBtn = document.getElementById('forgotPwBtn');
+    const forgotMsg = document.getElementById('forgotMsg');
+    if (forgotPwBtn) forgotPwBtn.addEventListener('click', async () => {
+        const userInput = (document.getElementById('username').value || '').trim().replace(/İ/g, 'i').toLowerCase();
+        if (!userInput || userInput.includes('@')) {
+            mainCard.classList.add('shake');
+            errorMessage.textContent = 'Önce kullanıcı adınızı yazın';
+            errorMessage.classList.add('show');
+            setTimeout(() => mainCard.classList.remove('shake'), 500);
+            return;
+        }
+        forgotPwBtn.disabled = true;
+        const orig = forgotPwBtn.textContent;
+        forgotPwBtn.textContent = 'Gönderiliyor…';
+        try {
+            const call = firebase.app().functions('us-central1').httpsCallable('forgotPasswordRequest');
+            await call({ tenant: resolveTenant(), username: userInput });
+        } catch (e) { /* jenerik mesaj her durumda gösterilir, hata sızdırılmaz */ }
+        forgotMsg.textContent = 'İsteğiniz otel yöneticinize iletildi. Ulaşamıyorsanız yöneticinizle doğrudan iletişime geçin.';
+        forgotMsg.classList.add('show');
+        forgotPwBtn.disabled = false;
+        forgotPwBtn.textContent = orig;
+    });
+
     // Hotizy F&B girişi: kullanıcı adı + 5 haneli kod (veya admin/yönetici şifresi).
     // 5 haneliyse türetilmiş Firebase şifresi (FB + kod), değilse ham şifre denenir.
     if (fnbForm) fnbForm.addEventListener('submit', async (e) => {

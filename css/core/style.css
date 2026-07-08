@@ -112,6 +112,13 @@ body {
 }
 .error-message.show { opacity: 1; }
 
+.info-message {
+    color: var(--muted-foreground); font-size: 12.5px; font-weight: 500;
+    text-align: center; margin-top: 13px; line-height: 1.5;
+    opacity: 0; transition: .3s;
+}
+.info-message.show { opacity: 1; }
+
 .shake { animation: shake .4s cubic-bezier(.36,.07,.19,.97) both; }
 @keyframes shake {
     10%, 90% { transform: translateX(-1px); }

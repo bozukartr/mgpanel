@@ -341,6 +341,8 @@ exports.onNotificationCreate = onDocumentCreated(
     // /concierge.html) değil; böylece bildirim tıklayınca sabit header/nav korunur.
     const link = (n.type === 'guestOrder')
       ? '/app.html#concierge' + (recordId ? '?order=' + encodeURIComponent(recordId) : '')
+      : (n.type === 'passwordReset')
+      ? '/app.html#admin'
       : '/app.html#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
     const message = {
       notification: { title: n.title || 'Hotizy', body: n.body || '' },
@@ -857,12 +859,21 @@ async function requireTenantAdminFor(request, targetUid) {
   if (!targetUid || typeof targetUid !== 'string') {
     throw new HttpsError('invalid-argument', 'Kullanıcı kimliği gerekli.');
   }
+  const targetSnap = await db.collection('systemUsers').doc(targetUid).get();
+  if (!targetSnap.exists) throw new HttpsError('not-found', 'Kullanıcı bulunamadı.');
+
+  // Süperadmin (platform operatörü) her tenant'taki her kullanıcıyı
+  // sıfırlayabilir/oturumunu iptal edebilir — bir otelin TEK admin'i kendi
+  // şifresini unuttuğunda, o otel içinde onu sıfırlayacak kimse
+  // kalmadığından bu bir kaçış kapısı olarak gerekli.
+  const superSnap = await db.collection('superAdmins').doc(request.auth.uid).get();
+  if (superSnap.exists) return targetSnap.data();
+
   const callerSnap = await db.collection('systemUsers').doc(request.auth.uid).get();
   if (!callerSnap.exists || (callerSnap.data().role || '').toLowerCase() !== 'admin') {
-    throw new HttpsError('permission-denied', 'Yalnızca otel yöneticisi bu işlemi yapabilir.');
+    throw new HttpsError('permission-denied', 'Yalnızca otel yöneticisi veya platform operatörü bu işlemi yapabilir.');
   }
-  const targetSnap = await db.collection('systemUsers').doc(targetUid).get();
-  if (!targetSnap.exists || targetSnap.data().tenantId !== callerSnap.data().tenantId) {
+  if (targetSnap.data().tenantId !== callerSnap.data().tenantId) {
     throw new HttpsError('permission-denied', 'Bu kullanıcı sizin otelinize ait değil.');
   }
   return targetSnap.data();
@@ -1035,6 +1046,67 @@ exports.fnbLoginGate = onCall({ region: REGION }, async (request) => {
   if (!ipOk) return { allowed: false };
   const targetOk = await withinRateLimit('fnb_target_' + tenant + '_' + code, FNB_RATE_MAX_TARGET);
   return { allowed: targetOk };
+});
+
+// ── Şifremi Unuttum ───────────────────────────────────────────────────
+// Personel sentetik bir e-postayla (kullanici@oteladi.com) giriş yapıyor —
+// bu gerçek bir kutuya gitmediğinden standart e-posta bazlı sıfırlama linki
+// burada işe yaramaz. Bunun yerine: kullanıcı adı + otel bulunur, o otelin
+// admin'lerine MEVCUT bildirim sistemiyle (notifications → onNotificationCreate
+// push tetikler) bir bildirim gönderilir; admin panelden resetUserPassword
+// ile gerçek bir sıfırlama yapıp yeni şifreyi çalışana iletir. Kimlik
+// doğrulaması gerektirmez (login ekranında henüz giriş yapılmamış); kullanıcı
+// adının var/yok olduğu bilgisini SIZDIRMAMAK için HER ZAMAN aynı jenerik
+// yanıtı döner. Hız sınırlı — aksi halde biri var olan kullanıcı adlarını
+// deneyerek adminleri bildirim spam'ine boğabilirdi.
+const FORGOT_RATE_MAX_TARGET = 3;  // aynı (tenant+kullanıcı adı), pencere başına en fazla 3 istek
+const FORGOT_RATE_MAX_IP = 10;     // bir IP, pencere başına en fazla 10 istek
+exports.forgotPasswordRequest = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const tenant = String(d.tenant || '').trim().toLowerCase().slice(0, 40);
+  const username = String(d.username || '').trim().toLowerCase().slice(0, 60);
+  const generic = { ok: true }; // her koşulda aynı yanıt — kullanıcı adı sızdırma yok
+  if (!tenant || !username) return generic;
+
+  try {
+    const ip = callerIp(request);
+    if (!(await withinRateLimit('forgot_ip_' + ip, FORGOT_RATE_MAX_IP))) return generic;
+    if (!(await withinRateLimit('forgot_target_' + tenant + '_' + username, FORGOT_RATE_MAX_TARGET))) return generic;
+
+    const userQ = await db.collection('systemUsers')
+      .where('tenantId', '==', tenant).where('username', '==', username).limit(1).get();
+    if (userQ.empty) return generic;
+    const targetId = userQ.docs[0].id;
+
+    const adminsQ = await db.collection('systemUsers')
+      .where('tenantId', '==', tenant).where('role', '==', 'admin').get();
+    if (adminsQ.empty) return generic; // gönderecek admin yok (ör. tek admin kendisi unuttu)
+
+    const batch = db.batch();
+    let any = false;
+    adminsQ.forEach((adminDoc) => {
+      if (adminDoc.id === targetId) return; // kendine bildirim yok
+      any = true;
+      const ref = db.collection('notifications').doc();
+      batch.set(ref, {
+        toUid: adminDoc.id,
+        toUsername: (adminDoc.data() || {}).username || '',
+        title: '🔑 Şifre sıfırlama isteği',
+        body: username + ' giriş yapamıyor, şifresini sıfırlamanız gerekiyor.',
+        recordId: targetId,
+        type: 'passwordReset',
+        fromUid: 'system',
+        fromUsername: 'Sistem',
+        tenantId: tenant,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    if (any) await batch.commit();
+  } catch (e) {
+    console.error('forgotPasswordRequest error', e);
+  }
+  return generic;
 });
 
 exports.getGuestName = onCall({ region: REGION }, async (request) => {
