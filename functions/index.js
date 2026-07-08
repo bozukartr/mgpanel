@@ -37,6 +37,11 @@ const LEMON_WEBHOOK_SECRET = defineSecret('LEMON_WEBHOOK_SECRET');
 //   firebase functions:secrets:set TENANT_SIG_SECRET
 const TENANT_SIG_SECRET = defineSecret('TENANT_SIG_SECRET');
 
+// Resend (e-posta gönderimi) — yeni bir teklif talebi geldiğinde bildirim
+// e-postası göndermek için. Kurulum: docs/e-posta-bildirim-kurulum.md
+//   firebase functions:secrets:set RESEND_API_KEY
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+
 // Monthly price per plan, in EUR (server-authoritative — clients can't tamper).
 // Revenue is collected in EUR; the superadmin Muhasebe panel converts to TRY
 // for accounting with a manual rate. Operators can override these amounts in
@@ -440,6 +445,60 @@ exports.onGuestOrderCreate = onDocumentCreated(
       });
     });
     try { await batch.commit(); } catch (e) { console.error('guest order notify failed', e); }
+  }
+);
+
+// ── Yeni teklif talebi → e-posta bildirimi ──────────────────────────
+// hotizy.com'daki "Teklif Al" formu quoteRequests'e bir doküman yazınca
+// (bkz. firestore.rules — herkese açık, alan-sınırlı create) platform
+// operatörüne Resend üzerinden bir e-posta gönderilir. Firebase'in kendisi
+// e-posta göndermiyor — Resend'in HTTP API'si kullanılıyor. Kurulum:
+// docs/e-posta-bildirim-kurulum.md. RESEND_API_KEY henüz tanımlı değilse
+// sessizce atlanır (quoteRequests yazımı hiçbir zaman buna bağımlı değil —
+// süperadmin paneli e-postadan bağımsız olarak zaten canlı listeliyor).
+const QUOTE_NOTIFY_EMAIL = 'bu.gol@outlook.com';
+const QUOTE_NOTIFY_FROM = 'Hotizy <onboarding@resend.dev>'; // domain doğrulanınca değiştirilebilir, bkz. doküman
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+exports.onQuoteRequestCreate = onDocumentCreated(
+  { document: 'quoteRequests/{id}', region: REGION, secrets: [RESEND_API_KEY] },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const apiKey = RESEND_API_KEY.value();
+    if (!apiKey) return; // henüz yapılandırılmadı — bkz. docs/e-posta-bildirim-kurulum.md
+
+    const q = snap.data() || {};
+    const subject = 'Yeni teklif talebi — ' + (q.hotel || q.name || 'İsimsiz');
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:520px;">
+        <h2 style="margin:0 0 14px;">Yeni Teklif Talebi</h2>
+        <table style="border-collapse:collapse;width:100%;font-size:14px;">
+          <tr><td style="color:#666;padding:4px 10px 4px 0;">Otel</td><td><b>${escapeHtml(q.hotel || '—')}</b></td></tr>
+          <tr><td style="color:#666;padding:4px 10px 4px 0;">Yetkili</td><td>${escapeHtml(q.name || '—')}</td></tr>
+          <tr><td style="color:#666;padding:4px 10px 4px 0;">E-posta</td><td>${escapeHtml(q.email || '—')}</td></tr>
+          <tr><td style="color:#666;padding:4px 10px 4px 0;">Telefon</td><td>${escapeHtml(q.phone || '—')}</td></tr>
+          <tr><td style="color:#666;padding:4px 10px 4px 0;">Oda sayısı</td><td>${escapeHtml(q.rooms || '—')}</td></tr>
+          <tr><td style="color:#666;padding:4px 10px 4px 0;">Otel sayısı</td><td>${escapeHtml(q.hotels || '—')}</td></tr>
+        </table>
+        <p style="color:#666;margin:16px 0 4px;">Mesaj</p>
+        <div style="white-space:pre-wrap;border:1px solid #e6eaf2;border-radius:8px;padding:12px;font-size:14px;">${escapeHtml(q.message || '(yok)')}</div>
+        <p style="color:#999;font-size:12px;margin-top:18px;">Süperadmin panelinden görüntüleyip yanıtlayın: https://hotizy.com/superadmin</p>
+      </div>`;
+
+    try {
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: QUOTE_NOTIFY_FROM, to: [QUOTE_NOTIFY_EMAIL], subject, html })
+      });
+      if (!resp.ok) console.error('quote email send failed', resp.status, await resp.text().catch(() => ''));
+    } catch (e) {
+      console.error('quote email send error', e);
+    }
   }
 );
 
