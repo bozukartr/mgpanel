@@ -47,7 +47,7 @@
         if (days <= 7) return { key: 'soon', label: 'Yakında Bitecek', cls: 'pill-amber', end, days };
         return { key: 'active', label: 'Aktif', cls: 'pill-green', end, days };
     }
-    function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+    function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
     // ---------- plans / modules ----------
     // Modül anahtarları uygulama genelinde tek küme olmalı (admin.js MOD_KEYS ile

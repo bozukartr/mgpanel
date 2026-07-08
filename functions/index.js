@@ -159,10 +159,10 @@ exports.createCheckout = onRequest(
       const items = b.items || {};
       const cycle = b.cycle === 'annual' ? 'annual' : 'monthly';
       const buyer = b.buyer || {};
-      const name = String(buyer.name || '').trim();
-      const email = String(buyer.email || '').trim();
-      const phone = String(buyer.phone || '').trim();
-      const hotel = String(buyer.hotel || '').trim();
+      const name = String(buyer.name || '').trim().slice(0, 120);
+      const email = String(buyer.email || '').trim().slice(0, 160);
+      const phone = String(buyer.phone || '').trim().slice(0, 40);
+      const hotel = String(buyer.hotel || '').trim().slice(0, 120);
 
       if (!hotel || !name) { res.status(400).json({ error: 'Otel adı ve yetkili adı gerekli.' }); return; }
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { res.status(400).json({ error: 'Geçerli bir e-posta girin.' }); return; }
@@ -212,12 +212,21 @@ exports.createCheckout = onRequest(
       const data = await resp.json();
       if (data.status !== 'success') {
         await db.collection('checkoutOrders').doc(oid).update({ status: 'error', error: data.reason || 'token' });
-        res.status(502).json({ error: 'PayTR: ' + (data.reason || 'token alınamadı') });
+        // Ham PayTR hata metni herkese açık (kimliksiz) çağırana DÖNMEZ — yalnızca
+        // sunucu tarafında (log + Firestore) tutulur; bkz. güvenlik denetimi.
+        console.error('createCheckout PayTR error', data.reason || 'token');
+        res.status(502).json({ error: 'Ödeme sağlayıcısına bağlanılamadı. Lütfen daha sonra tekrar deneyin.' });
         return;
       }
       res.json({ iframeUrl: 'https://www.paytr.com/odeme/guest/' + data.token + '/', oid, priceTRY, cycle });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      // e.message ham hata metnini (Firestore/PayTR/fetch iç detayları) herkese
+      // açık bir uca sızdırabileceğinden çağırana asla döndürülmez — yalnızca
+      // sunucu log'una yazılır; bkz. güvenlik denetimi (paytrCallback/lemonWebhook
+      // zaten bu deseni izliyordu, createCheckout/lemonCheckout de uyumlu hale
+      // getirildi).
+      console.error('createCheckout error', e);
+      res.status(500).json({ error: 'Ödeme başlatılamadı. Lütfen daha sonra tekrar deneyin.' });
     }
   }
 );
@@ -232,7 +241,13 @@ exports.paytrCallback = onRequest(
 
       const hashStr = p.merchant_oid + salt + p.status + p.total_amount;
       const token = crypto.createHmac('sha256', key).update(hashStr).digest('base64');
-      if (!p.hash || token !== p.hash) {
+      // Sabit zamanlı karşılaştırma: dosyadaki diğer iki imza kontrolüyle
+      // (lemonWebhook, mintGuestClaim) tutarlı — düz `!==` bir timing side-channel
+      // bırakır; bkz. güvenlik denetimi.
+      const tokenBuf = Buffer.from(token, 'utf8');
+      const hashBuf = Buffer.from(String(p.hash || ''), 'utf8');
+      const validHash = !!p.hash && tokenBuf.length === hashBuf.length && crypto.timingSafeEqual(tokenBuf, hashBuf);
+      if (!validHash) {
         res.status(400).send('PAYTR notification failed: bad hash');
         return;
       }
@@ -1213,24 +1228,30 @@ exports.lemonCheckout = onRequest(
         return;
       }
       const buyer = b.buyer || {};
-      const email = String(buyer.email || '').trim();
+      const email = String(buyer.email || '').trim().slice(0, 160);
+      const buyerName = String(buyer.name || '').trim().slice(0, 120);
+      const buyerHotel = String(buyer.hotel || '').trim().slice(0, 120);
       const oid = 'LSC' + Date.now() + Math.floor(Math.random() * 1000);
       await db.collection('lemonOrders').doc(oid).set({
         oid, plan, cycle, rooms: quote.rooms, mods: Array.isArray(b.mods) ? b.mods : [], pms: !!b.pms,
         amount: quote.total, amountWithVat: totalWithVat, vatRate: VAT_RATE,
         currency: 'EUR', status: 'pending', provider: 'lemonsqueezy',
-        buyer: { email, name: String(buyer.name || ''), hotel: String(buyer.hotel || '') },
+        buyer: { email, name: buyerName, hotel: buyerHotel },
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
       const url = await lsCreateCheckout({
         apiKey, storeId: ls.storeId, variantId, priceCents: Math.round(totalWithVat * 100),
-        email, name: String(buyer.name || ''),
+        email, name: buyerName,
         custom: strMap({ plan, cycle, oid, rooms: quote.rooms, signup: '1' }),
         redirectUrl: BASE_URL + '/payment-result.html?status=ok&provider=lemon'
       });
       res.json({ url, oid, amount: quote.total, amountWithVat: totalWithVat, cycle });
     } catch (e) {
-      res.status(500).json({ error: e.message || 'hata' });
+      // e.message, Lemon Squeezy'nin ham API hata gövdesini (lsCreateCheckout
+      // içinde data.errors[0].detail) içerebilir — herkese açık, kimliksiz bir
+      // uca asla döndürülmez; bkz. güvenlik denetimi.
+      console.error('lemonCheckout error', e);
+      res.status(500).json({ error: 'Ödeme başlatılamadı. Lütfen daha sonra tekrar deneyin.' });
     }
   }
 );

@@ -68,10 +68,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><span class="role-badge">${esc(user.role)}</span></td>
                     <td>${esc(user.department)}</td>
                     <td>
-                        <button class="reset-pw-btn" onclick="event.stopPropagation(); resetUserPassword('${doc.id}', '${esc(user.username).replace(/'/g, "\\'")}')">Reset Password</button>
-                        <button class="delete-user-btn" onclick="event.stopPropagation(); deleteUser('${doc.id}')">Remove Access</button>
+                        <button class="reset-pw-btn">Reset Password</button>
+                        <button class="delete-user-btn">Remove Access</button>
                     </td>
                 `;
+                // Tıklama işleyicileri gerçek JS closure'ları ile bağlanır, bir
+                // onclick="..." HTML attribute string'ine gömülmez — kullanıcı adı
+                // hiçbir zaman HTML olarak serileştirilip tekrar JS olarak
+                // ayrıştırılmıyor. esc() yalnızca HTML metin/attribute bağlamı için
+                // güvenlidir; inline event-handler string'lerine değer gömmek
+                // (tarayıcı attribute'u decode edip JS olarak derlediğinden) esc()
+                // ile bile atlatılabilir bir XSS'e yol açar — bkz. güvenlik denetimi.
+                tr.querySelector('.reset-pw-btn').onclick = (e) => { e.stopPropagation(); resetUserPassword(doc.id, user.username); };
+                tr.querySelector('.delete-user-btn').onclick = (e) => { e.stopPropagation(); deleteUser(doc.id); };
                 tr.onclick = () => openEditUser(doc.id, user);
                 usersTableBody.appendChild(tr);
             });
@@ -195,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { /* ignore */ }
         if (names.indexOf(FNB_DEPT) === -1) names.push(FNB_DEPT);                 // F&B girişi için
         if (currentValue && names.indexOf(currentValue) === -1) names.unshift(currentValue); // mevcut değeri koru
-        sel.innerHTML = names.map(n => `<option value="${String(n).replace(/"/g, '&quot;')}">${String(n).replace(/</g, '&lt;')}</option>`).join('');
+        sel.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
         sel.value = currentValue || (names[0] || '');
     }
 
