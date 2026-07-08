@@ -4,9 +4,6 @@ function esc(s) {
 }
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Auth Guard
-    const loggedUsername = localStorage.getItem('hotelUsername') || '';
-    const loggedRole = (localStorage.getItem('hotelRole') || '').toLowerCase();
-    const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     const toast = document.getElementById('toast');
 
     function showToast(message, isError = false) {
@@ -21,14 +18,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (IssueConfig.listen) IssueConfig.listen(() => {});
     }
 
-    // Verify admin access against Firestore (source of truth), not just localStorage.
+    // Verify admin access against Firestore (source of truth) ONLY — a
+    // localStorage-derived flag was previously ORed into this check, letting
+    // anyone who edited localStorage.hotelRole in devtools bypass the
+    // redirect regardless of their real Firestore role; bkz. güvenlik
+    // denetimi.
     auth.onAuthStateChanged(async (u) => {
         if (!u) { window.location.href = 'login'; return; }
         try {
             const doc = await db.collection('systemUsers').doc(u.uid).get();
             const role = doc.exists ? (doc.data().role || '').toLowerCase() : '';
             const uname = doc.exists ? (doc.data().username || '').toLowerCase() : '';
-            if (role !== 'admin' && uname !== 'admin' && !isAdminUser) {
+            if (role !== 'admin' && uname !== 'admin') {
                 showToast('Unauthorized Access. Redirecting...', true);
                 setTimeout(() => window.location.href = 'app', 1500);
             }
@@ -49,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const userForm = document.getElementById('userForm');
 
     let currentEditingUserId = null;
+    let currentEditingUserRole = null; // role değişip değişmediğini tespit etmek için (bkz. revokeUserSessions çağrısı)
     let userCount = 0;
     const maxUsers = () => parseInt(localStorage.getItem('hotelMaxUsers') || '0', 10);
 
@@ -106,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openEditUser = (id, data) => {
         currentEditingUserId = id;
+        currentEditingUserRole = (data.role || '').toLowerCase();
         document.getElementById('adminNewUsername').value = data.username;
         document.getElementById('adminNewPassword').value = "********";
         document.getElementById('adminNewPassword').disabled = true;
@@ -126,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             if (currentEditingUserId) {
                 // UPDATE MODE
+                const roleChanged = (role || '').toLowerCase() !== currentEditingUserRole;
                 await db.collection('systemUsers').doc(currentEditingUserId).update({
                     username: username,
                     role: role,
@@ -133,6 +137,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     modules: getUserModuleSel(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
+                // Rol fiilen değiştiyse aktif oturum token'larını iptal et —
+                // aksi halde eski (daha yetkili) rol, mevcut ID token'ın süresi
+                // dolana kadar (~1 saate kadar) geçerli kalabilirdi; bkz. auth
+                // denetimi. Best-effort: başarısız olursa Firestore güncellemesi
+                // zaten uygulandığı için sessizce yutulur.
+                if (roleChanged) {
+                    try {
+                        const revoke = firebase.app().functions('us-central1').httpsCallable('revokeUserSessions');
+                        await revoke({ uid: currentEditingUserId });
+                    } catch (e) { console.error('revokeUserSessions failed', e); }
+                }
                 showToast('Permissions updated for ' + username);
             } else {
                 // CREATE MODE
@@ -247,20 +262,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Force the user to set a new password on their next login.
+    // Şifreyi GERÇEKTEN geçersiz kılar (yeni rastgele bir geçici şifre +
+    // oturum iptali) — önceden yalnızca bir bayrak yazılıyordu ve eski şifre
+    // kullanıcı elle değiştirene kadar geçerli kalıyordu; bkz. auth denetimi.
     window.resetUserPassword = async (id, username) => {
-        if (!confirm(`Reset password for ${username}?\n\nThey will keep their current password to log in once, then be required to set a new password before continuing.`)) {
+        if (!confirm(`Reset password for ${username}?\n\nA new temporary password will be generated and their current password/sessions will stop working immediately. They will be required to set a new password on next login.`)) {
             return;
         }
         try {
-            await db.collection('systemUsers').doc(id).update({
-                mustChangePassword: true,
-                passwordResetAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            const call = firebase.app().functions('us-central1').httpsCallable('resetUserPassword');
+            const res = await call({ uid: id });
+            const tempPw = res.data && res.data.tempPassword;
+            if (tempPw) {
+                prompt(`${username} için geçici şifre (bu kişiye iletin — bir daha gösterilmeyecek):`, tempPw);
+            }
             showToast(`${username} will be asked to set a new password on next login.`);
         } catch (err) {
             console.error(err);
-            showToast('Error: ' + err.message, true);
+            showToast('Error: ' + (err.message || 'hata'), true);
         }
     };
 
@@ -594,6 +613,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (payBtn) {
         payBtn.addEventListener('click', async () => {
+            // Senkron disable — çift tıklamanın iki ayrı payments dokümanı/
+            // PayTR token'ı oluşturmasını engeller (bkz. idempotency denetimi;
+            // payLemonBtn'de zaten bu koruma vardı, buraya da eklendi).
+            if (payBtn.disabled) return;
+            payBtn.disabled = true;
             payModal.style.display = 'flex';
             payLoading.style.display = 'block';
             payLoading.textContent = 'PayTR güvenli ödeme hazırlanıyor…';
@@ -609,6 +633,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 paytriframe.src = res.data.iframeUrl;
             } catch (err) {
                 payLoading.textContent = 'Ödeme başlatılamadı: ' + (err.message || 'bilinmeyen hata');
+            } finally {
+                payBtn.disabled = false;
             }
         });
     }

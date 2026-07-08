@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
             auth.signOut().then(() => {
-                localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
+                clearSessionStorage();
                 window.location.href = 'login';
             });
         }, 15 * 60 * 1000); // 15 minutes

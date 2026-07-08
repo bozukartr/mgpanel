@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', () => {
             auth.signOut().then(() => {
-                localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
+                clearSessionStorage();
                 window.location.href = 'login';
             });
         });
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
             auth.signOut().then(() => {
-                localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
+                clearSessionStorage();
                 window.location.href = 'login';
             });
         }, 15 * 60 * 1000); // 15 minutes
@@ -2228,8 +2228,24 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Çift-tıklama/çift-gönderim koruması: buton await çözülüp arayüz
+    // yeniden render edilene kadar devre dışı bırakılmıyordu — neredeyse
+    // eşzamanlı iki tıklama, her biri bağımsız hesaplanan farklı bir süre
+    // metniyle zaman çizelgesine MÜKERRER not ekleyebiliyor, ayrıca
+    // completedAt ikinci çağrının timestamp'iyle üzerine yazılabiliyordu;
+    // bkz. idempotency denetimi. Üç geçiş de (take/complete/reopen) aynı
+    // riski taşıdığından tek paylaşımlı bayrak yeterli.
+    let transitionInFlight = false;
     async function transitionRecord(action) {
-        if (!selectedRecord) return;
+        if (!selectedRecord || transitionInFlight) return;
+        transitionInFlight = true;
+        try {
+            await transitionRecordImpl(action);
+        } finally {
+            transitionInFlight = false;
+        }
+    }
+    async function transitionRecordImpl(action) {
         const r = selectedRecord;
         const TS = firebase.firestore.FieldValue.serverTimestamp();
         const nowDate = new Date();

@@ -351,6 +351,11 @@
     let openChecks = [];        // status 'open'|'sent' (açık adisyonlar)
     let editingCheckId = null;  // checkModal düzenleme hedefi (null = yeni)
     let currentCheck = null;    // POS'ta düzenlenen adisyon
+    // Bu POS oturumunda BU istemcinin bilerek sildiği kalem ID'leri —
+    // saveCheck()'in sunucu-taraflı merge'ünde bu ID'lerin "başka bir cihaz
+    // ekledi" sanılıp yanlışlıkla geri getirilmemesi (resurrect) için.
+    // openPos() her yeni oturumda sıfırlar.
+    let removedLineIds = new Set();
     let posCat = '';
     let posSearch = '';
     let selectedLineId = null;  // POS'ta seçili kalem (bağlamsal işlem çubuğu)
@@ -566,6 +571,7 @@
     function openPos(check) {
         currentCheck = JSON.parse(JSON.stringify(check));
         if (!currentCheck.items) currentCheck.items = [];
+        removedLineIds = new Set();
         selectedLineId = null;
         setPosPane('menu');
         setPosHeader();
@@ -638,7 +644,7 @@
         const l = currentCheck.items.find(x => x.lineId === lineId); if (!l) return;
         const apply = () => {
             l.qty += d;
-            if (l.qty <= 0) { currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId); if (selectedLineId === lineId) selectedLineId = null; }
+            if (l.qty <= 0) { currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId); removedLineIds.add(lineId); if (selectedLineId === lineId) selectedLineId = null; }
             recalcSave();
         };
         if (d < 0 && l.sent) authorizeCancel(apply); else apply();
@@ -647,6 +653,7 @@
         const l = currentCheck.items.find(x => x.lineId === lineId);
         const doRemove = () => {
             currentCheck.items = currentCheck.items.filter(x => x.lineId !== lineId);
+            removedLineIds.add(lineId);
             if (selectedLineId === lineId) selectedLineId = null;
             recalcSave();
         };
@@ -764,7 +771,7 @@
         if (mUnits >= totalUnits()) { toast('Tüm adetler ayrılamaz — en az 1 adet kalmalı.', true); return; }
         const moved = [];
         moves.forEach(({ l, mv }) => {
-            if (mv >= (l.qty || 1)) { moved.push(Object.assign({}, l)); l.qty = 0; }
+            if (mv >= (l.qty || 1)) { moved.push(Object.assign({}, l)); l.qty = 0; removedLineIds.add(l.lineId); }
             else { moved.push(Object.assign({}, l, { lineId: newLineId(), qty: mv })); l.qty -= mv; }
         });
         currentCheck.items = currentCheck.items.filter(l => (l.qty || 0) > 0);
@@ -934,20 +941,46 @@
     function saveCheck() {
         if (!currentCheck) return;
         if (!currentCheck.items.length && !currentCheck.id) return; // boş adisyon yaratma
-        const payload = {
+        const meta = {
             tenantId: TENANT_ID, tableName: currentCheck.tableName || '', name: currentCheck.name || '', room: currentCheck.room || '',
             section: currentCheck.section || 'Genel', status: currentCheck.status || 'open', pax: currentCheck.pax || 1, note: currentCheck.note || '',
-            items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
             sentAt: currentCheck.sentAt || null, splitGroup: currentCheck.splitGroup || null,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        if (currentCheck.id) {
-            db.collection(CHK_COL).doc(currentCheck.id).update(payload).catch(err => console.error(err));
-        } else {
-            payload.openedBy = loggedUser;
-            payload.openedAt = firebase.firestore.FieldValue.serverTimestamp();
+        if (!currentCheck.id) {
+            const payload = Object.assign({}, meta, {
+                items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
+                openedBy: loggedUser, openedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
             db.collection(CHK_COL).add(payload).then(ref => { currentCheck.id = ref.id; }).catch(err => console.error(err));
+            return;
         }
+        // Var olan bir adisyona kayıt: kör "tüm items dizisinin üzerine yaz"
+        // yerine (bkz. idempotency denetimi — bu, iki personel aynı adisyonu
+        // eşzamanlı düzenlerse birinin eklediği kalemlerin diğerinin
+        // kaydıyla SESSİZCE SİLİNMESİNE yol açıyordu), yazımdan hemen önce
+        // sunucudaki EN GÜNCEL items'ı bir transaction içinde yeniden okuyup
+        // bu istemcinin yerel kopyasıyla birleştiriyoruz: yalnızca sunucuda
+        // olup yerelde bilinmeyen VE bu oturumda bilerek silinmemiş kalemler
+        // (yani başka bir cihazın eklediği kalemler) korunarak eklenir.
+        // (arrayUnion kullanılmadı: satır objeleri qty/sent/note gibi
+        // değişen alanlar taşıyor, arrayUnion deep-equality ile çalıştığından
+        // bir miktar güncellemesi mevcut satırı GÜNCELLEMEZ, mükerrer yeni
+        // bir satır ekler — bu veri şekli için transaction-bazlı merge daha
+        // doğru.)
+        const ref = db.collection(CHK_COL).doc(currentCheck.id);
+        const localItems = currentCheck.items;
+        db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            const serverItems = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
+            const localIds = new Set(localItems.map(l => l.lineId));
+            const onlyOnServer = serverItems.filter(l => l && l.lineId && !localIds.has(l.lineId) && !removedLineIds.has(l.lineId));
+            const merged = localItems.concat(onlyOnServer);
+            const t = computeTotals(merged);
+            tx.update(ref, Object.assign({}, meta, {
+                items: merged, subtotal: t.subtotal, vat: t.vat, total: t.total
+            }));
+        }).catch(err => console.error(err));
     }
     function sendKitchen() {
         if (!currentCheck || !currentCheck.items.length) { toast('Adisyon boş.', true); return; }

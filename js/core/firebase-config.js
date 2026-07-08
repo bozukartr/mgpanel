@@ -106,6 +106,17 @@ function applyTenantConfig(tenant) {
     localStorage.setItem('hotelPmsEnabled', (tenant && tenant.pmsEnabled) ? '1' : '0');
 }
 
+// Oturum kapatılırken temizlenmesi gereken TÜM personel-oturumu anahtarları.
+// Önceden her sayfanın kendi logout handler'ı yalnızca hotelUsername/
+// hotelTenantId'yi temizliyordu; rol/modül/plan bayrakları bir sonraki
+// oturuma (aynı tarayıcıda farklı biri giriş yapana kadar) sızabiliyordu —
+// bkz. auth denetimi. Her logout handler'ı auth.signOut()'tan sonra bunu
+// çağırmalı.
+function clearSessionStorage() {
+    ['hotelUsername', 'hotelTenantId', 'hotelDept', 'hotelRole', 'userModules', 'loginContext',
+     'hotelModules', 'hotelMaxUsers', 'hotelPlan', 'hotelPmsEnabled'].forEach(k => localStorage.removeItem(k));
+}
+
 // Is PMS integration enabled for the signed-in hotel?
 function pmsEnabled() {
     return localStorage.getItem('hotelPmsEnabled') === '1';

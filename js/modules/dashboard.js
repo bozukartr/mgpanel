@@ -48,7 +48,7 @@
         if (ROLE === 'admin' || USERNAME.toLowerCase() === 'admin') {
             const a = $('dashAdminNav'); if (a) a.style.display = '';
         }
-        $('dashLogout').onclick = () => { try { auth.signOut(); } catch (e) {} location.href = 'login'; };
+        $('dashLogout').onclick = () => { try { auth.signOut(); } catch (e) {} try { clearSessionStorage(); } catch (e) {} location.href = 'login'; };
     }
 
     // ── KPI hesapları ──────────────────────────────────────────
