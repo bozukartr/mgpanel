@@ -1620,11 +1620,17 @@
         if (!btn) return;
         const uid = btn.dataset.uid, uname = btn.dataset.uname;
         if (btn.dataset.uact === 'reset') {
-            if (!confirm(`${uname} için şifre sıfırlansın mı?\n\nKullanıcı mevcut şifresiyle bir kez girip yeni şifre belirleyecek.`)) return;
+            // Gerçek bir Auth şifre değişikliği + oturum iptali yapar (yalnızca
+            // bir bayrak yazmaz) — bkz. auth denetimi. Süperadmin, bir otelin
+            // TEK admin'i kendi şifresini unuttuğunda devreye giren kaçış kapısı.
+            if (!confirm(`${uname} için şifre sıfırlansın mı?\n\nYeni bir geçici şifre üretilecek, mevcut şifre/oturumlar hemen geçersiz olacak.`)) return;
             try {
-                await db.collection('systemUsers').doc(uid).update({ mustChangePassword: true, passwordResetAt: firebase.firestore.FieldValue.serverTimestamp() });
-                toast('Şifre sıfırlama istendi');
-            } catch (e2) { toast('Hata: ' + e2.message, true); }
+                const call = firebase.app().functions('us-central1').httpsCallable('resetUserPassword');
+                const res = await call({ uid });
+                const tempPw = res.data && res.data.tempPassword;
+                if (tempPw) prompt(`${uname} için geçici şifre (iletin — bir daha gösterilmeyecek):`, tempPw);
+                toast('Şifre sıfırlandı');
+            } catch (e2) { toast('Hata: ' + (e2.message || 'hata'), true); }
         } else if (btn.dataset.uact === 'remove') {
             if (!confirm(`${uname} kaldırılsın mı? Bu kullanıcı giriş yapamayacak.`)) return;
             try {
