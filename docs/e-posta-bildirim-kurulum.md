@@ -34,32 +34,25 @@ firebase deploy --only functions:onQuoteRequestCreate
 ## 4) Doğrulama
 
 `https://hotizy.com` üzerindeki "Teklif Al" formunu test verisiyle doldurup
-gönderin. Birkaç saniye içinde `bu.gol@outlook.com`'a bir e-posta gelmeli —
-**ilk zamanlarda spam/gereksiz klasörünü de kontrol edin**, `onboarding@resend.dev`
-gönderen adresinden gelen e-postalar bazı sağlayıcılarda ilk seferde spam'e
-düşebilir (aşağıdaki adım 5 bunu kalıcı olarak çözer).
+gönderin. Birkaç saniye içinde `bu.gol@outlook.com`'a bir e-posta gelmeli.
 
 Bir şey gelmezse Firebase Console → Functions → `onQuoteRequestCreate` →
 Logs'a bakın; `RESEND_API_KEY` yanlış/tanımsızsa veya Resend API bir hata
 döndürürse burada görünür.
 
-## 5) (Önerilir) Kendi domaininizden gönderin
+> **Bilinen tuzak (yaşandı):** Resend'in test göndereni (`onboarding@resend.dev`)
+> yalnızca Resend HESABINA kayıtlı e-postaya gönderebilir, `bu.gol@outlook.com`'a
+> DEĞİL — bu, gönderim 403 ile sessizce başarısız olduğunda e-postanın hiç
+> gelmemesine yol açar. Aşağıdaki adım 5 (kendi domaininizi doğrulama) bu
+> kısıtlamayı tamamen kaldırır ve artık uygulanmış durumda.
 
-Şu an gönderen adres Resend'in test alanı (`onboarding@resend.dev`) —
-hemen çalışır ama daha az profesyonel görünür ve bazı gelen kutularında
-spam'e düşme ihtimali biraz daha yüksektir. Kendi domaininizi doğrularsanız
-(ör. `bildirim@hotizy.com`) daha güvenilir teslimat sağlarsınız:
+## 5) Kendi domaininizden gönderme — ✅ tamamlandı
 
-1. Resend Dashboard → **Domains** → **Add Domain** → `hotizy.com` girin.
-2. Resend'in verdiği DNS kayıtlarını (birkaç TXT/CNAME/MX) Cloudflare'deki
-   DNS ayarlarınıza ekleyin — `hotizy.com` DNS'ini zaten Cloudflare'de
-   yönettiğiniz için (bkz. `docs/cloudflare-hotizy-kurulum.md`) tanıdık bir
-   adım olacaktır. **Bu kayıtları "Proxied" değil "DNS only" (gri bulut)**
-   olarak ekleyin.
-3. Doğrulama tamamlanınca (genelde birkaç dakika–birkaç saat) bana haber
-   verin — `functions/index.js`'teki `QUOTE_NOTIFY_FROM` sabitini
-   `Hotizy <bildirim@hotizy.com>` gibi kendi domaininize güncelleyip
-   deploy ederim.
+`hotizy.com`, Resend'de doğrulandı (Cloudflare üzerinden DNS kayıtları
+otomatik eklendi — DKIM/SPF/MX hepsi "Verified"). Gönderen adres artık
+`Hotizy <bildirim@hotizy.com>` — kısıtlama kalktı, herhangi bir alıcıya
+gönderilebiliyor. Yeniden yapılandırmaya gerek yok; yalnızca kod tarafındaki
+`QUOTE_NOTIFY_FROM` sabitinin deploy edilmesi gerekiyor (bkz. adım 3).
 
 ## Alıcı e-postayı değiştirmek isterseniz
 

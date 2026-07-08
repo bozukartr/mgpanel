@@ -457,7 +457,7 @@ exports.onGuestOrderCreate = onDocumentCreated(
 // sessizce atlanır (quoteRequests yazımı hiçbir zaman buna bağımlı değil —
 // süperadmin paneli e-postadan bağımsız olarak zaten canlı listeliyor).
 const QUOTE_NOTIFY_EMAIL = 'bu.gol@outlook.com';
-const QUOTE_NOTIFY_FROM = 'Hotizy <onboarding@resend.dev>'; // domain doğrulanınca değiştirilebilir, bkz. doküman
+const QUOTE_NOTIFY_FROM = 'Hotizy <bildirim@hotizy.com>'; // hotizy.com Resend'de doğrulandı — artık herhangi bir alıcıya gönderilebilir
 
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
