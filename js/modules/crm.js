@@ -216,8 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="profile-actions" style="display: flex; gap: 8px;">
-                    <button class="btn-status-toggle" style="background-color: #f59e0b; color: white;" 
-                            onclick="openRoomChangeModal('${guest.id}', '${guest.name}', '${guest.room === 'Pre-Arrival' ? '' : (guest.room || '')}', '${guest.checkIn || ''}', '${guest.checkOut || ''}', '${guest.status}')">
+                    <button class="btn-status-toggle" style="background-color: #f59e0b; color: white;"
+                            onclick="openRoomChangeModal('${guest.id}')">
                         Bilgileri Düzenle
                     </button>
                     ${guest.status === 'pre_arrival' ? `
@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         Birleştir
                     </button>
                     <button class="btn-status-toggle" style="background-color: #ef4444; color: white;"
-                            onclick="deleteGuest('${guest.id}', '${guest.name.replace(/'/g, "\\'")}')">
+                            onclick="deleteGuest('${guest.id}')">
                         Sil
                     </button>
                     ` : ''}
@@ -329,11 +329,17 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { showToast('Update failed', true); }
     };
 
-    window.deleteGuest = async (guestId, guestName) => {
+    window.deleteGuest = async (guestId) => {
         if (!isAdminUser) {
             return showToast('Only Admin can delete guests!', true);
         }
-        
+        // guestName her zaman guestDirectory'deki (zaten yüklü, güvenilir) kayıttan
+        // okunur — onclick attribute'una serbest metin gömülmez (bkz. güvenlik
+        // denetimi: misafir adının onclick içine ham/eksik-escape edilmiş şekilde
+        // yerleştirilmesi stored XSS'e yol açıyordu).
+        const guest = guestDirectory.find(g => g.id === guestId);
+        const guestName = guest ? guest.name : guestId;
+
         if (!confirm(`Are you sure you want to permanently delete the profile for ${guestName}?\n\nWarning: This removes the guest from the directory, but keeps their historical logs intact.`)) {
             return;
         }
@@ -589,7 +595,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let rcGuestId = null;
     let rcGuestName = null;
 
-    window.openRoomChangeModal = (id, name, currentRoom, checkIn, checkOut, status) => {
+    window.openRoomChangeModal = (id) => {
+        // Tüm alanlar guestDirectory'deki (zaten yüklü, güvenilir) kayıttan
+        // okunur — onclick attribute'una serbest metin (misafir adı vb.)
+        // gömülmez (bkz. güvenlik denetimi: bu daha önce escape edilmeden
+        // veya yetersiz escape ile onclick içine yazılıyordu, stored XSS).
+        const guest = guestDirectory.find(g => g.id === id);
+        if (!guest) return;
+        const name = guest.name, currentRoom = guest.room === 'Pre-Arrival' ? '' : (guest.room || '');
+        const checkIn = guest.checkIn || '', checkOut = guest.checkOut || '', status = guest.status;
+
         rcGuestId = id;
         rcGuestName = name;
         document.getElementById('rcGuestName').textContent = name;
@@ -597,7 +612,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rcNewRoom').value = currentRoom;
         document.getElementById('rcCheckIn').value = toDisplayDate(checkIn) || '';
         document.getElementById('rcCheckOut').value = toDisplayDate(checkOut) || '';
-        
+
         const isPreArrivalBox = document.getElementById('rcIsPreArrival');
         if (isPreArrivalBox) {
             isPreArrivalBox.checked = (status === 'pre_arrival');
