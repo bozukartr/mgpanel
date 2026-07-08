@@ -223,6 +223,23 @@ document.addEventListener('DOMContentLoaded', () => {
             email = fnbEmail(code, tenant);
             attempts.push(fnbPassword(code));
         }
+
+        // 5 haneli kod, sabit 'FB' önekiyle yalnızca 100.000 kombinasyon —
+        // gerçek Firebase Auth denemesinden ÖNCE sunucu-taraflı bir hız
+        // sınırından geçiriyoruz (bkz. auth denetimi); aşılırsa Auth
+        // denemesi hiç yapılmaz. Kapı fonksiyonu başarısız olursa (ağ vb.)
+        // girişi engellemiyoruz — best-effort ek koruma, tek savunma değil.
+        if (/^\d{5}$/.test(code)) {
+            try {
+                const gate = firebase.app().functions('us-central1').httpsCallable('fnbLoginGate');
+                const res = await gate({ tenant, code });
+                if (!res.data || !res.data.allowed) {
+                    fnbShake('Çok fazla deneme. Lütfen birkaç dakika sonra tekrar deneyin.');
+                    return;
+                }
+            } catch (e) { /* kapı ulaşılamazsa engellemeyelim */ }
+        }
+
         let cred = null;
         for (const pw of attempts) {
             try { cred = await auth.signInWithEmailAndPassword(email, pw); break; } catch (err) { /* sonraki denemeye geç */ }

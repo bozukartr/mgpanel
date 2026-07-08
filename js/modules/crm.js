@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
         auth.signOut().then(() => {
-            localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
+            clearSessionStorage();
             window.location.href = 'login';
         });
     });

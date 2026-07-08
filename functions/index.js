@@ -256,43 +256,53 @@ exports.paytrCallback = onRequest(
       // tenant subscription payment.
       const isCheckout = String(p.merchant_oid).startsWith('CHK');
       const ref = db.collection(isCheckout ? 'checkoutOrders' : 'payments').doc(p.merchant_oid);
-      const snap = await ref.get();
 
-      // Idempotent: only act once per order.
-      if (snap.exists && snap.data().status !== 'success') {
+      // İdempotans: durumu oku + 'success'/'failed'e çevirme AYNI transaction
+      // içinde yapılır — PayTR aynı bildirimi birden fazla kez gönderebiliyor
+      // (gerçekleşen, varsayımsal olmayan bir davranış); düz "oku sonra yaz"
+      // iki eşzamanlı çağrının da 'pending' okuyup İKİSİNİN DE aboneliği
+      // uzatmasına (çift ay kredisi) yol açabilirdi. lemonWebhook'taki
+      // transaction-bazlı dedup ile aynı desen — Firestore SDK, çakışan bir
+      // transaction'ı otomatik yeniden dener; ikinci çağrı yeniden okuduğunda
+      // status'un zaten 'success' olduğunu görüp `claimed=false` kalır.
+      let payData = null;
+      let claimed = false;
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return;
+        payData = snap.data();
+        if (payData.status === 'success') return; // zaten işlenmiş — tekrar bildirim
+        claimed = true;
         if (p.status === 'success') {
-          if (isCheckout) {
-            // Public order paid — record it; the operator provisions the hotel.
-            await ref.update({
-              status: 'success',
-              paidAt: admin.firestore.FieldValue.serverTimestamp(),
-              totalAmount: Number(p.total_amount)
-            });
-          } else {
-            const pay = snap.data();
-            const tRef = db.collection('tenants').doc(pay.tenantId);
-            const tSnap = await tRef.get();
-            const now = new Date();
-            let base = now;
-            if (tSnap.exists && tSnap.data().subscriptionEnd) {
-              const cur = tSnap.data().subscriptionEnd.toDate();
-              if (cur > now) base = cur;
-            }
-            const newEnd = new Date(base);
-            newEnd.setMonth(newEnd.getMonth() + 1);
-            await tRef.set({
-              subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd),
-              suspended: false
-            }, { merge: true });
-            await ref.update({
-              status: 'success',
-              paidAt: admin.firestore.FieldValue.serverTimestamp(),
-              totalAmount: Number(p.total_amount)
-            });
-          }
+          tx.update(ref, {
+            status: 'success',
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            totalAmount: Number(p.total_amount)
+          });
         } else {
-          await ref.update({ status: 'failed', failReason: p.failed_reason_msg || '' });
+          tx.update(ref, { status: 'failed', failReason: p.failed_reason_msg || '' });
         }
+      });
+
+      // Abonelik uzatma yalnızca BU çağrı 'success'ı fiilen YAZDIYSA çalışır
+      // (claimed) — aynı ödeme için tekrar gelen bir bildirim bu bloğu hiç
+      // görmez, çift ay kredisi verilmez. Checkout siparişleri (public
+      // website) için abonelik uzatma yok — operatör oteli elle açar.
+      if (claimed && p.status === 'success' && !isCheckout && payData) {
+        const tRef = db.collection('tenants').doc(payData.tenantId);
+        const tSnap = await tRef.get();
+        const now = new Date();
+        let base = now;
+        if (tSnap.exists && tSnap.data().subscriptionEnd) {
+          const cur = tSnap.data().subscriptionEnd.toDate();
+          if (cur > now) base = cur;
+        }
+        const newEnd = new Date(base);
+        newEnd.setMonth(newEnd.getMonth() + 1);
+        await tRef.set({
+          subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd),
+          suspended: false
+        }, { merge: true });
       }
 
       // PayTR requires a plain "OK" response, otherwise it keeps retrying.
@@ -768,6 +778,62 @@ exports.deleteUser = onCall({ region: REGION }, async (request) => {
   return { deleted: true };
 });
 
+// Otel admin'i kendi personelinin şifresini GERÇEKTEN geçersiz kılar (yeni
+// rastgele bir geçici şifre üretip Auth'a yazar + oturum token'larını iptal
+// eder). Öncesinde admin.js yalnızca bir `mustChangePassword` bayrağı
+// yazıyordu — eski şifre kullanıcı elle değiştirene kadar tamamen geçerli
+// kalıyordu; bkz. auth denetimi. Superadmin değil, YALNIZCA hedef
+// kullanıcıyla aynı tenant'ın admin'i çağırabilir (client'ın önceki
+// doğrudan-Firestore-yazma yetkisiyle aynı sınır, artık sunucuda uygulanıyor
+// çünkü Admin SDK şifre değişikliği Firestore kurallarından geçmiyor).
+function randomTempPassword() {
+  return 'H' + crypto.randomBytes(8).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 9);
+}
+// Çağıranın, hedef kullanıcıyla AYNI tenant'ın admin'i olduğunu doğrular
+// (superadmin değil — bu, hotel admin'in kendi personeli üzerindeki mevcut
+// yetkisiyle aynı sınır, yalnızca Admin SDK gerektiren işlemler için sunucu
+// tarafına taşındı). Hedef kullanıcının systemUsers verisini döndürür.
+async function requireTenantAdminFor(request, targetUid) {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  if (!targetUid || typeof targetUid !== 'string') {
+    throw new HttpsError('invalid-argument', 'Kullanıcı kimliği gerekli.');
+  }
+  const callerSnap = await db.collection('systemUsers').doc(request.auth.uid).get();
+  if (!callerSnap.exists || (callerSnap.data().role || '').toLowerCase() !== 'admin') {
+    throw new HttpsError('permission-denied', 'Yalnızca otel yöneticisi bu işlemi yapabilir.');
+  }
+  const targetSnap = await db.collection('systemUsers').doc(targetUid).get();
+  if (!targetSnap.exists || targetSnap.data().tenantId !== callerSnap.data().tenantId) {
+    throw new HttpsError('permission-denied', 'Bu kullanıcı sizin otelinize ait değil.');
+  }
+  return targetSnap.data();
+}
+exports.resetUserPassword = onCall({ region: REGION }, async (request) => {
+  const targetUid = request.data && request.data.uid;
+  await requireTenantAdminFor(request, targetUid);
+  const tempPassword = randomTempPassword();
+  await admin.auth().updateUser(targetUid, { password: tempPassword });
+  await admin.auth().revokeRefreshTokens(targetUid); // aktif oturumları da hemen sonlandır
+  await db.collection('systemUsers').doc(targetUid).update({
+    mustChangePassword: true,
+    passwordResetAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+  return { tempPassword };
+});
+
+// Bir personelin rolü düşürüldüğünde/değiştirildiğinde aktif oturum
+// token'larını iptal eder. Bu uygulamada Firestore kuralları rolü HER
+// SEFERİNDE canlı olarak systemUsers'tan okuduğundan yazma yetkisi zaten
+// aninda güncel role göre uygulanıyor — bu çağrı ek bir sertleştirme:
+// aksi halde ~1 saate kadar geçerli kalabilecek mevcut ID token'ın süresi
+// dolduğunda YENİLENEMEMESİNİ sağlar (bkz. auth denetimi).
+exports.revokeUserSessions = onCall({ region: REGION }, async (request) => {
+  const targetUid = request.data && request.data.uid;
+  await requireTenantAdminFor(request, targetUid);
+  await admin.auth().revokeRefreshTokens(targetUid);
+  return { revoked: true };
+});
+
 // ── Misafir tenant claim'i (anonim oturuma DOĞRULANMIŞ otel kimliği) ────
 // Anonim misafir Auth token'ında hangi otele ait olduğuna dair hiçbir bilgi
 // yok — client'ın window.location.hostname'den okuyup iddia ettiği tenant
@@ -888,6 +954,29 @@ async function checkGuestLookupRateLimit(request, tenant, room) {
   if (!ipOk) return false;
   return withinRateLimit('glookup_target_' + tenant + '_' + room, RATE_MAX_TARGET);
 }
+
+// ── F&B girişi hız sınırlama ─────────────────────────────────────────
+// F&B personeli yalnızca 5 haneli bir kod giriyor; türetilen Firebase Auth
+// şifresi sabit bir önekle ('FB' + kod) yalnızca 100.000 kombinasyon —
+// uygulama seviyesinde bir deneme sınırı olmadan brute-force edilebilir
+// (bkz. auth denetimi). Client, gerçek signInWithEmailAndPassword
+// çağrısından ÖNCE bu kapıyı çağırır; yukarıdaki _rateLimits mekanizmasını
+// (aynı withinRateLimit/callerIp yardımcıları) paylaşır, kendi anahtar
+// alanını kullanır. Kodun doğru olup olmadığını YANSITMAZ — yalnızca
+// deneme hızını sınırlar.
+const FNB_RATE_MAX_TARGET = 6;  // aynı (tenant+kod) hedefi, pencere başına en fazla 6 deneme
+const FNB_RATE_MAX_IP = 15;     // bir IP, pencere başına en fazla 15 deneme (farklı kodlar dahil)
+exports.fnbLoginGate = onCall({ region: REGION }, async (request) => {
+  const d = request.data || {};
+  const tenant = String(d.tenant || '').trim().toLowerCase().slice(0, 40);
+  const code = String(d.code || '').trim().slice(0, 10);
+  if (!tenant || !/^\d{5}$/.test(code)) return { allowed: false };
+  const ip = callerIp(request);
+  const ipOk = await withinRateLimit('fnb_ip_' + ip, FNB_RATE_MAX_IP);
+  if (!ipOk) return { allowed: false };
+  const targetOk = await withinRateLimit('fnb_target_' + tenant + '_' + code, FNB_RATE_MAX_TARGET);
+  return { allowed: targetOk };
+});
 
 exports.getGuestName = onCall({ region: REGION }, async (request) => {
   const d = request.data || {};
