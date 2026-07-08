@@ -155,9 +155,11 @@
             ].filter(Boolean).join('<br>') || '—';
             const scope = [q.rooms ? esc(q.rooms) + ' oda' : '', q.hotels ? esc(q.hotels) : '']
                 .filter(Boolean).join(' · ') || '—';
-            const msg = q.message ? `<div class="mono" style="margin-top:3px;max-width:340px;white-space:normal;">${esc(q.message.slice(0, 140))}${q.message.length > 140 ? '…' : ''}</div>` : '';
+            // Tabloda yalnızca kısa bir önizleme — tam mesaj satıra/hücreye
+            // tıklanınca açılan quoteModal'da (qmMessage) kırpılmadan gösteriliyor.
+            const msg = q.message ? `<div class="mono" style="margin-top:3px;max-width:340px;white-space:normal;">${esc(q.message.slice(0, 90))}${q.message.length > 90 ? '…' : ''}</div>` : '';
             return `
-            <tr>
+            <tr class="row-click" data-quote="${esc(q.id)}">
                 <td><div class="mono">${fmtDate(created)}</div></td>
                 <td><div class="hotel-cell"><div class="av">${esc(initials(q.hotel || q.name || '?'))}</div><div><b>${esc(q.hotel || '—')}</b><div class="mono">${esc(q.name || '')}</div>${msg}</div></div></td>
                 <td style="font-size:12.5px;">${contact}</td>
@@ -171,21 +173,66 @@
         }).join('');
     }
 
+    async function toggleQuote(q) {
+        await db.collection('quoteRequests').doc(q.id).update({ status: q.status === 'new' ? 'handled' : 'new' });
+        toast(q.status === 'new' ? 'Talep işlendi olarak işaretlendi' : 'Talep yeniye alındı');
+    }
+    async function deleteQuote(q) {
+        if (!confirm(`"${q.hotel || q.name}" teklif talebi silinsin mi?`)) return false;
+        await db.collection('quoteRequests').doc(q.id).delete();
+        toast('Teklif talebi silindi');
+        return true;
+    }
+
+    let currentQuoteId = null;
+    function openQuoteModal(id) {
+        const q = quotes.find(x => x.id === id); if (!q) return;
+        currentQuoteId = id;
+        const created = q.createdAt && q.createdAt.toDate ? q.createdAt.toDate() : null;
+        const isNew = q.status === 'new';
+        $('qmHotel').textContent = q.hotel || q.name || 'Teklif Talebi';
+        $('qmMeta').textContent = fmtDate(created) + (isNew ? ' · Yeni' : ' · İşlendi');
+        const rows = [
+            ['Yetkili', esc(q.name || '—')],
+            ['Otel', esc(q.hotel || '—')],
+            ['E-posta', q.email ? `<a href="mailto:${esc(q.email)}">${esc(q.email)}</a>` : '—'],
+            ['Telefon', q.phone ? `<a href="tel:${esc(q.phone)}">${esc(q.phone)}</a>` : '—'],
+            ['Oda sayısı', esc(q.rooms || '—')],
+            ['Otel sayısı', esc(q.hotels || '—')],
+            ['Kaynak', esc(q.source || 'hotizy.com')]
+        ];
+        $('qmDetail').innerHTML = rows.map(([k, v]) => `<div class="o-row"><span>${k}</span><div>${v}</div></div>`).join('');
+        $('qmMessage').textContent = q.message || '(Mesaj yazılmamış)';
+        $('qmToggle').textContent = isNew ? 'İşlendi olarak işaretle' : 'Yeniye al';
+        $('quoteModal').classList.add('show');
+    }
+    function closeQuoteModal() { $('quoteModal').classList.remove('show'); currentQuoteId = null; }
+
     $('quotesBody')?.addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-qact]');
-        if (!btn) return;
-        const q = quotes.find(x => x.id === btn.dataset.id);
-        if (!q) return;
-        try {
-            if (btn.dataset.qact === 'toggle') {
-                await db.collection('quoteRequests').doc(q.id).update({ status: q.status === 'new' ? 'handled' : 'new' });
-                toast(q.status === 'new' ? 'Talep işlendi olarak işaretlendi' : 'Talep yeniye alındı');
-            } else if (btn.dataset.qact === 'del') {
-                if (!confirm(`"${q.hotel || q.name}" teklif talebi silinsin mi?`)) return;
-                await db.collection('quoteRequests').doc(q.id).delete();
-                toast('Teklif talebi silindi');
-            }
-        } catch (err) { toast('Hata: ' + err.message, true); }
+        if (btn) {
+            const q = quotes.find(x => x.id === btn.dataset.id);
+            if (!q) return;
+            try {
+                if (btn.dataset.qact === 'toggle') await toggleQuote(q);
+                else if (btn.dataset.qact === 'del') await deleteQuote(q);
+            } catch (err) { toast('Hata: ' + err.message, true); }
+            return;
+        }
+        if (e.target.closest('a')) return; // mailto/tel bağlantısı — satırı açma
+        const row = e.target.closest('tr[data-quote]');
+        if (row) openQuoteModal(row.dataset.quote);
+    });
+    // Backdrop tıklaması + [data-close] butonları zaten genel bir handler'la
+    // (bu dosyanın altında, tüm .modal-backdrop'lar için) kapatılıyor —
+    // burada ayrıca bağlamaya gerek yok.
+    $('qmToggle')?.addEventListener('click', async () => {
+        const q = quotes.find(x => x.id === currentQuoteId); if (!q) return;
+        try { await toggleQuote(q); closeQuoteModal(); } catch (err) { toast('Hata: ' + err.message, true); }
+    });
+    $('qmDelete')?.addEventListener('click', async () => {
+        const q = quotes.find(x => x.id === currentQuoteId); if (!q) return;
+        try { if (await deleteQuote(q)) closeQuoteModal(); } catch (err) { toast('Hata: ' + err.message, true); }
     });
 
     // Ensure the founding hotel (mgallery) has a tenant document so it appears

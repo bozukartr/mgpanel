@@ -906,6 +906,24 @@
 </div>
 
 <!-- ===== MODAL: Ticket Detail ===== -->
+<!-- ===== MODAL: Quote Detail ===== -->
+<div class="modal-backdrop" id="quoteModal">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-head"><h3 id="qmHotel">Teklif Talebi</h3><p id="qmMeta">—</p></div>
+        <div class="modal-body">
+            <div class="o-detail" id="qmDetail"></div>
+            <label style="margin-top:16px;">Mesaj</label>
+            <div class="qm-message" id="qmMessage">—</div>
+        </div>
+        <div class="modal-foot" style="flex-wrap:wrap; gap:10px;">
+            <button class="btn-ghost btn-danger-ghost" id="qmDelete">Sil</button>
+            <span style="flex:1;"></span>
+            <button class="btn-ghost" data-close>Kapat</button>
+            <button class="btn-primary" id="qmToggle">İşlendi olarak işaretle</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-backdrop" id="ticketModal">
     <div class="modal" style="max-width:560px;">
         <div class="modal-head"><h3 id="tkSubject">Talep</h3><p id="tkMeta">—</p></div>
