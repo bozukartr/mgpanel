@@ -43,7 +43,17 @@
             const results = (res && res.data && res.data.results) || [];
             cache.set(key, results);
             return results;
-        } catch (e) { return []; }
+        } catch (e) {
+            // Zaman aşımı, yanlış kimlik bilgisi, PMS erişilemez, hız sınırı —
+            // önceden hepsi burada sessizce yutulup "sonuç yok" ile ayırt
+            // edilemez hale geliyordu (bkz. tutarlılık denetimi). Kullanıcıya
+            // hâlâ boş liste dönüyoruz (arama akışını kesmemek için), ama en
+            // azından console'da hata türü ayırt edilebiliyor — sunucu
+            // tarafında da errorLogs'a yazılıyor (bkz. functions/index.js
+            // logPmsFailure), süperadmin "Hatalar" sekmesinde görebiliyor.
+            console.error('[PMS] arama başarısız', (e && e.code) || '', (e && e.message) || e);
+            return [];
+        }
     };
 
     function injectStyles() {

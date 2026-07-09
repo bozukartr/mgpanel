@@ -80,6 +80,15 @@
         { "fieldPath": "tenantId", "order": "ASCENDING" },
         { "fieldPath": "guestName", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "errorLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "route", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
