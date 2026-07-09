@@ -148,40 +148,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { console.error("Error loading directory", e); }
     }
 
+    // Paylaşımlı yardımcıya devrediyor (bkz. js/core/guest-directory.js) —
+    // concierge.js'deki bağımsız kopyayla birleştirildi (tutarlılık denetimi).
     async function syncGuestStatus(name, room, status = 'in_house') {
         if (!name) return;
-        const normalized = name.trim();
-        const existing = guestDirectory.find(g => g.name.toLowerCase() === normalized.toLowerCase());
-
-        if (!existing) {
-            const newGuest = {
-                name: normalized,
-                room: room || '',
-                status: status,
-                tenantId: TENANT_ID,
-                lastUpdated: new Date().toISOString()
-            };
-            const docRef = await db.collection('guestDirectory').add(newGuest);
-            guestDirectory.push({ id: docRef.id, ...newGuest });
-        } else {
-            // Force status update and update room number if they changed
-            if (existing.status !== status || existing.room !== room) {
-                const updates = {
-                    status: status,
-                    room: room || existing.room,
-                    lastUpdated: new Date().toISOString()
-                };
-                await db.collection('guestDirectory').doc(existing.id).update(updates);
-
-                // Update local state
-                existing.status = 'in_house';
-                existing.room = room || existing.room;
-                existing.lastUpdated = updates.lastUpdated;
-
-                renderGuestProfileList();
-                updateView(globalSearch.value, dateSearch.value);
-            }
-        }
+        const result = await GuestDirectory.syncGuestStatus(name, { room, status });
+        if (!result) return;
+        const idx = guestDirectory.findIndex(g => g.id === result.id);
+        if (idx === -1) guestDirectory.push(result); else Object.assign(guestDirectory[idx], result);
+        renderGuestProfileList();
+        updateView(globalSearch.value, dateSearch.value);
     }
 
     function getGuestStatus(name) {
@@ -636,6 +612,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (refreshed) {
                     selectedRecord = refreshed; // Sync variable
                     renderTimeline(refreshed);  // Refresh UI
+                    // renderWorkflow()/updateStatusBadge() de yenilenmeli — aksi
+                    // halde bir başka personel bu kaydı üstlenir/tamamlarsa, bu
+                    // modal hâlâ eski butonları (ör. "Üstlen") gösterip tıklanmaya
+                    // izin verir; transitionRecordImpl artık sunucu tarafında
+                    // reddediyor ama kullanıcı bunu görmeden önce tıklayabilirdi.
+                    updateStatusBadge(refreshed.status);
+                    renderWorkflow(refreshed);
                 }
             }
 
@@ -2245,54 +2228,87 @@ document.addEventListener('DOMContentLoaded', () => {
             transitionInFlight = false;
         }
     }
+    // take/complete/reopen artık bir transaction içinde, kaydın SUNUCUDAKİ
+    // güncel status'unu okuyup doğruladıktan sonra yazıyor — önceki plain
+    // .update() iki personelin aynı kaydı aynı anda üstlenmesi/tamamlaması
+    // durumunda son yazanın kazandığı, kaybedenin bundan habersiz kaldığı
+    // sessiz bir yarış koşuluydu (bkz. tutarlılık denetimi). transitionInFlight
+    // yalnızca AYNI sekmeyi korur; bu transaction farklı sekme/cihazları da
+    // kapsar.
     async function transitionRecordImpl(action) {
         const r = selectedRecord;
         const TS = firebase.firestore.FieldValue.serverTimestamp();
         const nowDate = new Date();
-        const payload = {};
-        let note, toastMsg;
-
-        if (action === 'take') {
-            payload.status = 'InProgress';
-            payload.acknowledgedAt = TS;
-            payload.acknowledgedBy = loggedUsername;
-            note = workflowNote('🔧 İşi üstlendi — süre başladı');
-            toastMsg = 'İş üstlenildi, süre başladı';
-        } else if (action === 'complete') {
-            payload.status = 'Solved';
-            payload.completedAt = TS;
-            payload.completedBy = loggedUsername;
-            const acked = tsToDate(r.acknowledgedAt), created = tsToDate(r.createdAt);
-            const durText = acked ? fmtDuration(nowDate - acked) : (created ? fmtDuration(nowDate - created) + ' (toplam)' : '');
-            note = workflowNote('✅ Tamamlandı' + (durText ? ` — ${durText}` : ''));
-            toastMsg = 'Talep tamamlandı' + (durText ? ` · ${durText}` : '');
-        } else if (action === 'reopen') {
-            payload.status = 'Following';
-            payload.completedAt = null;
-            payload.completedBy = null;
-            note = workflowNote('↩️ Talep yeniden açıldı');
-            toastMsg = 'Talep yeniden açıldı';
-        } else return;
-
-        // arrayUnion: sunucu tarafında atomik ekleme — istemcinin okuduğu
-        // (bayat olabilecek) `updates` dizisini tam olarak geri yazmak, aynı
-        // kayda eşzamanlı eklenen başka bir notu sessizce ezebilirdi.
-        payload.updates = firebase.firestore.FieldValue.arrayUnion(note);
-        const localUpdates = [...(r.updates || []), note];
+        const ref = db.collection('guestLogs').doc(editingId);
 
         try {
-            await db.collection('guestLogs').doc(editingId).update(payload);
+            const result = await db.runTransaction(async (tx) => {
+                const snap = await tx.get(ref);
+                if (!snap.exists) return { error: 'not-found' };
+                const cur = snap.data();
+                const curStatus = cur.status || 'Following';
+
+                if (action === 'take' && curStatus !== 'Following') return { error: 'stale', data: cur };
+                if (action === 'complete' && curStatus === 'Solved') return { error: 'stale', data: cur };
+                if (action === 'reopen' && curStatus !== 'Solved') return { error: 'stale', data: cur };
+
+                const payload = {};
+                let note, toastMsg;
+                if (action === 'take') {
+                    payload.status = 'InProgress';
+                    payload.acknowledgedAt = TS;
+                    payload.acknowledgedBy = loggedUsername;
+                    note = workflowNote('🔧 İşi üstlendi — süre başladı');
+                    toastMsg = 'İş üstlenildi, süre başladı';
+                } else if (action === 'complete') {
+                    payload.status = 'Solved';
+                    payload.completedAt = TS;
+                    payload.completedBy = loggedUsername;
+                    const acked = tsToDate(cur.acknowledgedAt), created = tsToDate(cur.createdAt);
+                    const durText = acked ? fmtDuration(nowDate - acked) : (created ? fmtDuration(nowDate - created) + ' (toplam)' : '');
+                    note = workflowNote('✅ Tamamlandı' + (durText ? ` — ${durText}` : ''));
+                    toastMsg = 'Talep tamamlandı' + (durText ? ` · ${durText}` : '');
+                } else if (action === 'reopen') {
+                    payload.status = 'Following';
+                    payload.completedAt = null;
+                    payload.completedBy = null;
+                    note = workflowNote('↩️ Talep yeniden açıldı');
+                    toastMsg = 'Talep yeniden açıldı';
+                } else return { error: 'invalid-action' };
+
+                // arrayUnion: sunucu tarafında atomik ekleme — istemcinin okuduğu
+                // (bayat olabilecek) `updates` dizisini tam olarak geri yazmak, aynı
+                // kayda eşzamanlı eklenen başka bir notu sessizce ezebilirdi.
+                payload.updates = firebase.firestore.FieldValue.arrayUnion(note);
+                tx.update(ref, payload);
+                return { ok: true, status: payload.status, note, toastMsg };
+            });
+
+            if (result.error === 'not-found') { showToast('Kayıt bulunamadı — silinmiş olabilir.', true); return; }
+            if (result.error === 'invalid-action') return;
+            if (result.error === 'stale') {
+                // Sunucudaki güncel durumu yerel state'e ve arayüze yansıt —
+                // buton artık tıklanabilir kalmaz; kaybeden personel az önce
+                // başka birinin bu kaydı devraldığını/tamamladığını görür.
+                Object.assign(r, result.data);
+                updateStatusBadge(r.status);
+                renderWorkflow(r);
+                renderTimeline(r);
+                showToast('Bu kayıt az önce başka biri tarafından güncellendi — ekran yenilendi.', true);
+                return;
+            }
+
             // Optimistic local update so the modal reflects the change instantly
             // (the snapshot listener will reconcile with server timestamps).
-            r.status = payload.status;
+            r.status = result.status;
             if (action === 'take') { r.acknowledgedAt = nowDate; r.acknowledgedBy = loggedUsername; }
             if (action === 'complete') { r.completedAt = nowDate; r.completedBy = loggedUsername; }
             if (action === 'reopen') { r.completedAt = null; r.completedBy = null; }
-            r.updates = localUpdates;
+            r.updates = [...(r.updates || []), result.note];
             updateStatusBadge(r.status);
             renderWorkflow(r);
             renderTimeline(r);
-            showToast(toastMsg);
+            showToast(result.toastMsg);
         } catch (e) { showToast('Güncelleme başarısız: ' + e.message, true); }
     }
 
@@ -2460,12 +2476,20 @@ document.addEventListener('DOMContentLoaded', () => {
             staffInitial: document.getElementById('editStaffInitial').value,
             status: document.getElementById('editStatus').value
         };
-        await db.collection('guestLogs').doc(editingId).update(updatedData);
-        if (updatedData.topic && updatedData.topic !== 'Genel' && window.IssueConfig) {
-            IssueConfig.addTopic(updatedData.topic);
+        try {
+            await db.collection('guestLogs').doc(editingId).update(updatedData);
+            if (updatedData.topic && updatedData.topic !== 'Genel' && window.IssueConfig) {
+                IssueConfig.addTopic(updatedData.topic);
+            }
+            closeModalFunc();
+            showToast('Changes saved.');
+        } catch (err) {
+            // Bu handler'ın tek istisnası olarak try/catch yoktu — yazım
+            // reddedilirse (çevrimdışı, izin hatası) kullanıcı ne başarı ne
+            // hata mesajı görmeden modal donuk kalıyor, veri sessizce
+            // kayboluyordu (bkz. tutarlılık denetimi).
+            showToast('Kaydedilemedi: ' + (err && err.message ? err.message : 'hata'), true);
         }
-        closeModalFunc();
-        showToast('Changes saved.');
     });
 
     const authModal = document.getElementById('authModal');

@@ -662,49 +662,10 @@ document.addEventListener('DOMContentLoaded', () => {
         rsPreview();
     });
 
+    // Paylaşımlı yardımcıya devrediyor (bkz. js/core/guest-directory.js) —
+    // panel.js'deki bağımsız kopyayla birleştirildi (tutarlılık denetimi).
     async function syncGuestStatus(name, room, isPreArrival, checkIn, checkOut) {
-        if (!name) return;
-        const normalized = name.trim();
-        const existing = guestDirectory.find(g => g.name.toLocaleLowerCase('tr-TR') === normalized.toLocaleLowerCase('tr-TR'));
-        
-        const determineStatus = () => {
-            if (isPreArrival) return 'pre_arrival';
-            // Auto check-out logic might run and override, but we set in_house by default if room is assigned
-            return 'in_house';
-        };
-
-        const statusToSet = determineStatus();
-
-        if (!existing) {
-            const newGuest = {
-                name: normalized,
-                room: room || '',
-                status: statusToSet,
-                checkIn: checkIn || '',
-                checkOut: checkOut || '',
-                tenantId: TENANT_ID,
-                lastUpdated: new Date().toISOString()
-            };
-            await db.collection('guestDirectory').add(newGuest);
-        } else {
-            // Update room and dates if provided, or if status needs shifting
-            let updates = { lastUpdated: new Date().toISOString() };
-            
-            // If they were checked out, bring them back in house/pre-arrival
-            if (existing.status === 'checked_out') updates.status = statusToSet;
-            // Or if explicitly marking as pre_arrival
-            else if (isPreArrival && existing.status !== 'pre_arrival') updates.status = 'pre_arrival';
-            // Or moving from pre_arrival to in_house by providing a room
-            else if (!isPreArrival && existing.status === 'pre_arrival' && room) updates.status = 'in_house';
-
-            if (room && existing.room !== room) updates.room = room;
-            if (checkIn) updates.checkIn = checkIn;
-            if (checkOut) updates.checkOut = checkOut;
-
-            if (Object.keys(updates).length > 1) {
-                await db.collection('guestDirectory').doc(existing.id).update(updates);
-            }
-        }
+        return GuestDirectory.syncGuestStatus(name, { room, isPreArrival, checkIn, checkOut });
     }
 
     document.getElementById('c-search').oninput = renderReservations;
