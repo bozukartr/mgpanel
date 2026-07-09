@@ -262,14 +262,17 @@ exports.paytrCallback = onRequest(
       const isCheckout = String(p.merchant_oid).startsWith('CHK');
       const ref = db.collection(isCheckout ? 'checkoutOrders' : 'payments').doc(p.merchant_oid);
 
-      // İdempotans: durumu oku + 'success'/'failed'e çevirme AYNI transaction
-      // içinde yapılır — PayTR aynı bildirimi birden fazla kez gönderebiliyor
-      // (gerçekleşen, varsayımsal olmayan bir davranış); düz "oku sonra yaz"
-      // iki eşzamanlı çağrının da 'pending' okuyup İKİSİNİN DE aboneliği
-      // uzatmasına (çift ay kredisi) yol açabilirdi. lemonWebhook'taki
-      // transaction-bazlı dedup ile aynı desen — Firestore SDK, çakışan bir
-      // transaction'ı otomatik yeniden dener; ikinci çağrı yeniden okuduğunda
-      // status'un zaten 'success' olduğunu görüp `claimed=false` kalır.
+      // İdempotans: durumu oku + 'success'/'failed'e çevirme, VE (başarılıysa)
+      // aboneliği uzatma — HEPSİ AYNI transaction içinde. Önceki sürümde
+      // abonelik uzatma transaction'ın DIŞINDA, ayrı bir yazımdı: transaction
+      // 'success'ı commit ettikten hemen sonra bu ayrı yazım başarısız olursa
+      // (geçici Firestore hatası, fonksiyon zaman aşımı), PayTR'ın sonraki
+      // her yeniden denemesi artık status==='success' görüp erken çıkıyor —
+      // ödeme alınmış ama abonelik hiç uzamamış, kalıcı olarak kurtarılamaz
+      // bir durum (bkz. tutarlılık denetimi). Şimdi ya HEPSİ ya HİÇBİRİ
+      // commit edilir: transaction'ın herhangi bir yerinde hata olursa
+      // status hâlâ eski değerinde kalır, fonksiyon 500 döner, ve PayTR'ın
+      // kendi yeniden deneme mekanizması işi gerçekten tekrar dener.
       let payData = null;
       let claimed = false;
       await db.runTransaction(async (tx) => {
@@ -277,6 +280,16 @@ exports.paytrCallback = onRequest(
         if (!snap.exists) return;
         payData = snap.data();
         if (payData.status === 'success') return; // zaten işlenmiş — tekrar bildirim
+
+        // Abonelik uzatma checkout siparişlerinde yok (operatör oteli elle
+        // açar) — tenant dokümanı yalnızca gerekiyorsa, ve YAZIMLARDAN ÖNCE
+        // okunur (Firestore transaction kuralı: tüm okumalar yazımlardan önce).
+        let tRef = null, tSnap = null;
+        if (p.status === 'success' && !isCheckout) {
+          tRef = db.collection('tenants').doc(payData.tenantId);
+          tSnap = await tx.get(tRef);
+        }
+
         claimed = true;
         if (p.status === 'success') {
           tx.update(ref, {
@@ -284,35 +297,36 @@ exports.paytrCallback = onRequest(
             paidAt: admin.firestore.FieldValue.serverTimestamp(),
             totalAmount: Number(p.total_amount)
           });
+          if (tRef) {
+            const now = new Date();
+            let base = now;
+            if (tSnap.exists && tSnap.data().subscriptionEnd) {
+              const cur = tSnap.data().subscriptionEnd.toDate();
+              if (cur > now) base = cur;
+            }
+            const newEnd = new Date(base);
+            newEnd.setMonth(newEnd.getMonth() + 1);
+            tx.set(tRef, {
+              subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd),
+              suspended: false
+            }, { merge: true });
+          }
         } else {
           tx.update(ref, { status: 'failed', failReason: p.failed_reason_msg || '' });
         }
       });
 
-      // Abonelik uzatma yalnızca BU çağrı 'success'ı fiilen YAZDIYSA çalışır
-      // (claimed) — aynı ödeme için tekrar gelen bir bildirim bu bloğu hiç
-      // görmez, çift ay kredisi verilmez. Checkout siparişleri (public
-      // website) için abonelik uzatma yok — operatör oteli elle açar.
-      if (claimed && p.status === 'success' && !isCheckout && payData) {
-        const tRef = db.collection('tenants').doc(payData.tenantId);
-        const tSnap = await tRef.get();
-        const now = new Date();
-        let base = now;
-        if (tSnap.exists && tSnap.data().subscriptionEnd) {
-          const cur = tSnap.data().subscriptionEnd.toDate();
-          if (cur > now) base = cur;
-        }
-        const newEnd = new Date(base);
-        newEnd.setMonth(newEnd.getMonth() + 1);
-        await tRef.set({
-          subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd),
-          suspended: false
-        }, { merge: true });
-      }
-
       // PayTR requires a plain "OK" response, otherwise it keeps retrying.
       res.send('OK');
     } catch (e) {
+      // Hangi ödeme/otel için başarısız olduğu, yapılandırılmış olarak
+      // loglanır — önceden yalnızca genel bir "error" vardı, bir operatör
+      // sorunu ancak müşteri şikayet ederse fark ederdi (bkz. denetim).
+      console.error('paytrCallback error', {
+        merchantOid: (req.body && req.body.merchant_oid) || null,
+        status: (req.body && req.body.status) || null,
+        message: e && e.message
+      });
       res.status(500).send('error');
     }
   }
@@ -1502,46 +1516,70 @@ exports.lemonWebhook = onRequest(
       const subCreated = event === 'subscription_created' && (attr.status === 'active' || attr.status === 'on_trial');
       if (!(paidOrder || subPay || subCreated)) { res.status(200).send('ignored'); return; }
 
-      // İdempotans: her olayı bir kez işle.
-      const evRef = db.collection('lemonEvents').doc(event + '_' + dataId);
-      const fresh = await db.runTransaction(async (tx) => {
-        const s = await tx.get(evRef);
-        if (s.exists) return false;
-        tx.set(evRef, { event, dataId, at: admin.firestore.FieldValue.serverTimestamp() });
-        return true;
-      });
-      if (!fresh) { res.status(200).send('dup'); return; }
-
       const months = String(custom.cycle || 'monthly') === 'annual' ? 12 : 1;
       const tenantId = custom.tenant_id ? String(custom.tenant_id) : '';
       const oid = custom.oid ? String(custom.oid) : '';
 
-      if (tenantId) {
-        const tRef = db.collection('tenants').doc(tenantId);
-        const tSnap = await tRef.get();
-        const now = new Date();
-        let base = now;
-        if (tSnap.exists && tSnap.data().subscriptionEnd) {
-          const cur = tSnap.data().subscriptionEnd.toDate();
-          if (cur > now) base = cur;
+      // İdempotans kilidi (lemonEvents) ARTIK iş mantığıyla (abonelik uzatma +
+      // ödeme kaydı) AYNI transaction içinde commit ediliyor. Önceki sürümde
+      // kilit, TÜM iş mantığından ÖNCE, kendi ayrı transaction'ında yazılıyordu
+      // — bilinçli olarak dedup için, ama tam da bu yüzden kısmi bir hatayı
+      // geri dönülemez kılıyordu: kilit yazıldıktan hemen sonra abonelik
+      // güncellemesi başarısız olursa, Lemon Squeezy'nin sonraki HER
+      // yeniden denemesi kilidi bulup 200 "dup" alıyor, sağlayıcı "teslim
+      // edildi" sanıp bir daha asla denemiyordu — ödeme alınmış ama abonelik
+      // hiç uzamamış (bkz. tutarlılık denetimi). Şimdi ya HEPSİ ya HİÇBİRİ
+      // commit edilir; gerçek bir hata olursa fonksiyon 500 döner ve Lemon
+      // Squeezy'nin kendi yeniden deneme mekanizması işi gerçekten tekrar dener.
+      const evRef = db.collection('lemonEvents').doc(event + '_' + dataId);
+      const fresh = await db.runTransaction(async (tx) => {
+        const s = await tx.get(evRef);
+        if (s.exists) return false;
+
+        let tRef = null, tSnap = null;
+        if (tenantId) {
+          tRef = db.collection('tenants').doc(tenantId);
+          tSnap = await tx.get(tRef); // tüm okumalar yazımlardan önce
         }
-        const newEnd = new Date(base);
-        newEnd.setMonth(newEnd.getMonth() + months);
-        await tRef.set({
-          subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd), suspended: false
-        }, { merge: true });
-        if (oid) await db.collection('payments').doc(oid).set({
-          status: 'success', paidAt: admin.firestore.FieldValue.serverTimestamp(), lemonId: dataId
-        }, { merge: true });
-      } else if (oid) {
-        // Fiyatlandırma sayfasından yeni kayıt → operatör otelin kurulumunu yapar.
-        await db.collection('lemonOrders').doc(oid).set({
-          status: 'success', paidAt: admin.firestore.FieldValue.serverTimestamp(),
-          lemonId: dataId, buyerEmail: attr.user_email || ''
-        }, { merge: true });
-      }
+
+        tx.set(evRef, { event, dataId, at: admin.firestore.FieldValue.serverTimestamp() });
+
+        if (tRef) {
+          const now = new Date();
+          let base = now;
+          if (tSnap.exists && tSnap.data().subscriptionEnd) {
+            const cur = tSnap.data().subscriptionEnd.toDate();
+            if (cur > now) base = cur;
+          }
+          const newEnd = new Date(base);
+          newEnd.setMonth(newEnd.getMonth() + months);
+          tx.set(tRef, {
+            subscriptionEnd: admin.firestore.Timestamp.fromDate(newEnd), suspended: false
+          }, { merge: true });
+          if (oid) tx.set(db.collection('payments').doc(oid), {
+            status: 'success', paidAt: admin.firestore.FieldValue.serverTimestamp(), lemonId: dataId
+          }, { merge: true });
+        } else if (oid) {
+          // Fiyatlandırma sayfasından yeni kayıt → operatör otelin kurulumunu yapar.
+          tx.set(db.collection('lemonOrders').doc(oid), {
+            status: 'success', paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            lemonId: dataId, buyerEmail: attr.user_email || ''
+          }, { merge: true });
+        }
+        return true;
+      });
+      if (!fresh) { res.status(200).send('dup'); return; }
+
       res.status(200).send('OK');
     } catch (e) {
+      // Hangi olay/otel için başarısız olduğu yapılandırılmış olarak
+      // loglanır — önceden yalnızca genel bir "error" vardı (bkz. denetim).
+      console.error('lemonWebhook error', {
+        event: (req.body && req.body.meta && req.body.meta.event_name) || null,
+        tenantId: (req.body && req.body.meta && req.body.meta.custom_data && req.body.meta.custom_data.tenant_id) || null,
+        oid: (req.body && req.body.meta && req.body.meta.custom_data && req.body.meta.custom_data.oid) || null,
+        message: e && e.message
+      });
       res.status(500).send('error');
     }
   }

@@ -504,6 +504,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('agSave');
         btn.textContent = 'Kaydediliyor...'; btn.disabled = true;
         try {
+            // Oda çakışması: aynı odada, farklı isimde HÂLÂ konaklayan (in_house)
+            // başka bir misafir var mı — önceden hiç kontrol edilmiyordu, iki
+            // resepsiyonist eşzamanlı olarak aynı odayı iki farklı misafire
+            // atayabiliyordu (bkz. tutarlılık denetimi). Yerel önbellek yerine
+            // taze bir sunucu okuması kullanılır.
+            if (status === 'in_house' && room) {
+                const roomKey = room.toLowerCase();
+                const snap = await db.collection('guestDirectory')
+                    .where('tenantId', '==', TENANT_ID).where('status', '==', 'in_house').get();
+                const occupant = snap.docs.map(d => d.data())
+                    .find(g => (g.room || '').trim().toLowerCase() === roomKey && (g.name || '').toLowerCase() !== name.toLowerCase());
+                if (occupant && !confirm(`Oda ${room} şu anda "${occupant.name}" adına dolu görünüyor.\n\nYine de bu odayı "${name}" için de kaydetmek istiyor musunuz?`)) {
+                    btn.textContent = 'Kaydet'; btn.disabled = false;
+                    return;
+                }
+            }
             await db.collection('guestDirectory').add({
                 name: name,
                 room: status === 'pre_arrival' ? (room || '') : room,
