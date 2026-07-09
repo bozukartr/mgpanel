@@ -809,6 +809,8 @@
     }
 
     let currentPmsTenant = null;
+    let currentPmsLastTest = null;        // savePms()'in enabled=true'yu güvenli şekilde kaydedip kaydedemeyeceğini belirlemek için
+    let pmsHasExistingOAuthSecret = false; // client secret alanı boş bırakılsa da zaten kayıtlı bir secret var mı
     function pmsSetField(id, v) { const e = $(id); if (e) e.value = v || ''; }
     function renderPmsLastTest(lt) {
         const el = $('pmsLastTest'); if (!el) return;
@@ -830,6 +832,8 @@
             'pmsOAuthTokenUrl', 'pmsOAuthClientId', 'pmsOAuthClientSecret', 'pmsOAuthScope',
             'pmsExtraHeader1Key', 'pmsExtraHeader1Val', 'pmsExtraHeader2Key', 'pmsExtraHeader2Val',
             'pmsMapName', 'pmsMapRoom', 'pmsMapCheckIn', 'pmsMapCheckOut', 'pmsMapPhone', 'pmsMapEmail'].forEach(x => pmsSetField(x, ''));
+        currentPmsLastTest = null;
+        pmsHasExistingOAuthSecret = false;
         try {
             const snap = await db.collection('pmsConfig').doc(id).get();
             if (snap.exists) {
@@ -837,11 +841,20 @@
                 $('pmsEnabledChk').checked = !!c.enabled;
                 $('pmsProvider').value = pmsPresetIdFor(c);
                 pmsSetField('pmsBaseUrl', c.baseUrl); pmsSetField('pmsSearchPath', c.searchPath);
-                pmsSetField('pmsResultsPath', c.resultsPath); pmsSetField('pmsApiKey', c.apiKey);
+                pmsSetField('pmsResultsPath', c.resultsPath);
+                // apiKey/oauth2.clientSecret ARTIK forma geri okunmuyor — sunucuda
+                // şifreli saklanıyor (bkz. functions/index.js pmsEncrypt) ve bu
+                // formun kendisi zaten ham secret'ı gösteren tek yerdi (bkz.
+                // güvenlik denetimi). Alan boş bırakılırsa kaydederken mevcut
+                // secret korunur; yalnızca yeni bir değer girilirse değişir.
+                const hasApiKey = !!c.apiKey;
+                $('pmsApiKey').placeholder = hasApiKey ? '•••••••• (kayıtlı — değiştirmek için yeni değer girin)' : '';
                 pmsSetField('pmsAuthHeader', c.authHeader); pmsSetField('pmsAuthPrefix', c.authPrefix);
                 const o = c.oauth2 || {};
                 pmsSetField('pmsOAuthTokenUrl', o.tokenUrl); pmsSetField('pmsOAuthClientId', o.clientId);
-                pmsSetField('pmsOAuthClientSecret', o.clientSecret); pmsSetField('pmsOAuthScope', o.scope);
+                pmsHasExistingOAuthSecret = !!o.clientSecret;
+                $('pmsOAuthClientSecret').placeholder = pmsHasExistingOAuthSecret ? '•••••••• (kayıtlı — değiştirmek için yeni değer girin)' : '';
+                pmsSetField('pmsOAuthScope', o.scope);
                 const eh = c.extraHeaders || {}; const ehKeys = Object.keys(eh);
                 pmsSetField('pmsExtraHeader1Key', ehKeys[0]); pmsSetField('pmsExtraHeader1Val', ehKeys[0] ? eh[ehKeys[0]] : '');
                 pmsSetField('pmsExtraHeader2Key', ehKeys[1]); pmsSetField('pmsExtraHeader2Val', ehKeys[1] ? eh[ehKeys[1]] : '');
@@ -849,11 +862,33 @@
                 pmsSetField('pmsMapName', m.name); pmsSetField('pmsMapRoom', m.room);
                 pmsSetField('pmsMapCheckIn', m.checkIn); pmsSetField('pmsMapCheckOut', m.checkOut);
                 pmsSetField('pmsMapPhone', m.phone); pmsSetField('pmsMapEmail', m.email);
+                currentPmsLastTest = c._lastTest || null;
                 renderPmsLastTest(c._lastTest);
+            } else {
+                $('pmsApiKey').placeholder = ''; $('pmsOAuthClientSecret').placeholder = '';
             }
+            loadPmsErrorCount(id);
         } catch (e) { $('pmsErr').textContent = 'Yapılandırma okunamadı: ' + e.message; }
         applyPmsPreset($('pmsProvider').value);
         $('pmsModal').classList.add('show');
+    }
+    // Son 24 saatte bu otel için kaç PMS arama hatası loglandığını gösterir
+    // (functions/index.js logPmsFailure tarafından errorLogs'a yazılır) —
+    // önceden bir PMS arızasının fark edilmesinin tek yolu manuel "test"
+    // tıklamaktı; bu gösterge süperadmin modalı her açtığında pasif bir
+    // sinyal veriyor.
+    async function loadPmsErrorCount(tenantId) {
+        const el = $('pmsErrorCount'); if (!el) return;
+        el.textContent = '';
+        try {
+            const since = firebase.firestore.Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
+            const snap = await db.collection('errorLogs')
+                .where('tenantId', '==', tenantId).where('route', '==', 'pmsLookup')
+                .where('createdAt', '>=', since).get();
+            if (snap.size > 0) {
+                el.innerHTML = '<span style="color:var(--red);">⚠ Son 24 saatte ' + snap.size + ' PMS arama hatası</span>';
+            }
+        } catch (e) { /* gösterge — sessizce atla */ }
     }
     function readPmsConfig() {
         const presetId = $('pmsProvider').value;
@@ -909,10 +944,12 @@
             const call = firebase.app().functions('us-central1').httpsCallable('pmsTestConfig');
             const res = await call({ config: readPmsConfig(), query: $('pmsTestQuery').value.trim() || 'a', tenantId: currentPmsTenant });
             renderPmsResults(res.data);
-            renderPmsLastTest({ ok: true, count: res.data.results.length, at: nowShim });
+            currentPmsLastTest = { ok: true, count: res.data.results.length, at: nowShim };
+            renderPmsLastTest(currentPmsLastTest);
         } catch (e) {
             out.innerHTML = '<div class="pms-test-msg err">Test başarısız: ' + esc(e.message || 'hata') + '</div>';
-            renderPmsLastTest({ ok: false, message: e.message, at: nowShim });
+            currentPmsLastTest = { ok: false, message: e.message, at: nowShim };
+            renderPmsLastTest(currentPmsLastTest);
         } finally { btn.disabled = false; btn.textContent = 'Bağlantıyı Test Et'; }
     }
     async function savePms() {
@@ -921,16 +958,30 @@
         if (cfg.enabled && cfg.provider === 'generic' && !cfg.baseUrl) {
             return err.textContent = 'API adresi (Base URL) gerekli.';
         }
-        if (cfg.enabled && cfg.authType === 'oauth2' && (!cfg.oauth2 || !cfg.oauth2.tokenUrl || !cfg.oauth2.clientId || !cfg.oauth2.clientSecret)) {
+        // clientSecret alanı artık kayıtlı bir değer varsa boş bırakılabilir
+        // (bkz. openPmsModal) — bu durumda mevcut secret sunucu tarafında
+        // korunur, burada yeniden istenmez.
+        if (cfg.enabled && cfg.authType === 'oauth2' && (!cfg.oauth2 || !cfg.oauth2.tokenUrl || !cfg.oauth2.clientId
+                || (!cfg.oauth2.clientSecret && !pmsHasExistingOAuthSecret))) {
             return err.textContent = 'OAuth2 için Token URL, Client ID ve Client Secret gerekli.';
+        }
+        // Hiç test edilmemiş ya da son test başarısız bir yapılandırmayı
+        // sessizce etkinleştirmek, personelin haftalarca fark etmeden kırık
+        // bir entegrasyonla kalmasına yol açabiliyordu (bkz. tutarlılık
+        // denetimi) — kaydetmeden önce açık bir onay isteniyor.
+        if (cfg.enabled && (!currentPmsLastTest || currentPmsLastTest.ok !== true)) {
+            const msg = currentPmsLastTest
+                ? 'Son bağlantı testi BAŞARISIZ oldu: "' + (currentPmsLastTest.message || '') + '"\n\nYine de etkinleştirilsin mi? Personel PMS önerisi görmeyebilir.'
+                : 'Bu yapılandırma hiç test edilmedi.\n\nYine de etkinleştirilsin mi? Önce "Bağlantıyı Test Et" ile doğrulamanız önerilir.';
+            if (!confirm(msg)) return;
         }
         const btn = $('pmsSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
         try {
-            await db.collection('pmsConfig').doc(currentPmsTenant).set(Object.assign({}, cfg, {
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }), { merge: true });
-            // Cheap client gate lives on the tenant doc (hotel users can read it).
-            await db.collection('tenants').doc(currentPmsTenant).update({ pmsEnabled: cfg.enabled });
+            // Sunucu tarafında yazılır — apiKey/oauth2.clientSecret orada
+            // şifrelenip Firestore'a öyle yazılır (bkz. functions/index.js
+            // pmsSaveConfig), client hiçbir zaman ham secret'ı tekrar okumaz.
+            const call = firebase.app().functions('us-central1').httpsCallable('pmsSaveConfig');
+            await call({ tenantId: currentPmsTenant, config: cfg });
             $('pmsModal').classList.remove('show');
             toast('PMS ayarları kaydedildi');
         } catch (e) {
