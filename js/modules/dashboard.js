@@ -131,7 +131,77 @@
             </div>`).join('');
     }
 
-    function renderAll() { renderKpis(); renderFeed(); }
+    // ── Talep & Şikayet analizi (durum/departman dağılımı + 14 günlük trend) ──
+    const STATUS_LABEL = { Following: 'Bekliyor', InProgress: 'İşlemde', Solved: 'Çözüldü' };
+    const STATUS_COLOR = { Following: '#d97706', InProgress: '#2563eb', Solved: '#16a34a' };
+    function anBarRow(label, val, max, color) {
+        const w = max > 0 ? Math.round(val / max * 100) : 0;
+        return `<div class="an-row">
+            <span class="an-label" title="${esc(label)}">${esc(label)}</span>
+            <span class="an-bar"><i style="width:${w}%;${color ? 'background:' + color + ';' : ''}"></i></span>
+            <span class="an-val">${esc(val)}</span>
+        </div>`;
+    }
+    function renderAnalysis() {
+        const quick = $('anQuick');
+        if (!$('anStatus')) return; // modül kapalıysa bölüm gizli, hiç render etme
+        if (!logs.length) {
+            $('anStatus').innerHTML = '<div class="dash-empty">Kayıt yok.</div>';
+            $('anDept').innerHTML = '';
+            $('anTrend').innerHTML = '';
+            if (quick) quick.textContent = '';
+            return;
+        }
+
+        const reqCount = logs.filter(l => l.type !== 'complaint').length;
+        const cmpCount = logs.filter(l => l.type === 'complaint').length;
+        const escCount = logs.filter(l => l.escalated === true).length;
+        if (quick) quick.textContent = `${reqCount} Talep · ${cmpCount} Şikayet` + (escCount ? ` · 🚨 ${escCount} eskale` : '');
+
+        // Durum dağılımı (talep + şikayet birlikte)
+        const statusCounts = { Following: 0, InProgress: 0, Solved: 0 };
+        logs.forEach(l => { const s = l.status || 'Following'; if (statusCounts[s] != null) statusCounts[s]++; });
+        const maxStatus = Math.max(1, ...Object.values(statusCounts));
+        $('anStatus').innerHTML = Object.keys(statusCounts)
+            .map(k => anBarRow(STATUS_LABEL[k], statusCounts[k], maxStatus, STATUS_COLOR[k])).join('');
+
+        // Departman yükü — ilk 6, gerisi "Diğer"
+        const deptCounts = {};
+        logs.forEach(l => { const d = (l.department || '').trim() || 'Belirtilmemiş'; deptCounts[d] = (deptCounts[d] || 0) + 1; });
+        const sortedDept = Object.entries(deptCounts).sort((a, b) => b[1] - a[1]);
+        const topDept = sortedDept.slice(0, 6);
+        const restSum = sortedDept.slice(6).reduce((s, [, v]) => s + v, 0);
+        if (restSum) topDept.push(['Diğer', restSum]);
+        const maxDept = Math.max(1, ...topDept.map(([, v]) => v));
+        $('anDept').innerHTML = topDept.length
+            ? topDept.map(([k, v]) => anBarRow(k, v, maxDept)).join('')
+            : '<div class="dash-empty">Kayıt yok.</div>';
+
+        // Son 14 gün trend — kayıtlar en yeni 300 ile sınırlı (bkz. listen()),
+        // bu yüzden çok yoğun bir otelde 14 günlük pencere eksik görünebilir;
+        // mevcut KPI'lardaki (ör. "En Yoğun Departman") aynı sınırlamayı taşır.
+        const days = [];
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const byDay = {};
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date(today.getTime() - i * 86400000);
+            const key = d.toISOString().slice(0, 10);
+            const entry = { key, label: d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }), count: 0 };
+            days.push(entry); byDay[key] = entry;
+        }
+        logs.forEach(l => {
+            const t = ms(l.createdAt); if (!t) return;
+            const key = new Date(t).toISOString().slice(0, 10);
+            if (byDay[key]) byDay[key].count++;
+        });
+        const maxDay = Math.max(1, ...days.map(d => d.count));
+        $('anTrend').innerHTML = days.map(d => {
+            const h = d.count ? Math.max(6, Math.round(d.count / maxDay * 100)) : 2;
+            return `<div class="trend-bar" title="${esc(d.label)}: ${d.count} kayıt"><i style="height:${h}%"></i></div>`;
+        }).join('');
+    }
+
+    function renderAll() { renderKpis(); renderAnalysis(); renderFeed(); }
 
     // ── Canlı dinleyiciler ─────────────────────────────────────
     function listen() {
