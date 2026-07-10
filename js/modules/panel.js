@@ -133,16 +133,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const today = new Date().toISOString().split('T')[0];
             const batch = db.batch();
             let needsCommit = false;
+            const toClose = [];
 
             guestDirectory.forEach(g => {
                 if (g.status === 'in_house' && g.checkOut && g.checkOut < today) {
                     batch.update(db.collection('guestDirectory').doc(g.id), { status: 'checked_out' });
                     g.status = 'checked_out';
+                    if (g.activeStayId) toClose.push({ id: g.id, activeStayId: g.activeStayId });
                     needsCommit = true;
                 }
             });
 
             if (needsCommit) await batch.commit();
+            // Konaklamayı da kapat (stays.status=checked_out + activeStayId temizle).
+            // İdempotent — iki personel ekranı eşzamanlı süpürse de aynı sonuca yazar.
+            for (const g of toClose) { await GuestDirectory.closeStay(g, 'auto-checkout'); }
 
             renderGuestProfileList();
         } catch (e) { console.error("Error loading directory", e); }
@@ -150,14 +155,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Paylaşımlı yardımcıya devrediyor (bkz. js/core/guest-directory.js) —
     // concierge.js'deki bağımsız kopyayla birleştirildi (tutarlılık denetimi).
+    // Dönen misafir {id: guestId, stayId, ...} — yeni kayıtlar bu ID'lerle
+    // ilişkilendirilir (kimlik migrasyonu).
     async function syncGuestStatus(name, room, status = 'in_house') {
-        if (!name) return;
+        if (!name) return null;
         const result = await GuestDirectory.syncGuestStatus(name, { room, status });
-        if (!result) return;
+        if (!result) return null;
         const idx = guestDirectory.findIndex(g => g.id === result.id);
         if (idx === -1) guestDirectory.push(result); else Object.assign(guestDirectory[idx], result);
         renderGuestProfileList();
         updateView(globalSearch.value, dateSearch.value);
+        return result;
     }
 
     function getGuestStatus(name) {
@@ -382,8 +390,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         mobSubmitBtn.disabled = true;
         try {
-            await syncGuestStatus(guestName, room);
-            await db.collection('guestLogs').add({
+            const guest = await syncGuestStatus(guestName, room);
+            const payload = {
                 date, room, guestName, department,
                 complaint: complaint || '',
                 solution: solution || '',
@@ -392,7 +400,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: 'Following',
                 updates: [],
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            };
+            // Kimlik: guestName/room gösterim snapshot'ı; ilişki guestId/stayId ile.
+            if (guest) { payload.guestId = guest.id; if (guest.stayId) payload.stayId = guest.stayId; }
+            await db.collection('guestLogs').add(payload);
             // Reset & close
             ['mob-date', 'mob-room', 'mob-guestName', 'mob-complaint', 'mob-solution'].forEach(id => {
                 const el = document.getElementById(id);
@@ -702,7 +713,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.assignedTo = selectedAssignee.uid;
                 formData.assignedToName = selectedAssignee.username;
             }
-            await syncGuestStatus(formData.guestName, formData.room);
+            // Kimlik: guestName/room artık yalnızca gösterim snapshot'ı —
+            // kalıcı ilişkilendirme guestId + stayId ile yapılır (bkz.
+            // js/core/guest-directory.js). Çift-yazım dönemi: eski alanlar
+            // da yazılmaya devam eder.
+            const guest = await syncGuestStatus(formData.guestName, formData.room);
+            if (guest) {
+                formData.guestId = guest.id;
+                if (guest.stayId) formData.stayId = guest.stayId;
+            }
             const ref = await db.collection('guestLogs').add(formData);
 
             // Remember a freshly-typed complaint topic for future suggestions.

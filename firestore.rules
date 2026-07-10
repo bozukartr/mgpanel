@@ -111,6 +111,25 @@ service cloud.firestore {
       allow update: if readOwnTenant() && writeOwnTenant();
       allow delete: if readOwnTenant();
     }
+    // Konaklamalar: kimlik modeli — guestId kişiyi, stays dokümanı tek bir
+    // konaklamayı tanımlar (bkz. js/core/guest-directory.js). guestDirectory
+    // ile aynı erişim şekli: otelin personeli okur/yönetir.
+    match /stays/{id} {
+      allow read:   if readOwnTenant();
+      allow create: if writeOwnTenant();
+      allow update: if readOwnTenant() && writeOwnTenant();
+      allow delete: if readOwnTenant();
+    }
+    // Kimlik migrasyonu inceleme kuyruğu: backfillGuestIdentity fonksiyonu
+    // (Admin SDK) belirsiz/eşleşmeyen eski kayıtları buraya yazar — otomatik
+    // tahmin YAPILMAZ. Otelin admin'i (veya operatör) inceleyip çözer;
+    // istemciden yeni kayıt oluşturulamaz.
+    match /migrationReview/{id} {
+      allow read:   if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      allow create: if false;
+      allow update: if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+    }
 
     // --- Restaurant (POS) module, all tenant-scoped to the caller's hotel ---
     // Per-hotel restaurant settings (tax, currency, receipt). Admin writes.

@@ -511,6 +511,9 @@
             section: ($('ckSection').value || 'Genel').trim().slice(0, 30) || 'Genel',
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
+        // Kimlik: oda bir konaklayan misafire çözülüyorsa adisyon guestId/stayId
+        // ile doğar — name/room yalnızca gösterim snapshot'ı (kimlik migrasyonu).
+        if (g) { data.guestId = g.id; if (g.activeStayId) data.stayId = g.activeStayId; }
         if (editingCheckId) {
             if (currentCheck && currentCheck.id === editingCheckId) {
                 currentCheck.tableName = data.tableName; currentCheck.pax = data.pax; currentCheck.room = data.room; currentCheck.name = data.name; currentCheck.section = data.section;
@@ -1352,11 +1355,19 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
                 tx.update(checkRef, payload);
                 roomPays.forEach(pm => {
                     const ref = db.collection(FOLIO_COL).doc();
-                    tx.set(ref, {
+                    const folioDoc = {
                         tenantId: TENANT_ID, room: pm.room || '', guestName: pm.guestName || '',
-                        source: 'restaurant', checkId: id, tableName: tableName,
+                        source: 'restaurant', checkId: id, sourceId: id, tableName: tableName,
                         amount: pm.amount, currency: currencyIso(), status: 'open', createdAt: TS, by: loggedUser
-                    });
+                    };
+                    // Kimlik: ödeme satırı zaten misafire çözülmüş (addPayment/pickRoom
+                    // guestId'yi doluluk listesinden alır); aktif konaklamayı da geçir.
+                    if (pm.guestId) {
+                        folioDoc.guestId = pm.guestId;
+                        const occ = inhouse.find(x => x.id === pm.guestId);
+                        if (occ && occ.activeStayId) folioDoc.stayId = occ.activeStayId;
+                    }
+                    tx.set(ref, folioDoc);
                 });
                 stockSnaps.forEach((snap, i) => {
                     if (!snap.exists) return;

@@ -419,6 +419,29 @@ exports.onGuestOrderCreate = onDocumentCreated(
     const items = Array.isArray(o.items) ? o.items : [];
     const count = items.length;
 
+    // Kimlik (kimlik migrasyonu): anonim misafir istemcisi guestDirectory'yi
+    // okuyamaz (kurallar personele kilitli), bu yüzden guestId/stayId sipariş
+    // OLUŞTURULURKEN eklenemiyor — burada, Admin SDK ile sunucu tarafında
+    // odadaki konaklayan misafire çözülüp siparişe damgalanır. Oda o an bir
+    // in_house misafire çözülemiyorsa damgalanmaz; backfill/inceleme kuyruğu
+    // sonradan ele alır (asla tahmin edilmez).
+    if (room && !o.guestId) {
+      try {
+        const occSnap = await db.collection('guestDirectory')
+          .where('tenantId', '==', tenantId).where('status', '==', 'in_house').get();
+        const roomKey = room.toLowerCase();
+        const matches = occSnap.docs.filter((d) =>
+          String((d.data() || {}).room || '').trim().toLowerCase() === roomKey);
+        if (matches.length === 1) { // tek eşleşme — belirsizlikte damgalama yok
+          const occ = matches[0];
+          const upd = { guestId: occ.id };
+          const activeStayId = (occ.data() || {}).activeStayId;
+          if (activeStayId) upd.stayId = activeStayId;
+          await snap.ref.update(upd);
+        }
+      } catch (e) { console.error('guest order identity stamp failed', e); }
+    }
+
     // Otelin bildirim ayarları (admin "Bildirimler" sekmesi). Yoksa makul
     // varsayılanlar: bildirim açık, içerik gösterilir, tüm personele gider.
     let cfg = {};
@@ -1810,6 +1833,149 @@ exports.backfillTenantTags = onCall({ region: REGION, timeoutSeconds: 540 }, asy
       if (snap.size < 400) break;
     }
     result[col] = { scanned, tagged };
+  }
+  return { ok: true, tenant, result };
+});
+
+// ── Kimlik migrasyonu backfill'i: eski kayıtlara guestId/stayId damgala ──
+// Misafir adı + oda numarası kimlik OLARAK kullanılmayı bırakıyor (bkz.
+// js/core/guest-directory.js): guestId kişiyi, stayId tek bir konaklamayı
+// tanımlar; isim/oda yalnızca gösterim snapshot'ı. Bu fonksiyon (superadmin,
+// tenant başına çalıştırılır):
+//   1) guestDirectory'den stays açar: in_house/pre_arrival → aktif stay
+//      (activeStayId işaretlenir); checked_out → kapalı tarihçe stay'i
+//      (guest dokümanına stayBackfilled konur — idempotens).
+//   2) guestLogs/reservations/guestOrders/folioCharges/restChecks içinde
+//      guestId'siz kayıtları normalize edilmiş İSİM eşleşmesiyle damgalar.
+//      stayId yalnızca kayıt tarihi konaklamanın checkIn/checkOut penceresine
+//      düşüyorsa (veya konaklama hâlâ açıksa) eklenir.
+//   3) Eşleşmeyen veya BİRDEN FAZLA misafire eşleşen kayıtlar ASLA tahmin
+//      edilmez — migrationReview kuyruğuna yazılır (deterministik doc id:
+//      tekrar çalıştırma mükerrer kuyruk kaydı üretmez). İsimsiz ve odasız
+//      kayıtlar (ör. walk-in adisyonlar) misafire bağlı değildir, atlanır.
+// İdempotent: guestId'si zaten olan dokümanlara dokunmaz. İsim-bazlı
+// geri-düşüş, bu backfill + kuyruk temizliği bitene KADAR istemcilerde kalır.
+const IDENTITY_COLS = [
+  { col: 'guestLogs', nameField: 'guestName' },
+  { col: 'reservations', nameField: 'guestName' },
+  { col: 'guestOrders', nameField: 'guestName' },
+  { col: 'folioCharges', nameField: 'guestName' },
+  { col: 'restChecks', nameField: 'name' }
+];
+function trLower(s) { return String(s || '').trim().toLocaleLowerCase('tr-TR'); }
+exports.backfillGuestIdentity = onCall({ region: REGION, timeoutSeconds: 540 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const su = await db.collection('superAdmins').doc(request.auth.uid).get();
+  if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
+  const tenant = (request.data && typeof request.data.tenant === 'string' && /^[a-z0-9-]{2,24}$/.test(request.data.tenant))
+    ? request.data.tenant : null;
+  if (!tenant) throw new HttpsError('invalid-argument', 'tenant gerekli (ör. {tenant: "mgallery"}).');
+
+  // 1) Misafirler + stays
+  const guestSnap = await db.collection('guestDirectory').where('tenantId', '==', tenant).get();
+  const guests = guestSnap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+  let staysCreated = 0;
+  for (const g of guests) {
+    const active = g.status === 'in_house' || g.status === 'pre_arrival';
+    if (active && !g.activeStayId) {
+      const ref = await db.collection('stays').add({
+        tenantId: tenant, guestId: g.id, guestName: g.name || '',
+        room: g.room || '', checkIn: g.checkIn || '', checkOut: g.checkOut || '',
+        status: g.status, createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await db.collection('guestDirectory').doc(g.id).update({ activeStayId: ref.id });
+      g.activeStayId = ref.id; staysCreated++;
+    } else if (!active && !g.stayBackfilled) {
+      const ref = await db.collection('stays').add({
+        tenantId: tenant, guestId: g.id, guestName: g.name || '',
+        room: g.room || '', checkIn: g.checkIn || '', checkOut: g.checkOut || '',
+        status: 'checked_out', createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        checkedOutAt: admin.firestore.FieldValue.serverTimestamp(), checkedOutBy: 'backfill'
+      });
+      await db.collection('guestDirectory').doc(g.id).update({ stayBackfilled: true });
+      g._backfillStayId = ref.id; staysCreated++;
+    }
+  }
+  // Guest başına bilinen stay (backfill en fazla bir tane açar/işaretler).
+  const stayOf = {};
+  guests.forEach((g) => {
+    const sid = g.activeStayId || g._backfillStayId || null;
+    if (sid) stayOf[g.id] = { stayId: sid, checkIn: g.checkIn || '', checkOut: g.checkOut || '', open: !!g.activeStayId };
+  });
+  // İsim indeksi — aynı normalize isim birden çok profile denk geliyorsa belirsizdir.
+  const nameIndex = {};
+  guests.forEach((g) => {
+    const k = trLower(g.name); if (!k) return;
+    (nameIndex[k] = nameIndex[k] || []).push(g);
+  });
+
+  function stayIdFor(guest, createdAt) {
+    const s = stayOf[guest.id];
+    if (!s) return null;
+    if (s.open && !s.checkIn && !s.checkOut) return s.stayId; // açık, penceresiz — kabul
+    const t = createdAt && createdAt.toDate ? createdAt.toDate() : null;
+    if (!t) return s.open ? s.stayId : null;
+    const day = t.toISOString().slice(0, 10);
+    if (s.checkIn && day < s.checkIn) return null;
+    if (s.checkOut && day > s.checkOut) return null;
+    return s.stayId;
+  }
+
+  // 2) Koleksiyonları damgala
+  const result = { staysCreated };
+  for (const { col, nameField } of IDENTITY_COLS) {
+    let scanned = 0, stamped = 0, queued = 0, skipped = 0, last = null;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      let q = db.collection(col).where('tenantId', '==', tenant)
+        .orderBy(admin.firestore.FieldPath.documentId()).limit(400);
+      if (last) q = q.startAfter(last);
+      const snap = await q.get();
+      if (snap.empty) break;
+      const batch = db.batch();
+      let n = 0;
+      snap.forEach((doc) => {
+        scanned++;
+        const dd = doc.data() || {};
+        if (dd.guestId) return; // zaten damgalı — idempotens
+        const key = trLower(dd[nameField]);
+        const room = String(dd.room || '').trim();
+        if (!key) {
+          // İsimsiz: odası da yoksa misafire bağlı bir kayıt değil (walk-in) — atla.
+          // Odası varsa isimsiz eşleştirme tahmin olur — inceleme kuyruğuna.
+          if (!room) { skipped++; return; }
+          batch.set(db.collection('migrationReview').doc(col + '_' + doc.id), {
+            tenantId: tenant, collection: col, docId: doc.id,
+            guestName: '', room, reason: 'no-name', candidates: [],
+            status: 'open', createdAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          queued++; n++;
+          return;
+        }
+        const matches = nameIndex[key] || [];
+        if (matches.length === 1) {
+          const g = matches[0];
+          const upd = { guestId: g.id };
+          const sid = stayIdFor(g, dd.createdAt);
+          if (sid) upd.stayId = sid;
+          batch.update(doc.ref, upd);
+          stamped++; n++;
+        } else {
+          batch.set(db.collection('migrationReview').doc(col + '_' + doc.id), {
+            tenantId: tenant, collection: col, docId: doc.id,
+            guestName: dd[nameField] || '', room,
+            reason: matches.length ? 'ambiguous' : 'no-match',
+            candidates: matches.map((g) => g.id),
+            status: 'open', createdAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          queued++; n++;
+        }
+      });
+      if (n) await batch.commit();
+      last = snap.docs[snap.docs.length - 1];
+      if (snap.size < 400) break;
+    }
+    result[col] = { scanned, stamped, queued, skipped };
   }
   return { ok: true, tenant, result };
 });

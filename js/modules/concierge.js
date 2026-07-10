@@ -1404,6 +1404,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.status = 'Pending';
                 data.staffInitial = loggedUsername;
                 data.tenantId = TENANT_ID;
+                // Kimlik: misafir/konaklama ÖNCE çözülür ki rezervasyon
+                // dokümanları guestId/stayId ile doğsun — guestName/room
+                // yalnızca gösterim snapshot'ı olarak kalır. syncGuestStatus
+                // başarısız olursa (ağ) rezervasyon yine de eski alanlarla
+                // kaydedilir; backfill sonradan eşler.
+                let guest = null;
+                try { guest = await syncGuestStatus(guestName, isPreArrival ? '' : room, isPreArrival, checkIn, checkOut); } catch (e) { /* legacy alanlarla devam */ }
+                if (guest) {
+                    data.guestId = guest.id;
+                    if (guest.stayId) data.stayId = guest.stayId;
+                }
                 const dates = repeatDates();
                 const isSeries = dates.length > 1;
                 const seriesId = isSeries ? ('seq' + Date.now() + Math.floor(Math.random() * 1000)) : null;
@@ -1419,7 +1430,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }));
                 });
                 await batch.commit();
-                await syncGuestStatus(guestName, isPreArrival ? '' : room, isPreArrival, checkIn, checkOut); // Sync with directory
                 showToast(isSeries ? (dates.length + ' rezervasyon oluşturuldu') : 'Rezervasyon kaydedildi');
             }
 
@@ -1525,11 +1535,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const balance = (Number(cur.totalPrice) || 0) - (Number(cur.deposit) || 0);
                 if (balance <= 0) return { error: 'no-balance' };
                 const folioRef = db.collection('folioCharges').doc();
-                tx.set(folioRef, {
+                const folioDoc = {
                     tenantId: TENANT_ID, room: cur.room, guestName: cur.guestName || '',
-                    source: 'concierge', reservationId: r.id, tableName: '',
+                    source: 'concierge', reservationId: r.id, sourceId: r.id, tableName: '',
                     amount: balance, currency: cur.currency || 'EUR', status: 'open', createdAt: TS, by: loggedUsername
-                });
+                };
+                // Kimlik: rezervasyon guestId/stayId taşıyorsa folio kaydına da geçir.
+                if (cur.guestId) folioDoc.guestId = cur.guestId;
+                if (cur.stayId) folioDoc.stayId = cur.stayId;
+                tx.set(folioRef, folioDoc);
                 tx.update(resRef, { folioApplied: true, folioAmount: balance, folioAt: TS });
                 return { ok: true, balance };
             });

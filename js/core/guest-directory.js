@@ -1,24 +1,77 @@
-// Misafir dizini (guestDirectory) senkronizasyonu — daha önce concierge.js ve
-// panel.js'de birbirinden bağımsız İKİ AYRI kopyası vardı (bkz. tutarlılık
-// denetimi). Tek yerde toplanmış hâli.
+// Misafir dizini (guestDirectory) + konaklama (stays) senkronizasyonu.
 //
-// "Bu misafir zaten var mı" kontrolü artık yerel bir onSnapshot önbelleğinin
-// taranması yerine HER ÇAĞRIDA taze bir sunucu okumasından yapılır — eski
-// davranışta iki personel sekmesi az farkla eşzamanlı çağırdığında ikisi de
-// önbellekte "yok" görüp mükerrer kayıt oluşturabiliyordu. Taze okuma bu
-// riski küçültür ama TAMAMEN ortadan kaldırmaz: Firebase 8.x compat SDK
-// transaction içinde sorguyu desteklemediğinden (yalnızca tek doküman
-// referansı okunabilir) ve isim alanı deterministik bir doküman ID'si
-// olmadığından, gerçek anlamda atomik bir "oku-sonra-yaz" burada mümkün
-// değil. Tam garanti için guestDirectory doküman ID'sinin normalize edilmiş
-// isimden türetilmesi gerekir — bu, var olan tüm kayıtlar için bir
-// migrasyon gerektiren daha büyük bir değişiklik olduğundan bu geçişin
-// kapsamı dışında bırakıldı.
+// KİMLİK MODELİ (bkz. kimlik migrasyonu):
+//   guestId = guestDirectory doküman ID'si — KİŞİYİ tanımlar
+//   stayId  = stays doküman ID'si — TEK BİR KONAKLAMAYI tanımlar
+// İş kayıtları (guestLogs, reservations, guestOrders, folioCharges,
+// restChecks) artık bu ID'leri taşır; guestName/room alanları yalnızca
+// GÖSTERİM amaçlı snapshot'tır, ilişkilendirme ID'lerle yapılır.
+// guestDirectory dokümanındaki `activeStayId`, misafirin o anki açık
+// konaklamasına denormalize bir işaretçidir — oda→misafir bulan her akış
+// (restoran, QR sipariş) ek sorgu yapmadan her iki ID'ye ulaşır.
+//
+// "Bu misafir zaten var mı" kontrolü her çağrıda taze bir sunucu
+// okumasından yapılır (yerel önbellek değil). Bu, eşzamanlı iki sekmenin
+// mükerrer kayıt oluşturma riskini küçültür ama TAMAMEN kaldırmaz:
+// Firebase 8.x compat SDK transaction içinde sorgu desteklemediğinden
+// gerçek atomik "oku-sonra-yaz" burada mümkün değil. İsim eşleştirmesi
+// zaten yalnızca LEGACY bir geri-düşüş — kayıtlar ID taşıdıkça bu yol
+// önemsizleşir ve backfill sonrası kaldırılabilir.
 window.GuestDirectory = (function () {
-    function syncGuestStatus(name, opts) {
+    function nowIso() { return new Date().toISOString(); }
+
+    // Aktif konaklamayı garanti eder: guest.activeStayId varsa günceller,
+    // yoksa yeni bir stays dokümanı açıp guestDirectory'ye işaretler.
+    async function ensureActiveStay(guest, statusToSet, room, checkIn, checkOut) {
+        if (statusToSet !== 'in_house' && statusToSet !== 'pre_arrival') return null;
+        if (guest.activeStayId) {
+            // guest objesi bu noktada YENİ değerleri taşıyor olabilir (çağıran
+            // önce guestDirectory'yi günceller) — o yüzden "değişti mi" diye
+            // guest ile kıyaslamak yanıltıcı; verilen değerler doğrudan yazılır
+            // (idempotent).
+            const upd = { status: statusToSet };
+            if (room) upd.room = room;
+            if (checkIn) upd.checkIn = checkIn;
+            if (checkOut) upd.checkOut = checkOut;
+            try { await db.collection('stays').doc(guest.activeStayId).update(upd); } catch (e) { /* stay silinmiş olabilir — işaretçi yine de korunur */ }
+            return guest.activeStayId;
+        }
+        const stay = {
+            tenantId: TENANT_ID,
+            guestId: guest.id,
+            guestName: guest.name || '',   // gösterim snapshot'ı
+            room: room || guest.room || '',
+            checkIn: checkIn || guest.checkIn || '',
+            checkOut: checkOut || guest.checkOut || '',
+            status: statusToSet,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        const ref = await db.collection('stays').add(stay);
+        await db.collection('guestDirectory').doc(guest.id).update({ activeStayId: ref.id });
+        return ref.id;
+    }
+
+    // Aktif konaklamayı kapatır (checkout). guestLike: {id, activeStayId}.
+    // guestDirectory.status'u BURASI değiştirmez — çağıran akış (crm checkout,
+    // panel auto-sweep) zaten kendi status yazımını yapıyor; bu yalnızca
+    // stays tarafını tutarlı kapatır.
+    async function closeStay(guestLike, by) {
+        const stayId = guestLike && guestLike.activeStayId;
+        if (!stayId) return;
+        try {
+            await db.collection('stays').doc(stayId).update({
+                status: 'checked_out',
+                checkedOutAt: firebase.firestore.FieldValue.serverTimestamp(),
+                checkedOutBy: by || ''
+            });
+            await db.collection('guestDirectory').doc(guestLike.id).update({ activeStayId: firebase.firestore.FieldValue.delete() });
+        } catch (e) { console.error('closeStay', e); }
+    }
+
+    async function syncGuestStatus(name, opts) {
         opts = opts || {};
         const normalized = String(name || '').trim();
-        if (!normalized) return Promise.resolve(null);
+        if (!normalized) return null;
         const key = normalized.toLocaleLowerCase('tr-TR');
         const room = opts.room || '';
         const isPreArrival = !!opts.isPreArrival;
@@ -26,38 +79,52 @@ window.GuestDirectory = (function () {
         const checkIn = opts.checkIn || '';
         const checkOut = opts.checkOut || '';
 
-        return db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get()
-            .then(function (snap) {
-                const docs = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-                const existing = docs.find(function (g) { return (g.name || '').toLocaleLowerCase('tr-TR') === key; });
-                const statusToSet = forceStatus || (isPreArrival ? 'pre_arrival' : 'in_house');
+        const snap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
+        const docs = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        // LEGACY geri-düşüş: isim eşleştirmesi. opts.guestId verilmişse
+        // (çağıran zaten kimliği biliyorsa) o kazanır.
+        const existing = (opts.guestId && docs.find(function (g) { return g.id === opts.guestId; }))
+            || docs.find(function (g) { return (g.name || '').toLocaleLowerCase('tr-TR') === key; });
+        const statusToSet = forceStatus || (isPreArrival ? 'pre_arrival' : 'in_house');
 
-                if (!existing) {
-                    const newGuest = {
-                        name: normalized, room: room, status: statusToSet,
-                        checkIn: checkIn, checkOut: checkOut,
-                        tenantId: TENANT_ID, lastUpdated: new Date().toISOString()
-                    };
-                    return db.collection('guestDirectory').add(newGuest)
-                        .then(function (ref) { return Object.assign({ id: ref.id }, newGuest); });
-                }
+        if (!existing) {
+            const newGuest = {
+                name: normalized, room: room, status: statusToSet,
+                checkIn: checkIn, checkOut: checkOut,
+                tenantId: TENANT_ID, lastUpdated: nowIso()
+            };
+            const ref = await db.collection('guestDirectory').add(newGuest);
+            const guest = Object.assign({ id: ref.id }, newGuest);
+            guest.stayId = await ensureActiveStay(guest, statusToSet, room, checkIn, checkOut);
+            guest.activeStayId = guest.stayId;
+            return guest;
+        }
 
-                const updates = { lastUpdated: new Date().toISOString() };
-                if (forceStatus) {
-                    if (existing.status !== forceStatus) updates.status = forceStatus;
-                } else {
-                    if (existing.status === 'checked_out') updates.status = statusToSet;
-                    else if (isPreArrival && existing.status !== 'pre_arrival') updates.status = 'pre_arrival';
-                    else if (!isPreArrival && existing.status === 'pre_arrival' && room) updates.status = 'in_house';
-                }
-                if (room && existing.room !== room) updates.room = room;
-                if (checkIn) updates.checkIn = checkIn;
-                if (checkOut) updates.checkOut = checkOut;
+        const updates = { lastUpdated: nowIso() };
+        if (forceStatus) {
+            if (existing.status !== forceStatus) updates.status = forceStatus;
+        } else {
+            if (existing.status === 'checked_out') updates.status = statusToSet;
+            else if (isPreArrival && existing.status !== 'pre_arrival') updates.status = 'pre_arrival';
+            else if (!isPreArrival && existing.status === 'pre_arrival' && room) updates.status = 'in_house';
+        }
+        if (room && existing.room !== room) updates.room = room;
+        if (checkIn) updates.checkIn = checkIn;
+        if (checkOut) updates.checkOut = checkOut;
 
-                if (Object.keys(updates).length <= 1) return existing;
-                return db.collection('guestDirectory').doc(existing.id).update(updates)
-                    .then(function () { return Object.assign({}, existing, updates); });
-            });
+        let guest = existing;
+        if (Object.keys(updates).length > 1) {
+            await db.collection('guestDirectory').doc(existing.id).update(updates);
+            guest = Object.assign({}, existing, updates);
+        }
+        // Nihai durum konaklama gerektiriyorsa aktif stay'i garanti et.
+        // checked_out'tan geri dönüş (yeni konaklama) dahil: activeStayId
+        // yoksa yeni stay açılır — önceki konaklama tarihçede kalır.
+        const finalStatus = guest.status || statusToSet;
+        guest.stayId = await ensureActiveStay(guest, finalStatus, room, checkIn, checkOut);
+        if (guest.stayId) guest.activeStayId = guest.stayId;
+        return guest;
     }
-    return { syncGuestStatus: syncGuestStatus };
+
+    return { syncGuestStatus: syncGuestStatus, closeStay: closeStay };
 })();

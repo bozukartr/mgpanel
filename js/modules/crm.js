@@ -93,17 +93,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const today = new Date().toISOString().split('T')[0];
             const batch = db.batch();
             let needsCommit = false;
+            const staysToClose = [];
 
             guestDirectory.forEach(g => {
                 if (g.status === 'in_house' && g.checkOut && g.checkOut < today) {
                     batch.update(db.collection('guestDirectory').doc(g.id), { status: 'checked_out' });
                     g.status = 'checked_out'; // Update local state immediately
+                    if (g.activeStayId) staysToClose.push({ id: g.id, activeStayId: g.activeStayId });
                     needsCommit = true;
                 }
             });
 
             if (needsCommit) {
                 await batch.commit();
+                // Konaklamayı da kapat (stays tarafı — kimlik migrasyonu).
+                for (const g of staysToClose) { await GuestDirectory.closeStay(g, 'auto-checkout'); }
                 console.log("Auto-checkout executed for past guests.");
             }
 
@@ -324,6 +328,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: newStatus,
                 lastUpdated: new Date().toISOString()
             });
+            // Konaklama (stays) tarafını tutarlı tut: checkout aktif
+            // konaklamayı kapatır; in_house'a dönüş yeni bir konaklama açar
+            // (önceki tarihçede kalır) — kimlik migrasyonu.
+            const guest = guestDirectory.find(g => g.id === guestId);
+            if (guest) {
+                if (newStatus === 'checked_out') {
+                    await GuestDirectory.closeStay(guest, loggedUsername);
+                } else if (newStatus === 'in_house') {
+                    await GuestDirectory.syncGuestStatus(guest.name, { guestId: guest.id, room: guest.room, status: 'in_house' });
+                }
+            }
             showToast(`Guest status updated: ${newStatus.replace('_',' ')}`);
             loadAllData();
         } catch (e) { showToast('Update failed', true); }
@@ -425,12 +440,20 @@ document.addEventListener('DOMContentLoaded', () => {
             // durumda TÜMÜYLE reddedilirdi (merge "başarılı" görünüp hiçbir
             // kayıt taşınmazdı). 450'lik parçalara bölünerek sırayla commit edilir.
             const ops = [];
+            // Hem legacy isim eşleşmesi hem guestId eşleşmesi taşınır — kimlik
+            // migrasyonu sonrası kayıtlar isimle değil guestId ile bağlı.
             reservations
-                .filter(r => r.guestName && r.guestName.toLowerCase() === secName)
-                .forEach(r => ops.push(b => b.update(db.collection('reservations').doc(r.id), { guestName: primary.name })));
+                .filter(r => (r.guestName && r.guestName.toLowerCase() === secName) || r.guestId === secondary.id)
+                .forEach(r => ops.push(b => b.update(db.collection('reservations').doc(r.id), { guestName: primary.name, guestId: primary.id })));
             guestLogs
-                .filter(l => l.guestName && l.guestName.toLowerCase() === secName)
-                .forEach(l => ops.push(b => b.update(db.collection('guestLogs').doc(l.id), { guestName: primary.name })));
+                .filter(l => (l.guestName && l.guestName.toLowerCase() === secName) || l.guestId === secondary.id)
+                .forEach(l => ops.push(b => b.update(db.collection('guestLogs').doc(l.id), { guestName: primary.name, guestId: primary.id })));
+            // Mükerrer profilin konaklamaları da birincil misafire taşınır.
+            try {
+                const staySnap = await db.collection('stays')
+                    .where('tenantId', '==', TENANT_ID).where('guestId', '==', secondary.id).get();
+                staySnap.docs.forEach(d => ops.push(b => b.update(db.collection('stays').doc(d.id), { guestId: primary.id, guestName: primary.name })));
+            } catch (e) { console.error('stay merge read failed', e); }
 
             // Merge notes
             const primaryNotes = (primary.notes || '').trim();
@@ -450,10 +473,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const finalBatch = db.batch();
-            finalBatch.update(db.collection('guestDirectory').doc(primary.id), {
+            const primaryUpd = {
                 notes: mergedNotes,
                 lastUpdated: new Date().toISOString()
-            });
+            };
+            // Birincil profilin aktif konaklaması yoksa mükerrer profilinki devralınır.
+            if (!primary.activeStayId && secondary.activeStayId) primaryUpd.activeStayId = secondary.activeStayId;
+            finalBatch.update(db.collection('guestDirectory').doc(primary.id), primaryUpd);
             // Remove the duplicate profile
             finalBatch.delete(db.collection('guestDirectory').doc(secondary.id));
             await finalBatch.commit();
@@ -520,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
             }
-            await db.collection('guestDirectory').add({
+            const newGuestRef = await db.collection('guestDirectory').add({
                 name: name,
                 room: status === 'pre_arrival' ? (room || '') : room,
                 status: status,
@@ -529,6 +555,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 tenantId: TENANT_ID,
                 lastUpdated: new Date().toISOString()
             });
+            // Konaklama gerektiren durumlar için stays kaydı aç (kimlik
+            // migrasyonu) — guestId'yi açıkça geçerek isim eşleştirmesine
+            // (ve yukarıdaki onaylanmış mükerrer isim senaryosunda YANLIŞ
+            // misafire yazmaya) hiç girmez.
+            if (status === 'in_house' || status === 'pre_arrival') {
+                try {
+                    await GuestDirectory.syncGuestStatus(name, {
+                        guestId: newGuestRef.id, room: room, status: status,
+                        checkIn: checkIn || '', checkOut: checkOut || ''
+                    });
+                } catch (e2) { console.error('stay create failed', e2); }
+            }
             closeAddGuest();
             showToast('Misafir eklendi.');
             await loadAllData();
