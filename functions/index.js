@@ -1863,14 +1863,7 @@ const IDENTITY_COLS = [
   { col: 'restChecks', nameField: 'name' }
 ];
 function trLower(s) { return String(s || '').trim().toLocaleLowerCase('tr-TR'); }
-exports.backfillGuestIdentity = onCall({ region: REGION, timeoutSeconds: 540 }, async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
-  const su = await db.collection('superAdmins').doc(request.auth.uid).get();
-  if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
-  const tenant = (request.data && typeof request.data.tenant === 'string' && /^[a-z0-9-]{2,24}$/.test(request.data.tenant))
-    ? request.data.tenant : null;
-  if (!tenant) throw new HttpsError('invalid-argument', 'tenant gerekli (ör. {tenant: "mgallery"}).');
-
+async function backfillGuestIdentityForTenant(tenant) {
   // 1) Misafirler + stays
   const guestSnap = await db.collection('guestDirectory').where('tenantId', '==', tenant).get();
   const guests = guestSnap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
@@ -1977,7 +1970,22 @@ exports.backfillGuestIdentity = onCall({ region: REGION, timeoutSeconds: 540 }, 
     }
     result[col] = { scanned, stamped, queued, skipped };
   }
-  return { ok: true, tenant, result };
+  return { tenant, result };
+}
+// Tenant belirtilmezse tenants koleksiyonundaki TÜM oteller sırayla işlenir
+// (idempotent olduğundan tekrar çalıştırmak güvenli). Tek otel için
+// {tenant: '<slug>'} hâlâ geçerli.
+exports.backfillGuestIdentity = onCall({ region: REGION, timeoutSeconds: 540 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const su = await db.collection('superAdmins').doc(request.auth.uid).get();
+  if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
+  const one = (request.data && typeof request.data.tenant === 'string' && /^[a-z0-9-]{2,24}$/.test(request.data.tenant))
+    ? request.data.tenant : null;
+  const tenants = one ? [one] : (await db.collection('tenants').get()).docs.map((d) => d.id);
+  if (!tenants.length) throw new HttpsError('failed-precondition', 'Hiç otel (tenant) bulunamadı.');
+  const results = [];
+  for (const t of tenants) results.push(await backfillGuestIdentityForTenant(t));
+  return { ok: true, tenants: tenants.length, results };
 });
 
 // ═══════════════════════════════════════════════════════════════════
