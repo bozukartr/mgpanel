@@ -549,6 +549,15 @@
                     <div class="modal-err" id="stErr" style="padding:0 20px;"></div>
                     <div id="stResults" class="st-results" hidden></div>
                 </div>
+
+                <div class="card" style="margin-top:22px;">
+                    <div class="card-head">
+                        <div><h3>Kimlik Migrasyonu (guestId / stayId)</h3><div class="sub">Eski kayıtlara misafir/konaklama kimliği damgalar — tüm oteller, tek tıkla. Tekrar çalıştırmak güvenlidir (idempotent); belirsiz kayıtlar tahmin edilmez, inceleme kuyruğuna düşer.</div></div>
+                        <button class="btn-primary" id="miRunBtn">Backfill'i Çalıştır</button>
+                    </div>
+                    <div class="modal-err" id="miErr" style="padding:0 20px;"></div>
+                    <div id="miResults" style="padding:0 20px 18px; display:none;"></div>
+                </div>
             </section>
         </div>
     </div>

@@ -1911,6 +1911,41 @@
             err.textContent = 'Test başarısız: ' + esc(e.message || 'hata');
         } finally { btn.disabled = false; btn.textContent = 'Testi Çalıştır'; }
     }
+    // ── Kimlik migrasyonu backfill'i (tek tık — konsol gerekmez) ──
+    async function runIdentityBackfill() {
+        if (!confirm('Kimlik migrasyonu tüm otellerde çalıştırılacak:\n\n· Mevcut misafirlerden konaklama (stays) kayıtları açılır\n· Eski kayıtlara guestId/stayId damgalanır (yalnızca kesin eşleşmelerde)\n· Belirsiz kayıtlar inceleme kuyruğuna yazılır — asla tahmin edilmez\n\nTekrar çalıştırmak güvenlidir. Devam edilsin mi?')) return;
+        const btn = $('miRunBtn'); const err = $('miErr'); const out = $('miResults');
+        btn.disabled = true; btn.textContent = 'Çalışıyor… (veri boyutuna göre birkaç dakika sürebilir)';
+        err.textContent = ''; out.style.display = 'none';
+        try {
+            const call = firebase.app().functions('us-central1').httpsCallable('backfillGuestIdentity');
+            const res = await call({});
+            const d = res.data || {};
+            let totStamped = 0, totQueued = 0;
+            let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+                + '<tr style="text-align:left;color:var(--muted);"><th style="padding:6px 8px;">Otel</th><th>Konaklama</th><th>Damgalanan</th><th>İncelemeye Düşen</th></tr>';
+            (d.results || []).forEach(r => {
+                let stamped = 0, queued = 0;
+                Object.keys(r.result || {}).forEach(k => {
+                    if (k === 'staysCreated') return;
+                    stamped += (r.result[k].stamped || 0); queued += (r.result[k].queued || 0);
+                });
+                totStamped += stamped; totQueued += queued;
+                html += '<tr><td style="padding:6px 8px;"><b>' + esc(r.tenant) + '</b></td>'
+                    + '<td>' + esc(r.result.staysCreated || 0) + ' açıldı</td>'
+                    + '<td>' + esc(stamped) + '</td>'
+                    + '<td>' + (queued ? '<span style="color:var(--red);font-weight:700;">' + esc(queued) + '</span>' : '0') + '</td></tr>';
+            });
+            html += '</table>';
+            if (totQueued) html += '<div class="sub" style="margin-top:10px;">⚠ ' + totQueued + ' kayıt kesin eşleştirilemedi — migrationReview koleksiyonunda inceleme bekliyor (tahmin edilmedi).</div>';
+            else html += '<div class="sub" style="margin-top:10px;color:var(--green,#16a34a);">✓ Tüm kayıtlar kesin eşleşti — inceleme kuyruğu boş.</div>';
+            out.innerHTML = html; out.style.display = 'block';
+            toast('Kimlik migrasyonu tamamlandı — ' + totStamped + ' kayıt damgalandı');
+        } catch (e) {
+            err.textContent = 'Backfill başarısız: ' + esc(e.message || 'hata');
+        } finally { btn.disabled = false; btn.textContent = 'Backfill\'i Çalıştır'; }
+    }
+
     function stopStressTimers() {
         if (stOutageTimer) { clearInterval(stOutageTimer); stOutageTimer = null; }
         if (stHealthTimer) { clearInterval(stHealthTimer); stHealthTimer = null; }
@@ -1921,6 +1956,7 @@
             if ($('stOutageRefresh')) $('stOutageRefresh').addEventListener('click', checkOutages);
             if ($('stHealthRefresh')) $('stHealthRefresh').addEventListener('click', checkHealth);
             if ($('stRunBtn')) $('stRunBtn').addEventListener('click', runStressTest);
+            if ($('miRunBtn')) $('miRunBtn').addEventListener('click', runIdentityBackfill);
         }
         checkOutages(); checkHealth();
         stopStressTimers();
