@@ -1988,6 +1988,84 @@ exports.backfillGuestIdentity = onCall({ region: REGION, timeoutSeconds: 540 }, 
   return { ok: true, tenants: tenants.length, results };
 });
 
+// ── İnceleme kuyruğu çözümü ──────────────────────────────────────────
+// migrationReview'deki bir kaydı süperadmin panelinden çözer:
+//   action 'assign'  → hedef doküman seçilen misafirin guestId'siyle
+//     damgalanır (stayId, misafirin konaklamalarından tarih penceresi
+//     TEK bir stay'e oturuyorsa eklenir — yine tahmin yok); kuyruk kaydı
+//     'resolved' olur.
+//   action 'dismiss' → kayıt misafire bağlı değildir (ör. walk-in);
+//     kuyruk kaydı 'dismissed' olur, hedef dokümana dokunulmaz.
+// Sunucu tarafında (Admin SDK) yazılır — guestOrders gibi istemci
+// kurallarının süperadmine izin vermediği koleksiyonlar da kapsanır.
+exports.resolveMigrationReview = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const su = await db.collection('superAdmins').doc(request.auth.uid).get();
+  if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
+  const d = request.data || {};
+  const reviewId = String(d.reviewId || '');
+  const action = d.action === 'dismiss' ? 'dismiss' : 'assign';
+  if (!reviewId) throw new HttpsError('invalid-argument', 'reviewId gerekli.');
+
+  const revRef = db.collection('migrationReview').doc(reviewId);
+  const revSnap = await revRef.get();
+  if (!revSnap.exists) throw new HttpsError('not-found', 'Kuyruk kaydı bulunamadı.');
+  const rev = revSnap.data();
+  if (rev.status !== 'open') throw new HttpsError('failed-precondition', 'Bu kayıt zaten çözülmüş.');
+
+  if (action === 'dismiss') {
+    await revRef.update({
+      status: 'dismissed',
+      resolvedBy: request.auth.uid,
+      resolvedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { ok: true, action: 'dismiss' };
+  }
+
+  const guestId = String(d.guestId || '');
+  if (!guestId) throw new HttpsError('invalid-argument', 'assign için guestId gerekli.');
+  const guestSnap = await db.collection('guestDirectory').doc(guestId).get();
+  if (!guestSnap.exists) throw new HttpsError('not-found', 'Misafir bulunamadı.');
+  const guest = guestSnap.data();
+  if (guest.tenantId !== rev.tenantId) throw new HttpsError('invalid-argument', 'Misafir farklı bir otele ait.');
+
+  const targetRef = db.collection(rev.collection).doc(rev.docId);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    // Hedef silinmiş — kuyruğu kapat, yapılacak iş yok.
+    await revRef.update({ status: 'dismissed', resolvedBy: request.auth.uid, resolvedAt: admin.firestore.FieldValue.serverTimestamp(), note: 'hedef doküman silinmiş' });
+    return { ok: true, action: 'target-gone' };
+  }
+
+  const upd = { guestId };
+  // stayId: misafirin konaklamaları içinde hedefin oluşturulma tarihi TEK
+  // bir stay'in penceresine düşüyorsa bağla — birden fazlaysa bağlama.
+  try {
+    const staysSnap = await db.collection('stays')
+      .where('tenantId', '==', rev.tenantId).where('guestId', '==', guestId).get();
+    const created = targetSnap.data().createdAt;
+    const day = (created && created.toDate) ? created.toDate().toISOString().slice(0, 10) : null;
+    const fits = staysSnap.docs.filter((s) => {
+      const sd = s.data();
+      if (!day) return sd.status !== 'checked_out'; // tarihsiz hedef → yalnızca açık stay
+      if (sd.checkIn && day < sd.checkIn) return false;
+      if (sd.checkOut && day > sd.checkOut) return false;
+      return true;
+    });
+    if (fits.length === 1) upd.stayId = fits[0].id;
+  } catch (e) { /* stay bağlanamadı — guestId yeterli */ }
+
+  await targetRef.update(upd);
+  await revRef.update({
+    status: 'resolved',
+    resolvedGuestId: guestId,
+    resolvedStayId: upd.stayId || null,
+    resolvedBy: request.auth.uid,
+    resolvedAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+  return { ok: true, action: 'assign', stayId: upd.stayId || null };
+});
+
 // ═══════════════════════════════════════════════════════════════════
 //  Süperadmin "Stres" sekmesi: dış servis izleme + kendi sağlık kontrolü
 //  + izole yük testi. Hiçbiri kiracı (otel) verisine dokunmaz.

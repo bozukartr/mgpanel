@@ -1946,6 +1946,78 @@
         } finally { btn.disabled = false; btn.textContent = 'Backfill\'i Çalıştır'; }
     }
 
+    // ── İnceleme kuyruğu (migrationReview) — panelden çözüm ──
+    const MI_COL_LABELS = {
+        guestLogs: 'Misafir Kaydı', reservations: 'Rezervasyon', guestOrders: 'QR Sipariş',
+        folioCharges: 'Oda Hesabı', restChecks: 'Adisyon'
+    };
+    const miGuestCache = {}; // tenant -> [{id, name, room, status}]
+    async function miTenantGuests(tenant) {
+        if (miGuestCache[tenant]) return miGuestCache[tenant];
+        const snap = await db.collection('guestDirectory').where('tenantId', '==', tenant).get();
+        miGuestCache[tenant] = snap.docs
+            .map(d => ({ id: d.id, name: d.data().name || '', room: d.data().room || '', status: d.data().status || '' }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+        return miGuestCache[tenant];
+    }
+    async function loadMigrationQueue() {
+        const list = $('miQueueList'); const err = $('miQueueErr');
+        err.textContent = ''; list.innerHTML = '<div class="sub" style="padding:10px 0;">Yükleniyor…</div>';
+        try {
+            const snap = await db.collection('migrationReview').where('status', '==', 'open').limit(100).get();
+            const rows = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+            if (!rows.length) { list.innerHTML = '<div class="sub" style="padding:10px 0;color:var(--green,#16a34a);">✓ İnceleme bekleyen kayıt yok.</div>'; return; }
+            // Aday isimlerini gösterebilmek için ilgili otellerin misafir listeleri
+            const tenants = [...new Set(rows.map(r => r.tenantId))];
+            for (const t of tenants) await miTenantGuests(t);
+            list.innerHTML = rows.map(r => {
+                const guests = miGuestCache[r.tenantId] || [];
+                const reasonTxt = r.reason === 'ambiguous' ? 'Birden fazla misafirle eşleşti'
+                    : (r.reason === 'no-name' ? 'İsimsiz kayıt (yalnızca oda)' : 'Eşleşen misafir yok');
+                // ambiguous: yalnızca adaylar; diğerleri: tüm misafir listesi
+                const pool = (r.reason === 'ambiguous' && Array.isArray(r.candidates) && r.candidates.length)
+                    ? guests.filter(g => r.candidates.includes(g.id)) : guests;
+                const opts = pool.map(g =>
+                    `<option value="${esc(g.id)}">${esc(g.name)}${g.room ? ' · Oda ' + esc(g.room) : ''}${g.status ? ' · ' + esc(g.status) : ''}</option>`).join('');
+                return `<div class="mi-row" data-rev="${esc(r.id)}" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border,#eee);">
+                    <div style="flex:1;min-width:220px;">
+                        <b>${esc(MI_COL_LABELS[r.collection] || r.collection)}</b> · ${esc(r.tenantId)}<br>
+                        <span class="sub">${esc(r.guestName || '(isimsiz)')}${r.room ? ' · Oda ' + esc(r.room) : ''} — ${esc(reasonTxt)}</span>
+                    </div>
+                    <select class="m-select mi-guest-sel" style="max-width:240px;">
+                        <option value="">Misafir seçin…</option>${opts}
+                    </select>
+                    <button class="btn-ghost mi-assign">Ata</button>
+                    <button class="btn-ghost mi-dismiss" title="Bu kayıt bir misafire ait değil (ör. walk-in)">Misafire bağlı değil</button>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            err.textContent = 'Kuyruk yüklenemedi: ' + esc(e.message || 'hata');
+            list.innerHTML = '';
+        }
+    }
+    async function miResolveRow(rowEl, action) {
+        const reviewId = rowEl.getAttribute('data-rev');
+        const payload = { reviewId, action };
+        if (action === 'assign') {
+            const sel = rowEl.querySelector('.mi-guest-sel');
+            if (!sel || !sel.value) { toast('Önce bir misafir seçin.', true); return; }
+            payload.guestId = sel.value;
+        }
+        rowEl.querySelectorAll('button').forEach(b => b.disabled = true);
+        try {
+            const call = firebase.app().functions('us-central1').httpsCallable('resolveMigrationReview');
+            await call(payload);
+            rowEl.style.opacity = '0.45';
+            rowEl.querySelectorAll('button,select').forEach(b => b.disabled = true);
+            rowEl.insertAdjacentHTML('beforeend', '<span style="color:var(--green,#16a34a);font-weight:700;">✓ ' + (action === 'assign' ? 'Atandı' : 'Kapatıldı') + '</span>');
+            toast(action === 'assign' ? 'Kayıt misafire bağlandı' : 'Kayıt kapatıldı');
+        } catch (e) {
+            toast('Çözülemedi: ' + (e.message || 'hata'), true);
+            rowEl.querySelectorAll('button').forEach(b => b.disabled = false);
+        }
+    }
+
     function stopStressTimers() {
         if (stOutageTimer) { clearInterval(stOutageTimer); stOutageTimer = null; }
         if (stHealthTimer) { clearInterval(stHealthTimer); stHealthTimer = null; }
@@ -1957,6 +2029,15 @@
             if ($('stHealthRefresh')) $('stHealthRefresh').addEventListener('click', checkHealth);
             if ($('stRunBtn')) $('stRunBtn').addEventListener('click', runStressTest);
             if ($('miRunBtn')) $('miRunBtn').addEventListener('click', runIdentityBackfill);
+            if ($('miQueueRefresh')) $('miQueueRefresh').addEventListener('click', loadMigrationQueue);
+            if ($('miQueueList')) $('miQueueList').addEventListener('click', (e) => {
+                const assign = e.target.closest('.mi-assign');
+                const dismiss = e.target.closest('.mi-dismiss');
+                const row = e.target.closest('.mi-row');
+                if (!row) return;
+                if (assign) miResolveRow(row, 'assign');
+                else if (dismiss && confirm('Bu kayıt hiçbir misafire bağlanmayacak (ör. walk-in). Emin misiniz?')) miResolveRow(row, 'dismiss');
+            });
         }
         checkOutages(); checkHealth();
         stopStressTimers();
