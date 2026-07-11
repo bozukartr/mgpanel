@@ -12,8 +12,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- flatpickr JS gövde sonuna taşındı (render-blocking'di); html2pdf artık
+         eager yüklenmiyor — PDF üretimi anında tembel yüklenir (lazy-load.js). -->
     <link rel="stylesheet" href="css/core/embed.css">
     <script src="js/core/embed.js"></script>
 </head>
@@ -641,10 +641,11 @@
     <script src="js/core/pwa.js"></script>
     <script src="js/core/push.js"></script>
 
-    <!-- Scripts for Export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- flatpickr: takvim alanları init'te lazım ama head'de render-blocking'di —
+         gövde sonuna alındı. jspdf/autotable/xlsx/html2pdf artık eager DEĞİL:
+         dışa aktarma/PDF anında tembel yüklenir (js/core/lazy-load.js). -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="js/core/lazy-load.js"></script>
 
     <script src="js/modules/pms.js"></script>
     <script src="js/modules/concierge.js"></script>

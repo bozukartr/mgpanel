@@ -113,9 +113,24 @@
     <script src="js/core/monitor.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
 
-    <!-- Lucide: yalnızca dekoratif arka plan ikonları için (UMD, index.html ile aynı sürüm) -->
-    <script src="https://cdn.jsdelivr.net/npm/lucide@0.525.0/dist/umd/lucide.min.js"></script>
-    <script>try { if (window.lucide && lucide.createIcons) lucide.createIcons({ attrs: { 'stroke-width': '1' } }); } catch (e) {}</script>
+    <!-- Lucide: yalnızca dekoratif arka plan ikonları için (~300KB UMD).
+         Kritik yolu etkilememesi için sayfa tamamen yüklendikten sonra,
+         tarayıcı boştayken dinamik yüklenir — ikonlar geç belirir ama zaten
+         opacity .07'lik süs; giriş formu bunları beklemez (hız denetimi). -->
+    <script>
+    (function () {
+        function loadLucide() {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/lucide@0.525.0/dist/umd/lucide.min.js';
+            s.onload = function () { try { if (window.lucide && lucide.createIcons) lucide.createIcons({ attrs: { 'stroke-width': '1' } }); } catch (e) {} };
+            document.head.appendChild(s);
+        }
+        window.addEventListener('load', function () {
+            if ('requestIdleCallback' in window) requestIdleCallback(loadLucide, { timeout: 3000 });
+            else setTimeout(loadLucide, 1200);
+        });
+    })();
+    </script>
 
     <script src="js/modules/app.js"></script>
 </body>

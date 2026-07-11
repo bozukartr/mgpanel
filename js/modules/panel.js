@@ -1169,7 +1169,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // Raporlar tüm arşivi gerektirir (rastgele tarih/aralık). Canlı liste 90
     // günlük pencereyle çalıştığından, rapor üretmeden önce tüm arşivi talep
     // üzerine yükleriz — böylece eski tarihli raporlar/arşiv eksiksiz olur.
+    // Dışa-aktarma kütüphaneleri TEMBEL yüklenir (bkz. js/core/lazy-load.js) —
+    // önceden sayfa açılışında ~800KB (jspdf+autotable+xlsx) eager iniyordu,
+    // oysa yalnızca rapor indirme anında lazım (hız denetimi). Tüm rapor
+    // çıktıları bu tek giriş noktasından geçtiği için burada yüklemek yeterli.
+    const PDF_LIB_URLS = [
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js'
+    ];
+    const XLSX_LIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    async function ensureExportLibs(format) {
+        try {
+            if (format === 'pdf') await loadScriptsOnce(PDF_LIB_URLS);
+            else if (format === 'excel') await loadScriptOnce(XLSX_LIB_URL);
+        } catch (e) {
+            showToast('Rapor kütüphanesi yüklenemedi — bağlantınızı kontrol edin.', true);
+            throw e;
+        }
+    }
     window.generateReport = async function (type, format) {
+        await ensureExportLibs(format);
         if (!fullyLoaded) { showToast('Arşiv yükleniyor…'); await ensureFullArchive(); }
         const { from, to, specific, dept, guest, topic } = getRptDates();
 
