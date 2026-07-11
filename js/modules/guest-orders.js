@@ -535,19 +535,20 @@
             }, err => console.error('guestOrders listen failed', err));
     }
     // Mirror current in-house occupants so each order shows the real guest name.
+    // Durum filtresi sunucuda — tüm dizin yerine yalnızca konaklayanlar iner.
     function listenDirectory() {
-        db.collection('guestDirectory').where('tenantId', '==', TENANT).onSnapshot(snap => {
-            const map = {};
-            snap.forEach(d => {
-                const g = d.data();
-                if (g.status !== 'in_house') return;
-                const room = String(g.room || '').trim();
-                if (!room || room.toLowerCase() === 'pre-arrival') return;
-                if (!map[room]) map[room] = g.name || '';
-            });
-            directory = map;
-            if (drawerOpen) render();
-        }, () => {});
+        db.collection('guestDirectory').where('tenantId', '==', TENANT)
+            .where('status', '==', 'in_house').onSnapshot(snap => {
+                const map = {};
+                snap.forEach(d => {
+                    const g = d.data();
+                    const room = String(g.room || '').trim();
+                    if (!room || room.toLowerCase() === 'pre-arrival') return;
+                    if (!map[room]) map[room] = g.name || '';
+                });
+                directory = map;
+                if (drawerOpen) render();
+            }, () => {});
     }
 
     // Open the drawer focused on a specific order (from a notification click).

@@ -105,6 +105,30 @@
         { "fieldPath": "tenantId", "order": "ASCENDING" },
         { "fieldPath": "guestId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "guestDirectory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "guestDirectory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "nameKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "folioCharges",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -173,7 +173,11 @@
 
         reservations: {
             label: 'Concierge Rezervasyonları',
-            collection: 'reservations', order: ['date', 'desc'],
+            // tsBoundType 'dateString': date alanı 'YYYY-MM-DD' string —
+            // sunucu sınırı string karşılaştırmasıyla itilir (bkz. queryBounds).
+            // Önceden bu domain'de hiç sunucu sınırı yoktu; her açılışta tüm
+            // rezervasyon tarihçesi canlı iniyordu (bkz. hız denetimi).
+            collection: 'reservations', order: ['date', 'desc'], tsBound: 'date', tsBoundType: 'dateString',
             dateOf: r => normDate(r.date),
             facets: [
                 facet({ key: 'type', label: 'Hizmet', kind: 'chips', valueOf: resType }),
@@ -430,12 +434,15 @@
     let unsub = null;
     let ready = false;
     const cache = {};               // domainKey -> records
-    let preset = 'all', cFrom = '', cTo = '';
+    // Varsayılan aralık 'Son 30 Gün' — 'Tüm Zamanlar' varsayılanı her domain
+    // seçiminde tüm koleksiyonu canlı dinletiyordu (bkz. hız denetimi);
+    // isteyen hâlâ elle 'Tüm Zamanlar'ı seçebilir.
+    let preset = '30', cFrom = '', cTo = '';
     let groupBy = 'none';
     let sel = {};                   // facet.key -> Set (chips) | string (text)
 
     function resetFilters() {
-        preset = 'all'; cFrom = ''; cTo = ''; groupBy = 'none';
+        preset = '30'; cFrom = ''; cTo = ''; groupBy = 'none';
         sel = {};
         D.facets.forEach(f => { sel[f.key] = (f.kind === 'chips') ? new Set() : ''; });
     }
@@ -708,6 +715,14 @@
         const w = dateWindow();
         if (!w.from && !w.to) return null; // preset 'all' → tüm koleksiyon
         const out = {};
+        if (D.tsBoundType === 'dateString') {
+            // 'YYYY-MM-DD' string alanlar (ör. reservations.date) — string
+            // karşılaştırması leksikografik olarak doğru; ±1 gün marj korunur.
+            const shift = (s, days) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + days); return ymd(d); };
+            if (w.from) out.lo = shift(w.from, -1);
+            if (w.to) out.hi = shift(w.to, 1);
+            return out;
+        }
         if (w.from) out.lo = firebase.firestore.Timestamp.fromDate(new Date(new Date(w.from + 'T00:00:00').getTime() - DAY_MS));
         if (w.to) out.hi = firebase.firestore.Timestamp.fromDate(new Date(new Date(w.to + 'T23:59:59.999').getTime() + DAY_MS));
         return out;
@@ -743,7 +758,7 @@
         if (!DOMAINS[key]) return;
         domainKey = key; D = DOMAINS[key];
         resetFilters();
-        $('repDatePreset').value = 'all'; $('repCustomDates').style.display = 'none';
+        $('repDatePreset').value = '30'; $('repCustomDates').style.display = 'none';
         $('repFrom').value = ''; $('repTo').value = '';
         records = cache[key] || [];
         renderFacets(); render();

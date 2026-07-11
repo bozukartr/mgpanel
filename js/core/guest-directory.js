@@ -79,17 +79,36 @@ window.GuestDirectory = (function () {
         const checkIn = opts.checkIn || '';
         const checkOut = opts.checkOut || '';
 
-        const snap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
-        const docs = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-        // LEGACY geri-düşüş: isim eşleştirmesi. opts.guestId verilmişse
-        // (çağıran zaten kimliği biliyorsa) o kazanır.
-        const existing = (opts.guestId && docs.find(function (g) { return g.id === opts.guestId; }))
-            || docs.find(function (g) { return (g.name || '').toLocaleLowerCase('tr-TR') === key; });
+        // Hedefli arama (hız denetimi): önceden HER çağrıda tüm dizin
+        // okunuyordu. Sıra: (1) opts.guestId → doğrudan doküman okuması;
+        // (2) normalize isim anahtarı (nameKey) sunucu sorgusu; (3) LEGACY
+        // geri-düşüş: nameKey'i henüz damgalanmamış eski dokümanlar için
+        // tam tarama — eşleşen doküman bulunursa nameKey damgalanır, yani
+        // aynı misafir için tam tarama bir daha yaşanmaz (kendi kendine
+        // yakınsar).
+        let existing = null;
+        if (opts.guestId) {
+            const ds = await db.collection('guestDirectory').doc(opts.guestId).get();
+            if (ds.exists) existing = Object.assign({ id: ds.id }, ds.data());
+        }
+        if (!existing) {
+            const q = await db.collection('guestDirectory')
+                .where('tenantId', '==', TENANT_ID).where('nameKey', '==', key).limit(1).get();
+            if (!q.empty) existing = Object.assign({ id: q.docs[0].id }, q.docs[0].data());
+        }
+        if (!existing) {
+            const snap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
+            const docs = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+            existing = docs.find(function (g) { return (g.name || '').toLocaleLowerCase('tr-TR') === key; }) || null;
+            if (existing && !existing.nameKey) {
+                try { await db.collection('guestDirectory').doc(existing.id).update({ nameKey: key }); existing.nameKey = key; } catch (e) { /* damga başarısız — sonraki çağrı tekrar dener */ }
+            }
+        }
         const statusToSet = forceStatus || (isPreArrival ? 'pre_arrival' : 'in_house');
 
         if (!existing) {
             const newGuest = {
-                name: normalized, room: room, status: statusToSet,
+                name: normalized, nameKey: key, room: room, status: statusToSet,
                 checkIn: checkIn, checkOut: checkOut,
                 tenantId: TENANT_ID, lastUpdated: nowIso()
             };
