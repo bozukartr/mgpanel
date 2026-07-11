@@ -5,8 +5,8 @@
  * Web Push (FCM) hooks are stubbed below and will be wired once the sender
  * Cloud Function can be deployed.
  */
-const CACHE = 'hotizy-shell-v5';
-const SHELL = ['logo.png', 'manifest.webmanifest'];
+const CACHE = 'hotizy-shell-v6';
+const SHELL = ['logo.png', 'logo-192.png', 'apple-touch-icon.png', 'favicon.ico', 'manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();

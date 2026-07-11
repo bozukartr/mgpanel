@@ -25,11 +25,31 @@
     meta('apple-mobile-web-app-capable', 'yes');
     meta('apple-mobile-web-app-status-bar-style', 'default');
     meta('apple-mobile-web-app-title', 'Hotizy');
+    // iOS ana ekran ikonu OPAK olmalı — iOS şeffaflığı SİYAHA çevirir; eski
+    // href (/logo.png) şeffaf zeminliydi, ana ekranda siyah kare görünüyordu.
+    // apple-touch-icon.png beyaz zeminli 180x180 (logo-maskable'dan üretildi).
     if (!document.head.querySelector('link[rel="apple-touch-icon"]')) {
         const al = document.createElement('link');
         al.rel = 'apple-touch-icon';
-        al.href = '/logo.png';
+        al.sizes = '180x180';
+        al.href = '/apple-touch-icon.png';
         document.head.appendChild(al);
+    }
+    // Sekme ikonu: sayfaların çoğunda rel="icon" hiç yoktu — tarayıcı
+    // /favicon.ico'ya düşüyor, o da yoktu (404 → boş sekme ikonu). pwa.js
+    // her sayfada yüklendiğinden burada enjekte etmek hepsini kapsar.
+    if (!document.head.querySelector('link[rel="icon"]')) {
+        const fi = document.createElement('link');
+        fi.rel = 'icon';
+        fi.href = '/favicon.ico';
+        fi.sizes = '48x48';
+        document.head.appendChild(fi);
+        const fp = document.createElement('link');
+        fp.rel = 'icon';
+        fp.type = 'image/png';
+        fp.sizes = '192x192';
+        fp.href = '/logo-192.png';
+        document.head.appendChild(fp);
     }
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
