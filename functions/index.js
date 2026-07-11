@@ -985,7 +985,11 @@ async function deleteByQuery(query) {
 const TENANT_FIELD_COLLECTIONS = [
   'reservations', 'guestLogs', 'guestDirectory', 'tickets',
   'presence', 'notifications', 'requestCatalog', 'guestOrders', 'roomAccess',
-  'restMenu', 'restChecks', 'folioCharges', 'issueTopics', 'guestMenus', 'errorLogs'
+  'restMenu', 'restChecks', 'folioCharges', 'issueTopics', 'guestMenus', 'errorLogs',
+  // Restoran sertleştirme + kimlik migrasyonu koleksiyonları — tenant
+  // silmede bunlar da temizlenmeli (bkz. restoran denetimi Z10): aksi
+  // halde slug yeniden kullanıldığında hayalet masa kilitleri kalıyordu.
+  'restTables', 'restSessions', 'restOps', 'restAudit', 'stays', 'migrationReview'
 ];
 const TENANT_DOC_COLLECTIONS = [
   'maintenance', 'financeConfig', 'pmsConfig', 'guestConfig',
@@ -2064,6 +2068,81 @@ exports.resolveMigrationReview = onCall({ region: REGION }, async (request) => {
     resolvedAt: admin.firestore.FieldValue.serverTimestamp()
   });
   return { ok: true, action: 'assign', stayId: upd.stayId || null };
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  RESTORAN ÇEKİRDEĞİ — sunucu tarafı adisyon işlemleri
+//  İş kuralları functions/rest-core.js'te (emülatörde test edilir);
+//  buradaki sarmalayıcılar yalnızca kimlik/rol çözümü + hata çevirisi.
+//  Plan + rol matrisi + hata kataloğu: docs/restoran-uretim-plani.md
+// ═══════════════════════════════════════════════════════════════════
+const restCore = require('./rest-core');
+
+// RestError.errCode → HttpsError durum kodu
+const REST_HTTPS_CODE = {
+  'REST/INVALID_INPUT': 'invalid-argument',
+  'REST/TABLE_OCCUPIED': 'failed-precondition',
+  'REST/CHECK_NOT_FOUND': 'not-found',
+  'REST/CHECK_IMMUTABLE': 'failed-precondition',
+  'REST/INVALID_TRANSITION': 'failed-precondition',
+  'REST/OVERPAY_NONCASH': 'invalid-argument',
+  'REST/NO_PAYMENT': 'invalid-argument',
+  'REST/ROLE_DENIED': 'permission-denied',
+  'REST/REASON_REQUIRED': 'invalid-argument',
+  'REST/TENANT_MISMATCH': 'permission-denied'
+};
+function throwRest(e) {
+  if (e instanceof restCore.RestError) {
+    throw new HttpsError(REST_HTTPS_CODE[e.errCode] || 'internal', e.message,
+      Object.assign({ errCode: e.errCode }, e.details));
+  }
+  throw e;
+}
+
+// Çağıranın personel kimliğini çözer: {uid, tenantId, role, username}.
+// Anonim oturumlar systemUsers kaydı taşımadığından otomatik reddedilir.
+async function requireStaffUser(request) {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const uid = request.auth.uid;
+  const snap = await db.collection('systemUsers').doc(uid).get();
+  if (!snap.exists) throw new HttpsError('permission-denied', 'Personel kaydı bulunamadı.');
+  const u = snap.data();
+  if (!u.tenantId) throw new HttpsError('failed-precondition', 'Kullanıcının oteli tanımlı değil.');
+  return { uid, tenantId: u.tenantId, role: String(u.role || 'staff').toLowerCase(), username: u.username || uid };
+}
+
+// Adisyon aç — TEK sunucu transaction'ı (checkNo + masa kilidi + doküman),
+// operationId ile idempotent. Bkz. rest-core.openCheckCore + testleri.
+exports.restOpenCheck = onCall({ region: REGION }, async (request) => {
+  const u = await requireStaffUser(request);
+  const d = request.data || {};
+  const operationId = String(d.operationId || '').slice(0, 64);
+  if (!operationId) throw new HttpsError('invalid-argument', 'operationId gerekli.', { errCode: restCore.ERR.INVALID_INPUT });
+  try {
+    return await restCore.openCheckCore(db, {
+      tenantId: u.tenantId, uid: u.uid, username: u.username,
+      operationId,
+      tableName: d.tableName, pax: d.pax, section: d.section,
+      room: d.room, name: d.name, guestId: d.guestId, stayId: d.stayId,
+      force: !!d.force
+    });
+  } catch (e) { throwRest(e); }
+});
+
+// Masa kilidi onarımı (migration — geri döndürülebilir; rapor döner).
+// Otel admini kendi tenant'ında, süperadmin herhangi bir tenant'ta.
+exports.restRepairTableLocks = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const su = await db.collection('superAdmins').doc(request.auth.uid).get();
+  let tenantId = (request.data && request.data.tenantId) || null;
+  if (!su.exists) {
+    const u = await requireStaffUser(request);
+    if (u.role !== 'admin') throw new HttpsError('permission-denied', 'Yalnızca otel yöneticisi.', { errCode: restCore.ERR.ROLE_DENIED });
+    tenantId = u.tenantId; // admin yalnız kendi otelini onarabilir
+  }
+  if (!tenantId) throw new HttpsError('invalid-argument', 'tenantId gerekli.');
+  const report = await restCore.repairTableLocksCore(db, tenantId);
+  return { ok: true, tenantId, report };
 });
 
 // ═══════════════════════════════════════════════════════════════════

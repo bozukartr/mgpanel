@@ -539,6 +539,58 @@
             openTableCheck(data, /* skipLockCheck */ !!dup);
         }
     }
+    // ── Sunucu tarafı adisyon açma (restOpenCheck callable) ─────────
+    // Tek sunucu transaction'ında checkNo + masa kilidi + adisyon;
+    // operationId ile çift tıklama/tekrar istek idempotent. Fonksiyon
+    // henüz deploy edilmemişse (not-found) eski istemci yoluna düşer.
+    // Hata kodları: docs/restoran-uretim-plani.md §2.
+    function newOperationId() {
+        return 'op' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    }
+    const REST_ERR_MSG = {
+        'REST/TABLE_OCCUPIED': 'Bu masada zaten açık bir adisyon var.',
+        'REST/INVALID_INPUT': 'Eksik/geçersiz bilgi — masa adını kontrol edin.',
+        'REST/ROLE_DENIED': 'Bu işlem için yetkiniz yok.',
+        'REST/TENANT_MISMATCH': 'Bu kayıt sizin otelinize ait değil.',
+        'REST/CHECK_IMMUTABLE': 'Adisyon ödenmiş/iptal edilmiş — değiştirilemez.',
+        'REST/OVERPAY_NONCASH': 'Kart/oda ödemesi kalan tutarı aşamaz.',
+        'REST/NO_PAYMENT': 'Ödeme tutarı yetersiz.',
+        'REST/REASON_REQUIRED': 'Bu işlem için sebep girilmesi zorunlu.'
+    };
+    function restErrMsg(err, fallback) {
+        const det = (err && err.details) || {};
+        if (det.errCode && REST_ERR_MSG[det.errCode]) return REST_ERR_MSG[det.errCode];
+        return fallback + (err && err.message ? ' (' + err.message + ')' : '');
+    }
+    function isFnMissing(err) {
+        const c = String((err && err.code) || '');
+        return c === 'not-found' || c === 'functions/not-found' || c === 'unimplemented' || /not.?found/i.test(String(err && err.message));
+    }
+    function openTableCheck(data, skipLockCheck) {
+        const g = guestByRoom(data.room);
+        const call = firebase.app().functions('us-central1').httpsCallable('restOpenCheck');
+        call({
+            operationId: newOperationId(),
+            tableName: data.tableName, pax: data.pax, section: data.section,
+            room: data.room, name: data.name,
+            guestId: (g && g.id) || data.guestId || '', stayId: (g && g.activeStayId) || data.stayId || '',
+            force: !!skipLockCheck
+        }).then(res => {
+            closeCheckModal();
+            openPos({ id: res.data.checkId, checkNo: res.data.checkNo || null, tableName: data.tableName, pax: data.pax, room: data.room, name: data.name, section: data.section, status: 'open', items: [] });
+        }).catch(err => {
+            const det = (err && err.details) || {};
+            if (det.errCode === 'REST/TABLE_OCCUPIED') {
+                const proceed = confirm(`"${data.tableName}" masasında zaten açık bir adisyon var (#${det.checkNo || det.checkId || '?'}).\n\nYine de yeni bir adisyon açmak istiyor musunuz?`);
+                if (proceed) openTableCheck(data, true);
+                return;
+            }
+            if (isFnMissing(err)) { legacyOpenTableCheck(data, skipLockCheck); return; } // geçiş dönemi
+            console.error(err);
+            toast(restErrMsg(err, 'Adisyon açılamadı'), true);
+        });
+    }
+
     // restTables/{tenantId}__{table} — hangi açık adisyonun o masayı
     // tuttuğuna dair sunucu-taraflı kilit. Firebase 8.x compat SDK
     // transaction içinde sorgu desteklemediğinden ("no query in tx"),
@@ -546,7 +598,8 @@
     function tableLockRef(tableName) {
         return db.collection('restTables').doc(TENANT_ID + '__' + String(tableName || '').replace(/\//g, '_').slice(0, 60));
     }
-    function openTableCheck(data, skipLockCheck) {
+    // LEGACY: restOpenCheck fonksiyonu deploy edilene kadarki istemci yolu.
+    function legacyOpenTableCheck(data, skipLockCheck) {
         const TS = firebase.firestore.FieldValue.serverTimestamp();
         const lockRef = tableLockRef(data.tableName);
         nextCheckNo().catch(() => null).then(no => {

@@ -22,4 +22,6 @@ if ! curl -s "http://127.0.0.1:$PORT/" >/dev/null 2>&1; then
 fi
 curl -s "http://127.0.0.1:$PORT/" >/dev/null || { echo "Emülatör ayağa kalkmadı"; exit 1; }
 
-FIRESTORE_EMULATOR_HOST="127.0.0.1:$PORT" node --test ./*.test.js
+# NODE_PATH: functions/rest-core.js gibi repo modülleri firebase-admin'i
+# tests/node_modules'tan çözebilsin (functions/node_modules kurulu olmayabilir).
+FIRESTORE_EMULATOR_HOST="127.0.0.1:$PORT" NODE_PATH="$PWD/node_modules" node --test ./*.test.js
