@@ -158,11 +158,28 @@ service cloud.firestore {
       allow update: if readOwnTenant() && writeOwnTenant();
       allow delete: if readOwnTenant();
     }
+    // Adisyon durum makinesi (bkz. docs/restoran-uretim-plani.md Faz 3):
+    //   open → open|sent|paid|void, sent → sent|paid|void
+    //   paid/void kesin DEĞİŞTİRİLEMEZ ve SİLİNEMEZ (yalnız Admin SDK).
+    //   version: her istemci güncellemesi tam +1 artırmak zorunda — bayat
+    //   cihazın (eski version'la) yazması reddedilir. Eski dokümanlarda
+    //   version yok → 0 kabul edilir, ilk güncelleme 1 yazar.
+    //   NOT (geçiş dönemi): istemcinin paid/void YAZMASI Faz 4'te sunucu
+    //   fonksiyonlarına taşınıp burada kapatılır; bu fazda yalnız
+    //   "ödendikten sonra dokunulmaz" + sıra disiplini garanti edilir.
     match /restChecks/{id} {
       allow read:   if readOwnTenant();
-      allow create: if writeOwnTenant();
-      allow update: if readOwnTenant() && writeOwnTenant();
-      allow delete: if readOwnTenant();
+      allow create: if writeOwnTenant()
+        && request.resource.data.get('status', 'open') in ['open', 'sent']
+        && request.resource.data.get('version', 0) is int
+        && request.resource.data.get('version', 0) >= 1;
+      allow update: if readOwnTenant() && writeOwnTenant()
+        && resource.data.get('status', 'open') in ['open', 'sent']
+        && request.resource.data.get('status', 'open') in ['open', 'sent', 'paid', 'void']
+        && !(resource.data.get('status', 'open') == 'sent' && request.resource.data.get('status', 'open') == 'open')
+        && request.resource.data.get('version', 0) == resource.data.get('version', 0) + 1;
+      allow delete: if readOwnTenant()
+        && resource.data.get('status', 'open') in ['open', 'sent'];
     }
     match /restSessions/{id} {
       allow read:   if readOwnTenant();

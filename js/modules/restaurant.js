@@ -519,7 +519,13 @@
                 currentCheck.tableName = data.tableName; currentCheck.pax = data.pax; currentCheck.room = data.room; currentCheck.name = data.name; currentCheck.section = data.section;
                 setPosHeader(); flushSave();
             } else {
-                db.collection(CHK_COL).doc(editingCheckId).update(data).catch(err => console.error(err));
+                // version disiplini (Faz 3): kurallar +1'siz güncellemeyi reddeder.
+                const editRef = db.collection(CHK_COL).doc(editingCheckId);
+                db.runTransaction(async (tx) => {
+                    const s = await tx.get(editRef);
+                    if (!s.exists || s.data().status === 'paid' || s.data().status === 'void') return;
+                    tx.update(editRef, Object.assign({}, data, { version: ((s.data().version) || 0) + 1 }));
+                }).catch(err => console.error(err));
             }
             closeCheckModal(); toast('Adisyon güncellendi.');
         } else {
@@ -591,11 +597,20 @@
         });
     }
 
-    // restTables/{tenantId}__{table} — hangi açık adisyonun o masayı
+    // restTables/{tenantId}__{tableKey} — hangi açık adisyonun o masayı
     // tuttuğuna dair sunucu-taraflı kilit. Firebase 8.x compat SDK
     // transaction içinde sorgu desteklemediğinden ("no query in tx"),
     // masa başına deterministik bir kilit dokümanı kullanılır.
+    // tableKeyOf: functions/rest-core.js tableKey ile AYNI normalizasyon.
+    function tableKeyOf(name) {
+        return String(name || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR').replace(/\//g, '_').slice(0, 60);
+    }
     function tableLockRef(tableName) {
+        return db.collection('restTables').doc(TENANT_ID + '__' + tableKeyOf(tableName));
+    }
+    // LEGACY kilit kimliği (normalizasyon öncesi biçim) — onarım migration'ı
+    // (restRepairTableLocks) çalışana kadar eski kilitler bu kimlikte olabilir.
+    function legacyTableLockRef(tableName) {
         return db.collection('restTables').doc(TENANT_ID + '__' + String(tableName || '').replace(/\//g, '_').slice(0, 60));
     }
     // LEGACY: restOpenCheck fonksiyonu deploy edilene kadarki istemci yolu.
@@ -604,7 +619,7 @@
         const lockRef = tableLockRef(data.tableName);
         nextCheckNo().catch(() => null).then(no => {
             const payload = Object.assign({
-                tenantId: TENANT_ID, status: 'open', items: [], subtotal: 0, vat: 0, total: 0, openedBy: loggedUser, openedAt: TS
+                tenantId: TENANT_ID, status: 'open', version: 1, tableKey: tableKeyOf(data.tableName), items: [], subtotal: 0, vat: 0, total: 0, openedBy: loggedUser, openedAt: TS
             }, data);
             if (no) payload.checkNo = no;
             const checkRef = db.collection(CHK_COL).doc();
@@ -931,14 +946,53 @@
         // olduğundan, bölünmeden önce ORİJİNAL kalemler üzerinden stoğu burada
         // bir kez düşüyoruz; sonraki N parçanın hiçbiri gerçek menuId taşımadığı
         // için tekrar düşme riski yok.
+        if (!currentCheck.id) { toast('Önce adisyonu kaydedin.', true); return; }
         decrementStock(currentCheck.items);
-        currentCheck.items = [shareLine(shares[0], 1, n)];
-        currentCheck.splitGroup = group;
-        currentCheck.status = 'sent';
+
+        // ATOMİK bölme (Faz 3): sayaç + mevcut adisyonun güncellenmesi + tüm
+        // yeni parçalar TEK transaction — ağ kesintisinde ya hepsi ya hiçbiri
+        // (önceden sıralı add zinciriydi, yarıda kalabiliyordu).
         const newParts = [];
         for (let k = 1; k < n; k++) newParts.push({ items: [shareLine(shares[k], k + 1, n)], suffix: '(' + (k + 1) + '/' + n + ')', splitGroup: group });
-        createSplitChecks(newParts).then(nos => {
-            recalcSave(); flushSave();
+        const firstItems = [shareLine(shares[0], 1, n)];
+        const checkRef = db.collection(CHK_COL).doc(currentCheck.id);
+        const counterRef = db.collection(COUNTER_COL).doc(TENANT_ID);
+        const TS = firebase.firestore.FieldValue.serverTimestamp();
+        db.runTransaction(async (tx) => {
+            const cSnap = await tx.get(checkRef);
+            if (!cSnap.exists) throw new Error('adisyon-yok');
+            if (cSnap.data().status === 'paid' || cSnap.data().status === 'void') throw new Error('degistirilemez');
+            const cntSnap = await tx.get(counterRef);
+            let no = ((cntSnap.exists && cntSnap.data().checkNo) || 0);
+            const t0 = computeTotals(firstItems);
+            tx.update(checkRef, {
+                items: firstItems, splitGroup: group, status: 'sent',
+                subtotal: t0.subtotal, vat: t0.vat, total: t0.total,
+                version: ((cSnap.data().version) || 0) + 1, updatedAt: TS
+            });
+            const nos = [];
+            newParts.forEach(part => {
+                no += 1; nos.push(no);
+                const t = computeTotals(part.items);
+                tx.set(db.collection(CHK_COL).doc(), {
+                    tenantId: TENANT_ID, tableName: table,
+                    tableKey: tableKeyOf(table),
+                    name: (baseName ? baseName + ' ' : '') + part.suffix,
+                    room: '', section: currentCheck.section || 'Genel', status: 'sent', pax: 1, note: '',
+                    items: part.items, subtotal: t.subtotal, vat: t.vat, total: t.total,
+                    version: 1, checkNo: no, splitGroup: part.splitGroup,
+                    sentAt: Date.now(), openedBy: loggedUser, openedAt: TS
+                });
+            });
+            tx.set(counterRef, { tenantId: TENANT_ID, checkNo: no, updatedAt: TS }, { merge: true });
+            return nos;
+        }).then(nos => {
+            currentCheck.items = firstItems;
+            currentCheck.splitGroup = group;
+            currentCheck.status = 'sent';
+            const t0 = computeTotals(firstItems);
+            currentCheck.subtotal = t0.subtotal; currentCheck.vat = t0.vat; currentCheck.total = t0.total;
+            renderPosCheck();
             $('splitModal').classList.remove('open');
             toast(n + ' eşit paya bölündü.');
             if (doPrint) {
@@ -946,6 +1000,9 @@
                 newParts.forEach((p, i) => objs.push(receiptObjFromCheck({ checkNo: nos[i], tableName: table, name: (baseName ? baseName + ' ' : '') + p.suffix, room: '', pax: 1, items: p.items })));
                 printReceiptList(objs);
             }
+        }).catch(err => {
+            console.error(err);
+            toast('Bölme tamamlanamadı — hiçbir değişiklik yapılmadı.', true);
         });
     }
     // Bir bölme grubundaki tüm adisyonların fişini arka arkaya yazdır.
@@ -956,32 +1013,6 @@
         if (!list.length) list.push(currentCheck);
         list.sort((a, b) => (a.checkNo || 0) - (b.checkNo || 0));
         printReceiptList(list.map(receiptObjFromCheck));
-    }
-    // Verilen parçalar için yeni adisyon(lar) oluştur (sıralı checkNo). Kalem
-    // durum bayrakları (sent/served) korunur — bölünce mutfağa tekrar düşmez.
-    function createSplitChecks(parts) {
-        const TS = firebase.firestore.FieldValue.serverTimestamp();
-        const nos = [];
-        let chain = Promise.resolve();
-        parts.forEach(part => {
-            chain = chain.then(() => nextCheckNo().catch(() => null)).then(no => {
-                nos.push(no);
-                const items = part.items;
-                const t = computeTotals(items);
-                const anySent = items.some(x => x.sent);
-                const payload = {
-                    tenantId: TENANT_ID, tableName: currentCheck.tableName || '',
-                    name: (currentCheck.name ? currentCheck.name + ' ' : '') + part.suffix,
-                    room: '', section: currentCheck.section || 'Genel', status: anySent ? 'sent' : 'open', pax: 1, note: '',
-                    items: items, subtotal: t.subtotal, vat: t.vat, total: t.total, openedBy: loggedUser, openedAt: TS
-                };
-                if (anySent) payload.sentAt = Date.now();
-                if (no) payload.checkNo = no;
-                if (part.splitGroup) payload.splitGroup = part.splitGroup;
-                return db.collection(CHK_COL).add(payload);
-            });
-        });
-        return chain.then(() => nos);
     }
     // ── Adisyon birleştir ──────────────────────────────────────
     function openMerge() {
@@ -999,17 +1030,53 @@
     }
     function doMerge(otherId) {
         const other = openChecks.find(c => c.id === otherId);
-        if (!other || !currentCheck) return;
+        if (!other || !currentCheck || !currentCheck.id) return;
         if (!confirm('Masa ' + (other.tableName || '') + (other.checkNo ? ' (#' + other.checkNo + ')' : '') + ' adisyonu bu adisyona birleştirilsin mi? Diğer adisyon kapanır.')) return;
-        const moved = (other.items || []).map(l => Object.assign({}, l));
-        currentCheck.items = currentCheck.items.concat(moved);
-        currentCheck.pax = (Number(currentCheck.pax) || 1) + (Number(other.pax) || 0);
-        const notes = [currentCheck.note, other.note].filter(Boolean);
-        if (notes.length) currentCheck.note = notes.join(' · ').slice(0, 160);
-        db.collection(CHK_COL).doc(otherId).delete().catch(err => console.error(err));
-        recalcSave(); flushSave();
-        $('mergeModal').classList.remove('open');
-        toast('Adisyonlar birleştirildi.');
+        // ATOMİK birleştirme (Faz 3): iki adisyonun SUNUCUDAKİ güncel halleri
+        // tek transaction'da okunur; hedef güncellenir + kaynak silinir +
+        // kaynağın masa kilidi temizlenir — ağ kesintisinde yarım kalmaz
+        // (önceden delete ve save ayrı isteklerdi).
+        const curRef = db.collection(CHK_COL).doc(currentCheck.id);
+        const othRef = db.collection(CHK_COL).doc(otherId);
+        const othLockN = tableLockRef(other.tableName);
+        const othLockL = legacyTableLockRef(other.tableName);
+        db.runTransaction(async (tx) => {
+            const [curSnap, othSnap, lockN, lockL] = await Promise.all([
+                tx.get(curRef), tx.get(othRef), tx.get(othLockN), tx.get(othLockL)
+            ]);
+            if (!curSnap.exists || !othSnap.exists) throw new Error('adisyon-yok');
+            const cs = curSnap.data(), os = othSnap.data();
+            if (['paid', 'void'].includes(cs.status) || ['paid', 'void'].includes(os.status)) throw new Error('degistirilemez');
+            const curItems = Array.isArray(cs.items) ? cs.items : [];
+            const othItems = (Array.isArray(os.items) ? os.items : []).map(l => Object.assign({}, l));
+            const merged = curItems.concat(othItems);
+            const t = computeTotals(merged);
+            const notes = [cs.note, os.note].filter(Boolean);
+            tx.update(curRef, {
+                items: merged,
+                pax: (Number(cs.pax) || 1) + (Number(os.pax) || 0),
+                note: notes.length ? notes.join(' · ').slice(0, 160) : (cs.note || ''),
+                subtotal: t.subtotal, vat: t.vat, total: t.total,
+                status: (cs.status === 'sent' || os.status === 'sent') ? 'sent' : cs.status,
+                version: ((cs.version) || 0) + 1,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            tx.delete(othRef);
+            if (lockN.exists && lockN.data().openCheckId === otherId) tx.delete(othLockN);
+            if (othLockL.path !== othLockN.path && lockL.exists && lockL.data().openCheckId === otherId) tx.delete(othLockL);
+            return { merged, t, pax: (Number(cs.pax) || 1) + (Number(os.pax) || 0), status: (cs.status === 'sent' || os.status === 'sent') ? 'sent' : cs.status };
+        }).then(r => {
+            currentCheck.items = r.merged;
+            currentCheck.pax = r.pax;
+            currentCheck.status = r.status;
+            currentCheck.subtotal = r.t.subtotal; currentCheck.vat = r.t.vat; currentCheck.total = r.t.total;
+            renderPosCheck();
+            $('mergeModal').classList.remove('open');
+            toast('Adisyonlar birleştirildi.');
+        }).catch(err => {
+            console.error(err);
+            toast('Birleştirme tamamlanamadı — hiçbir değişiklik yapılmadı.', true);
+        });
     }
 
     // ── Masaya taşı ─────────────────────────────────────────────
@@ -1026,22 +1093,59 @@
         if (!currentCheck) return;
         const t = $('transferTable').value.trim();
         if (!t) { toast('Masa no zorunlu.', true); return; }
-        currentCheck.tableName = t.slice(0, 20);
-        currentCheck.section = ($('transferSection').value || 'Genel').trim().slice(0, 30) || 'Genel';
-        setPosHeader();
-        if (currentCheck.id || currentCheck.items.length) flushSave();
-        // Yeni masanın kilidini bu adisyona taşı — aksi halde openTableCheck()
-        // eski masada kalan bir kilit gördüğünde (artık burada olmayan bu
-        // adisyona işaret eden) yanlış bir "zaten açık" uyarısı verebilirdi.
-        // Fire-and-forget: yalnızca UX kalitesi, kritik veri yolu değil.
-        if (currentCheck.id) {
-            tableLockRef(currentCheck.tableName).set({
-                tenantId: TENANT_ID, table: currentCheck.tableName, openCheckId: currentCheck.id,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(err => console.error('table lock', err));
+        const newTable = t.replace(/\s+/g, ' ').slice(0, 20);
+        const newSection = ($('transferSection').value || 'Genel').trim().slice(0, 30) || 'Genel';
+
+        // Henüz kaydedilmemiş (id'siz) adisyonda taşıma yalnız yerel.
+        if (!currentCheck.id) {
+            currentCheck.tableName = newTable; currentCheck.section = newSection;
+            setPosHeader(); if (currentCheck.items.length) flushSave();
+            $('transferModal').classList.remove('open');
+            toast('Adisyon Masa ' + newTable + ' konumuna taşındı.');
+            return;
         }
-        $('transferModal').classList.remove('open');
-        toast('Adisyon Masa ' + currentCheck.tableName + ' konumuna taşındı.');
+
+        // ATOMİK taşıma (Faz 3): hedef masa doluysa reddet; adisyon güncelle +
+        // eski kilidi sil + yeni kilidi yaz — hepsi tek transaction.
+        const checkRef = db.collection(CHK_COL).doc(currentCheck.id);
+        const oldLockN = tableLockRef(currentCheck.tableName);
+        const oldLockL = legacyTableLockRef(currentCheck.tableName);
+        const newLock = tableLockRef(newTable);
+        db.runTransaction(async (tx) => {
+            const [cSnap, nSnap, oN, oL] = await Promise.all([
+                tx.get(checkRef), tx.get(newLock), tx.get(oldLockN), tx.get(oldLockL)
+            ]);
+            if (!cSnap.exists) throw new Error('adisyon-yok');
+            const cs = cSnap.data();
+            if (cs.status === 'paid' || cs.status === 'void') throw new Error('degistirilemez');
+            // Hedef masada BAŞKA bir açık adisyonun kilidi varsa reddet.
+            if (nSnap.exists && nSnap.data().openCheckId && nSnap.data().openCheckId !== currentCheck.id) {
+                const occ = await tx.get(db.collection(CHK_COL).doc(nSnap.data().openCheckId));
+                if (occ.exists && (occ.data().status === 'open' || occ.data().status === 'sent')) {
+                    const err = new Error('masa-dolu'); err.masaDolu = true; err.checkNo = occ.data().checkNo; throw err;
+                }
+            }
+            tx.update(checkRef, {
+                tableName: newTable, tableKey: tableKeyOf(newTable), section: newSection,
+                version: ((cs.version) || 0) + 1,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            if (oN.exists && oN.data().openCheckId === currentCheck.id && oldLockN.path !== newLock.path) tx.delete(oldLockN);
+            if (oldLockL.path !== oldLockN.path && oL.exists && oL.data().openCheckId === currentCheck.id) tx.delete(oldLockL);
+            tx.set(newLock, {
+                tenantId: TENANT_ID, table: newTable, tableKey: tableKeyOf(newTable),
+                openCheckId: currentCheck.id, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }).then(() => {
+            currentCheck.tableName = newTable; currentCheck.section = newSection;
+            setPosHeader();
+            $('transferModal').classList.remove('open');
+            toast('Adisyon Masa ' + newTable + ' konumuna taşındı.');
+        }).catch(err => {
+            if (err && err.masaDolu) { toast('Hedef masada zaten açık bir adisyon var (#' + (err.checkNo || '?') + ').', true); return; }
+            console.error(err);
+            toast('Taşıma tamamlanamadı — hiçbir değişiklik yapılmadı.', true);
+        });
     }
 
     function recalcSave() {
@@ -1065,6 +1169,7 @@
         if (!currentCheck.id) {
             const payload = Object.assign({}, meta, {
                 items: currentCheck.items, subtotal: currentCheck.subtotal || 0, vat: currentCheck.vat || 0, total: currentCheck.total || 0,
+                version: 1, tableKey: (currentCheck.tableName || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR').replace(/\//g, '_').slice(0, 60),
                 openedBy: loggedUser, openedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             db.collection(CHK_COL).add(payload).then(ref => { currentCheck.id = ref.id; }).catch(err => console.error(err));
@@ -1087,14 +1192,25 @@
         const localItems = currentCheck.items;
         db.runTransaction(async (tx) => {
             const snap = await tx.get(ref);
+            // ÖDENMİŞ/İPTAL adisyona gecikmeli kayıt YAZILMAZ (Faz 3):
+            // debounce'lu saveCheck ödemeden sonra tetiklenirse önceden
+            // ödenmiş adisyonun kalemlerini değiştirebiliyordu — kurallar da
+            // artık reddeder; burada erken çıkıp kullanıcıyı bilgilendiriyoruz.
+            if (snap.exists && (snap.data().status === 'paid' || snap.data().status === 'void')) {
+                return { blocked: snap.data().status };
+            }
             const serverItems = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
             const localIds = new Set(localItems.map(l => l.lineId));
             const onlyOnServer = serverItems.filter(l => l && l.lineId && !localIds.has(l.lineId) && !removedLineIds.has(l.lineId));
             const merged = localItems.concat(onlyOnServer);
             const t = computeTotals(merged);
             tx.update(ref, Object.assign({}, meta, {
-                items: merged, subtotal: t.subtotal, vat: t.vat, total: t.total
+                items: merged, subtotal: t.subtotal, vat: t.vat, total: t.total,
+                version: ((snap.exists && snap.data().version) || 0) + 1
             }));
+            return { ok: true };
+        }).then(r => {
+            if (r && r.blocked) toast('Bu adisyon ' + (r.blocked === 'paid' ? 'ödenmiş' : 'iptal edilmiş') + ' — değişiklik kaydedilmedi.', true);
         }).catch(err => console.error(err));
     }
     function sendKitchen() {
@@ -1176,7 +1292,17 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
         const sentItems = (currentCheck.items || []).filter(l => l.sent);
         const doVoid = () => {
             if (!confirm('Adisyon iptal edilsin mi? (Masa boşalır)')) return;
-            db.collection(CHK_COL).doc(currentCheck.id).update({ status: 'void', updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+            const vRef = db.collection(CHK_COL).doc(currentCheck.id);
+            db.runTransaction(async (tx) => {
+                const s = await tx.get(vRef);
+                if (!s.exists) throw new Error('adisyon-yok');
+                if (s.data().status === 'paid' || s.data().status === 'void') throw new Error('degistirilemez');
+                tx.update(vRef, {
+                    status: 'void',
+                    version: ((s.data().version) || 0) + 1,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            })
                 .then(() => {
                     // Mutfağa gönderilmiş (fiilen hazırlanmış/tüketilmiş) kalemler
                     // varsa iptalde de stok düş — aksi halde envanter sessizce
@@ -1268,6 +1394,9 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
 
     function openPay() {
         if (!currentCheck || !currentCheck.items.length) { toast('Adisyon boş.', true); return; }
+        // Gecikmeli saveCheck ile ödeme arasındaki yarışı kapat (Faz 3):
+        // bekleyen debounce'lu kayıt varsa ödeme modalı açılmadan yazılır.
+        flushSave();
         pay = { discount: currentCheck.discount || null, payments: [] };
         payEntry = '';
         $('payTable').textContent = 'Masa ' + (currentCheck.tableName || '');
@@ -1409,8 +1538,10 @@ ${c.note ? '<hr><div class="note">Adisyon notu: ' + esc(c.note) + '</div>' : ''}
             return db.runTransaction(async (tx) => {
                 const snaps = await Promise.all([tx.get(checkRef)].concat(stockRefs.map(r => tx.get(r))));
                 const checkSnap = snaps[0], stockSnaps = snaps.slice(1);
-                if (checkSnap.exists && checkSnap.data().status === 'paid') return; // zaten kapatılmış (çift tıklama) — no-op
-                tx.update(checkRef, payload);
+                if (checkSnap.exists && (checkSnap.data().status === 'paid' || checkSnap.data().status === 'void')) return; // zaten kapatılmış/iptal — no-op
+                tx.update(checkRef, Object.assign({}, payload, {
+                    version: ((checkSnap.exists && checkSnap.data().version) || 0) + 1
+                }));
                 roomPays.forEach(pm => {
                     const ref = db.collection(FOLIO_COL).doc();
                     const folioDoc = {
