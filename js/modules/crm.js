@@ -548,6 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const newGuestRef = await db.collection('guestDirectory').add({
                 name: name,
+                nameKey: name.toLocaleLowerCase('tr-TR'), // hedefli sorgu anahtarı (bkz. guest-directory.js)
                 room: status === 'pre_arrival' ? (room || '') : room,
                 status: status,
                 checkIn: checkIn || '',

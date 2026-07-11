@@ -596,11 +596,16 @@
     }
 
     function listenChecks() {
-        db.collection(CHK_COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
-            openChecks = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
-                .filter(c => c.status === 'open' || c.status === 'sent');
-            renderFloor();
-        }, err => console.error('checks', err));
+        // Durum filtresi SUNUCUDA: önceden tüm adisyon tarihçesi (kapalı
+        // binlerce kayıt dahil) canlı dinlenip açık/gönderilmiş ayrımı
+        // istemcide yapılıyordu — her değişimde tüm geçmiş yeniden
+        // taşınıyordu (bkz. hız denetimi). (tenantId, status) bileşik
+        // indeksi zaten mevcut.
+        db.collection(CHK_COL).where('tenantId', '==', TENANT_ID)
+            .where('status', 'in', ['open', 'sent']).onSnapshot(snap => {
+                openChecks = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                renderFloor();
+            }, err => console.error('checks', err));
     }
 
     // ── POS ────────────────────────────────────────────────────
@@ -1504,16 +1509,20 @@ ${pays ? '<hr><table>' + pays + '</table>' : ''}
     }
 
     // ── Folio (Oda Hesapları) ──────────────────────────────────
+    // Durum filtreleri SUNUCUDA — önceden tüm dizin/tüm folio tarihçesi
+    // canlı dinlenip istemcide filtreleniyordu (bkz. hız denetimi).
     function listenInhouse() {
-        db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
-            inhouse = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(g => g.status === 'in_house');
-        }, err => console.error('inhouse', err));
+        db.collection('guestDirectory').where('tenantId', '==', TENANT_ID)
+            .where('status', '==', 'in_house').onSnapshot(snap => {
+                inhouse = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+            }, err => console.error('inhouse', err));
     }
     function listenFolio() {
-        db.collection(FOLIO_COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
-            folio = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(f => f.status === 'open');
-            renderFolio();
-        }, err => console.error('folio', err));
+        db.collection(FOLIO_COL).where('tenantId', '==', TENANT_ID)
+            .where('status', '==', 'open').onSnapshot(snap => {
+                folio = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                renderFolio();
+            }, err => console.error('folio', err));
     }
     function renderFolio() {
         const wrap = $('folioList'); if (!wrap) return;

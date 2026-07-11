@@ -470,7 +470,14 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAutocompletes();
     });
 
-    db.collection('reservations').where('tenantId', '==', TENANT_ID).orderBy('date', 'asc').onSnapshot(snap => {
+    // Canlı pencere: son 90 gün + tüm gelecek. Önceden tüm rezervasyon
+    // TARİHÇESİ sınırsız dinleniyordu — otel yaşlandıkça her sayfa açılışı
+    // (App Shell her sekme geçişinde sayfayı yeniden yükler) büyüyen bir
+    // maliyet ödüyordu (bkz. hız denetimi). Dışa aktarma yine TÜM veriyi
+    // kapsar (ensureFullData ayrı, tek seferlik tam okuma yapar).
+    const resWindowStart = (() => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10); })();
+    db.collection('reservations').where('tenantId', '==', TENANT_ID)
+        .where('date', '>=', resWindowStart).orderBy('date', 'asc').onSnapshot(snap => {
         reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // Update Guest Map for Autocomplete

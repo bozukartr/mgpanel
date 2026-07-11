@@ -176,8 +176,16 @@ document.addEventListener('DOMContentLoaded', () => {
     loadGuestDirectory();
 
     // ── LEGACY SYNC: Backfill directory from existing logs ──
+    // Oturum başına BİR kez çalışır. Önceden canlı dinleyicinin her
+    // snapshot'ında tetikleniyordu (koşul `length >= 0` hep true) — her
+    // personel hareketinde tüm reservations koleksiyonu baştan okunuyordu
+    // (bkz. hız denetimi). Ayrıca yazdığı dokümanlarda tenantId eksikti;
+    // fail-closed kurallar yazımı reddedip fonksiyonu sessizce boşa
+    // çalıştırıyordu — o da düzeltildi.
+    let backfillDone = false;
     async function backfillGuestDirectory() {
-        if (!records.length) return;
+        if (backfillDone || !records.length) return;
+        backfillDone = true;
 
         try {
             // Load all current reservations to include concierge-only guests
@@ -210,8 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newRef = db.collection('guestDirectory').doc();
                 const data = {
                     name: g.name,
+                    nameKey: String(g.name).toLocaleLowerCase('tr-TR'),
                     room: g.room || '',
                     status: 'checked_out', // Assume historical ones are checked out
+                    tenantId: TENANT_ID,
                     lastUpdated: new Date().toISOString()
                 };
                 batch.set(newRef, data);
@@ -614,8 +624,10 @@ document.addEventListener('DOMContentLoaded', () => {
             updateView(globalSearch.value, dateSearch.value);
             autoEscalateSweep();
 
-            // Trigger backfill check
-            if (guestDirectory.length >= 0) backfillGuestDirectory();
+            // Trigger backfill check — dizin yüklendikten sonra, oturumda bir kez.
+            // (Önceki `length >= 0` koşulu her zaman true'ydu; dizin boşken
+            // çalışırsa tüm misafirleri mükerrer eklerdi.)
+            if (guestDirectory.length) backfillGuestDirectory();
 
             // Sync selectedRecord to avoid undefined errors in editNote
             if (selectedRecord) {
@@ -1536,17 +1548,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function isOverdueFn(record) { return slaState(record).state === 'breached'; }
 
     // ── Eskalasyon (istemci tarafı; çift bildirim için transaction guard) ──
-    let mgrCache = null, mgrCacheAt = 0;
-    async function getManagers() {
-        if (mgrCache && Date.now() - mgrCacheAt < 300000) return mgrCache; // 5 dk cache
+    // Tek paylaşımlı personel önbelleği (5 dk): getManagers ve
+    // notifyRequestTeam önceden aynı systemUsers koleksiyonunu ayrı ayrı,
+    // her bildirimde baştan okuyordu (bkz. hız denetimi).
+    let staffCache = null, staffCacheAt = 0;
+    async function getStaff() {
+        if (staffCache && Date.now() - staffCacheAt < 300000) return staffCache; // 5 dk cache
         try {
             const snap = await db.collection('systemUsers').where('tenantId', '==', TENANT_ID).get();
-            mgrCache = snap.docs
-                .map(d => ({ uid: d.id, username: (d.data().username || d.id), role: (d.data().role || '').toLowerCase() }))
-                .filter(u => u.role === 'admin' || u.role === 'manager');
-            mgrCacheAt = Date.now();
-        } catch (e) { mgrCache = mgrCache || []; }
-        return mgrCache;
+            staffCache = snap.docs.map(d => ({
+                uid: d.id,
+                username: (d.data().username || d.id),
+                role: (d.data().role || '').toLowerCase(),
+                department: ((d.data().department || '')).trim().toLowerCase()
+            }));
+            staffCacheAt = Date.now();
+        } catch (e) { staffCache = staffCache || []; }
+        return staffCache;
+    }
+    async function getManagers() {
+        return (await getStaff()).filter(u => u.role === 'admin' || u.role === 'manager');
     }
     // Talebi departmanına göre yönlendir: department alanı eşleşen tüm
     // kullanıcılara (+ açıkça atanan kişiye) bildirim gönder. Kendine bildirmez.
@@ -1555,10 +1576,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const me = (firebase.auth().currentUser || {}).uid;
         const recips = {}; // uid -> username
         try {
-            const snap = await db.collection('systemUsers').where('tenantId', '==', TENANT_ID).get();
-            snap.docs.forEach(d => {
-                const u = d.data() || {};
-                if (dept && (u.department || '').trim().toLowerCase() === dept) recips[d.id] = (u.username || d.id);
+            (await getStaff()).forEach(u => {
+                if (dept && u.department === dept) recips[u.uid] = u.username;
             });
         } catch (e) { /* yine de atanan kişiye gider */ }
         if (assignee && assignee.uid) recips[assignee.uid] = assignee.username || recips[assignee.uid] || assignee.uid;

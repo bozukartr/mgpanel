@@ -206,10 +206,15 @@
     // ── Canlı dinleyiciler ─────────────────────────────────────
     function listen() {
         if (typeof moduleEnabled !== 'function' || moduleEnabled('concierge')) {
-            db.collection('reservations').where('tenantId', '==', TENANT).onSnapshot(snap => {
-                reservations = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-                renderAll();
-            }, err => console.error('reservations listen', err));
+            // Son 90 gün + gelecek — KPI'lar (bekleyen/geciken) ve akış için
+            // yeterli; tüm tarihçeyi dinlemek sayfa başına büyüyen bir
+            // maliyetti (bkz. hız denetimi).
+            const winStart = (() => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10); })();
+            db.collection('reservations').where('tenantId', '==', TENANT)
+                .where('date', '>=', winStart).onSnapshot(snap => {
+                    reservations = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                    renderAll();
+                }, err => console.error('reservations listen', err));
         }
         if (typeof moduleEnabled !== 'function' || moduleEnabled('guestIssues')) {
             db.collection('guestLogs').where('tenantId', '==', TENANT)
