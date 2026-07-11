@@ -1,0 +1,13 @@
+{
+  "name": "hotizy-tests",
+  "private": true,
+  "description": "Hotizy — Firestore Emulator üzerinde kural + eşzamanlılık + yetki testleri (bkz. docs/restoran-uretim-plani.md)",
+  "scripts": {
+    "test": "bash run.sh"
+  },
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.14.1",
+    "firebase-admin": "^12.6.0"
+  }
+}

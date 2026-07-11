@@ -22,6 +22,7 @@
       "**/.*",
       "**/node_modules/**",
       "functions/**",
+      "tests/**",
       "cloudflare/**",
       "wrangler.jsonc",
       "README.md",
