@@ -24,4 +24,7 @@ curl -s "http://127.0.0.1:$PORT/" >/dev/null || { echo "Emülatör ayağa kalkma
 
 # NODE_PATH: functions/rest-core.js gibi repo modülleri firebase-admin'i
 # tests/node_modules'tan çözebilsin (functions/node_modules kurulu olmayabilir).
-FIRESTORE_EMULATOR_HOST="127.0.0.1:$PORT" NODE_PATH="$PWD/node_modules" node --test ./*.test.js
+# --test-concurrency=1: dosyalar SIRALI koşar — eşzamanlılık testleri kendi
+# içinde Promise.allSettled ile gerçek yarışı üretir; dosyalar arası CPU
+# çekişmesi transaction yeniden-deneme bütçesini tüketip flake yaratabiliyor.
+FIRESTORE_EMULATOR_HOST="127.0.0.1:$PORT" NODE_PATH="$PWD/node_modules" node --test --test-concurrency=1 ./*.test.js

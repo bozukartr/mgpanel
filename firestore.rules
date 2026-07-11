@@ -15,6 +15,11 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn() && callerRole().lower() == 'admin';
     }
+    // Yönetici katmanı (rol matrisi — docs/restoran-uretim-plani.md):
+    // menü/stok tanımı gibi işlemler manager VEYA admin ister.
+    function isManagerOrAdmin() {
+      return signedIn() && callerRole().lower() in ['admin', 'manager'];
+    }
 
     // Platform (vendor) operator. Membership lives in a dedicated collection
     // that no tenant admin can write to, preventing privilege escalation.
@@ -146,11 +151,13 @@ service cloud.firestore {
     }
     // Menu, tables, checks (adisyon), cashier sessions, room-account folio.
     // Any staff member in the hotel may read/manage these (waiters open checks).
+    // Menü/stok tanımı: yalnızca manager/admin yazabilir (Faz 4 — önceden
+    // HER personel menü fiyatı/stok değiştirebiliyordu). Okuma tüm personel.
     match /restMenu/{id} {
       allow read:   if readOwnTenant();
-      allow create: if writeOwnTenant();
-      allow update: if readOwnTenant() && writeOwnTenant();
-      allow delete: if readOwnTenant();
+      allow create: if writeOwnTenant() && (isManagerOrAdmin() || isSuperAdmin());
+      allow update: if readOwnTenant() && writeOwnTenant() && (isManagerOrAdmin() || isSuperAdmin());
+      allow delete: if readOwnTenant() && (isManagerOrAdmin() || isSuperAdmin());
     }
     match /restTables/{id} {
       allow read:   if readOwnTenant();
@@ -173,9 +180,12 @@ service cloud.firestore {
         && request.resource.data.get('status', 'open') in ['open', 'sent']
         && request.resource.data.get('version', 0) is int
         && request.resource.data.get('version', 0) >= 1;
+      // Faz 4: istemci PAID/VOID YAZAMAZ — ödeme restSettleCheck, iptal
+      // restVoidCheck fonksiyonlarından (Admin SDK) geçer; rules+functions+
+      // hosting AYNI deploy'da gitmeli (plan §5).
       allow update: if readOwnTenant() && writeOwnTenant()
         && resource.data.get('status', 'open') in ['open', 'sent']
-        && request.resource.data.get('status', 'open') in ['open', 'sent', 'paid', 'void']
+        && request.resource.data.get('status', 'open') in ['open', 'sent']
         && !(resource.data.get('status', 'open') == 'sent' && request.resource.data.get('status', 'open') == 'open')
         && request.resource.data.get('version', 0) == resource.data.get('version', 0) + 1;
       allow delete: if readOwnTenant()
@@ -187,11 +197,26 @@ service cloud.firestore {
       allow update: if readOwnTenant() && writeOwnTenant();
       allow delete: if readOwnTenant();
     }
+    // Oda hesabı kayıtları: kapatma (settle) artık restSettleFolio
+    // fonksiyonundan geçer — istemci UPDATE/DELETE yapamaz (Faz 4).
+    // create açık kalır: concierge applyToFolio hâlâ istemciden yazar
+    // (transaction'lı, folioApplied korumalı — bkz. concierge.js).
     match /folioCharges/{id} {
       allow read:   if readOwnTenant();
       allow create: if writeOwnTenant();
-      allow update: if readOwnTenant() && writeOwnTenant();
-      allow delete: if readOwnTenant();
+      allow update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // İdempotency defteri + denetim izi (Faz 4): YALNIZCA Admin SDK yazar.
+    // restAudit'i otel admin'i (kendi tenant'ı) ve süperadmin okuyabilir.
+    match /restOps/{id} {
+      allow read, write: if false;
+    }
+    match /restAudit/{id} {
+      allow read: if isSuperAdmin()
+        || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      allow create, update, delete: if false;
     }
 
     // --- User accounts: scoped to the caller's hotel ---

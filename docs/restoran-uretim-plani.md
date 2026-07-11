@@ -182,6 +182,54 @@ nakit fazla → doğru change, applied=due; folio kapatma staff RED.
 | Stok hareketi yalnız bir kez | F4 | settle replay → stok tek düşüm |
 | Tenant izolasyonu | F1 | rules smoke |
 
+## FAZ RAPORU (Faz 1–4 tamamlandı)
+
+**Test sonuçları:** `bash tests/run.sh` → **54/54 yeşil** (Firestore
+Emulator v1.19.8, gerçek firestore.rules + gerçek transaction semantiği).
+Kapsanan zorunlu senaryolar: eşzamanlı iki cihazda aynı masa (tek adisyon,
+diğerine TABLE_OCCUPIED) · çift tıklama/tekrar istek (operationId replay)
+· çift ödeme (tek tahsilat + STOK TEK DÜŞÜM) · eşzamanlı iki ödeme
+(ikincisi CHECK_IMMUTABLE) · kart/oda fazla ödeme reddi · fazla nakit →
+doğru para üstü (applied=due, change ciroya girmez) · bayat cihazın
+ödenmiş adisyona yazması (rules RED) · yetkisiz void/indirim (staff RED,
+manager OK + audit) · folio kapatma yetkisi · tenant izolasyonu (okuma/
+yazma/liste/sahtecilik) · paid/void silinemez/değiştirilemez.
+
+**Değişen dosyalar:** functions/rest-core.js (yeni, ~500 satır çekirdek),
+functions/index.js (+5 callable: restOpenCheck, restSettleCheck,
+restVoidCheck, restSettleFolio, restRepairTableLocks; purge genişletildi),
+firestore.rules (restChecks durum makinesi+version; restMenu manager/admin;
+folioCharges update/delete kapalı; restOps/restAudit), js/modules/
+restaurant.js (callable entegrasyonları, atomik split/merge/transfer,
+version disiplini, cancelCode kaldırıldı), restaurant.html (functions SDK,
+cancelCode alanı kaldırıldı), tests/ (4 test dosyası, 54 test).
+
+**Migration ihtiyacı:**
+1. Deploy TEK komutta: `firebase deploy --only firestore:rules,functions,hosting`
+   (rules istemci ödeme/iptalini kapatır — functions'sız deploy ödemeyi kilitler).
+2. Deploy sonrası her otel için bir kez: restRepairTableLocks çağrısı
+   (admin hesabıyla; eski biçimli/bayat kilitleri onarır — geri döndürülebilir).
+3. Veri silme YOK; geri döndürülemez işlem YOK.
+
+**Kalan riskler (kritiklik sırasıyla):**
+- YÜKSEK: İş akışı değişikliği — gönderilmiş adisyon iptali artık iptal
+  KODU ile değil, manager/admin HESABIYLA yapılır. Garson cihazında
+  yönetici kendi hesabıyla girmeli. Personele duyurulmalı.
+- YÜKSEK: Rol verisi hijyeni — systemUsers.role'ü 'manager' olmayan ama
+  fiilen yöneticilik yapan kullanıcılar void/folio kapatamaz; deploy
+  öncesi rol ataması gözden geçirilmeli.
+- ORTA: Kalem düzenleme (open/sent) hâlâ istemcide (kurallarla sınırlı:
+  version+durum makinesi). Fiyat manipülasyonu ödemede etkisiz (settle
+  tutarı SUNUCUDA menü fiyatından değil adisyon kalemlerinden hesaplar —
+  kalem unitPrice'ı personel yazabilir). Tam çözüm: kalem yazımını da
+  fonksiyona taşımak (Faz 5+ backlog).
+- ORTA: concierge applyToFolio hâlâ istemciden folio CREATE ediyor
+  (transaction'lı ve folioApplied korumalı) — Faz 6'da fonksiyona taşınmalı.
+- DÜŞÜK: split/merge/transfer istemci transaction'ı (kurallar + version
+  korumalı); Faz 5+'ta fonksiyona alınabilir.
+- DÜŞÜK: Emülatör testleri onCall sarmalayıcılarını değil ÇEKİRDEKLERİ
+  çağırır (kimlik çözümü requireStaffUser ince ve gözle doğrulandı).
+
 ## 5. Migration & deploy notları
 
 - **Geri döndürülemez işlem YOK.** restRepairTableLocks yalnız

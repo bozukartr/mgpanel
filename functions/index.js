@@ -2129,6 +2129,52 @@ exports.restOpenCheck = onCall({ region: REGION }, async (request) => {
   } catch (e) { throwRest(e); }
 });
 
+// Ödeme (Faz 4): due/applied/tendered/change ayrımı, kart/oda fazla
+// ödeme reddi, folio + stok + audit AYNI transaction'da; operationId ile
+// çift ödeme koruması. İstemci artık paid YAZAMAZ (rules).
+exports.restSettleCheck = onCall({ region: REGION }, async (request) => {
+  const u = await requireStaffUser(request);
+  const d = request.data || {};
+  const operationId = String(d.operationId || '').slice(0, 64);
+  if (!operationId) throw new HttpsError('invalid-argument', 'operationId gerekli.', { errCode: restCore.ERR.INVALID_INPUT });
+  try {
+    return await restCore.settleCore(db, {
+      tenantId: u.tenantId, uid: u.uid, username: u.username, role: u.role,
+      operationId, checkId: String(d.checkId || ''),
+      payments: d.payments, discount: d.discount || null
+    });
+  } catch (e) { throwRest(e); }
+});
+
+// İptal (Faz 4): gönderilmiş kalemli iptal manager/admin + SEBEP zorunlu;
+// yetkili UID + rol + sebep audit'e yazılır. Düz metin cancelCode kalktı.
+exports.restVoidCheck = onCall({ region: REGION }, async (request) => {
+  const u = await requireStaffUser(request);
+  const d = request.data || {};
+  const operationId = String(d.operationId || '').slice(0, 64);
+  if (!operationId) throw new HttpsError('invalid-argument', 'operationId gerekli.', { errCode: restCore.ERR.INVALID_INPUT });
+  try {
+    return await restCore.voidCore(db, {
+      tenantId: u.tenantId, uid: u.uid, username: u.username, role: u.role,
+      operationId, checkId: String(d.checkId || ''), reason: d.reason
+    });
+  } catch (e) { throwRest(e); }
+});
+
+// Oda hesabı tahsil & kapat (Faz 4): manager/admin; audit'li; idempotent.
+exports.restSettleFolio = onCall({ region: REGION }, async (request) => {
+  const u = await requireStaffUser(request);
+  const d = request.data || {};
+  const operationId = String(d.operationId || '').slice(0, 64);
+  if (!operationId) throw new HttpsError('invalid-argument', 'operationId gerekli.', { errCode: restCore.ERR.INVALID_INPUT });
+  try {
+    return await restCore.folioSettleCore(db, {
+      tenantId: u.tenantId, uid: u.uid, username: u.username, role: u.role,
+      operationId, chargeIds: d.chargeIds
+    });
+  } catch (e) { throwRest(e); }
+});
+
 // Masa kilidi onarımı (migration — geri döndürülebilir; rapor döner).
 // Otel admini kendi tenant'ında, süperadmin herhangi bir tenant'ta.
 exports.restRepairTableLocks = onCall({ region: REGION }, async (request) => {

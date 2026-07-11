@@ -73,9 +73,8 @@ test('open → sent geçişi (mutfağa gönder) kabul edilir', async () => {
   await assertSucceeds(updateDoc(doc(db(), 'restChecks', 'c-open'), { status: 'sent', version: 5 }));
 });
 
-test('istemci geçiş dönemi: sent → paid (version disipliniyle) hâlâ yazabilir', async () => {
-  // Faz 4'te sunucu fonksiyonuna taşınıp kurallardan kapatılacak (plan §3).
-  await assertSucceeds(updateDoc(doc(db(), 'restChecks', 'c-sent'), { status: 'paid', version: 4 }));
+test('Faz 4: istemci sent → paid YAZAMAZ (ödeme yalnız restSettleCheck)', async () => {
+  await assertFails(updateDoc(doc(db(), 'restChecks', 'c-sent'), { status: 'paid', version: 4 }));
 });
 
 test('paid adisyon SİLİNEMEZ', async () => {
