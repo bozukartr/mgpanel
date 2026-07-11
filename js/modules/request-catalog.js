@@ -335,9 +335,14 @@
         const img = holder.querySelector('img');
         return img ? img.src : '';
     }
-    function genQRs() {
+    async function genQRs() {
         const grid = $('qrGrid');
         if (!grid) return;
+        // QR kütüphanesi tembel yüklenir (bkz. js/core/lazy-load.js) —
+        // önceden admin sayfası açılışında eager iniyordu (hız denetimi).
+        if (typeof QRCode === 'undefined' && typeof loadScriptOnce === 'function') {
+            try { await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'); } catch (e) {}
+        }
         if (typeof QRCode === 'undefined') { toast('QR kütüphanesi yüklenemedi.', true); return; }
         const rooms = parseRooms(($('qrRooms') || {}).value);
         if (!rooms.length) { toast('Lütfen oda numarası girin.', true); return; }

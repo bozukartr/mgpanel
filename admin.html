@@ -736,7 +736,8 @@
     <script src="js/core/pwa.js"></script>
     <script src="js/core/issue-config.js"></script>
     <script src="js/modules/admin.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- qrcodejs artık eager değil — QR üretimi anında tembel yüklenir. -->
+    <script src="js/core/lazy-load.js"></script>
     <script src="js/modules/request-catalog.js"></script>
     <script src="js/modules/issue-config-admin.js"></script>
     <script src="js/modules/notify-config-admin.js"></script>

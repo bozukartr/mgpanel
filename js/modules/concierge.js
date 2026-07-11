@@ -1877,8 +1877,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function exportExcel(rows, filename, sheetName = 'Report') {
+    // Dışa-aktarma kütüphaneleri TEMBEL yüklenir (bkz. js/core/lazy-load.js) —
+    // önceden sayfa açılışında jspdf+autotable+xlsx+html2pdf (~1.5MB, üstelik
+    // html2pdf paketi jsPDF'i İKİNCİ kez içeriyor) eager iniyordu (hız denetimi).
+    const CG_PDF_LIBS = [
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js'
+    ];
+    const CG_XLSX_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    const CG_HTML2PDF_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+
+    async function exportExcel(rows, filename, sheetName = 'Report') {
         if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
+        try { await loadScriptOnce(CG_XLSX_LIB); } catch (e) { return showToast('Excel kütüphanesi yüklenemedi.', true); }
         const ws = XLSX.utils.json_to_sheet(rows);
         autoSizeSheet(ws, rows);
         const wb = XLSX.utils.book_new();
@@ -1898,8 +1909,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/ç/g, 'c').replace(/Ç/g, 'C');
     }
 
-    function exportPDF(title, headers, rows, filename, subtitle = '') {
+    async function exportPDF(title, headers, rows, filename, subtitle = '') {
         if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
+        try { await loadScriptsOnce(CG_PDF_LIBS); } catch (e) { return showToast('PDF kütüphanesi yüklenemedi.', true); }
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: rows[0].length > 6 ? 'landscape' : 'portrait' });
 
@@ -2085,7 +2097,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── PDF GENERATOR ────────────────────────────────────────
-    const generatePDF = (guest, room, itemsOverride = null) => {
+    const generatePDF = async (guest, room, itemsOverride = null) => {
         let guestItems = itemsOverride || reservations.filter(r => r.guestName === guest && r.status !== 'Cancelled');
         if (guestItems.length === 0) { showToast('Aktif rezervasyon bulunamadı', true); return; }
 
@@ -2180,6 +2192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
+        try { await loadScriptOnce(CG_HTML2PDF_LIB); } catch (e) { pdfEl.style.display = 'none'; return showToast('PDF kütüphanesi yüklenemedi.', true); }
         html2pdf().set(opt).from(pdfEl).save().then(() => {
             pdfEl.style.display = 'none';
         });
@@ -2248,6 +2261,7 @@ document.addEventListener('DOMContentLoaded', () => {
             html2canvas: { scale: 3, useCORS: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
+        try { await loadScriptOnce(CG_HTML2PDF_LIB); } catch (e) { pdfEl.style.display = 'none'; return showToast('PDF kütüphanesi yüklenemedi.', true); }
         html2pdf().set(opt).from(pdfEl).save().then(() => {
             pdfEl.style.display = 'none';
         });

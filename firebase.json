@@ -29,7 +29,13 @@
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css|html)",
+        "source": "**/*.@(js|css)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=600, must-revalidate" }
+        ]
+      },
+      {
+        "source": "**/*.html",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }
         ]

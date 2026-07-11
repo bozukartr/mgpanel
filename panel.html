@@ -421,9 +421,9 @@
     <script src="js/core/issue-config.js"></script>
 
     <!-- Scripts for Export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jspdf/autotable/xlsx artık eager YÜKLENMİYOR — rapor indirme anında
+         tembel yüklenir (js/core/lazy-load.js + panel.js ensureExportLibs). -->
+    <script src="js/core/lazy-load.js"></script>
 
     <script src="js/modules/pms.js"></script>
     <script src="js/modules/panel.js"></script>
