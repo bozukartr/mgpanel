@@ -1521,50 +1521,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // "Oda Hesabı" ile adisyon kapatmasıyla AYNI folioCharges koleksiyonuna
     // yazar; guest-order.js'deki Konaklama/Oda Hesabım kartında görünür.
     // folioApplied bayrağıyla aynı bakiyenin iki kez yansıtılması engellenir.
+    // F4.5: folio CREATE istemciye kapandı (firestore.rules) — yansıtma
+    // artık applyReservationFolio fonksiyonunda: bakiye SUNUCUDA hesaplanır,
+    // folioApplied + operationId çift yansıtmayı engeller, audit'e yazılır.
     async function applyToFolio(r) {
         if (!r) return;
         if (!r.room || r.room === 'Pre-Arrival') { showToast('Oda ataması olmayan rezervasyon oda hesabına yansıtılamaz.', true); return; }
         const btn = document.getElementById('d-applyFolioBtn');
         if (btn) { btn.disabled = true; btn.textContent = 'Yansıtılıyor…'; }
         try {
-            const TS = firebase.firestore.FieldValue.serverTimestamp();
-            const resRef = db.collection('reservations').doc(r.id);
-            // Transaction: rezervasyonu TAZE okuyup folioApplied'ı transaction
-            // içinde kontrol eder. İki personel aynı anda basarsa Firestore
-            // ikinci transaction'ı otomatik yeniden dener; ikincisi artık
-            // folioApplied:true görüp hiçbir şey yazmaz — ÇİFT folio charge
-            // imkansız hale gelir (önceki batch.set/update yarışa açıktı).
-            const result = await db.runTransaction(async (tx) => {
-                const snap = await tx.get(resRef);
-                if (!snap.exists) return { error: 'not-found' };
-                const cur = snap.data();
-                if (cur.folioApplied) return { error: 'already' };
-                const balance = (Number(cur.totalPrice) || 0) - (Number(cur.deposit) || 0);
-                if (balance <= 0) return { error: 'no-balance' };
-                const folioRef = db.collection('folioCharges').doc();
-                const folioDoc = {
-                    tenantId: TENANT_ID, room: cur.room, guestName: cur.guestName || '',
-                    source: 'concierge', reservationId: r.id, sourceId: r.id, tableName: '',
-                    amount: balance, currency: cur.currency || 'EUR', status: 'open', createdAt: TS, by: loggedUsername
-                };
-                // Kimlik: rezervasyon guestId/stayId taşıyorsa folio kaydına da geçir.
-                if (cur.guestId) folioDoc.guestId = cur.guestId;
-                if (cur.stayId) folioDoc.stayId = cur.stayId;
-                tx.set(folioRef, folioDoc);
-                tx.update(resRef, { folioApplied: true, folioAmount: balance, folioAt: TS });
-                return { ok: true, balance };
-            });
-            if (result.error === 'already') { showToast('Bu rezervasyon zaten oda hesabına yansıtılmış.', true); }
-            else if (result.error === 'no-balance') { showToast('Yansıtılacak bakiye yok.', true); }
-            else if (result.error === 'not-found') { showToast('Rezervasyon bulunamadı.', true); }
-            else {
-                const updated = Object.assign({}, r, { folioApplied: true, folioAmount: result.balance });
-                window.selectedReservation = updated;
-                populateDetail(updated);
-                showToast('Oda hesabına yansıtıldı.');
-            }
+            const call = firebase.app().functions('us-central1').httpsCallable('applyReservationFolio');
+            const opId = 'op' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+            const res = await call({ operationId: opId, reservationId: r.id });
+            const updated = Object.assign({}, r, { folioApplied: true, folioAmount: res.data.balance });
+            window.selectedReservation = updated;
+            populateDetail(updated);
+            showToast('Oda hesabına yansıtıldı.');
         } catch (e) {
-            showToast('Yansıtılamadı. Yetkiniz olmayabilir.', true);
+            const det = (e && e.details) || {};
+            if (det.already) showToast('Bu rezervasyon zaten oda hesabına yansıtılmış.', true);
+            else if (det.noBalance) showToast('Yansıtılacak bakiye yok.', true);
+            else if (String(e && e.code).includes('not-found') && !det.errCode) showToast('Servis henüz yüklenmemiş (deploy eksik) — yöneticinizle iletişime geçin.', true);
+            else showToast('Yansıtılamadı: ' + ((e && e.message) || 'hata'), true);
         } finally {
             if (btn) { btn.disabled = false; btn.textContent = '🧾 Kalan Bakiyeyi Oda Hesabına Yansıt'; }
         }

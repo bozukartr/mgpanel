@@ -211,24 +211,31 @@ cancelCode alanı kaldırıldı), tests/ (4 test dosyası, 54 test).
    (admin hesabıyla; eski biçimli/bayat kilitleri onarır — geri döndürülebilir).
 3. Veri silme YOK; geri döndürülemez işlem YOK.
 
-**Kalan riskler (kritiklik sırasıyla):**
-- YÜKSEK: İş akışı değişikliği — gönderilmiş adisyon iptali artık iptal
-  KODU ile değil, manager/admin HESABIYLA yapılır. Garson cihazında
-  yönetici kendi hesabıyla girmeli. Personele duyurulmalı.
-- YÜKSEK: Rol verisi hijyeni — systemUsers.role'ü 'manager' olmayan ama
-  fiilen yöneticilik yapan kullanıcılar void/folio kapatamaz; deploy
-  öncesi rol ataması gözden geçirilmeli.
-- ORTA: Kalem düzenleme (open/sent) hâlâ istemcide (kurallarla sınırlı:
-  version+durum makinesi). Fiyat manipülasyonu ödemede etkisiz (settle
-  tutarı SUNUCUDA menü fiyatından değil adisyon kalemlerinden hesaplar —
-  kalem unitPrice'ı personel yazabilir). Tam çözüm: kalem yazımını da
-  fonksiyona taşımak (Faz 5+ backlog).
-- ORTA: concierge applyToFolio hâlâ istemciden folio CREATE ediyor
-  (transaction'lı ve folioApplied korumalı) — Faz 6'da fonksiyona taşınmalı.
-- DÜŞÜK: split/merge/transfer istemci transaction'ı (kurallar + version
-  korumalı); Faz 5+'ta fonksiyona alınabilir.
+**Kalan riskler (kritiklik sırasıyla) — F4.5 güncellemesi:**
+- YÜKSEK (operasyonel, kod dışı): İş akışı değişikliği — gönderilmiş
+  adisyon iptali artık iptal KODU ile değil, manager/admin HESABIYLA
+  yapılır. Garson cihazında yönetici kendi hesabıyla girmeli. Personele
+  duyurulmalı; deploy öncesi systemUsers.role atamaları gözden geçirilmeli.
+- ~~ORTA: kalem fiyat manipülasyonu~~ → **KAPATILDI (F4.5)**: settle
+  artık kalem fiyatlarını MENÜ fiyatıyla karşılaştırır; toplam %2'den
+  fazla altındaysa manager gerekir, sapma audit'e yazılır. (Artık DÜŞÜK:
+  yalnız menuId'siz özel satırlar karşılaştırma dışı.)
+- ~~ORTA: concierge applyToFolio istemciden folio CREATE~~ →
+  **KAPATILDI (F4.5)**: applyReservationFolio fonksiyonu — bakiye
+  sunucuda, folioApplied + operationId çift yansıtmayı engeller, audit'li;
+  folioCharges CREATE dahil TÜM yazımlar istemciye kapandı.
+- ~~DÜŞÜK: split/merge/transfer istemcide~~ → **KAPATILDI (F4.5)**:
+  restTransferCheck/restMergeChecks/restSplitCheck fonksiyonları (kilit
+  tutarlılığı + audit + idempotency; bölme stoğu tx içinde tek kez düşer);
+  fonksiyon deploy edilene kadar Faz 3'ün kural-korumalı istemci
+  transaction'ları fallback.
 - DÜŞÜK: Emülatör testleri onCall sarmalayıcılarını değil ÇEKİRDEKLERİ
   çağırır (kimlik çözümü requireStaffUser ince ve gözle doğrulandı).
+- DÜŞÜK: menuId'siz kalemler (özel satırlar) fiyat karşılaştırması
+  dışında — bölme payları artık sunucuda üretildiğinden ana kaynak kapandı.
+
+**F4.5 sonrası test durumu: 63/63 yeşil** (9 yeni test: fiyat sapması ×3,
+transfer ×2, merge ×1, split ×1, folio yansıtma ×2).
 
 ## 5. Migration & deploy notları
 

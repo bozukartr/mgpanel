@@ -2175,6 +2175,63 @@ exports.restSettleFolio = onCall({ region: REGION }, async (request) => {
   } catch (e) { throwRest(e); }
 });
 
+// Masaya taşıma / birleştirme / eşit bölme (F4.5): kilit tutarlılığı +
+// audit sunucuda garanti; operationId idempotent. İstemci fonksiyon yoksa
+// (deploy öncesi) kendi transaction'lı legacy yoluna düşebilir — kurallar
+// bu yolları zaten version+durum makinesiyle sınırlıyor.
+exports.restTransferCheck = onCall({ region: REGION }, async (request) => {
+  const u = await requireStaffUser(request);
+  const d = request.data || {};
+  const operationId = String(d.operationId || '').slice(0, 64);
+  if (!operationId) throw new HttpsError('invalid-argument', 'operationId gerekli.', { errCode: restCore.ERR.INVALID_INPUT });
+  try {
+    return await restCore.transferCore(db, {
+      tenantId: u.tenantId, uid: u.uid, username: u.username, role: u.role,
+      operationId, checkId: String(d.checkId || ''), newTable: d.newTable, newSection: d.newSection
+    });
+  } catch (e) { throwRest(e); }
+});
+exports.restMergeChecks = onCall({ region: REGION }, async (request) => {
+  const u = await requireStaffUser(request);
+  const d = request.data || {};
+  const operationId = String(d.operationId || '').slice(0, 64);
+  if (!operationId) throw new HttpsError('invalid-argument', 'operationId gerekli.', { errCode: restCore.ERR.INVALID_INPUT });
+  try {
+    return await restCore.mergeCore(db, {
+      tenantId: u.tenantId, uid: u.uid, username: u.username, role: u.role,
+      operationId, checkId: String(d.checkId || ''), otherId: String(d.otherId || '')
+    });
+  } catch (e) { throwRest(e); }
+});
+exports.restSplitCheck = onCall({ region: REGION }, async (request) => {
+  const u = await requireStaffUser(request);
+  const d = request.data || {};
+  const operationId = String(d.operationId || '').slice(0, 64);
+  if (!operationId) throw new HttpsError('invalid-argument', 'operationId gerekli.', { errCode: restCore.ERR.INVALID_INPUT });
+  try {
+    return await restCore.splitCore(db, {
+      tenantId: u.tenantId, uid: u.uid, username: u.username, role: u.role,
+      operationId, checkId: String(d.checkId || ''), parts: d.parts
+    });
+  } catch (e) { throwRest(e); }
+});
+
+// Rezervasyon bakiyesini oda hesabına yansıt (concierge — F4.5): folio
+// CREATE istemciye kapandığından sunucuya taşındı; bakiye sunucuda
+// hesaplanır, folioApplied + operationId çift yansıtmayı engeller.
+exports.applyReservationFolio = onCall({ region: REGION }, async (request) => {
+  const u = await requireStaffUser(request);
+  const d = request.data || {};
+  const operationId = String(d.operationId || '').slice(0, 64);
+  if (!operationId) throw new HttpsError('invalid-argument', 'operationId gerekli.', { errCode: restCore.ERR.INVALID_INPUT });
+  try {
+    return await restCore.applyReservationFolioCore(db, {
+      tenantId: u.tenantId, uid: u.uid, username: u.username, role: u.role,
+      operationId, reservationId: String(d.reservationId || '')
+    });
+  } catch (e) { throwRest(e); }
+});
+
 // Masa kilidi onarımı (migration — geri döndürülebilir; rapor döner).
 // Otel admini kendi tenant'ında, süperadmin herhangi bir tenant'ta.
 exports.restRepairTableLocks = onCall({ region: REGION }, async (request) => {
