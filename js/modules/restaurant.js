@@ -945,6 +945,35 @@
         // bir kez düşüyoruz; sonraki N parçanın hiçbiri gerçek menuId taşımadığı
         // için tekrar düşme riski yok.
         if (!currentCheck.id) { toast('Önce adisyonu kaydedin.', true); return; }
+
+        // Bölme önce SUNUCUDA (F4.5 — restSplitCheck: paylar sunucudaki
+        // kalemlerden hesaplanır, STOK DÜŞÜMÜ DAHİL tek transaction + audit);
+        // fonksiyon yoksa Faz 3 istemci yoluna düşer.
+        const callSplit = firebase.app().functions('us-central1').httpsCallable('restSplitCheck');
+        callSplit({ operationId: newOperationId(), checkId: currentCheck.id, parts: n })
+            .then(res => {
+                const d = res.data || {};
+                currentCheck.items = [shareLine(d.firstShare != null ? d.firstShare : shares[0], 1, n)];
+                currentCheck.splitGroup = d.group || group;
+                currentCheck.status = 'sent';
+                const t0 = computeTotals(currentCheck.items);
+                currentCheck.subtotal = t0.subtotal; currentCheck.vat = t0.vat; currentCheck.total = t0.total;
+                renderPosCheck();
+                $('splitModal').classList.remove('open');
+                toast(n + ' eşit paya bölündü.');
+                if (doPrint) {
+                    const objs = [receiptObjFromCheck(currentCheck)];
+                    (d.parts || []).forEach(p => objs.push(receiptObjFromCheck({ checkNo: p.checkNo, tableName: table, name: (baseName ? baseName + ' ' : '') + '(' + p.checkNo + ')', room: '', pax: 1, items: [{ lineId: 'x', name: 'Eşit Pay', qty: 1, unitPrice: p.amount }] })));
+                    printReceiptList(objs);
+                }
+            })
+            .catch(err => {
+                if (!isFnMissing(err)) { console.error(err); toast(restErrMsg(err, 'Bölme tamamlanamadı'), true); return; }
+                legacySplitTx();
+            });
+        return;
+
+        function legacySplitTx() {
         decrementStock(currentCheck.items);
 
         // ATOMİK bölme (Faz 3): sayaç + mevcut adisyonun güncellenmesi + tüm
@@ -1002,6 +1031,7 @@
             console.error(err);
             toast('Bölme tamamlanamadı — hiçbir değişiklik yapılmadı.', true);
         });
+        }
     }
     // Bir bölme grubundaki tüm adisyonların fişini arka arkaya yazdır.
     function printSplitGroup() {
@@ -1030,6 +1060,26 @@
         const other = openChecks.find(c => c.id === otherId);
         if (!other || !currentCheck || !currentCheck.id) return;
         if (!confirm('Masa ' + (other.tableName || '') + (other.checkNo ? ' (#' + other.checkNo + ')' : '') + ' adisyonu bu adisyona birleştirilsin mi? Diğer adisyon kapanır.')) return;
+        // Birleştirme önce SUNUCUDA (F4.5 — restMergeChecks: audit +
+        // idempotency); fonksiyon yoksa Faz 3 istemci transaction'ına düşer.
+        const callMerge = firebase.app().functions('us-central1').httpsCallable('restMergeChecks');
+        callMerge({ operationId: newOperationId(), checkId: currentCheck.id, otherId: otherId })
+            .then(() => db.collection(CHK_COL).doc(currentCheck.id).get())
+            .then(snap => {
+                if (snap.exists) {
+                    const d = snap.data();
+                    currentCheck.items = d.items || []; currentCheck.pax = d.pax; currentCheck.status = d.status;
+                    currentCheck.subtotal = d.subtotal; currentCheck.vat = d.vat; currentCheck.total = d.total;
+                }
+                renderPosCheck();
+                $('mergeModal').classList.remove('open');
+                toast('Adisyonlar birleştirildi.');
+            })
+            .catch(err => {
+                if (!isFnMissing(err)) { console.error(err); toast(restErrMsg(err, 'Birleştirme tamamlanamadı'), true); return; }
+                legacyMergeTx();
+            });
+        function legacyMergeTx() {
         // ATOMİK birleştirme (Faz 3): iki adisyonun SUNUCUDAKİ güncel halleri
         // tek transaction'da okunur; hedef güncellenir + kaynak silinir +
         // kaynağın masa kilidi temizlenir — ağ kesintisinde yarım kalmaz
@@ -1075,6 +1125,7 @@
             console.error(err);
             toast('Birleştirme tamamlanamadı — hiçbir değişiklik yapılmadı.', true);
         });
+        }
     }
 
     // ── Masaya taşı ─────────────────────────────────────────────
@@ -1103,6 +1154,25 @@
             return;
         }
 
+        // Taşıma önce SUNUCUDA (F4.5 — restTransferCheck: kilit tutarlılığı +
+        // audit + idempotency); fonksiyon deploy edilmemişse Faz 3'ün
+        // istemci transaction'ına düşer (kurallar zaten sınırlıyor).
+        const applyLocal = () => {
+            currentCheck.tableName = newTable; currentCheck.section = newSection;
+            setPosHeader();
+            $('transferModal').classList.remove('open');
+            toast('Adisyon Masa ' + newTable + ' konumuna taşındı.');
+        };
+        const callTransfer = firebase.app().functions('us-central1').httpsCallable('restTransferCheck');
+        callTransfer({ operationId: newOperationId(), checkId: currentCheck.id, newTable: newTable, newSection: newSection })
+            .then(applyLocal)
+            .catch(err => {
+                const det = (err && err.details) || {};
+                if (det.errCode === 'REST/TABLE_OCCUPIED') { toast('Hedef masada zaten açık bir adisyon var (#' + (det.checkNo || '?') + ').', true); return; }
+                if (!isFnMissing(err)) { console.error(err); toast(restErrMsg(err, 'Taşıma tamamlanamadı'), true); return; }
+                legacyTransferTx();
+            });
+        function legacyTransferTx() {
         // ATOMİK taşıma (Faz 3): hedef masa doluysa reddet; adisyon güncelle +
         // eski kilidi sil + yeni kilidi yaz — hepsi tek transaction.
         const checkRef = db.collection(CHK_COL).doc(currentCheck.id);
@@ -1144,6 +1214,7 @@
             console.error(err);
             toast('Taşıma tamamlanamadı — hiçbir değişiklik yapılmadı.', true);
         });
+        }
     }
 
     function recalcSave() {

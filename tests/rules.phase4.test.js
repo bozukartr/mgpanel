@@ -53,11 +53,10 @@ test('STOK alanını staff SDK ile değiştiremez (menü yazım kuralı kapsar)'
   await assertFails(updateDoc(doc(as('staff-1'), 'restMenu', 'm1'), { stock: 999 }));
 });
 
-test('folioCharges: istemci UPDATE/DELETE edemez (kapatma sunucu fonksiyonu)', async () => {
+test('folioCharges: istemci CREATE/UPDATE/DELETE edemez (tüm yazımlar sunucu fonksiyonu — F4.5)', async () => {
   await assertFails(updateDoc(doc(as('adm-1'), 'folioCharges', 'f1'), { status: 'settled' }));
   await assertFails(deleteDoc(doc(as('adm-1'), 'folioCharges', 'f1')));
-  // create açık kalır (concierge applyToFolio istemciden yazar)
-  await assertSucceeds(setDoc(doc(as('staff-1'), 'folioCharges', 'f-new'), {
+  await assertFails(setDoc(doc(as('staff-1'), 'folioCharges', 'f-new'), {
     tenantId: T, room: '102', amount: 60, currency: 'TRY', status: 'open'
   }));
 });

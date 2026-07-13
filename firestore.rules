@@ -197,13 +197,12 @@ service cloud.firestore {
       allow update: if readOwnTenant() && writeOwnTenant();
       allow delete: if readOwnTenant();
     }
-    // Oda hesabı kayıtları: kapatma (settle) artık restSettleFolio
-    // fonksiyonundan geçer — istemci UPDATE/DELETE yapamaz (Faz 4).
-    // create açık kalır: concierge applyToFolio hâlâ istemciden yazar
-    // (transaction'lı, folioApplied korumalı — bkz. concierge.js).
+    // Oda hesabı kayıtları: TÜM yazımlar sunucu fonksiyonlarından geçer
+    // (F4.5) — restoran ödemesi restSettleCheck, rezervasyon yansıtma
+    // applyReservationFolio, kapatma restSettleFolio. İstemci yalnız okur.
     match /folioCharges/{id} {
       allow read:   if readOwnTenant();
-      allow create: if writeOwnTenant();
+      allow create: if isSuperAdmin();
       allow update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
     }

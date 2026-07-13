@@ -295,6 +295,28 @@ async function settleCore(db, o) {
     const menuSnaps = [];
     for (const id of menuIds) menuSnaps.push(await tx.get(db.collection('restMenu').doc(id)));
 
+    // MENÜ FİYAT OTORİTESİ: kalem fiyatları istemci yazımıdır (POS düzenleme
+    // istemcide). Personelin kalem fiyatını menü fiyatının altına çekerek
+    // hesabı düşürmesine karşı: menuId'li, ikram olmayan kalemlerin toplamı
+    // menü fiyatlı toplamın %2'sinden fazla ALTINDAYSA manager gerekir ve
+    // sapma audit'e yazılır. (menuId'siz satırlar — ör. bölme payları —
+    // karşılaştırma dışıdır; bölme zaten sunucuda hesaplanır.)
+    let menuPriced = 0, itemPriced = 0;
+    (c.items || []).forEach((it) => {
+      if (!it.menuId || it.ikram) return;
+      const idx = menuIds.indexOf(it.menuId);
+      const ms = idx >= 0 ? menuSnaps[idx] : null;
+      if (!ms || !ms.exists) return;
+      const mPrice = Number(ms.data().price != null ? ms.data().price : ms.data().unitPrice) || 0;
+      if (mPrice <= 0) return;
+      menuPriced += mPrice * (Number(it.qty) || 1);
+      itemPriced += (Number(it.unitPrice) || 0) * (Number(it.qty) || 1);
+    });
+    const priceDeviation = round2(Math.max(0, menuPriced - itemPriced));
+    if (menuPriced > 0 && itemPriced < menuPriced * 0.98 - 0.005) {
+      requireRole(o, 'manager', 'Kalem fiyatları menü fiyatının altında — yönetici yetkisi gerekli.');
+    }
+
     // Oda ödemeleri için misafir/konaklama çözümü (istemcinin guestId'si
     // yalnızca ipucu — doküman gerçekten bu tenanta ait mi doğrulanır)
     const roomRows = rows.filter((p) => p.method === 'room');
@@ -350,7 +372,7 @@ async function settleCore(db, o) {
       uid: o.uid, username: o.username || '', role: o.role,
       amount: applied, meta: {
         due, tendered, change, currency,
-        discount: dA || 0, ikram: ikram || 0,
+        discount: dA || 0, ikram: ikram || 0, priceDeviation,
         discountReason: (o.discount && o.discount.reason) || '',
         methods: rows.map((p) => p.method + ':' + p.amount).join(',')
       }
@@ -462,8 +484,245 @@ async function folioSettleCore(db, o) {
   });
 }
 
+// Ortak: adisyonu oku + open/sent doğrula (transfer/merge/split için).
+async function readOpenCheck(db, tx, tenantId, checkId) {
+  const ref = db.collection('restChecks').doc(checkId);
+  const snap = await tx.get(ref);
+  if (!snap.exists) throw new RestError(ERR.CHECK_NOT_FOUND, 'Adisyon bulunamadı.');
+  const c = snap.data();
+  if (c.tenantId !== tenantId) throw new RestError(ERR.TENANT_MISMATCH, 'Bu adisyon sizin otelinize ait değil.');
+  if (c.status === 'paid' || c.status === 'void') {
+    throw new RestError(ERR.CHECK_IMMUTABLE, 'Adisyon ' + (c.status === 'paid' ? 'ödenmiş' : 'iptal edilmiş') + '.', { status: c.status });
+  }
+  return { ref, c };
+}
+
+// ── MASAYA TAŞIMA ───────────────────────────────────────────────────
+async function transferCore(db, o) {
+  if (!o.tenantId || !o.operationId || !o.checkId) throw new RestError(ERR.INVALID_INPUT, 'Eksik parametre.');
+  const newTable = String(o.newTable || '').trim().replace(/\s+/g, ' ').slice(0, 20);
+  const nKey = tableKey(newTable);
+  if (!nKey) throw new RestError(ERR.INVALID_INPUT, 'Masa adı zorunlu.');
+  const oRef = opRef(db, o.tenantId, o.operationId);
+
+  return db.runTransaction(async (tx) => {
+    const opSnap = await tx.get(oRef);
+    if (opSnap.exists) return Object.assign({ replay: true }, opSnap.data().result);
+
+    const { ref: checkRef, c } = await readOpenCheck(db, tx, o.tenantId, o.checkId);
+    const oldKey = c.tableKey || tableKey(c.tableName || '');
+    const newLockRef = db.collection('restTables').doc(o.tenantId + '__' + nKey);
+    const oldLockRef = oldKey ? db.collection('restTables').doc(o.tenantId + '__' + oldKey) : null;
+
+    const newLock = await tx.get(newLockRef);
+    if (newLock.exists && newLock.data().openCheckId && newLock.data().openCheckId !== o.checkId) {
+      const occ = await tx.get(db.collection('restChecks').doc(newLock.data().openCheckId));
+      if (occ.exists && (occ.data().status === 'open' || occ.data().status === 'sent')) {
+        throw new RestError(ERR.TABLE_OCCUPIED, 'Hedef masada açık adisyon var.', { checkNo: occ.data().checkNo || null });
+      }
+    }
+    const oldLock = oldLockRef ? await tx.get(oldLockRef) : null;
+
+    const TS = FieldValue.serverTimestamp();
+    tx.update(checkRef, {
+      tableName: newTable, tableKey: nKey,
+      section: String(o.newSection || c.section || 'Genel').trim().slice(0, 30) || 'Genel',
+      version: ((c.version) || 0) + 1, updatedAt: TS
+    });
+    if (oldLock && oldLock.exists && oldLock.data().openCheckId === o.checkId && oldKey !== nKey) tx.delete(oldLockRef);
+    tx.set(newLockRef, { tenantId: o.tenantId, table: newTable, tableKey: nKey, openCheckId: o.checkId, updatedAt: TS });
+
+    auditEntry(db, tx, {
+      tenantId: o.tenantId, action: 'transfer', checkId: o.checkId, checkNo: c.checkNo || null,
+      uid: o.uid, username: o.username || '', role: o.role,
+      meta: { from: c.tableName || '', to: newTable }
+    });
+    const result = { checkId: o.checkId, tableName: newTable, tableKey: nKey };
+    tx.set(oRef, { tenantId: o.tenantId, operationId: o.operationId, kind: 'transfer', uid: o.uid, result, at: TS });
+    return result;
+  });
+}
+
+// ── BİRLEŞTİRME ─────────────────────────────────────────────────────
+async function mergeCore(db, o) {
+  if (!o.tenantId || !o.operationId || !o.checkId || !o.otherId) throw new RestError(ERR.INVALID_INPUT, 'Eksik parametre.');
+  if (o.checkId === o.otherId) throw new RestError(ERR.INVALID_INPUT, 'Adisyon kendisiyle birleştirilemez.');
+  const oRef = opRef(db, o.tenantId, o.operationId);
+
+  return db.runTransaction(async (tx) => {
+    const opSnap = await tx.get(oRef);
+    if (opSnap.exists) return Object.assign({ replay: true }, opSnap.data().result);
+
+    const { ref: curRef, c: cur } = await readOpenCheck(db, tx, o.tenantId, o.checkId);
+    const { ref: othRef, c: oth } = await readOpenCheck(db, tx, o.tenantId, o.otherId);
+    const othKey = oth.tableKey || tableKey(oth.tableName || '');
+    const othLockRef = othKey ? db.collection('restTables').doc(o.tenantId + '__' + othKey) : null;
+    const othLock = othLockRef ? await tx.get(othLockRef) : null;
+
+    const merged = (Array.isArray(cur.items) ? cur.items : []).concat(
+      (Array.isArray(oth.items) ? oth.items : []).map((l) => Object.assign({}, l)));
+    const cfgSnap = await tx.get(db.collection('restConfig').doc(o.tenantId));
+    const t = computeTotals(merged, cfgSnap.exists ? cfgSnap.data() : {});
+    const notes = [cur.note, oth.note].filter(Boolean);
+
+    const TS = FieldValue.serverTimestamp();
+    tx.update(curRef, {
+      items: merged,
+      pax: (Number(cur.pax) || 1) + (Number(oth.pax) || 0),
+      note: notes.length ? notes.join(' · ').slice(0, 160) : (cur.note || ''),
+      subtotal: t.subtotal, vat: t.vat, total: t.total,
+      status: (cur.status === 'sent' || oth.status === 'sent') ? 'sent' : cur.status,
+      version: ((cur.version) || 0) + 1, updatedAt: TS
+    });
+    tx.delete(othRef);
+    if (othLock && othLock.exists && othLock.data().openCheckId === o.otherId) tx.delete(othLockRef);
+
+    auditEntry(db, tx, {
+      tenantId: o.tenantId, action: 'merge', checkId: o.checkId, checkNo: cur.checkNo || null,
+      uid: o.uid, username: o.username || '', role: o.role,
+      meta: { mergedCheckId: o.otherId, mergedCheckNo: oth.checkNo || null, mergedTotal: oth.total || 0 }
+    });
+    const result = { checkId: o.checkId, items: merged.length, total: t.total };
+    tx.set(oRef, { tenantId: o.tenantId, operationId: o.operationId, kind: 'merge', uid: o.uid, result, at: TS });
+    return result;
+  });
+}
+
+// ── EŞİT BÖLME ──────────────────────────────────────────────────────
+// Paylar SUNUCUDAKİ kalemlerden hesaplanır; sayaç + mevcut adisyon +
+// yeni parçalar + ORİJİNAL kalemlerin stok düşümü tek transaction.
+function equalShares(total, n) {
+  const cents = Math.round(total * 100);
+  const base = Math.floor(cents / n);
+  const shares = Array(n).fill(base);
+  for (let i = 0; i < cents - base * n; i++) shares[i] += 1;
+  return shares.map((c2) => round2(c2 / 100));
+}
+async function splitCore(db, o) {
+  if (!o.tenantId || !o.operationId || !o.checkId) throw new RestError(ERR.INVALID_INPUT, 'Eksik parametre.');
+  const n = Math.min(8, Math.max(2, parseInt(o.parts, 10) || 2));
+  const oRef = opRef(db, o.tenantId, o.operationId);
+  const counterRef = db.collection('restCounters').doc(o.tenantId);
+
+  return db.runTransaction(async (tx) => {
+    const opSnap = await tx.get(oRef);
+    if (opSnap.exists) return Object.assign({ replay: true }, opSnap.data().result);
+
+    const { ref: checkRef, c } = await readOpenCheck(db, tx, o.tenantId, o.checkId);
+    const cfgSnap = await tx.get(db.collection('restConfig').doc(o.tenantId));
+    const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+    const total = computeTotals(c.items, cfg).total;
+    if (total <= 0) throw new RestError(ERR.INVALID_INPUT, 'Bölünecek tutar yok.');
+    const cntSnap = await tx.get(counterRef);
+
+    // Orijinal kalemlerin stoğu ŞİMDİ düşer (paylar menuId taşımaz;
+    // ödeme anında düşülemez) — aynı transaction'da, tek kez.
+    const plan = stockPlan(c.items);
+    const menuIds = Object.keys(plan);
+    const menuSnaps = [];
+    for (const id of menuIds) menuSnaps.push(await tx.get(db.collection('restMenu').doc(id)));
+
+    const shares = equalShares(total, n);
+    const rate = Number(cfg.vatRate) || 0;
+    const group = 'g' + o.operationId.slice(-8);
+    const shareLine = (amount, k) => ({
+      lineId: 'sl' + k + '-' + o.operationId.slice(-6),
+      menuId: null, name: 'Eşit Pay (' + k + '/' + n + ')', category: 'Bölüm',
+      unitPrice: amount, qty: 1, vatRate: rate || null, station: 'kitchen',
+      note: (c.tableName ? 'Masa ' + c.tableName + ' · ' : '') + n + ' eşit pay',
+      sent: true, served: true, ready: true
+    });
+
+    const TS = FieldValue.serverTimestamp();
+    let no = ((cntSnap.exists && cntSnap.data().checkNo) || 0);
+    const firstItems = [shareLine(shares[0], 1)];
+    const t0 = computeTotals(firstItems, cfg);
+    tx.update(checkRef, {
+      items: firstItems, splitGroup: group, status: 'sent',
+      subtotal: t0.subtotal, vat: t0.vat, total: t0.total,
+      version: ((c.version) || 0) + 1, updatedAt: TS
+    });
+    const parts = [];
+    for (let k = 2; k <= n; k++) {
+      no += 1;
+      const items = [shareLine(shares[k - 1], k)];
+      const t = computeTotals(items, cfg);
+      tx.set(db.collection('restChecks').doc(), {
+        tenantId: o.tenantId, tableName: c.tableName || '', tableKey: c.tableKey || tableKey(c.tableName || ''),
+        name: (c.name ? c.name + ' ' : '') + '(' + k + '/' + n + ')',
+        room: '', section: c.section || 'Genel', status: 'sent', pax: 1, note: '',
+        items, subtotal: t.subtotal, vat: t.vat, total: t.total,
+        version: 1, checkNo: no, splitGroup: group, sentAt: Date.now(),
+        openedBy: o.username || o.uid, openedAt: TS
+      });
+      parts.push({ checkNo: no, amount: shares[k - 1] });
+    }
+    tx.set(counterRef, { tenantId: o.tenantId, checkNo: no, updatedAt: TS }, { merge: true });
+    menuSnaps.forEach((snap, i) => {
+      if (!snap.exists || !snap.data().trackStock) return;
+      const curStock = Number(snap.data().stock) || 0;
+      tx.update(snap.ref, { stock: Math.max(0, curStock - plan[menuIds[i]]), updatedAt: TS });
+    });
+
+    auditEntry(db, tx, {
+      tenantId: o.tenantId, action: 'split', checkId: o.checkId, checkNo: c.checkNo || null,
+      uid: o.uid, username: o.username || '', role: o.role,
+      amount: total, meta: { parts: n, group }
+    });
+    const result = { checkId: o.checkId, group, shares, parts, firstShare: shares[0] };
+    tx.set(oRef, { tenantId: o.tenantId, operationId: o.operationId, kind: 'split', uid: o.uid, result, at: TS });
+    return result;
+  });
+}
+
+// ── REZERVASYON BAKİYESİNİ FOLIO'YA YANSIT (concierge) ─────────────
+// Önceden istemci transaction'ıydı (concierge.js applyToFolio) — folio
+// CREATE artık istemciye kapalı olduğundan sunucuya taşındı. Bakiye
+// SUNUCUDAKİ rezervasyondan hesaplanır; folioApplied çift yansıtmayı,
+// operationId tekrar isteği engeller.
+async function applyReservationFolioCore(db, o) {
+  if (!o.tenantId || !o.operationId || !o.reservationId) throw new RestError(ERR.INVALID_INPUT, 'Eksik parametre.');
+  const oRef = opRef(db, o.tenantId, o.operationId);
+  const resRef = db.collection('reservations').doc(o.reservationId);
+
+  return db.runTransaction(async (tx) => {
+    const opSnap = await tx.get(oRef);
+    if (opSnap.exists) return Object.assign({ replay: true }, opSnap.data().result);
+
+    const snap = await tx.get(resRef);
+    if (!snap.exists) throw new RestError(ERR.CHECK_NOT_FOUND, 'Rezervasyon bulunamadı.');
+    const r = snap.data();
+    if (r.tenantId !== o.tenantId) throw new RestError(ERR.TENANT_MISMATCH, 'Bu rezervasyon sizin otelinize ait değil.');
+    if (!r.room || r.room === 'Pre-Arrival') throw new RestError(ERR.INVALID_INPUT, 'Oda ataması olmayan rezervasyon yansıtılamaz.');
+    if (r.folioApplied) throw new RestError(ERR.CHECK_IMMUTABLE, 'Bu rezervasyon zaten oda hesabına yansıtılmış.', { already: true });
+    const balance = round2((Number(r.totalPrice) || 0) - (Number(r.deposit) || 0));
+    if (balance <= 0) throw new RestError(ERR.INVALID_INPUT, 'Yansıtılacak bakiye yok.', { noBalance: true });
+
+    const TS = FieldValue.serverTimestamp();
+    const folioDoc = {
+      tenantId: o.tenantId, room: r.room, guestName: r.guestName || '',
+      source: 'concierge', reservationId: o.reservationId, sourceId: o.reservationId, tableName: '',
+      amount: balance, currency: r.currency || 'EUR', status: 'open', createdAt: TS, by: o.username || o.uid
+    };
+    if (r.guestId) folioDoc.guestId = r.guestId;
+    if (r.stayId) folioDoc.stayId = r.stayId;
+    tx.set(db.collection('folioCharges').doc(), folioDoc);
+    tx.update(resRef, { folioApplied: true, folioAmount: balance, folioAt: TS });
+
+    auditEntry(db, tx, {
+      tenantId: o.tenantId, action: 'applyReservationFolio', checkId: o.reservationId,
+      uid: o.uid, username: o.username || '', role: o.role,
+      amount: balance, meta: { room: r.room, currency: folioDoc.currency }
+    });
+    const result = { reservationId: o.reservationId, balance, currency: folioDoc.currency };
+    tx.set(oRef, { tenantId: o.tenantId, operationId: o.operationId, kind: 'applyReservationFolio', uid: o.uid, result, at: TS });
+    return result;
+  });
+}
+
 module.exports = {
   ERR, RestError, tableKey, round2, opRef, auditEntry,
-  ROLE_RANK, requireRole, computeTotals, computeDiscount,
-  openCheckCore, repairTableLocksCore, settleCore, voidCore, folioSettleCore
+  ROLE_RANK, requireRole, computeTotals, computeDiscount, equalShares,
+  openCheckCore, repairTableLocksCore, settleCore, voidCore, folioSettleCore,
+  transferCore, mergeCore, splitCore, applyReservationFolioCore
 };
