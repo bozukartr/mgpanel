@@ -2291,102 +2291,53 @@ exports.healthCheck = onRequest({ region: REGION }, (req, res) => {
 // _stressTest koleksiyonu tenant verisinden tamamen ayrık; Admin SDK burada
 // Firestore kurallarını atladığı için istemciye ayrı bir kural açmaya gerek
 // yok — yalnızca bu fonksiyon (superadmin-gated) dokunabilir.
-const STRESS_MAX = 300; // her fazda (yazma/okuma/silme) sabit üst sınır
-const STRESS_PAYLOAD = 'x'.repeat(200); // gerçekçi belge boyutunu simüle eder
+//
+// Çoklu-otel KAPASİTE testi (kademeli rampa): sanal otel sayısını
+// 2→5→10→20→40→… şeklinde artırarak her kademede gerçek operasyon
+// şekillerini (masa kilidi tx, adisyon versiyon tx, kayıt create,
+// hesap kapama + idempotency defteri) eş zamanlı çalıştırır. Bir kademe
+// sağlık eşiklerini (hata oranı / p95 gecikme) aşınca durur ve son
+// sağlıklı kademeyi "maksimum sürdürülebilir kapasite" olarak raporlar.
+// Motor: ./stress-core.js. Artakalan belgeler için `_stressTest.expiresAt`
+// alanına 1 saatlik TTL politikası önerilir (konsoldan tanımlanır).
+const stressCore = require('./stress-core');
 
-function clampStressCount(n) {
-  const v = parseInt(n, 10);
-  if (!v || v < 1) return 0;
-  return Math.min(STRESS_MAX, v);
-}
-
-// Basit yardımcı: verilen ref listesini 450'lik Firestore batch limitiyle
-// yazar/siler ve toplam süreyi ölçer.
-async function timedBatchWrite(refs, buildData) {
-  const t0 = Date.now();
-  for (let i = 0; i < refs.length; i += 450) {
-    const chunk = refs.slice(i, i + 450);
-    const batch = db.batch();
-    chunk.forEach((ref, idx) => batch.set(ref, buildData(i + idx)));
-    await batch.commit();
-  }
-  return Date.now() - t0;
-}
-async function timedBatchDelete(refs) {
-  const t0 = Date.now();
-  for (let i = 0; i < refs.length; i += 450) {
-    const chunk = refs.slice(i, i + 450);
-    const batch = db.batch();
-    chunk.forEach((ref) => batch.delete(ref));
-    await batch.commit();
-  }
-  return Date.now() - t0;
-}
-
-// Superadmin-tetiklemeli, izole yük testi. Yalnızca `_stressTest` koleksiyonuna
-// yazar/okur/siler — hiçbir kiracının verisine veya kotasına dokunmaz. Kendi
-// yazdığı belgeleri fonksiyon sonunda kendi siler (best-effort); ek güvenlik
-// için Firebase konsolunda `_stressTest.expiresAt` alanına 1 saatlik bir TTL
-// politikası tanımlanması önerilir (kod ile ayarlanamaz).
-exports.stressTestRun = onCall({ region: REGION, timeoutSeconds: 120 }, async (request) => {
+exports.stressTestRun = onCall({ region: REGION, timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
   await requireSuperAdmin(request);
   const d = request.data || {};
-  const writes = clampStressCount(d.writes);
-  const reads = clampStressCount(d.reads);
-  const deletes = clampStressCount(d.deletes != null ? d.deletes : writes);
-  if (!writes && !reads && !deletes) {
-    throw new HttpsError('invalid-argument', 'En az bir faz için sayı girin (1-' + STRESS_MAX + ').');
+  const maxHotels = Math.min(80, Math.max(1, parseInt(d.maxHotels, 10) || 40));
+  const stageSeconds = Math.min(20, Math.max(5, parseInt(d.stageSeconds, 10) || 10));
+
+  const runId = 'cap' + Date.now();
+  const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000);
+  // Fonksiyon zaman aşımından önce temizliğe pay bırak: kademe + 45 sn tampon.
+  const globalDeadline = Date.now() + 480000;
+
+  const stages = [];
+  const created = [];
+  let stoppedBy = 'ladder-complete';
+  for (const hotels of stressCore.ladder(maxHotels)) {
+    if (Date.now() + stageSeconds * 1000 + 45000 > globalDeadline) { stoppedBy = 'time-budget'; break; }
+    const st = await stressCore.runStage(db, {
+      runId: runId + '_s' + hotels, hotels, seconds: stageSeconds, expiresAt
+    });
+    for (const id of st.created) created.push(id);
+    delete st.created;
+    st.healthy = stressCore.isHealthy(st);
+    stages.push(st);
+    if (!st.healthy) { stoppedBy = 'threshold'; break; }
   }
 
-  const runId = 'run' + Date.now();
-  const col = db.collection('_stressTest');
-  const result = { runId, writes: null, reads: null, deletes: null, errors: [] };
-  let writtenRefs = [];
+  const healthy = stages.filter((s) => s.healthy);
+  const last = healthy.length ? healthy[healthy.length - 1] : null;
+  const cleaned = await stressCore.cleanup(db, created, Math.min(globalDeadline, Date.now() + 60000));
 
-  if (writes) {
-    try {
-      writtenRefs = Array.from({ length: writes }, (_, i) => col.doc(runId + '_' + i));
-      const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000);
-      const ms = await timedBatchWrite(writtenRefs, (i) => ({
-        runId, seq: i, payload: STRESS_PAYLOAD, createdAt: admin.firestore.FieldValue.serverTimestamp(), expiresAt
-      }));
-      result.writes = { count: writes, ms, opsPerSec: Math.round(writes / (ms / 1000)) };
-    } catch (e) { result.errors.push('writes: ' + (e.message || e)); }
-  }
-
-  if (reads) {
-    try {
-      const refs = (writtenRefs.length ? writtenRefs : Array.from({ length: reads }, (_, i) => col.doc(runId + '_r' + i)));
-      const t0 = Date.now();
-      // getAll destekler; yoksa tek tek get() ile düş.
-      if (typeof db.getAll === 'function' && refs.length) {
-        await db.getAll(...refs.slice(0, reads));
-      } else {
-        await Promise.all(refs.slice(0, reads).map((r) => r.get()));
-      }
-      const ms = Date.now() - t0;
-      result.reads = { count: Math.min(reads, refs.length), ms, opsPerSec: Math.round(Math.min(reads, refs.length) / (ms / 1000)) };
-    } catch (e) { result.errors.push('reads: ' + (e.message || e)); }
-  }
-
-  if (deletes) {
-    try {
-      const refs = writtenRefs.length ? writtenRefs.slice(0, deletes) : [];
-      if (refs.length) {
-        const ms = await timedBatchDelete(refs);
-        result.deletes = { count: refs.length, ms, opsPerSec: Math.round(refs.length / (ms / 1000)) };
-      } else {
-        result.errors.push('deletes: silinecek belge yok (önce yazma fazı çalıştırın).');
-      }
-    } catch (e) { result.errors.push('deletes: ' + (e.message || e)); }
-  }
-
-  // Güvenlik ağı: silme fazı çalışmadıysa veya kısmi kaldıysa artakalan
-  // belgeleri en iyi çaba ile temizle (TTL politikası zaten yedek olarak var).
-  if (writtenRefs.length && (!result.deletes || result.deletes.count < writtenRefs.length)) {
-    const cleaned = result.deletes ? writtenRefs.slice(result.deletes.count) : writtenRefs;
-    try { await timedBatchDelete(cleaned); } catch (e) { result.errors.push('cleanup: ' + (e.message || e)); }
-  }
-
-  return result;
+  return {
+    runId, stageSeconds,
+    workersPerHotel: stressCore.WORKERS_PER_HOTEL,
+    thresholds: stressCore.HEALTH,
+    stages, stoppedBy,
+    verdict: last ? { hotels: last.hotels, opsPerSec: last.opsPerSec, p50: last.p50, p95: last.p95 } : null,
+    cleanup: cleaned
+  };
 });

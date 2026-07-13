@@ -1875,41 +1875,55 @@
         }
         if ($('stHealthMeta')) $('stHealthMeta').textContent = 'Son ölçüm: ' + new Date().toLocaleTimeString('tr-TR');
     }
-    function stResultRow(label, phase, maxOps) {
-        if (!phase) return '';
-        const pct = maxOps ? Math.max(4, Math.round(phase.opsPerSec / maxOps * 100)) : 0;
-        return '<div class="st-result-row">'
-            + '<b>' + esc(label) + '</b>'
+    function stStageRow(s, maxOps) {
+        const pct = maxOps ? Math.max(4, Math.round(s.opsPerSec / maxOps * 100)) : 0;
+        const errPct = (s.errorRate * 100).toFixed(1);
+        return '<div class="st-cap-row' + (s.healthy ? '' : ' err') + '">'
+            + '<b>' + s.hotels + ' otel</b>'
             + '<div class="st-result-bar"><i style="width:' + pct + '%"></i></div>'
-            + '<span class="st-result-num">' + phase.count + ' · ' + phase.ms + ' ms · ' + phase.opsPerSec + '/sn</span>'
+            + '<span class="st-result-num">' + s.opsPerSec + ' işlem/sn · p95 ' + s.p95 + ' ms · %' + errPct + ' hata '
+            + (s.healthy ? '✓' : '✗') + '</span>'
             + '</div>';
     }
     async function runStressTest() {
-        const writes = parseInt($('stWrites').value, 10) || 0;
-        const reads = parseInt($('stReads').value, 10) || 0;
-        const delRaw = $('stDeletes').value.trim();
-        const deletes = delRaw ? (parseInt(delRaw, 10) || 0) : undefined;
-        if (!writes && !reads && !deletes) { $('stErr').textContent = 'En az bir faz için sayı girin.'; return; }
-        if (!confirm('İzole test koleksiyonuna (_stressTest) ' + writes + ' yazma, ' + reads + ' okuma, '
-            + (deletes == null ? writes : deletes) + ' silme yapılacak. Devam edilsin mi?')) return;
+        const maxHotels = Math.min(80, Math.max(2, parseInt($('stHotels').value, 10) || 40));
+        const stageSeconds = Math.min(20, Math.max(5, parseInt($('stStageSec').value, 10) || 10));
+        if (!confirm('Kapasite testi başlatılacak: sanal otel sayısı kademeli artırılarak (2→5→10→…→' + maxHotels
+            + ') sistemin eş zamanlı işlem sınırı ölçülecek.\n\n· Yalnızca izole _stressTest koleksiyonu kullanılır — kiracı verisine dokunulmaz\n· Test birkaç dakika sürebilir ve küçük bir Firebase kullanım maliyeti oluşturur\n\nDevam edilsin mi?')) return;
 
         const btn = $('stRunBtn'); const err = $('stErr'); const out = $('stResults');
-        btn.disabled = true; btn.textContent = 'Çalışıyor…'; err.textContent = ''; out.hidden = true;
+        btn.disabled = true; btn.textContent = 'Çalışıyor… (kademeler ilerliyor, birkaç dakika sürebilir)';
+        err.textContent = ''; out.hidden = true;
         try {
-            const call = firebase.app().functions('us-central1').httpsCallable('stressTestRun');
-            const res = await call({ writes, reads, deletes });
+            // Rampa uzun sürer — istemci tarafı callable zaman aşımını fonksiyonla eşle (540 sn).
+            const call = firebase.app().functions('us-central1').httpsCallable('stressTestRun', { timeout: 540000 });
+            const res = await call({ maxHotels, stageSeconds });
             const d = res.data || {};
-            const maxOps = Math.max(
-                (d.writes && d.writes.opsPerSec) || 0,
-                (d.reads && d.reads.opsPerSec) || 0,
-                (d.deletes && d.deletes.opsPerSec) || 0, 1);
-            let html = stResultRow('Yazma', d.writes, maxOps) + stResultRow('Okuma', d.reads, maxOps) + stResultRow('Silme', d.deletes, maxOps);
-            if (d.errors && d.errors.length) html += '<div class="st-result-errs">' + d.errors.map(esc).join('<br>') + '</div>';
+            const stages = d.stages || [];
+            const maxOps = Math.max(1, ...stages.map(s => s.opsPerSec || 0));
+            let html = '';
+            if (d.verdict) {
+                const v = d.verdict;
+                const note = d.stoppedBy === 'threshold'
+                    ? 'Bir üst kademe sağlık eşiklerini aştı (hata > %2 veya p95 > 2 sn).'
+                    : (d.stoppedBy === 'time-budget'
+                        ? 'Zaman bütçesi doldu — sınıra ulaşılmadan test sonlandı; daha kısa kademe süresiyle tekrar deneyin.'
+                        : 'Merdivenin sonuna kadar tüm kademeler sağlıklı — gerçek sınır bu değerin üzerinde.');
+                html += '<div class="st-verdict">🏁 Maksimum sürdürülebilir kapasite: ' + v.hotels
+                    + ' otel eş zamanlı — ~' + v.opsPerSec + ' işlem/sn (p50 ' + v.p50 + ' ms · p95 ' + v.p95 + ' ms)'
+                    + '<small>' + esc(note) + ' Her otelde ' + (d.workersPerHotel || 3) + ' eş zamanlı personel cihazı simüle edildi.</small></div>';
+            } else {
+                html += '<div class="st-verdict bad">⚠ İlk kademe bile sağlık eşiklerini aştı — sistemde ciddi bir darboğaz var. Aşağıdaki metriklere bakın.</div>';
+            }
+            html += stages.map(s => stStageRow(s, maxOps)).join('');
+            if (d.cleanup && d.cleanup.leftover) {
+                html += '<div class="st-result-errs">Temizlik: ' + d.cleanup.leftover + ' test dokümanı süre yetmediği için TTL\'e bırakıldı (1 saat içinde silinir).</div>';
+            }
             out.innerHTML = html; out.hidden = false;
-            toast('Yük testi tamamlandı (' + d.runId + ')');
+            toast('Kapasite testi tamamlandı (' + d.runId + ')');
         } catch (e) {
             err.textContent = 'Test başarısız: ' + esc(e.message || 'hata');
-        } finally { btn.disabled = false; btn.textContent = 'Testi Çalıştır'; }
+        } finally { btn.disabled = false; btn.textContent = 'Kapasite Testini Başlat'; }
     }
     // ── Kimlik migrasyonu backfill'i (tek tık — konsol gerekmez) ──
     async function runIdentityBackfill() {
