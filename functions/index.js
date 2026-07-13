@@ -425,6 +425,7 @@ exports.onGuestOrderCreate = onDocumentCreated(
     // odadaki konaklayan misafire çözülüp siparişe damgalanır. Oda o an bir
     // in_house misafire çözülemiyorsa damgalanmaz; backfill/inceleme kuyruğu
     // sonradan ele alır (asla tahmin edilmez).
+    let stamped = { guestId: o.guestId || '', stayId: o.stayId || '', guestName: o.guestName || '' };
     if (room && !o.guestId) {
       try {
         const occSnap = await db.collection('guestDirectory')
@@ -438,9 +439,34 @@ exports.onGuestOrderCreate = onDocumentCreated(
           const activeStayId = (occ.data() || {}).activeStayId;
           if (activeStayId) upd.stayId = activeStayId;
           await snap.ref.update(upd);
+          stamped = { guestId: occ.id, stayId: activeStayId || '', guestName: stamped.guestName || (occ.data() || {}).name || '' };
         }
       } catch (e) { console.error('guest order identity stamp failed', e); }
     }
+
+    // QR → Misafir Kayıtları köprüsü: SİPARİŞ GELDİĞİ ANDA kalem başına
+    // guestLogs 'talep' kaydı açılır (istemci köprüsüyle aynı şema; logId
+    // kalemlere geri yazılır — çekmecenin mevcut güncelleme yolu bozulmaz).
+    // Böylece üstlenme/çözüm süreleri misafirin talep ETTİĞİ andan ölçülür;
+    // SLA/eskalasyon/performans QR talepleri için de çalışır. Deterministik
+    // kimlik (qr_{orderId}_{itemId}) → yeniden tetiklenme mükerrer üretmez.
+    try {
+      const bridge = orderBridge.buildOrderLogDocs(
+        Object.assign({}, o, { guestName: stamped.guestName }),
+        event.params.id,
+        { guestId: stamped.guestId, stayId: stamped.stayId, guestName: stamped.guestName }
+      );
+      if (bridge.docs.length) {
+        const lb = db.batch();
+        bridge.docs.forEach((d) => lb.set(
+          db.collection('guestLogs').doc(d.id),
+          Object.assign({}, d.data, { createdAt: admin.firestore.FieldValue.serverTimestamp() }),
+          { merge: true }
+        ));
+        lb.update(snap.ref, { items: bridge.items });
+        await lb.commit();
+      }
+    } catch (e) { console.error('order→log bridge failed', e); }
 
     // Otelin bildirim ayarları (admin "Bildirimler" sekmesi). Yoksa makul
     // varsayılanlar: bildirim açık, içerik gösterilir, tüm personele gider.
@@ -2077,6 +2103,7 @@ exports.resolveMigrationReview = onCall({ region: REGION }, async (request) => {
 //  Plan + rol matrisi + hata kataloğu: docs/restoran-uretim-plani.md
 // ═══════════════════════════════════════════════════════════════════
 const restCore = require('./rest-core');
+const orderBridge = require('./order-bridge');
 
 // RestError.errCode → HttpsError durum kodu
 const REST_HTTPS_CODE = {

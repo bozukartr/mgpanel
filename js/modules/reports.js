@@ -122,6 +122,12 @@
             dateOf: r => r.date || '',
             facets: [
                 facet({ key: 'type', label: 'Kayıt Türü', kind: 'chips', fixed: ['Şikayet', 'Talep'], valueOf: glType }),
+                // QR köprüsüyle gelen kayıtlar (source: guest-order) ile personel
+                // girişleri ayrıştırılabilsin — kanal bazlı performans raporu.
+                facet({
+                    key: 'source', label: 'Kaynak', kind: 'chips', fixed: ['QR Misafir', 'Personel'],
+                    valueOf: r => (r.source === 'guest-order' || r.source === 'qr') ? 'QR Misafir' : 'Personel'
+                }),
                 facet({
                     key: 'dept', label: 'Departman', kind: 'chips', valueOf: r => r.department || '—',
                     extra: () => (window.IssueConfig ? IssueConfig.departments().map(d => d.name) : [])
