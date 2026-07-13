@@ -406,6 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 complaint: complaint || '',
                 solution: solution || '',
                 staffInitial: loggedUsername,
+                type: 'complaint', // mobil form şikayet formudur — tip damgası eksikti
                 tenantId: TENANT_ID,
                 status: 'Following',
                 updates: [],
@@ -413,7 +414,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             // Kimlik: guestName/room gösterim snapshot'ı; ilişki guestId/stayId ile.
             if (guest) { payload.guestId = guest.id; if (guest.stayId) payload.stayId = guest.stayId; }
-            await db.collection('guestLogs').add(payload);
+            const mobRef = await db.collection('guestLogs').add(payload);
+            // Mobil yol da departmana bildirir (masaüstüyle aynı davranış).
+            notifyRequestTeam(payload, mobRef.id, null);
             // Reset & close
             ['mob-date', 'mob-room', 'mob-guestName', 'mob-complaint', 'mob-solution'].forEach(id => {
                 const el = document.getElementById(id);
@@ -741,10 +744,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 IssueConfig.addTopic(formData.topic);
             }
 
-            // Talebi ilgili departmandaki tüm kullanıcılara (+ varsa atanan kişiye) bildir.
-            if (isRequest) {
-                notifyRequestTeam(formData, ref.id, selectedAssignee);
-            }
+            // Kaydı ilgili departmandaki tüm kullanıcılara (+ varsa atanan
+            // kişiye) bildir — önceden YALNIZCA talepler bildiriliyordu;
+            // şikayetler sessiz kalıyordu (klima arızasını teknik servisin
+            // haber alamaması). Artık her iki tür de departmana gider.
+            notifyRequestTeam(formData, ref.id, isRequest ? selectedAssignee : null);
 
             const assignedName = formData.assignedToName || '';
             issueForm.reset();
@@ -1601,10 +1605,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { /* yine de atanan kişiye gider */ }
         if (assignee && assignee.uid) recips[assignee.uid] = assignee.username || recips[assignee.uid] || assignee.uid;
         if (me) delete recips[me];
-        const title = 'Yeni talep: ' + (record.department || '');
+        const isCmp = record.type === 'complaint';
+        const title = (isCmp ? '⚠️ Yeni şikayet: ' : 'Yeni talep: ') + (record.department || '');
         const body = `Oda ${record.room || '—'} · ${record.guestName || ''} — ${(record.complaint || '').slice(0, 80)}`;
         Object.keys(recips).forEach(uid => {
-            if (window.RT) RT.sendNotification({ toUid: uid, toUsername: recips[uid], type: 'request', title: title, body: body, recordId: recordId }).catch(() => {});
+            if (window.RT) RT.sendNotification({ toUid: uid, toUsername: recips[uid], type: isCmp ? 'complaint' : 'request', title: title, body: body, recordId: recordId }).catch(() => {});
         });
     }
     async function escalateRecord(record, reason) {
@@ -2246,7 +2251,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="wf-step-text"><b>${s.label}</b>${s.meta ? `<span>${s.meta}</span>` : ''}</div>
             </div>`).join('');
 
-        document.getElementById('wfTakeBtn').style.display = (status === 'Following') ? 'inline-flex' : 'none';
+        const takeBtn = document.getElementById('wfTakeBtn');
+        takeBtn.style.display = (status === 'Following') ? 'inline-flex' : 'none';
+        // Katı departman kuralı görünürlüğü: başka departmanın personeli
+        // butonu devre dışı + neden açıklamalı görür (gizlemek kafa karıştırır).
+        const mayTake = canTakeRecord(record);
+        takeBtn.disabled = !mayTake;
+        takeBtn.style.opacity = mayTake ? '' : '0.45';
+        takeBtn.title = mayTake ? '' : ('Bu kaydı yalnızca "' + (record.department || '—') + '" personeli veya yönetici üstlenebilir.');
         document.getElementById('wfCompleteBtn').style.display = (status !== 'Solved') ? 'inline-flex' : 'none';
         document.getElementById('wfReopenBtn').style.display = (status === 'Solved') ? 'inline-flex' : 'none';
         const escBtn2 = document.getElementById('wfEscalateBtn');
@@ -2292,8 +2304,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // sessiz bir yarış koşuluydu (bkz. tutarlılık denetimi). transitionInFlight
     // yalnızca AYNI sekmeyi korur; bu transaction farklı sekme/cihazları da
     // kapsar.
+    // KATI departman kuralı: kaydı yalnızca kaydın departmanındaki personel
+    // üstlenebilir; manager/admin her kaydı üstlenebilir. Böylece "klima
+    // şikayetini teknik servisten biri üstlenir" akışı disipline bağlanır.
+    function deptOf(s) { return String(s || '').trim().toLocaleLowerCase('tr-TR'); }
+    function canTakeRecord(record) {
+        const role = (localStorage.getItem('hotelRole') || '').toLowerCase();
+        if (role === 'admin' || role === 'manager' || loggedUsername.toLowerCase() === 'admin') return true;
+        const myDept = deptOf(localStorage.getItem('hotelDept'));
+        const recDept = deptOf(record && record.department);
+        if (!recDept) return true; // departmansız eski kayıtlar serbest
+        return !!myDept && myDept === recDept;
+    }
     async function transitionRecordImpl(action) {
         const r = selectedRecord;
+        if (action === 'take' && !canTakeRecord(r)) {
+            showToast('Bu kayıt "' + (r.department || '—') + '" departmanına ait — yalnızca o departman personeli veya yönetici üstlenebilir.', true);
+            return;
+        }
         const TS = firebase.firestore.FieldValue.serverTimestamp();
         const nowDate = new Date();
         const ref = db.collection('guestLogs').doc(editingId);
@@ -2315,6 +2343,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     payload.status = 'InProgress';
                     payload.acknowledgedAt = TS;
                     payload.acknowledgedBy = loggedUsername;
+                    // Üstlenenin departmanı raporlama için kayda işlenir
+                    // (kaydın departmanıyla eşleşmesi canTakeRecord ile garanti;
+                    // manager/admin üstlenmişse kendi departmanı görünür).
+                    payload.acknowledgedDept = (localStorage.getItem('hotelDept') || '').trim();
                     note = workflowNote('🔧 İşi üstlendi — süre başladı');
                     toastMsg = 'İş üstlenildi, süre başladı';
                 } else if (action === 'complete') {
@@ -2366,7 +2398,31 @@ document.addEventListener('DOMContentLoaded', () => {
             renderWorkflow(r);
             renderTimeline(r);
             showToast(result.toastMsg);
+            // QR köprüsü senkronu: bu kayıt bir QR siparişinin kalemiyse,
+            // Kayıtlar'dan tamamlanınca siparişteki kalem de tamamlanır;
+            // tüm kalemler bitince sipariş kapanır — misafir kendi ekranında
+            // talebinin bittiğini görür (çift yönetim tutarsızlığı kalmaz).
+            if (action === 'complete' && r.source === 'guest-order' && r.orderId && r.itemId) syncOrderItemCompleted(r.orderId, r.itemId);
         } catch (e) { showToast('Güncelleme başarısız: ' + e.message, true); }
+    }
+    async function syncOrderItemCompleted(orderId, itemId) {
+        try {
+            const oRef = db.collection('guestOrders').doc(orderId);
+            await db.runTransaction(async (tx) => {
+                const snap = await tx.get(oRef);
+                if (!snap.exists) return;
+                const o = snap.data();
+                if (o.status === 'cancelled') return;
+                const items = (o.items || []).map(it =>
+                    (it && it.id === itemId && it.status !== 'cancelled') ? Object.assign({}, it, { status: 'completed' }) : it);
+                const allDone = items.length && items.every(it => it.status === 'completed' || it.status === 'cancelled');
+                tx.update(oRef, {
+                    items,
+                    status: allDone ? 'completed' : (o.status === 'pending' ? 'in_progress' : o.status),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+        } catch (e) { console.error('order sync', e); /* sipariş silinmiş olabilir — kritik değil */ }
     }
 
     // Timeline Logic

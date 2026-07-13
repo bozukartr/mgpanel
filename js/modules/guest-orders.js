@@ -442,9 +442,23 @@
         const batch = db.batch();
         const orderRef = db.collection('guestOrders').doc(order.id);
 
+        const oldById = {};
+        (order.items || []).forEach(it => { if (it && it.id) oldById[it.id] = it.status; });
         items.forEach(it => {
+            // İptal edilen kalemin kaydı AÇIK bırakılmaz — aksi halde SLA
+            // eskalasyonu süresiz tetiklenirdi. Çözüldü olarak kapatılır,
+            // çözüm notu iptali belirtir.
+            if (it.status === 'cancelled' && it.logId && oldById[it.id] !== 'cancelled') {
+                batch.update(db.collection('guestLogs').doc(it.logId), {
+                    status: 'Solved',
+                    solution: 'Talep iptal edildi.',
+                    completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    completedBy: USERNAME
+                });
+                return;
+            }
             const logStatus = LOG_STATUS[it.status];
-            if (!logStatus) return; // pending / cancelled: nothing to log yet
+            if (!logStatus) return; // pending: kayıt Following olarak bekler (sunucu köprüsü açtı)
             if (!it.logId) {
                 // First time this item enters the workflow → create its room log.
                 const logRef = db.collection('guestLogs').doc();
@@ -474,9 +488,22 @@
             } else {
                 // Keep the existing room log's status in sync.
                 const upd = { status: logStatus };
+                // ÜSTLENME zamanı: kalem ilk kez işleme alındığında (in_progress)
+                // kayda acknowledgedAt/By yazılır — "misafir talebi ne kadar
+                // sürede üstlenildi" raporu QR talepleri için de çalışır.
+                if (it.status === 'in_progress' && oldById[it.id] !== 'in_progress') {
+                    upd.acknowledgedAt = firebase.firestore.FieldValue.serverTimestamp();
+                    upd.acknowledgedBy = USERNAME;
+                    upd.acknowledgedDept = (localStorage.getItem('hotelDept') || '').trim();
+                }
                 if (it.status === 'completed') {
                     upd.completedAt = firebase.firestore.FieldValue.serverTimestamp();
                     upd.completedBy = USERNAME;
+                    // Çekmeceden hiç işleme alınmadan tamamlandıysa üstlenme de şimdi.
+                    if (!oldById[it.id] || oldById[it.id] === 'pending' || oldById[it.id] === 'confirmed') {
+                        upd.acknowledgedAt = upd.acknowledgedAt || firebase.firestore.FieldValue.serverTimestamp();
+                        upd.acknowledgedBy = upd.acknowledgedBy || USERNAME;
+                    }
                 }
                 batch.update(db.collection('guestLogs').doc(it.logId), upd);
             }
