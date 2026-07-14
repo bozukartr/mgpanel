@@ -2113,6 +2113,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `<span class="owner-badge">🔧 ${esc(record.acknowledgedBy)} üstlendi</span>` : '';
 
             const row = document.createElement('tr');
+            row.classList.add('st-' + statusClass); // mobil kartta sol durum şeridi
             if (lateBadgeStatus) row.classList.add('urgent-row');
 
             row.innerHTML = `
