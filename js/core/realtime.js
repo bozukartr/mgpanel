@@ -100,7 +100,14 @@
                Pin it to the viewport instead so it always stays on-screen. JS
                sets a precise top from the bell's position. */
             .rt-panel { position: fixed; left: 12px; right: 12px; top: 62px; width: auto; max-width: none; }
-        }`;
+        }
+        .rt-push { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #eef2f7;
+            font-size: 11.5px; color: #64748b; line-height: 1.45; background: #fafbfc; border-radius: 0 0 14px 14px; }
+        .rt-push-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .rt-push-tx { flex: 1; min-width: 0; }
+        .rt-push-btn { flex-shrink: 0; border: 1px solid #c7d2fe; background: #eef2ff; color: #4338ca;
+            font: inherit; font-size: 11.5px; font-weight: 700; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+        .rt-push-btn:disabled { opacity: .6; }`;
         const el = document.createElement('style');
         el.id = 'rt-styles';
         el.textContent = css;
@@ -108,7 +115,44 @@
     }
 
     // ── bell + dropdown ────────────────────────────────────────
-    let panelEl = null, badgeEl = null, listEl = null;
+    let panelEl = null, badgeEl = null, listEl = null, pushEl = null;
+
+    // Zil paneli altında CİHAZ bildirimi (OS push) durumu: uygulama kapalıyken
+    // bildirim alınıp alınamayacağını görünür kılar ve tek dokunuşla onarır.
+    // "Uygulama içinde geliyor ama kapalıyken gelmiyor" şikâyetinin teşhis yeri.
+    function renderPushRow() {
+        if (!pushEl) return;
+        if (!window.Push) { pushEl.hidden = true; return; }
+        pushEl.hidden = false;
+        const s = window.Push.state();
+        let dot = '#94a3b8', text = '', btn = '';
+        if (!s.supported) {
+            text = 'Cihaz bildirimi yok: ' + esc(s.reason || 'desteklenmiyor');
+        } else if (s.permission === 'denied') {
+            dot = '#dc2626';
+            text = 'Cihaz bildirimleri ENGELLİ — tarayıcı/uygulama ayarlarından bildirim iznini açın.';
+        } else if (s.permission === 'granted' && s.registered) {
+            dot = '#16a34a';
+            text = 'Cihaz bildirimleri açık — uygulama kapalıyken de bildirim alırsınız.';
+            btn = '<button class="rt-push-btn" id="rt-push-fix">Yenile</button>';
+        } else if (s.permission === 'granted' && !s.registered) {
+            dot = '#d97706';
+            text = 'Bildirim izni var ama bu cihaz BU HESAP adına kayıtlı değil' + (s.error ? ' (' + esc(s.error) + ')' : '') + '.';
+            btn = '<button class="rt-push-btn" id="rt-push-fix">Onar</button>';
+        } else {
+            dot = '#d97706';
+            text = 'Cihaz bildirimleri kapalı — uygulama kapalıyken bildirim ALMAZSINIZ.';
+            btn = '<button class="rt-push-btn" id="rt-push-fix">Bildirimleri Aç</button>';
+        }
+        pushEl.innerHTML = '<span class="rt-push-dot" style="background:' + dot + '"></span><span class="rt-push-tx">' + text + '</span>' + btn;
+        const fix = pushEl.querySelector('#rt-push-fix');
+        if (fix) fix.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            fix.disabled = true; fix.textContent = '…';
+            try { await window.Push.repair(); } catch (err) {}
+            renderPushRow();
+        });
+    }
     function buildBell() {
         const mount = document.getElementById('rt-bell');
         if (!mount || mount.dataset.built) return;
@@ -121,16 +165,19 @@
             <div class="rt-panel" id="rt-panel">
                 <div class="rt-panel-head"><b>Bildirimler</b><button class="rt-readall" id="rt-readall">Tümünü temizle</button></div>
                 <div class="rt-list" id="rt-list"></div>
+                <div class="rt-push" id="rt-push" hidden></div>
             </div>`;
         badgeEl = mount.querySelector('#rt-badge');
         panelEl = mount.querySelector('#rt-panel');
         listEl = mount.querySelector('#rt-list');
+        pushEl = mount.querySelector('#rt-push');
         mount.querySelector('#rt-bell-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             panelEl.classList.toggle('show');
             if (panelEl.classList.contains('show')) {
                 positionPanel(mount);
                 renderList();
+                renderPushRow();
             }
         });
         mount.querySelector('#rt-readall').addEventListener('click', (e) => { e.stopPropagation(); RT.markAllRead(); });
