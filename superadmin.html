@@ -541,8 +541,24 @@
                             <div><label>Kademe süresi — saniye (5–20)</label><input id="stStageSec" type="number" min="5" max="20" value="10"></div>
                         </div>
                         <div class="fin-form-row">
+                            <div><label>Yük profili</label>
+                                <select id="stProfile" class="m-select">
+                                    <option value="balanced">Dengeli — tüm modüller</option>
+                                    <option value="norest">Restoran hariç</option>
+                                    <option value="restonly">Yalnız restoran</option>
+                                    <option value="custom">Özel ağırlıklar…</option>
+                                </select>
+                            </div>
                             <div><label>&nbsp;</label><button class="btn-primary" id="stRunBtn" style="width:100%;">Kapasite Testini Başlat</button></div>
-                            <div></div>
+                        </div>
+                        <div class="st-weights" id="stWeights" hidden>
+                            <div><label>Talep/Şikayet %</label><input id="stWTalep" type="number" min="0" max="100" value="20"></div>
+                            <div><label>İş akışı %</label><input id="stWAkis" type="number" min="0" max="100" value="15"></div>
+                            <div><label>QR sipariş %</label><input id="stWQr" type="number" min="0" max="100" value="10"></div>
+                            <div><label>Restoran %</label><input id="stWRest" type="number" min="0" max="100" value="35"></div>
+                            <div><label>Concierge %</label><input id="stWConc" type="number" min="0" max="100" value="10"></div>
+                            <div><label>CRM %</label><input id="stWCrm" type="number" min="0" max="100" value="5"></div>
+                            <div><label>Raporlar %</label><input id="stWRapor" type="number" min="0" max="100" value="5"></div>
                         </div>
                         <div class="st-hint">Her otelde 3 eş zamanlı personel cihazı simüle edilir. Bir kademede hata oranı %2'yi veya p95 gecikme 2 sn'yi aşarsa rampa durur ve son sağlıklı kademe "maksimum sürdürülebilir kapasite" olarak raporlanır. Test birkaç dakika sürebilir; küçük bir Firebase kullanım maliyeti oluşturur.</div>
                     </div>

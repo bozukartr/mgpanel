@@ -1875,6 +1875,36 @@
         }
         if ($('stHealthMeta')) $('stHealthMeta').textContent = 'Son ölçüm: ' + new Date().toLocaleTimeString('tr-TR');
     }
+    // Yük profilleri: modül ağırlıkları (%). "Özel"de kullanıcı kendisi girer.
+    const ST_PROFILES = {
+        balanced: { talep: 20, akis: 15, qr: 10, restoran: 35, concierge: 10, crm: 5, rapor: 5 },
+        norest:   { talep: 30, akis: 25, qr: 15, restoran: 0,  concierge: 15, crm: 10, rapor: 5 },
+        restonly: { talep: 0,  akis: 0,  qr: 0,  restoran: 100, concierge: 0, crm: 0,  rapor: 0 }
+    };
+    const ST_W_IDS = { talep: 'stWTalep', akis: 'stWAkis', qr: 'stWQr', restoran: 'stWRest', concierge: 'stWConc', crm: 'stWCrm', rapor: 'stWRapor' };
+    const ST_W_LABELS = { talep: 'Talep/Şikayet', akis: 'İş akışı', qr: 'QR sipariş', restoran: 'Restoran', concierge: 'Concierge', crm: 'CRM', rapor: 'Raporlar' };
+    function stApplyProfile() {
+        const p = $('stProfile').value;
+        $('stWeights').hidden = p !== 'custom';
+        if (p !== 'custom') {
+            const w = ST_PROFILES[p] || ST_PROFILES.balanced;
+            Object.keys(ST_W_IDS).forEach(k => { if ($(ST_W_IDS[k])) $(ST_W_IDS[k]).value = w[k]; });
+        }
+    }
+    function stReadWeights() {
+        const w = {};
+        Object.keys(ST_W_IDS).forEach(k => {
+            const el = $(ST_W_IDS[k]);
+            w[k] = el ? Math.min(100, Math.max(0, parseInt(el.value, 10) || 0)) : 0;
+        });
+        return w;
+    }
+    function stWeightsLabel(w) {
+        return Object.keys(ST_W_LABELS)
+            .filter(k => (w[k] || 0) > 0)
+            .map(k => ST_W_LABELS[k] + ' %' + w[k])
+            .join(' · ');
+    }
     function stStageRow(s, maxOps) {
         const pct = maxOps ? Math.max(4, Math.round(s.opsPerSec / maxOps * 100)) : 0;
         const errPct = (s.errorRate * 100).toFixed(1);
@@ -1888,8 +1918,13 @@
     async function runStressTest() {
         const maxHotels = Math.min(80, Math.max(2, parseInt($('stHotels').value, 10) || 40));
         const stageSeconds = Math.min(20, Math.max(5, parseInt($('stStageSec').value, 10) || 10));
+        const weights = stReadWeights();
+        if (!Object.keys(weights).some(k => weights[k] > 0)) {
+            $('stErr').textContent = 'En az bir modüle sıfırdan büyük ağırlık verin.'; return;
+        }
         if (!confirm('Kapasite testi başlatılacak: sanal otel sayısı kademeli artırılarak (2→5→10→…→' + maxHotels
-            + ') sistemin eş zamanlı işlem sınırı ölçülecek.\n\n· Yalnızca izole _stressTest koleksiyonu kullanılır — kiracı verisine dokunulmaz\n· Test birkaç dakika sürebilir ve küçük bir Firebase kullanım maliyeti oluşturur\n\nDevam edilsin mi?')) return;
+            + ') sistemin eş zamanlı işlem sınırı ölçülecek.\n\nKarışım: ' + stWeightsLabel(weights)
+            + '\n\n· Yalnızca izole _stressTest koleksiyonu kullanılır — kiracı verisine dokunulmaz\n· Test birkaç dakika sürebilir ve küçük bir Firebase kullanım maliyeti oluşturur\n\nDevam edilsin mi?')) return;
 
         const btn = $('stRunBtn'); const err = $('stErr'); const out = $('stResults');
         btn.disabled = true; btn.textContent = 'Çalışıyor… (kademeler ilerliyor, birkaç dakika sürebilir)';
@@ -1897,7 +1932,7 @@
         try {
             // Rampa uzun sürer — istemci tarafı callable zaman aşımını fonksiyonla eşle (540 sn).
             const call = firebase.app().functions('us-central1').httpsCallable('stressTestRun', { timeout: 540000 });
-            const res = await call({ maxHotels, stageSeconds });
+            const res = await call({ maxHotels, stageSeconds, weights });
             const d = res.data || {};
             const stages = d.stages || [];
             const maxOps = Math.max(1, ...stages.map(s => s.opsPerSec || 0));
@@ -1916,6 +1951,7 @@
                 html += '<div class="st-verdict bad">⚠ İlk kademe bile sağlık eşiklerini aştı — sistemde ciddi bir darboğaz var. Aşağıdaki metriklere bakın.</div>';
             }
             html += stages.map(s => stStageRow(s, maxOps)).join('');
+            if (d.weights) html += '<div class="sub" style="margin-top:2px;">Karışım: ' + esc(stWeightsLabel(d.weights)) + '</div>';
             if (d.cleanup && d.cleanup.leftover) {
                 html += '<div class="st-result-errs">Temizlik: ' + d.cleanup.leftover + ' test dokümanı süre yetmediği için TTL\'e bırakıldı (1 saat içinde silinir).</div>';
             }
@@ -2042,6 +2078,7 @@
             if ($('stOutageRefresh')) $('stOutageRefresh').addEventListener('click', checkOutages);
             if ($('stHealthRefresh')) $('stHealthRefresh').addEventListener('click', checkHealth);
             if ($('stRunBtn')) $('stRunBtn').addEventListener('click', runStressTest);
+            if ($('stProfile')) { $('stProfile').addEventListener('change', stApplyProfile); stApplyProfile(); }
             if ($('miRunBtn')) $('miRunBtn').addEventListener('click', runIdentityBackfill);
             if ($('miQueueRefresh')) $('miQueueRefresh').addEventListener('click', loadMigrationQueue);
             if ($('miQueueList')) $('miQueueList').addEventListener('click', (e) => {

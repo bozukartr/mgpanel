@@ -2309,6 +2309,18 @@ exports.stressTestRun = onCall({ region: REGION, timeoutSeconds: 540, memory: '1
   const maxHotels = Math.min(80, Math.max(1, parseInt(d.maxHotels, 10) || 40));
   const stageSeconds = Math.min(20, Math.max(5, parseInt(d.stageSeconds, 10) || 10));
 
+  // Modül ağırlıkları: istemci profil/özel değer gönderebilir; eksik alanlar
+  // varsayılan ("Dengeli") profilden tamamlanır. Restoran 0 ise adisyon
+  // işlemleri tamamen devre dışı kalır (moduleWeightsToOps bunu garanti eder).
+  const weights = Object.assign({}, stressCore.MODULE_WEIGHTS);
+  if (d.weights && typeof d.weights === 'object') {
+    Object.keys(weights).forEach((k) => {
+      if (d.weights[k] != null) weights[k] = Math.min(100, Math.max(0, parseInt(d.weights[k], 10) || 0));
+    });
+  }
+  const mix = stressCore.buildMix(stressCore.moduleWeightsToOps(weights), 40);
+  if (!mix.length) throw new HttpsError('invalid-argument', 'En az bir modüle sıfırdan büyük ağırlık verin.');
+
   const runId = 'cap' + Date.now();
   const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + 60 * 60 * 1000);
   // Fonksiyon zaman aşımından önce temizliğe pay bırak: kademe + 45 sn tampon.
@@ -2320,7 +2332,7 @@ exports.stressTestRun = onCall({ region: REGION, timeoutSeconds: 540, memory: '1
   for (const hotels of stressCore.ladder(maxHotels)) {
     if (Date.now() + stageSeconds * 1000 + 45000 > globalDeadline) { stoppedBy = 'time-budget'; break; }
     const st = await stressCore.runStage(db, {
-      runId: runId + '_s' + hotels, hotels, seconds: stageSeconds, expiresAt
+      runId: runId + '_s' + hotels, hotels, seconds: stageSeconds, expiresAt, mix
     });
     for (const id of st.created) created.push(id);
     delete st.created;
@@ -2334,7 +2346,7 @@ exports.stressTestRun = onCall({ region: REGION, timeoutSeconds: 540, memory: '1
   const cleaned = await stressCore.cleanup(db, created, Math.min(globalDeadline, Date.now() + 60000));
 
   return {
-    runId, stageSeconds,
+    runId, stageSeconds, weights,
     workersPerHotel: stressCore.WORKERS_PER_HOTEL,
     thresholds: stressCore.HEALTH,
     stages, stoppedBy,

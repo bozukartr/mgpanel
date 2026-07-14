@@ -9,18 +9,41 @@ const core = require('../functions/stress-core');
 
 const PROJECT = 'stress-core-test';
 
-test('karışım tüm modülleri kapsar; merdiven deterministik', () => {
+test('varsayılan karışım tüm modülleri kapsar; merdiven deterministik', () => {
   const counts = {};
   core.MIX.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
-  // %20 kayıt · %15 iş akışı · %10 QR · %15 kalem · %10 açma · %10 kapama
-  // %10 rezervasyon+folio · %5 CRM · %5 rapor
+  // Dengeli profil, 40 slot: %20 kayıt · %15 iş akışı · %10 QR · restoran %35
+  // (kalem/açma/kapama 3:2:2) · %10 rezervasyon · %5 CRM · %5 rapor
   assert.deepStrictEqual(counts, {
-    log: 4, wf: 3, qr: 2, item: 3, open: 2, settle: 2, resv: 2, crm: 1, report: 1
+    log: 8, wf: 6, qr: 4, item: 6, open: 4, settle: 4, resv: 4, crm: 2, report: 2
   });
   assert.deepStrictEqual(core.ladder(40), [2, 5, 10, 20, 40]);
   assert.deepStrictEqual(core.ladder(80), [2, 5, 10, 20, 40, 80]);
   assert.deepStrictEqual(core.ladder(3), [2, 3]);   // maks her zaman son kademe
   assert.deepStrictEqual(core.ladder(1), [1]);
+});
+
+test('özel ağırlıklar: buildMix dağılımı ve restoran hariç tutma', () => {
+  // Restoran 0 → adisyon işlemlerinin (item/open/settle) hiçbiri karışıma girmez
+  const noRest = core.buildMix(core.moduleWeightsToOps(
+    { talep: 30, akis: 25, qr: 15, restoran: 0, concierge: 15, crm: 10, rapor: 5 }), 40);
+  assert.strictEqual(noRest.length, 40);
+  assert.ok(!noRest.some((k) => ['item', 'open', 'settle'].includes(k)), 'restoran işlemi olmamalı');
+  assert.ok(noRest.includes('log') && noRest.includes('wf') && noRest.includes('qr')
+    && noRest.includes('resv') && noRest.includes('crm') && noRest.includes('report'));
+
+  // Yalnız restoran → 3:2:2 iç bölünme, başka tür yok
+  const onlyRest = core.buildMix(core.moduleWeightsToOps({ restoran: 100 }), 40);
+  const c = {}; onlyRest.forEach((k) => { c[k] = (c[k] || 0) + 1; });
+  assert.deepStrictEqual(Object.keys(c).sort(), ['item', 'open', 'settle']);
+  // 40 slot 3:2:2'ye tam bölünmez (17.1/11.4/11.4) — ±1 kuantizasyon payı
+  assert.ok(c.item > c.open && Math.abs(c.open - c.settle) <= 1, '3:2:2 oranı (±1) korunmalı');
+  assert.strictEqual(c.item + c.open + c.settle, 40);
+
+  // Aynı ağırlık → aynı dizi (deterministik); tüm ağırlıklar 0 → boş karışım
+  assert.deepStrictEqual(noRest, core.buildMix(core.moduleWeightsToOps(
+    { talep: 30, akis: 25, qr: 15, restoran: 0, concierge: 15, crm: 10, rapor: 5 }), 40));
+  assert.deepStrictEqual(core.buildMix(core.moduleWeightsToOps({}), 40), []);
 });
 
 test('percentile ve sağlık eşikleri', () => {
@@ -68,6 +91,19 @@ test('emülatörde kısa kademe: gerçek işlem desenleri + metrikler + temizlik
   assert.strictEqual(cl.leftover, 0);
   const after = await db.collection(core.COL).doc(checkId).get();
   assert.ok(!after.exists, 'temizlik sonrası doküman kalmamalı');
+});
+
+test('emülatörde restoran hariç kademe: adisyon dokümanı üretilmez', async () => {
+  const db = adminDb(PROJECT);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  const mix = core.buildMix(core.moduleWeightsToOps(
+    { talep: 30, akis: 25, qr: 15, restoran: 0, concierge: 15, crm: 10, rapor: 5 }), 40);
+  const st = await core.runStage(db, { runId: 'capnorest', hotels: 1, seconds: 2, expiresAt, mix });
+  assert.ok(st.ops > 0);
+  assert.ok(!st.created.some((id) => /_check_t\d+$/.test(id)), 'adisyon üretilmemeli');
+  assert.ok(!st.created.some((id) => /_lock_t\d+$/.test(id)), 'masa kilidi üretilmemeli');
+  assert.ok(st.created.some((id) => /_wf_r\d+$/.test(id)), 'iş akışı yine de koşmalı');
+  await core.cleanup(db, st.created, Date.now() + 30000);
 });
 
 test('emülatörde çekişme davranışı: aynı masada eş zamanlı işlemler tutarlı kalır', async () => {
