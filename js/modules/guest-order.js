@@ -378,6 +378,7 @@
         if (name === 'chat') renderChat();
         if (name === 'profile') renderProfile();
         updateCartPill();
+        renderLive();
         const sc = $(SCREENS[name]);
         if (sc && !opts.keepScroll) { sc.scrollTop = 0; const inner = sc.querySelector('.go-scroll'); if (inner) inner.scrollTop = 0; }
     }
@@ -678,12 +679,41 @@
     // ════════════════════════════════════════════════════════════
     //  HİZMETLER
     // ════════════════════════════════════════════════════════════
+    // Kategoriye özel hero bandı: başlık ana ekrandaki kartla aynı görsel
+    // dili taşır (renk + görsel + tanıtım cümlesi) — jenerik "Hizmetler"
+    // listesi yerine kategori sayfası hissi verir.
+    const HERO_COLORS = { temiz: '#33574a', konfor: '#4d6155', food: '#7a5a44', teknik: '#33485c', bell: '#1f3a5c', other: '#5c5470' };
+    function renderCatHero() {
+        const hero = $('goCatHero'), title = $('goServicesTitle'); if (!hero) return;
+        if (activeCat === 'all') {
+            hero.hidden = true;
+            if (title) title.textContent = 'Hizmetler';
+            return;
+        }
+        const kind = catKind(activeCat);
+        const img = CARD_IMG[kind];
+        const color = HERO_COLORS[kind] || HERO_COLORS.other;
+        const style = img
+            ? `background-color:${color};background-image:linear-gradient(100deg,rgba(16,24,36,.72),rgba(16,24,36,.38)),url('${img}');background-size:cover;background-position:center;`
+            : `background:${color};`;
+        hero.hidden = false;
+        hero.innerHTML = `<div class="go-cathero-in" style="${style}">
+            <span class="go-cathero-ic">${catIcon(activeCat, 26)}</span>
+            <span class="go-cathero-tx">
+                <b>${esc(activeCat)}</b>
+                <span>${esc(catBlurb(activeCat) || catCount(activeCat) + ' hizmet')}</span>
+            </span>
+            <span class="go-cathero-n">${catCount(activeCat)}</span>
+        </div>`;
+        if (title) title.textContent = activeCat;
+    }
     function renderServices() {
         const chips = $('goChips'); if (!chips) return;
         const cats = categories();
         if (activeCat !== 'all' && !cats.includes(activeCat)) activeCat = 'all';
-        chips.innerHTML = [`<button class="go-chip ${activeCat === 'all' ? 'active' : ''}" data-chip="all">Tümü</button>`]
-            .concat(cats.map(c => `<button class="go-chip ${activeCat === c ? 'active' : ''}" data-chip="${esc(c)}"><span class="go-chip-ic">${catIcon(c, 18)}</span>${esc(c)}</button>`)).join('');
+        renderCatHero();
+        chips.innerHTML = [`<button class="go-chip ${activeCat === 'all' ? 'active' : ''}" data-chip="all">Tümü<i>${catalog.length}</i></button>`]
+            .concat(cats.map(c => `<button class="go-chip ${activeCat === c ? 'active' : ''}" data-chip="${esc(c)}"><span class="go-chip-ic">${catIcon(c, 18)}</span>${esc(c)}<i>${catCount(c)}</i></button>`)).join('');
         chips.onclick = e => { const b = e.target.closest('[data-chip]'); if (!b) return; activeCat = b.dataset.chip; renderServices(); const a = chips.querySelector('.go-chip.active'); if (a) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); };
         renderItems();
     }
@@ -727,8 +757,8 @@
         if (!av.available) action = `<span class="go-unavail">Saat dışı</span>`;
         else if (line && line.qty > 0) action = stepHtml(item.id, line.qty);
         else action = `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
-        return `<div class="go-item ${av.available ? '' : 'go-item-unavail'}" data-id="${esc(item.id)}">
-            <div class="go-item-emoji">${esc(item.icon || '🛎️')}</div>
+        return `<div class="go-item ${av.available ? '' : 'go-item-unavail'}" data-id="${esc(item.id)}" data-open-item="${esc(item.id)}">
+            <div class="go-item-emoji go-k-${catKind(item.category)}">${esc(item.icon || '🛎️')}</div>
             <div class="go-item-main">
                 <div class="go-item-name">${esc(item.name)}</div>
                 ${item.description ? `<div class="go-item-desc">${esc(item.description)}</div>` : ''}
@@ -743,7 +773,88 @@
             const add = e.target.closest('[data-add]'); if (add) return changeQty(add.dataset.add, +1);
             const inc = e.target.closest('[data-inc]'); if (inc) return changeQty(inc.dataset.inc, +1);
             const dec = e.target.closest('[data-dec]'); if (dec) return changeQty(dec.dataset.dec, -1);
+            // Satırın kendisine dokunma → detay sheet'i (not / saat / adet birlikte)
+            const row = e.target.closest('[data-open-item]'); if (row) openItemSheet(row.dataset.openItem);
         };
+    }
+
+    // ── Hizmet detayı sheet ─────────────────────────────────────
+    // Satıra dokununca açılır: açıklama + adet + not + tercih saati tek
+    // yerde. Sepette satır varsa mevcut değerlerle gelir ve günceller.
+    let sheetItemId = null, sheetQty = 1;
+    function openItemSheet(id) {
+        const item = catalog.find(i => i.id === id); if (!item) return;
+        const av = availInfo(item);
+        const line = cart.find(l => l.catalogId === id);
+        sheetItemId = id;
+        sheetQty = line && line.qty > 0 ? line.qty : 1;
+        const maxq = lineMax(item);
+        const tags = [];
+        if (item.eta && item.eta !== '—') tags.push(`<span class="go-tag">${svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', 13)}${esc(item.eta)}</span>`);
+        if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">🕒 ${esc(av.window)}</span>`);
+        if (pricesOn() && priceOf(item)) tags.push(`<span class="go-tag price">${esc(fmtPrice(priceOf(item)))}</span>`);
+        $('goItemSheetBody').innerHTML = `
+            <div class="go-isheet-head">
+                <div class="go-item-emoji go-k-${catKind(item.category)}" style="width:56px;height:56px;font-size:28px;">${esc(item.icon || '🛎️')}</div>
+                <div class="go-isheet-tx">
+                    <h2>${esc(item.name)}</h2>
+                    <span class="go-isheet-cat">${esc(item.category || 'Diğer')}</span>
+                </div>
+                <button class="go-sheet-close" id="goItemClose" aria-label="Kapat">✕</button>
+            </div>
+            ${item.description ? `<p class="go-isheet-desc">${esc(item.description)}</p>` : ''}
+            ${tags.length ? `<div class="go-item-meta" style="margin:0 0 14px;">${tags.join('')}</div>` : ''}
+            ${av.available ? `
+            <div class="go-isheet-qty">
+                <span>Adet</span>
+                <div class="go-step go-step-lg"><button id="goShDec">−</button><b id="goShQty">${sheetQty}</b><button id="goShInc">+</button></div>
+            </div>
+            <div class="go-fld"><label>Not (opsiyonel)</label><input type="text" id="goShNote" maxlength="160" placeholder="Örn. 2 büyük havlu" value="${esc(line ? line.note || '' : '')}"></div>
+            <div class="go-fld" style="margin-top:9px;"><label>Tercih saati (opsiyonel)</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
+            <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;">
+                <span id="goShAddLbl">${line ? 'Sepeti Güncelle' : 'Sepete Ekle'}</span>
+                ${(pricesOn() && priceOf(item)) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(priceOf(item) * sheetQty))}</span>` : ''}
+            </button>
+            ${line ? `<button class="go-btn-ghost go-btn-danger" id="goShRemove" style="margin-top:10px;">Sepetten Çıkar</button>` : ''}`
+            : `<div class="go-unavail" style="display:block;text-align:center;padding:14px;margin-top:6px;">Bu hizmet yalnızca ${esc(av.window)} saatleri arasında verilebilir.</div>`}
+        `;
+        const upd = () => {
+            const q = $('goShQty'); if (q) q.textContent = sheetQty;
+            const a = $('goShAmt'); if (a) a.textContent = fmtPrice(priceOf(item) * sheetQty);
+        };
+        const dec = $('goShDec'); if (dec) dec.onclick = () => { if (sheetQty > 1) { sheetQty--; upd(); } };
+        const inc = $('goShInc'); if (inc) inc.onclick = () => { if (sheetQty >= maxq) { toast(capMsg(item), true); return; } sheetQty++; upd(); };
+        const addB = $('goShAdd'); if (addB) addB.onclick = () => confirmItemSheet(item);
+        const rmB = $('goShRemove'); if (rmB) rmB.onclick = () => {
+            cart = cart.filter(l => l.catalogId !== id);
+            saveCart(); renderCartUI(); refreshItemRow(id); closeItemSheet(); toast('Sepetten çıkarıldı');
+        };
+        const cl = $('goItemClose'); if (cl) cl.onclick = closeItemSheet;
+        $('goItemBackdrop').classList.add('show');
+        $('goItemSheet').classList.add('show');
+        $('goItemSheet').setAttribute('aria-hidden', 'false');
+    }
+    function confirmItemSheet(item) {
+        const note = ($('goShNote') && $('goShNote').value || '').slice(0, 160);
+        const time = ($('goShTime') && $('goShTime').value || '').slice(0, 10);
+        let line = cart.find(l => l.catalogId === item.id);
+        if (!line) {
+            if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
+            line = { catalogId: item.id, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
+                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '' };
+            cart.push(line);
+        }
+        line.qty = Math.min(lineMax(line), Math.max(1, sheetQty));
+        line.note = note; line.preferredTime = time;
+        saveCart(); renderCartUI(); refreshItemRow(item.id);
+        if (currentTab === 'cart') renderCart();
+        closeItemSheet(); buzz(10); toast('Sepete eklendi ✓');
+    }
+    function closeItemSheet() {
+        sheetItemId = null;
+        $('goItemBackdrop').classList.remove('show');
+        $('goItemSheet').classList.remove('show');
+        $('goItemSheet').setAttribute('aria-hidden', 'true');
     }
     function refreshItemRow(id) {
         const row = document.querySelector(`#goItems .go-item-act[data-act="${CSS.escape(id)}"]`);
@@ -807,7 +918,12 @@
         $('goCartCountLbl').textContent = cart.length + ' talep · ' + cartCount() + ' adet';
         const tt = $('goCartTotal'); const t = cartTotal();
         tt.style.display = (pricesOn() && t) ? '' : 'none'; tt.textContent = fmtPrice(t);
-        wrap.innerHTML = cart.map((l, i) => `
+        const summary = `<div class="go-cart-sum">
+            <span class="go-cart-sum-ic">${svg('<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>', 20)}</span>
+            <span class="go-cart-sum-tx"><b>${cart.length} talep · ${cartCount()} adet</b><span>Oda ${esc(ROOM || '—')} için hazırlanacak</span></span>
+            ${(pricesOn() && t) ? `<span class="go-cart-sum-amt">${esc(fmtPrice(t))}</span>` : ''}
+        </div>`;
+        wrap.innerHTML = summary + cart.map((l, i) => `
             <div class="go-cline" data-i="${i}">
                 <div class="go-cline-top">
                     <div class="go-cline-emoji">${esc(l.icon || '🛎️')}</div>
@@ -923,11 +1039,66 @@
         const active = myOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length;
         const bell = $('goBellDot'); if (bell) bell.hidden = active === 0;
         const nb = $('goNavBadge'); if (nb) { nb.hidden = active === 0; nb.textContent = active; }
+        renderLive();
         if (currentTab === 'orders') {
             if (trackingId && !$('goTrack').classList.contains('go-hidden')) renderTracking();
             else showOrderList();
         }
     }
+
+    // ── Canlı durum widget'ı ────────────────────────────────────
+    // Aktif (tamamlanmamış/iptal edilmemiş) talep varken nav bar'ın üzerinde
+    // minimize bir özet bar durur — hangi sekmede olursanız olun (Taleplerim
+    // hariç) talebin anlık durumu görünür ve onSnapshot ile kendiliğinden
+    // güncellenir. Bara dokununca yukarı doğru genişleyen float panelde her
+    // aktif talep ayrı satırdır; satıra dokunmak takip ekranını açar.
+    let liveExpanded = false;
+    const activeOrdersList = () => myOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
+    function liveProgress(status) {
+        const idx = Math.max(0, FLOW.indexOf(status));
+        return `<span class="go-live-prog">${FLOW.map((s, i) => `<i class="${i <= idx ? 'on' : ''}"></i>`).join('')}</span>`;
+    }
+    function renderLive() {
+        const wrap = $('goLive'); if (!wrap) return;
+        const act = activeOrdersList();
+        const show = act.length > 0 && currentTab !== 'orders';
+        wrap.hidden = !show;
+        document.body.classList.toggle('go-has-live', show);
+        if (!show) { liveExpanded = false; return; }
+        const o = act[0];
+        const st = STATUS[o.status] || STATUS.pending;
+        const names = (o.items || []).map(it => it.name).join(', ');
+        $('goLiveBar').innerHTML = `
+            <span class="go-live-ic">${esc(st.emoji)}</span>
+            <span class="go-live-main">
+                <span class="go-live-tl"><b>${act.length > 1 ? act.length + ' aktif talep' : esc(st.label)}</b>
+                    <span class="go-statepill go-st-${esc(o.status)}">${esc(st.label)}</span></span>
+                ${liveProgress(o.status)}
+            </span>
+            <span class="go-live-chev ${liveExpanded ? 'open' : ''}">${svg('<polyline points="18 15 12 9 6 15"/>', 18)}</span>`;
+        const barTl = $('goLiveBar').querySelector('.go-live-tl b');
+        if (barTl && act.length === 1 && names) barTl.textContent = names.length > 34 ? names.slice(0, 33) + '…' : names;
+        const body = $('goLiveBody');
+        body.hidden = !liveExpanded;
+        if (liveExpanded) {
+            body.innerHTML = act.map(ord => {
+                const s = STATUS[ord.status] || STATUS.pending;
+                const nm = (ord.items || []).map(it => it.name).join(', ');
+                return `<button class="go-live-row" data-track="${esc(ord.id)}">
+                    <span class="go-live-ic sm">${esc(s.emoji)}</span>
+                    <span class="go-live-main">
+                        <span class="go-live-tl"><b>${esc(nm.length > 30 ? nm.slice(0, 29) + '…' : nm || ((ord.items || []).length + ' talep'))}</b>
+                            <span class="go-statepill go-st-${esc(ord.status)}">${esc(s.label)}</span></span>
+                        ${liveProgress(ord.status)}
+                    </span>
+                    <span class="go-live-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 16)}</span>
+                </button>`;
+            }).join('') + `<button class="go-live-all" id="goLiveAll">Tüm taleplerimi gör</button>`;
+            body.querySelectorAll('[data-track]').forEach(b => b.onclick = () => { liveExpanded = false; openTracking(b.dataset.track); });
+            const all = $('goLiveAll'); if (all) all.onclick = () => { liveExpanded = false; showTab('orders'); };
+        }
+    }
+    function toggleLive() { liveExpanded = !liveExpanded; renderLive(); buzz(8); }
 
     function showOrderList() {
         trackingId = null;
@@ -1183,6 +1354,8 @@
         document.querySelectorAll('.go-nav-b').forEach(b => b.onclick = () => { if (b.dataset.go === 'profile') openStay(); else showTab(b.dataset.go); });
         document.querySelectorAll('[data-go]').forEach(el => { if (!el.classList.contains('go-nav-b')) el.addEventListener('click', () => showTab(el.dataset.go)); });
         $('goCartPill').onclick = () => showTab('cart');
+        const lb = $('goLiveBar'); if (lb) lb.onclick = toggleLive;
+        const ibk = $('goItemBackdrop'); if (ibk) ibk.onclick = closeItemSheet;
         $('goBell').onclick = () => showTab('orders');
         const av = $('goAvatar'); if (av) av.onclick = openStay;
         const sb = $('goServicesBack'); if (sb) sb.onclick = () => showTab('home');
