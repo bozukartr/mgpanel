@@ -873,6 +873,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── New Issue modal (Concierge-style creation flow) ────────
     const newIssueModal = document.getElementById('newIssueModal');
+    // Mobil FAB → aynı "yeni kayıt" akışı
+    document.getElementById('giFabNew')?.addEventListener('click', () => {
+        document.getElementById('newIssueBtn')?.click();
+    });
     document.getElementById('newIssueBtn')?.addEventListener('click', () => {
         const dateInput = document.getElementById('date');
         if (dateInput && !dateInput.value) dateInput.valueAsDate = new Date();
@@ -2094,6 +2098,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 durHtml = `<span class="dur-chip dur-wait" title="Talep oluşturulalı geçen süre">⌛ ${fmtDuration(now - created)}</span>`;
             }
 
+            // Mobil kartlarda tek dokunuşla iş akışı: bekleyen kaydı kendi
+            // departmanının personeli (veya yönetici) modal açmadan üstlenir,
+            // işlemdeki kaydı tamamlar. Masaüstünde bu hücre hiç görünmez.
+            let quickAct = '';
+            if (status === 'Following' && canTakeRecord(record)) {
+                quickAct = `<button class="qa-btn take" data-qa="take">🔧 İşi Üstlen</button>`;
+            } else if (status === 'InProgress') {
+                quickAct = `<button class="qa-btn complete" data-qa="complete">✓ Tamamlandı</button>`;
+            }
+
             const row = document.createElement('tr');
             if (lateBadgeStatus) row.classList.add('urgent-row');
 
@@ -2114,8 +2128,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="staff-cell">${esc(record.staffInitial)}</td>
                 <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
                 <td class="dur-cell">${durHtml}</td>
+                <td class="act-cell">${quickAct}</td>
             `;
             row.onclick = () => openModal(record);
+            const qa = row.querySelector('[data-qa]');
+            if (qa) qa.onclick = (e) => { e.stopPropagation(); quickTransition(record, qa.dataset.qa, qa); };
             recordsTableBody.appendChild(row);
         });
 
@@ -2295,6 +2312,21 @@ document.addEventListener('DOMContentLoaded', () => {
             await transitionRecordImpl(action);
         } finally {
             transitionInFlight = false;
+        }
+    }
+    // Mobil karttan tek dokunuşla üstlen/tamamla — modal açılmaz. Aynı
+    // transaction'lı transitionRecord çekirdeğini kullanır (katı departman
+    // kuralı ve bayat-durum koruması aynen geçerli); ardından liste tazelenir.
+    async function quickTransition(record, action, btn) {
+        if (transitionInFlight) return;
+        selectedRecord = record;
+        editingId = record.id;
+        if (btn) btn.disabled = true;
+        try {
+            await transitionRecord(action);
+        } finally {
+            if (btn) btn.disabled = false;
+            triggerSearch(); // kart durumu ve hızlı buton yeniden hesaplanır
         }
     }
     // take/complete/reopen artık bir transaction içinde, kaydın SUNUCUDAKİ

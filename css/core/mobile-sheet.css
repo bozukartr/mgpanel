@@ -1,0 +1,26 @@
+/* Hotizy — mobil bottom-sheet modallar (≤768px).
+   .modal / .modal-content kalıbını kullanan personel sayfalarında modallar
+   telefonda alttan açılan sheet olur: tam genişlik, üstten yuvarlatılmış,
+   başparmakla erişilebilir büyük dokunma hedefleri. Masaüstünde hiçbir şey
+   değişmez. */
+@media (max-width: 768px) {
+    .modal { align-items: flex-end !important; padding: 0 !important; }
+    .modal .modal-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        border-radius: 22px 22px 0 0 !important;
+        max-height: 94vh !important;
+        animation: mgSheetUp .28s cubic-bezier(.32, .72, 0, 1) !important;
+    }
+    /* Modal içi dokunma hedefleri büyür */
+    .modal .wf-btn { flex: 1 1 auto; justify-content: center; padding: 13px 14px; font-size: 14px; }
+    .modal .submit-btn, .modal .action-btn { padding: 14px; font-size: 15px; }
+    /* iOS: 16px altındaki input fontu otomatik zoom tetikler */
+    .modal input, .modal select, .modal textarea { font-size: 16px !important; }
+    .modal .modal-body { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+@keyframes mgSheetUp {
+    from { transform: translateY(48px); opacity: .6; }
+    to { transform: none; opacity: 1; }
+}

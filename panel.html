@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Misafir Kayıtları · Hotizy</title>
     <link rel="stylesheet" href="css/modules/panel.css">
+    <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -145,6 +146,7 @@
                                             <th>Personel</th>
                                             <th>Durum</th>
                                             <th>Süre</th>
+                                            <th class="act-th"></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -430,6 +432,11 @@
     <script src="js/modules/room-access.js"></script>
     <script src="js/modules/guest-orders.js"></script>
     <script src="js/utils/modal-guard.js"></script>
+
+    <!-- FAB: mobilde yeni kayıt (masaüstünde gizli) -->
+    <button class="gi-fab" id="giFabNew" aria-label="Yeni kayıt ekle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
 
     <!-- Toast Notification -->
     <div id="toast" class="toast-notification"></div>

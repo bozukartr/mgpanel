@@ -1851,19 +1851,94 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
 /* Responsive: önce sağ panel, sonra takvim düşer; ≤768 tek sütuna yığılır */
 @media (max-width: 1180px) { #guest-log .cz-right { display: none; } }
 @media (max-width: 980px)  { #guest-log .cz-cal { display: none; } }
+
+/* Hızlı işlem sütunu ve FAB yalnız mobilde var */
+.act-th, .act-cell { display: none; }
+.gi-fab { display: none; }
+
 @media (max-width: 768px) {
-    /* Konsol telefonda tek sütun + tek dikey scroll (yan yana kolon yok) */
+    /* ── Kompakt üst bar (standalone açılış; shell içinde zaten gizli) ── */
+    .panel-header { padding: 8px 14px 4px; }
+    #hdSearchBtn, .backup-dropdown, .uc-meta { display: none !important; }
+    .panel-nav { margin: 6px 0 4px; justify-content: flex-start; scrollbar-width: none; }
+    .panel-nav::-webkit-scrollbar { display: none; }
+    .nav-btn { padding: 8px 12px; font-size: 12.5px; white-space: nowrap; flex-shrink: 0; }
+    .user-profile { margin-top: 4px; }
+
+    /* ── Konsol: tek sütun, tek dikey scroll ── */
     #guest-log { overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .gi-console { flex-direction: column; height: auto; align-items: stretch; }
     #guest-log .desk-only { display: none !important; }
     .cz-side.gi-side {
         width: 100% !important; flex-shrink: 0; overflow: visible;
         border-right: none; border-bottom: 1px solid var(--border);
-        padding: 14px 16px; gap: 12px;
+        padding: 12px 16px 10px; gap: 10px;
     }
-    .cz-center.gi-center { overflow: visible; padding: 14px 16px; }
+    .cz-center.gi-center { overflow: visible; padding: 12px 16px calc(90px + env(safe-area-inset-bottom, 0px)); }
     .gi-table-card { border: none; background: transparent; padding: 0; }
-    .gi-table-card .table-wrapper { padding: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .gi-table-card .table-wrapper { padding: 0; overflow: visible; }
+
+    /* Büyük "Ekle" butonu yerine FAB */
+    .cz-side .cz-new:not(.cz-perf) { display: none; }
+    .cz-new.cz-perf { padding: 10px; font-size: 13px; }
+    .gi-fab {
+        position: fixed; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 90;
+        width: 58px; height: 58px; border-radius: 50%; border: none; cursor: pointer;
+        background: var(--primary); color: #fff;
+        box-shadow: 0 12px 28px rgba(99, 102, 241, .42);
+        display: flex; align-items: center; justify-content: center;
+        transition: transform .12s;
+    }
+    .gi-fab:active { transform: scale(.9); }
+    .gi-fab svg { width: 26px; height: 26px; }
+
+    /* ── Durum hapları → yatay kaydırılabilir chip satırı ── */
+    .gi-pills { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 2px; scrollbar-width: none; }
+    .gi-pills::-webkit-scrollbar { display: none; }
+    .gi-pill { flex: 0 0 auto; flex-direction: row; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; }
+    .gi-pill .gi-pill-val { font-size: 14px; }
+    .gi-pill.wide { grid-column: auto; padding: 8px 14px; }
+    .gi-pill.wide .gi-pill-val { font-size: 14px; }
+
+    /* ── Tablo → saha kartları ── */
+    #recordsTable { display: block; }
+    #recordsTable thead { display: none; }
+    #recordsTable tbody { display: flex; flex-direction: column; gap: 10px; }
+    #recordsTable tbody tr {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+        background: #fff; border: 1px solid var(--border); border-radius: 16px;
+        padding: 12px 14px; box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
+        cursor: pointer;
+    }
+    #recordsTable tbody tr:active { background: #fafbff; }
+    #recordsTable tbody tr.urgent-row { border-color: #fecaca; background: #fffafa; }
+    #recordsTable td { display: block; padding: 0; border: none; }
+    #recordsTable .room-cell { order: 1; }
+    #recordsTable .room-cell span {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 46px; height: 46px; padding: 0 8px; border-radius: 13px;
+        background: #eef2ff; color: #4f46e5; font-weight: 800; font-size: 15px;
+    }
+    #recordsTable .guest-cell { order: 2; flex: 1; min-width: 0; }
+    #recordsTable td:nth-child(6) { order: 3; }               /* durum rozeti */
+    #recordsTable .date-cell { order: 4; font-size: 11px; color: #94a3b8; font-weight: 600; }
+    #recordsTable td:nth-child(4) { order: 5; }               /* departman */
+    #recordsTable .staff-cell { order: 6; font-size: 11px; color: #64748b; font-weight: 600; }
+    #recordsTable .dur-cell { order: 7; margin-left: auto; }
+    #recordsTable .act-cell { display: block; order: 8; width: 100%; margin-top: 4px; }
+    #recordsTable tr.gi-empty-row { display: block; box-shadow: none; border: none; background: transparent; }
+    #recordsTable tr.gi-empty-row td { width: 100%; }
+
+    /* Kart üzerinde tek dokunuşla iş akışı */
+    .qa-btn {
+        width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 12px; border: none; border-radius: 12px; cursor: pointer;
+        font-family: inherit; font-size: 14px; font-weight: 700; transition: transform .1s, opacity .2s;
+    }
+    .qa-btn:active { transform: scale(.98); }
+    .qa-btn:disabled { opacity: .55; }
+    .qa-btn.take { background: var(--primary); color: #fff; box-shadow: 0 6px 14px rgba(99, 102, 241, .28); }
+    .qa-btn.complete { background: #16a34a; color: #fff; box-shadow: 0 6px 14px rgba(22, 163, 74, .24); }
 }
 
 /* ── SLA / Eskalasyon rozetleri ── */
