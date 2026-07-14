@@ -1008,6 +1008,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // İşi kimin yaptığı: üstlenen > tamamlayan > atanan; eski tamamlanmış
+    // kayıtlarda kaydı giren; açık ve sahipsizse "Üstlenilmedi".
+    function reportWorker(r) {
+        if (r.acknowledgedBy) return r.acknowledgedBy;
+        if (r.completedBy) return r.completedBy;
+        if (r.assignedToName) return r.assignedToName;
+        if ((r.status || 'Following') === 'Solved') return r.staffInitial || '—';
+        return 'Üstlenilmedi';
+    }
     function rowBase(r) {
         return {
             Date: r.date,
@@ -1017,6 +1026,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Complaint: r.complaint,
             Solution: r.solution || '',
             Staff: r.staffInitial,
+            'Üstlenen': reportWorker(r),
             Status: r.status || 'Following'
         };
     }
@@ -1254,8 +1264,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (format === 'excel') {
                 exportExcel(data.map(rowBase), 'In_House_Issues', 'InHouse', summaryData);
             } else {
-                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.staffInitial, r.status || 'Following']);
-                exportPDF('In-House Guest Issues', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'In_House_Issues',
+                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.staffInitial, reportWorker(r), r.status || 'Following']);
+                exportPDF('In-House Guest Issues', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'], rows, 'In_House_Issues',
                     `Total Active In-House Issues: ${data.length} | ` + Object.entries(deptSummary).map(([d, c]) => `${d}:${c}`).join(' | '));
             }
         }
@@ -1332,7 +1342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const detail = data.map(r => ({
                     Konu: r.topic || 'Genel', Tarih: r.date, Oda: r.room, Misafir: r.guestName,
                     Departman: r.department, Şikayet: r.complaint, Çözüm: r.solution || '',
-                    Personel: r.staffInitial, Durum: statusLabelOf(r.status || 'Following')
+                    Personel: r.staffInitial, 'Üstlenen': reportWorker(r), Durum: statusLabelOf(r.status || 'Following')
                 }));
                 const wsDet = XLSX.utils.json_to_sheet(detail);
                 autoSizeSheet(wsDet, detail);
@@ -1349,8 +1359,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const date = specific || getLocalDate();
             const data = records.filter(r => r.date === date);
             if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${date}`, date);
-            else exportPDF(`Issues — ${date}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'],
-                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, r.status || 'Following']),
+            else exportPDF(`Issues — ${date}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'],
+                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, reportWorker(r), r.status || 'Following']),
                 `Issues_${date}`);
         }
 
@@ -1420,8 +1430,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!from || !to) return showToast('Başlangıç ve bitiş tarihlerini seçin.', true);
             const data = filterByRange(records, from, to);
             if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${from}_to_${to}`, 'Date Range');
-            else exportPDF(`Issues: ${from} → ${to}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'],
-                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, r.status || 'Following']),
+            else exportPDF(`Issues: ${from} → ${to}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'],
+                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, reportWorker(r), r.status || 'Following']),
                 `DateRange_${from}_${to}`, `From: ${from}  To: ${to}`);
         }
 
@@ -1540,16 +1550,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (lastRenderedRows.length === 0) return showToast('Dışa aktarılacak görünür kayıt yok.', true);
             if (format === 'excel') exportExcel(lastRenderedRows.map(rowBase), 'Current_View', 'Filtered');
             else {
-                const rows = lastRenderedRows.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, r.status || 'Following']);
-                exportPDF('Current Filtered View', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'Current_View');
+                const rows = lastRenderedRows.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, reportWorker(r), r.status || 'Following']);
+                exportPDF('Current Filtered View', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'], rows, 'Current_View');
             }
         }
 
         else if (type === 'fullArchive') {
             if (format === 'excel') exportExcel(records.map(rowBase), 'Full_Archive', 'Archive');
             else {
-                const rows = records.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.staffInitial, r.status || 'Following']);
-                exportPDF('Full Archive — All Records', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Status'], rows, 'Full_Archive',
+                const rows = records.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.staffInitial, reportWorker(r), r.status || 'Following']);
+                exportPDF('Full Archive — All Records', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'], rows, 'Full_Archive',
                     `Total Records: ${records.length}`);
             }
         }

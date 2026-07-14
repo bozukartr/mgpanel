@@ -75,6 +75,15 @@
         if (created) return Date.now() - created;
         return null;
     }
+    // İşi kimin yaptığı: üstlenen > tamamlayan > atanan; eski (üstlenen bilgisi
+    // olmayan) tamamlanmış kayıtlarda kaydı giren; açık ve sahipsizse "Üstlenilmedi".
+    function glWorker(r) {
+        if (r.acknowledgedBy) return r.acknowledgedBy;
+        if (r.completedBy) return r.completedBy;
+        if (r.assignedToName) return r.assignedToName;
+        if ((r.status || 'Following') === 'Solved') return r.staffInitial || '—';
+        return 'Üstlenilmedi';
+    }
     const RES_TYPE = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
     const resType = r => RES_TYPE[r.type] || (r.type || 'Diğer');
     // Concierge rezervasyonları kendi `currency` alanını taşır (Restoran/QR'ın
@@ -147,7 +156,11 @@
                         return false;
                     }
                 }),
-                facet({ key: 'staff', label: 'Personel', kind: 'chips', valueOf: r => r.staffInitial || '—' }),
+                // İşi kimin YAPTIĞI: üstlenen (acknowledgedBy) esas alınır;
+                // üstlenilmeden tamamlanmış kayıtta tamamlayan, atanmış ama
+                // henüz üstlenilmemişse atanan görünür. Eski (üstlenen bilgisi
+                // olmayan) tamamlanmış kayıtlar kaydı girene düşer.
+                facet({ key: 'staff', label: 'Personel (üstlenen)', kind: 'chips', valueOf: glWorker }),
                 facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
                 facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
             ],
@@ -160,8 +173,8 @@
                 { label: 'Konu', get: r => (r.type || 'complaint') === 'complaint' ? (r.topic || 'Genel') : '—' },
                 { label: 'Açıklama', get: r => r.complaint || '', wide: true },
                 { label: 'Çözüm', get: r => (r.type || 'complaint') === 'request' ? '' : (r.solution || ''), wide: true },
-                { label: 'Personel', get: r => r.staffInitial || '—' },
-                { label: 'Atanan', get: r => r.assignedToName || '—' },
+                { label: 'Kaydı Giren', get: r => r.staffInitial || '—' },
+                { label: 'Üstlenen', get: glWorker },
                 { label: 'Durum', get: r => glStatus(r.status) + (glOverdue(r) ? ' ⚠' : '') },
                 { label: 'Süre', get: r => fmtDuration(glDuration(r)) }
             ],
