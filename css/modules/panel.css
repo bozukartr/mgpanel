@@ -1941,6 +1941,10 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
     .qa-btn.complete { background: #16a34a; color: #fff; box-shadow: 0 6px 14px rgba(22, 163, 74, .24); }
 }
 
+/* İş sahibi rozeti: üstlenilmiş iş her ekranda sahibiyle görünür */
+.owner-badge { display: inline-block; background: #eef2ff; color: #4338ca; border: 1px solid #e0e7ff;
+    font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 999px; margin-top: 3px; width: fit-content; }
+
 /* ── SLA / Eskalasyon rozetleri ── */
 .sla-soon { display:inline-block; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; font-size:9px; font-weight:800; padding:2px 7px; border-radius:999px; margin-top:3px; }
 .esc-badge { display:inline-block; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; font-size:9px; font-weight:800; padding:2px 7px; border-radius:999px; margin-top:3px; }

@@ -2099,14 +2099,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Mobil kartlarda tek dokunuşla iş akışı: bekleyen kaydı kendi
-            // departmanının personeli (veya yönetici) modal açmadan üstlenir,
-            // işlemdeki kaydı tamamlar. Masaüstünde bu hücre hiç görünmez.
+            // departmanının personeli (veya yönetici) modal açmadan üstlenir;
+            // işlemdeki kaydı YALNIZ üstlenen personel veya yönetici tamamlar.
+            // Masaüstünde bu hücre hiç görünmez.
             let quickAct = '';
             if (status === 'Following' && canTakeRecord(record)) {
                 quickAct = `<button class="qa-btn take" data-qa="take">🔧 İşi Üstlen</button>`;
-            } else if (status === 'InProgress') {
+            } else if (status === 'InProgress' && canCompleteRecord(record)) {
                 quickAct = `<button class="qa-btn complete" data-qa="complete">✓ Tamamlandı</button>`;
             }
+            // Üstlenilmiş iş her ekranda sahibiyle görünür — iş karışıklığı önlenir.
+            const ownerBadge = (status === 'InProgress' && record.acknowledgedBy)
+                ? `<span class="owner-badge">🔧 ${esc(record.acknowledgedBy)} üstlendi</span>` : '';
 
             const row = document.createElement('tr');
             if (lateBadgeStatus) row.classList.add('urgent-row');
@@ -2119,6 +2123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <strong>${esc(record.guestName)}${record.type === 'request' ? '<span class="req-type-badge">TALEP</span>' : ''} ${noteIndicator}</strong>
                         <span class="${gStatusClass}" style="font-size:9px; font-weight:800; width:fit-content; margin-top:2px;">${gStatusLabel}</span>
                         ${record.type === 'request' && record.assignedToName ? `<span style="font-size:10px;color:var(--primary);font-weight:600;margin-top:2px;">↳ ${esc(record.assignedToName)}</span>` : ''}
+                        ${ownerBadge}
                     </div>
                     ${recurBadge}
                     ${lateBadge}
@@ -2276,7 +2281,14 @@ document.addEventListener('DOMContentLoaded', () => {
         takeBtn.disabled = !mayTake;
         takeBtn.style.opacity = mayTake ? '' : '0.45';
         takeBtn.title = mayTake ? '' : ('Bu kaydı yalnızca "' + (record.department || '—') + '" personeli veya yönetici üstlenebilir.');
-        document.getElementById('wfCompleteBtn').style.display = (status !== 'Solved') ? 'inline-flex' : 'none';
+        // Tamamlama yalnızca işi üstlenen personelde ve yönetici/admin'de açık —
+        // buton görünür kalır ama devre dışı + açıklamalı (gizlemek kafa karıştırır).
+        const completeBtn = document.getElementById('wfCompleteBtn');
+        completeBtn.style.display = (status !== 'Solved') ? 'inline-flex' : 'none';
+        const mayComplete = canCompleteRecord(record);
+        completeBtn.disabled = !mayComplete;
+        completeBtn.style.opacity = mayComplete ? '' : '0.45';
+        completeBtn.title = mayComplete ? '' : ('Bu işi ' + (record.acknowledgedBy || 'başka bir personel') + ' üstlendi — yalnızca o veya bir yönetici tamamlayabilir.');
         document.getElementById('wfReopenBtn').style.display = (status === 'Solved') ? 'inline-flex' : 'none';
         const escBtn2 = document.getElementById('wfEscalateBtn');
         const escTag = document.getElementById('wfEscTag');
@@ -2348,10 +2360,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!recDept) return true; // departmansız eski kayıtlar serbest
         return !!myDept && myDept === recDept;
     }
+    // İş sahipliği: üstlenilmiş bir işi yalnızca ÜSTLENEN personel (veya
+    // yönetici/admin) tamamlayabilir — iki kişinin aynı işi karıştırması
+    // önlenir. Üstlenen bilgisi olmayan eski kayıtlar departman kuralına düşer.
+    function canCompleteRecord(record) {
+        const role = (localStorage.getItem('hotelRole') || '').toLowerCase();
+        if (role === 'admin' || role === 'manager' || loggedUsername.toLowerCase() === 'admin') return true;
+        const owner = String(record && record.acknowledgedBy || '').trim().toLocaleLowerCase('tr-TR');
+        if (!owner) return canTakeRecord(record);
+        return owner === loggedUsername.toLocaleLowerCase('tr-TR');
+    }
     async function transitionRecordImpl(action) {
         const r = selectedRecord;
         if (action === 'take' && !canTakeRecord(r)) {
             showToast('Bu kayıt "' + (r.department || '—') + '" departmanına ait — yalnızca o departman personeli veya yönetici üstlenebilir.', true);
+            return;
+        }
+        if (action === 'complete' && !canCompleteRecord(r)) {
+            showToast('Bu işi ' + (r.acknowledgedBy || 'başka bir personel') + ' üstlendi — yalnızca o veya bir yönetici tamamlayabilir.', true);
             return;
         }
         const TS = firebase.firestore.FieldValue.serverTimestamp();
@@ -2431,13 +2457,19 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTimeline(r);
             showToast(result.toastMsg);
             // QR köprüsü senkronu: bu kayıt bir QR siparişinin kalemiyse,
-            // Kayıtlar'dan tamamlanınca siparişteki kalem de tamamlanır;
+            // üstlenince kalem "işlemde", tamamlanınca "tamamlandı" olur;
             // tüm kalemler bitince sipariş kapanır — misafir kendi ekranında
-            // talebinin bittiğini görür (çift yönetim tutarsızlığı kalmaz).
-            if (action === 'complete' && r.source === 'guest-order' && r.orderId && r.itemId) syncOrderItemCompleted(r.orderId, r.itemId);
+            // talebinin anlık durumunu görür (çift yönetim tutarsızlığı kalmaz).
+            if (r.source === 'guest-order' && r.orderId && r.itemId) {
+                if (action === 'take') syncOrderItem(r.orderId, r.itemId, 'in_progress');
+                else if (action === 'complete') syncOrderItem(r.orderId, r.itemId, 'completed');
+            }
         } catch (e) { showToast('Güncelleme başarısız: ' + e.message, true); }
     }
-    async function syncOrderItemCompleted(orderId, itemId) {
+    // phase: 'in_progress' (iş üstlenildi) | 'completed' (iş bitti).
+    // in_progress yalnızca bekleyen/onaylı kalemi ilerletir; tamamlanmış veya
+    // iptal edilmiş kaleme asla geri gitmez.
+    async function syncOrderItem(orderId, itemId, phase) {
         try {
             const oRef = db.collection('guestOrders').doc(orderId);
             await db.runTransaction(async (tx) => {
@@ -2445,8 +2477,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!snap.exists) return;
                 const o = snap.data();
                 if (o.status === 'cancelled') return;
-                const items = (o.items || []).map(it =>
-                    (it && it.id === itemId && it.status !== 'cancelled') ? Object.assign({}, it, { status: 'completed' }) : it);
+                const items = (o.items || []).map(it => {
+                    if (!it || it.id !== itemId || it.status === 'cancelled') return it;
+                    if (phase === 'completed') return Object.assign({}, it, { status: 'completed' });
+                    // in_progress: yalnız ileri yönde (pending/confirmed → in_progress)
+                    return (it.status === 'pending' || it.status === 'confirmed' || !it.status)
+                        ? Object.assign({}, it, { status: 'in_progress' }) : it;
+                });
                 const allDone = items.length && items.every(it => it.status === 'completed' || it.status === 'cancelled');
                 tx.update(oRef, {
                     items,
