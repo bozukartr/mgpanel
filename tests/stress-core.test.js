@@ -9,10 +9,14 @@ const core = require('../functions/stress-core');
 
 const PROJECT = 'stress-core-test';
 
-test('karışım ve merdiven deterministik ve doğru oranlarda', () => {
+test('karışım tüm modülleri kapsar; merdiven deterministik', () => {
   const counts = {};
   core.MIX.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
-  assert.deepStrictEqual(counts, { log: 8, item: 6, open: 3, settle: 3 }); // %40/%30/%15/%15
+  // %20 kayıt · %15 iş akışı · %10 QR · %15 kalem · %10 açma · %10 kapama
+  // %10 rezervasyon+folio · %5 CRM · %5 rapor
+  assert.deepStrictEqual(counts, {
+    log: 4, wf: 3, qr: 2, item: 3, open: 2, settle: 2, resv: 2, crm: 1, report: 1
+  });
   assert.deepStrictEqual(core.ladder(40), [2, 5, 10, 20, 40]);
   assert.deepStrictEqual(core.ladder(80), [2, 5, 10, 20, 40, 80]);
   assert.deepStrictEqual(core.ladder(3), [2, 3]);   // maks her zaman son kademe
@@ -40,9 +44,16 @@ test('emülatörde kısa kademe: gerçek işlem desenleri + metrikler + temizlik
   assert.ok(st.p50 <= st.p95, 'p50 <= p95');
   assert.strictEqual(st.errors, 0, 'emülatörde hata beklenmez: ' + st.errors);
 
-  // İşlem desenleri gerçekten koştu mu: kayıt + adisyon açma izleri
-  assert.ok(st.created.some((id) => /_log\d+$/.test(id)), 'kayıt (log) dokümanı üretilmeli');
+  // Tüm modüllerin desenleri gerçekten koştu mu: panel kaydı, iş akışı,
+  // QR siparişi, restoran adisyonu, concierge rezervasyonu, CRM profili
+  assert.ok(st.created.some((id) => /_log\d+$/.test(id)), 'şikayet/talep (log) dokümanı üretilmeli');
+  assert.ok(st.created.some((id) => /_wf_r\d+$/.test(id)), 'iş akışı (wf) dokümanı üretilmeli');
+  assert.ok(st.created.some((id) => /_qr\d+$/.test(id)), 'QR sipariş dokümanı üretilmeli');
+  assert.ok(st.created.some((id) => /_qr\d+_l1$/.test(id)), 'QR kalem kaydı üretilmeli');
   assert.ok(st.created.some((id) => /_check_t\d+$/.test(id)), 'adisyon (check) dokümanı üretilmeli');
+  assert.ok(st.created.some((id) => /_resv\d+$/.test(id)), 'rezervasyon dokümanı üretilmeli');
+  assert.ok(st.created.some((id) => /_folio\d+$/.test(id)), 'folio dokümanı üretilmeli');
+  assert.ok(st.created.some((id) => /_guest_g\d+$/.test(id)), 'CRM misafir profili üretilmeli');
 
   // Açılan bir adisyonda versiyon disiplini korunmuş olmalı (tx şekli kanıtı)
   const checkId = st.created.find((id) => /_check_t\d+$/.test(id));

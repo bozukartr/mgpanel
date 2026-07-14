@@ -2293,9 +2293,10 @@ exports.healthCheck = onRequest({ region: REGION }, (req, res) => {
 // yok — yalnızca bu fonksiyon (superadmin-gated) dokunabilir.
 //
 // Çoklu-otel KAPASİTE testi (kademeli rampa): sanal otel sayısını
-// 2→5→10→20→40→… şeklinde artırarak her kademede gerçek operasyon
-// şekillerini (masa kilidi tx, adisyon versiyon tx, kayıt create,
-// hesap kapama + idempotency defteri) eş zamanlı çalıştırır. Bir kademe
+// 2→5→10→20→40→… şeklinde artırarak her kademede TÜM modüllerin gerçek
+// operasyon şekillerini (şikayet/talep + iş akışı, QR sipariş köprüsü,
+// restoran adisyon/kilit/kapama, concierge rezervasyon+folio, CRM profil,
+// rapor okumaları) eş zamanlı çalıştırır. Bir kademe
 // sağlık eşiklerini (hata oranı / p95 gecikme) aşınca durur ve son
 // sağlıklı kademeyi "maksimum sürdürülebilir kapasite" olarak raporlar.
 // Motor: ./stress-core.js. Artakalan belgeler için `_stressTest.expiresAt`

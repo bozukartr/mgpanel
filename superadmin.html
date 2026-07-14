@@ -533,7 +533,7 @@
 
                 <div class="card">
                     <div class="card-head">
-                        <div><h3>Çoklu Otel Kapasite Testi</h3><div class="sub">Sanal otel sayısını kademeli artırarak (2→5→10→20→…) sistemin eş zamanlı maksimum işlem kapasitesini bulur. Her sanal otel gerçek operasyon desenlerini çalıştırır: masa açma (kilit transaction'ı), adisyona kalem ekleme (versiyon artışı), misafir kaydı, hesap kapama (idempotency defteri). Kiracı verisine hiç dokunmaz — izole _stressTest koleksiyonu, sonunda kendini temizler.</div></div>
+                        <div><h3>Çoklu Otel Kapasite Testi</h3><div class="sub">Sanal otel sayısını kademeli artırarak (2→5→10→20→…) sistemin eş zamanlı maksimum işlem kapasitesini bulur. Her sanal otel TÜM modüllerin gerçek operasyon desenlerini çalıştırır: şikayet/talep girişi ve iş akışı (üstlen→çöz), QR misafir siparişi (kalem başına kayıt köprüsüyle), restoran (masa açma, adisyon kalemi, hesap kapama + idempotency), concierge (rezervasyon + oda hesabı), CRM profil güncelleme ve rapor okumaları. Kiracı verisine hiç dokunmaz — izole _stressTest koleksiyonu, sonunda kendini temizler.</div></div>
                     </div>
                     <div class="fin-form-body" style="padding:18px 20px 6px;">
                         <div class="fin-form-row">
