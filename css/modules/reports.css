@@ -140,3 +140,13 @@ button, input, select { font-family: inherit; }
     .rep-stats { grid-template-columns: repeat(2, 1fr); }
     .rep-top { position: sticky; top: 0; z-index: 5; }
 }
+
+/* ── Telefon: dokunma hedefleri + iOS zoom önleme + alt boşluk ── */
+@media (max-width: 768px) {
+    .rep-side input, .rep-side select { font-size: 16px; min-height: 44px; }
+    .rep-side { padding-bottom: 6px; }
+    .rep-main { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+    .rep-top { flex-wrap: wrap; gap: 10px; }
+    .rep-top .rep-actions, .rep-actions { display: flex; gap: 8px; width: 100%; }
+    .rep-actions button { flex: 1; min-height: 44px; }
+}
