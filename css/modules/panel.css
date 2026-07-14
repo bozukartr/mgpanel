@@ -1607,6 +1607,8 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
 /* ═══ Department workflow (request lifecycle) ═══════════════ */
 .gi-pill.inprogress { background: #eef2ff; color: #4f46e5; }
 .gi-pill.inprogress.active { border-color: #4f46e5; background: #fff; }
+.gi-pill.mine { background: #ede9fe; color: #6d28d9; }
+.gi-pill.mine.active { border-color: #6d28d9; background: #fff; }
 .gi-pill.wide { grid-column: 1 / -1; flex-direction: row; justify-content: center; gap: 10px; padding: 9px 8px; }
 .gi-pill.wide .gi-pill-val { font-size: 16px; }
 
