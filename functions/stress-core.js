@@ -1,32 +1,44 @@
 /* Çoklu-otel kapasite testi çekirdeği.
  *
  * Amaç: "Aynı anda N otel operasyondayken sistem kaç işlemi kaldırır?"
- * sorusunu cevaplamak. Bunun için ham batch yazma hızı değil, gerçek
- * operasyonların ŞEKİLLERİ simüle edilir — kapasiteyi sınırlayan şey
- * sıcak dokümanlardaki transaction çekişmesidir:
+ * sorusunu cevaplamak. Bunun için ham batch yazma hızı değil, TÜM
+ * modüllerin gerçek operasyon ŞEKİLLERİ simüle edilir — kapasiteyi
+ * sınırlayan şey sıcak dokümanlardaki transaction çekişmesidir:
  *
- *   · masa açma      → kilit dokümanı üzerinde transaction (restTables deseni)
- *   · kalem ekleme   → adisyonda versiyon artışlı transaction (restChecks deseni)
- *   · misafir kaydı  → düz doküman oluşturma (guestLogs deseni)
- *   · hesap kapama   → transaction + idempotency defteri (settleCore + restOps deseni)
+ *   · log    → şikayet/talep girişi: doküman oluşturma (panel · guestLogs deseni)
+ *   · wf     → talebi üstlen/çöz: durum kontrol transaction'ı (panel iş akışı deseni)
+ *   · qr     → QR misafir siparişi: sipariş + kalem başına kayıt, tek batch
+ *              (guest-order + order-bridge deseni)
+ *   · open   → masa açma: kilit dokümanı transaction'ı (restoran · restTables deseni)
+ *   · item   → kalem ekleme: adisyonda versiyon artışlı transaction (restChecks deseni)
+ *   · settle → hesap kapama: transaction + idempotency defteri (settleCore + restOps deseni)
+ *   · resv   → rezervasyon + oda hesabı satırı, tek batch (concierge · folioCharges deseni)
+ *   · crm    → misafir profili güncelleme: oku-değiştir-yaz transaction'ı
+ *              (CRM · guestDirectory/stays deseni)
+ *   · report → rapor sorgusu: filtreli 50 dokümanlık okuma (raporlar deseni)
  *
- * Her sanal otelde 3 eş zamanlı "personel cihazı" ve 5 masa vardır; aynı
- * masaya çakışan işlemler gerçek çekişmeyi üretir. Tüm dokümanlar izole
- * `_stressTest` koleksiyonundadır ve expiresAt (TTL yedeği) taşır —
- * hiçbir kiracı verisine dokunulmaz.
+ * Her sanal otelde 3 eş zamanlı "personel cihazı", 5 masa, 5 açık talep ve
+ * 3 misafir profili vardır; aynı sıcak dokümanlara çakışan işlemler gerçek
+ * çekişmeyi üretir. Tüm dokümanlar izole `_stressTest` koleksiyonundadır ve
+ * expiresAt (TTL yedeği) taşır — hiçbir kiracı verisine dokunulmaz.
  */
 'use strict';
 
 const COL = '_stressTest';
 const TABLES_PER_HOTEL = 5;   // otel içi sıcak doküman havuzu (çekişme kaynağı)
+const WF_PER_HOTEL = 5;       // otel içi paylaşılan açık talep havuzu
+const GUESTS_PER_HOTEL = 3;   // otel içi paylaşılan misafir profili havuzu
 const WORKERS_PER_HOTEL = 3;  // aynı oteldeki eş zamanlı personel cihazı
 const LATENCY_CAP = 4000;     // kademe başına gecikme örneklemi üst sınırı (bellek)
 const PAYLOAD = 'x'.repeat(200);
 
-// 20 slotluk deterministik işlem karışımı: %40 kayıt, %30 kalem, %15 açma, %15 kapama
+// 20 slotluk deterministik işlem karışımı — modül ağırlıkları:
+// %20 şikayet/talep girişi · %15 iş akışı (üstlen/çöz) · %10 QR sipariş
+// %15 adisyon kalemi · %10 masa açma · %10 hesap kapama
+// %10 rezervasyon+folio · %5 CRM profil · %5 rapor okuma
 const MIX = [
-  'log', 'item', 'log', 'open', 'item', 'log', 'settle', 'item', 'log', 'open',
-  'item', 'log', 'settle', 'item', 'log', 'open', 'item', 'log', 'settle', 'log'
+  'log', 'item', 'wf', 'open', 'qr', 'log', 'settle', 'resv', 'item', 'wf',
+  'log', 'open', 'crm', 'item', 'settle', 'qr', 'wf', 'resv', 'log', 'report'
 ];
 
 // Sağlık eşikleri: bir kademe bu sınırların altında kalıyorsa "sürdürülebilir".
@@ -69,6 +81,78 @@ async function hotelWorker(db, o) {
           createdAt: new Date(), expiresAt: o.expiresAt
         });
         stats.created.push(ref.id);
+      } else if (kind === 'wf') {
+        // Paylaşılan açık talep havuzunda üstlen→çöz döngüsü: panel'deki
+        // transitionRecordImpl gibi durum sunucudan okunup kontrol edilir —
+        // iki cihaz aynı talebi aynı anda üstlenmeye çalışınca çekişir.
+        const wfRef = col.doc(base + '_wf_r' + (seq % WF_PER_HOTEL));
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(wfRef);
+          if (!snap.exists || snap.data().status === 'Solved') {
+            tx.set(wfRef, {
+              kind: 'wf', runId: o.runId, hotel: o.hotel, status: 'Following',
+              payload: PAYLOAD, createdAt: new Date(), expiresAt: o.expiresAt
+            });
+          } else if (snap.data().status === 'Following') {
+            tx.update(wfRef, { status: 'InProgress', acknowledgedAt: new Date() });
+          } else {
+            tx.update(wfRef, { status: 'Solved', completedAt: new Date() });
+          }
+        });
+        stats.created.push(wfRef.id);
+      } else if (kind === 'qr') {
+        // QR misafir siparişi: sipariş dokümanı + kalem başına kayıt,
+        // order-bridge'in yaptığı gibi tek batch'te.
+        const orderRef = col.doc(base + '_w' + o.worker + '_qr' + seq);
+        const l1 = col.doc(orderRef.id + '_l1');
+        const l2 = col.doc(orderRef.id + '_l2');
+        const b = db.batch();
+        b.set(orderRef, {
+          kind: 'order', runId: o.runId, hotel: o.hotel, status: 'pending',
+          items: [{ id: 'i1', logId: l1.id }, { id: 'i2', logId: l2.id }],
+          createdAt: new Date(), expiresAt: o.expiresAt
+        });
+        [l1, l2].forEach((lr) => b.set(lr, {
+          kind: 'log', source: 'guest-order', runId: o.runId, hotel: o.hotel,
+          status: 'Following', orderId: orderRef.id, createdAt: new Date(), expiresAt: o.expiresAt
+        }));
+        await b.commit();
+        stats.created.push(orderRef.id, l1.id, l2.id);
+      } else if (kind === 'resv') {
+        // Concierge: rezervasyon + oda hesabı (folio) satırı tek batch'te.
+        const rRef = col.doc(base + '_w' + o.worker + '_resv' + seq);
+        const fRef = col.doc(base + '_w' + o.worker + '_folio' + seq);
+        const b = db.batch();
+        b.set(rRef, {
+          kind: 'resv', runId: o.runId, hotel: o.hotel, status: 'confirmed',
+          date: '2026-07-20', payload: PAYLOAD, createdAt: new Date(), expiresAt: o.expiresAt
+        });
+        b.set(fRef, {
+          kind: 'folio', runId: o.runId, hotel: o.hotel, status: 'open',
+          amount: 150, createdAt: new Date(), expiresAt: o.expiresAt
+        });
+        await b.commit();
+        stats.created.push(rRef.id, fRef.id);
+      } else if (kind === 'crm') {
+        // CRM: paylaşılan misafir profili üzerinde oku-değiştir-yaz
+        // (oda değişikliği / durum senkronu deseni).
+        const gRef = col.doc(base + '_guest_g' + (seq % GUESTS_PER_HOTEL));
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(gRef);
+          if (!snap.exists) {
+            tx.set(gRef, {
+              kind: 'guest', runId: o.runId, hotel: o.hotel, status: 'in_house',
+              room: '10' + (seq % GUESTS_PER_HOTEL), version: 1,
+              createdAt: new Date(), expiresAt: o.expiresAt
+            });
+          } else {
+            tx.update(gRef, { room: '10' + (seq % 9), version: (snap.data().version || 0) + 1 });
+          }
+        });
+        stats.created.push(gRef.id);
+      } else if (kind === 'report') {
+        // Raporlar: filtreli toplu okuma (tarih aralığı sorgusu benzeri).
+        await col.where('runId', '==', o.runId).where('hotel', '==', o.hotel).limit(50).get();
       } else if (kind === 'open') {
         const lockRef = col.doc(base + '_lock_t' + table);
         const checkRef = col.doc(base + '_check_t' + table);
@@ -166,6 +250,6 @@ async function cleanup(db, ids, deadline) {
 }
 
 module.exports = {
-  COL, MIX, TABLES_PER_HOTEL, WORKERS_PER_HOTEL, HEALTH,
+  COL, MIX, TABLES_PER_HOTEL, WF_PER_HOTEL, GUESTS_PER_HOTEL, WORKERS_PER_HOTEL, HEALTH,
   ladder, percentile, isHealthy, hotelWorker, runStage, cleanup
 };
