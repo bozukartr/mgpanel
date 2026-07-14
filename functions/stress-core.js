@@ -32,14 +32,46 @@ const WORKERS_PER_HOTEL = 3;  // aynı oteldeki eş zamanlı personel cihazı
 const LATENCY_CAP = 4000;     // kademe başına gecikme örneklemi üst sınırı (bellek)
 const PAYLOAD = 'x'.repeat(200);
 
-// 20 slotluk deterministik işlem karışımı — modül ağırlıkları:
-// %20 şikayet/talep girişi · %15 iş akışı (üstlen/çöz) · %10 QR sipariş
-// %15 adisyon kalemi · %10 masa açma · %10 hesap kapama
-// %10 rezervasyon+folio · %5 CRM profil · %5 rapor okuma
-const MIX = [
-  'log', 'item', 'wf', 'open', 'qr', 'log', 'settle', 'resv', 'item', 'wf',
-  'log', 'open', 'crm', 'item', 'settle', 'qr', 'wf', 'resv', 'log', 'report'
-];
+// Varsayılan MODÜL ağırlıkları (yüzde) — UI'daki "Dengeli" profil.
+// Ağırlıklar isteğe göre değiştirilebilir (ör. restoran hariç → restoran: 0).
+const MODULE_WEIGHTS = { talep: 20, akis: 15, qr: 10, restoran: 35, concierge: 10, crm: 5, rapor: 5 };
+
+// Modül ağırlıklarını işlem türü ağırlıklarına çevirir; restoran kendi
+// içinde 3:2:2 (kalem : masa açma : hesap kapama) bölünür — restoran 0 ise
+// üç işlem de otomatik olarak devre dışı kalır (yetim settle/item olmaz).
+function moduleWeightsToOps(mw) {
+  const n = (x) => {
+    const v = parseInt(x, 10);
+    return Number.isFinite(v) && v > 0 ? Math.min(100, v) : 0;
+  };
+  const r = n(mw.restoran);
+  return {
+    log: n(mw.talep), wf: n(mw.akis), qr: n(mw.qr),
+    item: (r * 3) / 7, open: (r * 2) / 7, settle: (r * 2) / 7,
+    resv: n(mw.concierge), crm: n(mw.crm), report: n(mw.rapor)
+  };
+}
+
+// Ağırlıklardan deterministik, düzgün serpiştirilmiş işlem dizisi üretir
+// (smooth weighted round-robin — rastgelelik yok, aynı ağırlık aynı dizi).
+function buildMix(opWeights, slots) {
+  const kinds = Object.keys(opWeights).filter((k) => opWeights[k] > 0);
+  if (!kinds.length) return [];
+  const total = kinds.reduce((s, k) => s + opWeights[k], 0);
+  const acc = {};
+  kinds.forEach((k) => { acc[k] = 0; });
+  const mix = [];
+  for (let i = 0; i < (slots || 40); i++) {
+    let best = kinds[0];
+    kinds.forEach((k) => { acc[k] += opWeights[k]; if (acc[k] > acc[best]) best = k; });
+    acc[best] -= total;
+    mix.push(best);
+  }
+  return mix;
+}
+
+// Varsayılan karışım (40 slot): dengeli profil.
+const MIX = buildMix(moduleWeightsToOps(MODULE_WEIGHTS), 40);
 
 // Sağlık eşikleri: bir kademe bu sınırların altında kalıyorsa "sürdürülebilir".
 const HEALTH = { maxErrorRate: 0.02, maxP95Ms: 2000 };
@@ -68,9 +100,10 @@ async function hotelWorker(db, o) {
   const stats = { ops: 0, errors: 0, aborted: 0, latencies: [], created: [] };
   const col = db.collection(COL);
   const base = o.runId + '_h' + o.hotel;
+  const mix = (o.mix && o.mix.length) ? o.mix : MIX;
   let seq = 0;
   while (Date.now() < o.deadline) {
-    const kind = MIX[(seq + o.worker * 7) % MIX.length];
+    const kind = mix[(seq + o.worker * 7) % mix.length];
     const table = (seq + o.worker) % TABLES_PER_HOTEL;
     const t0 = Date.now();
     try {
@@ -211,7 +244,7 @@ async function runStage(db, o) {
   const workers = [];
   for (let h = 0; h < o.hotels; h++) {
     for (let w = 0; w < WORKERS_PER_HOTEL; w++) {
-      workers.push(hotelWorker(db, { runId: o.runId, hotel: h, worker: w, deadline, expiresAt: o.expiresAt }));
+      workers.push(hotelWorker(db, { runId: o.runId, hotel: h, worker: w, deadline, expiresAt: o.expiresAt, mix: o.mix }));
     }
   }
   const t0 = Date.now();
@@ -250,6 +283,6 @@ async function cleanup(db, ids, deadline) {
 }
 
 module.exports = {
-  COL, MIX, TABLES_PER_HOTEL, WF_PER_HOTEL, GUESTS_PER_HOTEL, WORKERS_PER_HOTEL, HEALTH,
-  ladder, percentile, isHealthy, hotelWorker, runStage, cleanup
+  COL, MIX, MODULE_WEIGHTS, TABLES_PER_HOTEL, WF_PER_HOTEL, GUESTS_PER_HOTEL, WORKERS_PER_HOTEL, HEALTH,
+  moduleWeightsToOps, buildMix, ladder, percentile, isHealthy, hotelWorker, runStage, cleanup
 };

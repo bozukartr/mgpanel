@@ -644,6 +644,11 @@ a.btn-ghost, a.btn-primary { text-decoration: none; }
 .st-result-num { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 .st-result-errs { color: var(--red); font-size: 12px; margin-top: 4px; }
 
+/* Kapasite testi: özel ağırlık ızgarası */
+.st-weights { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 14px; margin: 4px 0 8px; }
+.st-weights label { font-size: 11px; }
+@media (max-width: 760px) { .st-weights { grid-template-columns: repeat(2, 1fr); } }
+
 /* Kapasite testi: kademe satırları (geniş metrik sütunu) + sonuç bandı */
 .st-cap-row { display: grid; grid-template-columns: 78px 1fr 300px; align-items: center; gap: 12px; font-size: 12.5px; }
 .st-cap-row b { color: var(--text); }
