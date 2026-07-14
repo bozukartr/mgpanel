@@ -1749,6 +1749,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filterInProgress')?.addEventListener('click', () => { activeStatusFilter = 'InProgress'; setActivePill('filterInProgress'); triggerSearch(); });
     document.getElementById('filterSolved').addEventListener('click', () => { activeStatusFilter = 'Solved'; setActivePill('filterSolved'); triggerSearch(); });
     document.getElementById('filterOverdue').addEventListener('click', () => { activeStatusFilter = 'Overdue'; setActivePill('filterOverdue'); triggerSearch(); });
+    document.getElementById('filterMine')?.addEventListener('click', () => { activeStatusFilter = 'Mine'; setActivePill('filterMine'); triggerSearch(); });
 
     // Refresh elapsed-time chips and overdue states every minute while visible;
     // ayrıca SLA aşan kayıtları otomatik eskale et.
@@ -2021,7 +2022,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateView(textFilter = '', dateFilter = '') {
         recordsTableBody.innerHTML = '';
         const lowerText = textFilter.toLowerCase();
-        let stats = { total: 0, following: 0, inprogress: 0, solved: 0, overdue: 0 };
+        let stats = { total: 0, following: 0, inprogress: 0, solved: 0, overdue: 0, mine: 0 };
 
         const tableTitle = document.getElementById('tableTitle');
         if (tableTitle) {
@@ -2048,12 +2049,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (status === 'InProgress') stats.inprogress++;
                 else stats.following++;
                 if (isOverdue(record)) stats.overdue++;
+                if (isMineRecord(record)) stats.mine++;
             }
         });
 
         const finalFiltered = filtered.filter(r => {
             if (!activeStatusFilter) return true;
             if (activeStatusFilter === 'Overdue') return r.status !== 'Solved' && isOverdue(r);
+            if (activeStatusFilter === 'Mine') return r.status !== 'Solved' && isMineRecord(r);
             return (r.status || 'Following') === activeStatusFilter;
         });
 
@@ -2158,6 +2161,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.getElementById('statInProgress')) document.getElementById('statInProgress').textContent = stats.inprogress;
         if (document.getElementById('statSolved')) document.getElementById('statSolved').textContent = stats.solved;
         if (document.getElementById('statOverdue')) document.getElementById('statOverdue').textContent = stats.overdue;
+        if (document.getElementById('statMine')) document.getElementById('statMine').textContent = stats.mine;
 
         recordCountElement.textContent = finalFiltered.length;
 
@@ -2362,6 +2366,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // KATI departman kuralı: kaydı yalnızca kaydın departmanındaki personel
     // üstlenebilir; manager/admin her kaydı üstlenebilir. Böylece "klima
     // şikayetini teknik servisten biri üstlenir" akışı disipline bağlanır.
+    // "İşlerim": üstlendiğim VEYA bana atanan işler — saha personelinin
+    // kendi iş listesi (birden fazla işi tek bakışta takip için).
+    function isMineRecord(r) {
+        if (!r) return false;
+        if (r.acknowledgedBy === loggedUsername) return true;
+        if (r.assignedToName === loggedUsername) return true;
+        const me = (firebase.auth().currentUser || {}).uid;
+        return !!(me && r.assignedTo && r.assignedTo === me);
+    }
     function deptOf(s) { return String(s || '').trim().toLocaleLowerCase('tr-TR'); }
     function canTakeRecord(record) {
         const role = (localStorage.getItem('hotelRole') || '').toLowerCase();

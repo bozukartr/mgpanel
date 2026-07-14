@@ -36,8 +36,64 @@ function hhmm(d) {
 }
 function safeId(s) { return String(s || '').replace(/[\/#?%\[\]]/g, '_').slice(0, 60); }
 
+// Concierge tespiti: kalemin departmanı veya kategorisi Concierge'i işaret
+// ediyorsa bu kalem NORMAL talep değildir — guestLogs yerine Concierge
+// panelinde "Bekleyen" bir rezervasyon olarak doğar.
+function isConciergeItem(it) {
+  const s = (String((it && it.department) || '') + ' ' + String((it && it.category) || ''))
+    .toLocaleLowerCase('tr-TR');
+  return s.indexOf('concierge') !== -1 || s.indexOf('konsiyerj') !== -1;
+}
+
+// Concierge kalemleri → reservations dokümanları (status: Pending) + resId
+// geri yazımı. concierge.js'in beklediği şemaya birebir uyar; adı "transfer"
+// içeren kalem Transfer tipiyle, diğerleri Other/otherType ile açılır.
+function buildOrderReservationDocs(order, orderId, extra) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (!items.length || !order.tenantId) return { docs: [], items: items };
+  const guestName = String((extra && extra.guestName) || order.guestName || '').trim()
+    || ('Oda ' + String(order.room || '—').trim());
+  const docs = [];
+  const outItems = items.map((it, idx) => {
+    if (!isConciergeItem(it)) return it;
+    if (it && it.resId) return it; // zaten bağlı — dokunma (idempotent)
+    const itemId = safeId((it && it.id) || ('i' + idx));
+    const resId = 'qr_' + safeId(orderId) + '_' + itemId;
+    const name = String((it && it.name) || '').trim();
+    const isTransfer = /transfer/.test(name.toLocaleLowerCase('tr-TR'));
+    const qty = Number(it && it.qty) || 1;
+    const notes = [
+      'QR misafir talebi', qty > 1 ? qty + ' adet' : '',
+      (it && it.note) ? String(it.note).slice(0, 200) : ''
+    ].filter(Boolean).join(' · ');
+    const data = {
+      tenantId: order.tenantId,
+      type: isTransfer ? 'Transfer' : 'Other',
+      otherType: isTransfer ? '' : name,
+      resName: name,
+      date: todayYmd(),
+      time: String((it && it.preferredTime) || '').slice(0, 10),
+      guestName: guestName,
+      room: String(order.room || '').trim(),
+      status: 'Pending',
+      notes: notes,
+      staffInitial: 'QR-Misafir',
+      source: 'guest-order',
+      orderId: orderId,
+      itemId: (it && it.id) || ('i' + idx)
+    };
+    if (extra && extra.guestId) data.guestId = extra.guestId;
+    if (extra && extra.stayId) data.stayId = extra.stayId;
+    docs.push({ id: resId, data });
+    return Object.assign({}, it, { resId });
+  });
+  return { docs, items: outItems };
+}
+
 // Kalem başına guestLogs dokümanlarını + logId işlenmiş kalem dizisini üretir.
 // extra: {guestId, stayId, guestName} — tetikleyicinin çözdüğü kimlik.
+// Concierge kalemleri ATLANIR — onlar buildOrderReservationDocs ile
+// rezervasyon olur (normal talep akışına girmezler).
 function buildOrderLogDocs(order, orderId, extra) {
   const items = Array.isArray(order.items) ? order.items : [];
   if (!items.length || !order.tenantId) return { docs: [], items: items };
@@ -48,6 +104,7 @@ function buildOrderLogDocs(order, orderId, extra) {
   const outItems = items.map((it, idx) => {
     const itemId = safeId((it && it.id) || ('i' + idx));
     if (it && it.logId) return it; // zaten bağlı (eski istemci köprüsü) — dokunma
+    if (isConciergeItem(it)) return it; // concierge → rezervasyon akışı
     const logId = 'qr_' + safeId(orderId) + '_' + itemId;
     const qty = Number(it && it.qty) || 1;
     const parts = [String((it && it.name) || '').trim() + (qty > 1 ? ' x' + qty : '')];
@@ -80,4 +137,4 @@ function buildOrderLogDocs(order, orderId, extra) {
   return { docs, items: outItems };
 }
 
-module.exports = { buildOrderLogDocs, DEPT_BY_CAT };
+module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, DEPT_BY_CAT };

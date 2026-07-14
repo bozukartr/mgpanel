@@ -345,7 +345,7 @@ exports.paytrCallback = onRequest(
 // When an in-app notification is written, push it to the recipient's
 // registered devices via FCM. Tokens live in `pushTokens` (doc id = token).
 // Requires a deployed function; until then the in-app bell still works.
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 
 exports.onNotificationCreate = onDocumentCreated(
   { document: 'notifications/{id}', region: REGION },
@@ -450,23 +450,56 @@ exports.onGuestOrderCreate = onDocumentCreated(
     // Böylece üstlenme/çözüm süreleri misafirin talep ETTİĞİ andan ölçülür;
     // SLA/eskalasyon/performans QR talepleri için de çalışır. Deterministik
     // kimlik (qr_{orderId}_{itemId}) → yeniden tetiklenme mükerrer üretmez.
+    let conciergeResNames = [];
     try {
-      const bridge = orderBridge.buildOrderLogDocs(
-        Object.assign({}, o, { guestName: stamped.guestName }),
-        event.params.id,
-        { guestId: stamped.guestId, stayId: stamped.stayId, guestName: stamped.guestName }
-      );
-      if (bridge.docs.length) {
+      const extra = { guestId: stamped.guestId, stayId: stamped.stayId, guestName: stamped.guestName };
+      const oWithName = Object.assign({}, o, { guestName: stamped.guestName });
+      // 1) Normal kalemler → guestLogs (concierge kalemleri burada atlanır)
+      const bridge = orderBridge.buildOrderLogDocs(oWithName, event.params.id, extra);
+      // 2) Concierge kalemleri → reservations (Pending) — Concierge panelinde
+      //    "Bekleyen" olarak doğar; normal talep akışına girmez.
+      const resBridge = orderBridge.buildOrderReservationDocs(
+        Object.assign({}, oWithName, { items: bridge.items }), event.params.id, extra);
+      if (bridge.docs.length || resBridge.docs.length) {
         const lb = db.batch();
         bridge.docs.forEach((d) => lb.set(
           db.collection('guestLogs').doc(d.id),
           Object.assign({}, d.data, { createdAt: admin.firestore.FieldValue.serverTimestamp() }),
           { merge: true }
         ));
-        lb.update(snap.ref, { items: bridge.items });
+        resBridge.docs.forEach((d) => lb.set(
+          db.collection('reservations').doc(d.id),
+          Object.assign({}, d.data, { createdAt: admin.firestore.FieldValue.serverTimestamp() }),
+          { merge: true }
+        ));
+        lb.update(snap.ref, { items: resBridge.items });
         await lb.commit();
+        conciergeResNames = resBridge.docs.map((d) => d.data.resName).filter(Boolean);
       }
-    } catch (e) { console.error('order→log bridge failed', e); }
+    } catch (e) { console.error('order→log/res bridge failed', e); }
+
+    // Concierge talebi bildirimi: Concierge departmanı personeline; o
+    // departman yoksa Ön Büro/Front Office/Resepsiyon personeline düşer.
+    if (conciergeResNames.length) {
+      try {
+        const staffAll = await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+        const deptOf = (d) => String((d.data() || {}).department || '').toLocaleLowerCase('tr-TR');
+        let recips = staffAll.docs.filter((d) => /concierge|konsiyerj/.test(deptOf(d)));
+        if (!recips.length) recips = staffAll.docs.filter((d) => /ön ?büro|onburo|front|resepsiyon/.test(deptOf(d)));
+        const title = '🛎️ Yeni Concierge talebi' + (room ? ' · Oda ' + room : '');
+        const body = conciergeResNames.slice(0, 3).join(', ')
+          + (conciergeResNames.length > 3 ? ' +' + (conciergeResNames.length - 3) : '')
+          + (stamped.guestName ? ' — ' + stamped.guestName : '');
+        const nb = db.batch();
+        recips.forEach((d) => nb.set(db.collection('notifications').doc(), {
+          tenantId, toUid: d.id, toUsername: (d.data() || {}).username || '',
+          fromUid: 'system', fromUsername: 'QR-Misafir',
+          title, body, recordId: event.params.id, type: 'guestOrder', read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        }));
+        if (recips.length) await nb.commit();
+      } catch (e) { console.error('concierge notify failed', e); }
+    }
 
     // Otelin bildirim ayarları (admin "Bildirimler" sekmesi). Yoksa makul
     // varsayılanlar: bildirim açık, içerik gösterilir, tüm personele gider.
@@ -519,6 +552,45 @@ exports.onGuestOrderCreate = onDocumentCreated(
       });
     });
     try { await batch.commit(); } catch (e) { console.error('guest order notify failed', e); }
+  }
+);
+
+// ── QR Concierge rezervasyonu → sipariş kalemi durum senkronu ─────
+// Concierge personeli QR kaynaklı rezervasyonu Onaylı/İptal yapınca
+// misafirin sipariş kalemine geri yansıtılır: misafir kendi ekranında
+// talebinin "Onaylandı" olduğunu canlı görür (rezervasyon koleksiyonunu
+// anonim misafir okuyamaz — durumun misafire görünen tek kaynağı sipariş).
+exports.onReservationUpdate = onDocumentUpdated(
+  { document: 'reservations/{id}', region: REGION },
+  async (event) => {
+    const before = event.data && event.data.before ? event.data.before.data() : null;
+    const after = event.data && event.data.after ? event.data.after.data() : null;
+    if (!before || !after) return;
+    if (after.source !== 'guest-order' || !after.orderId || !after.itemId) return;
+    if (before.status === after.status) return;
+    const MAP = { Confirmed: 'confirmed', Cancelled: 'cancelled', Done: 'completed' };
+    const next = MAP[after.status];
+    if (!next) return;
+    const oRef = db.collection('guestOrders').doc(after.orderId);
+    try {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(oRef);
+        if (!snap.exists) return;
+        const o = snap.data() || {};
+        if (o.status === 'cancelled') return;
+        const items = (Array.isArray(o.items) ? o.items : []).map((it) => {
+          if (!it || it.id !== after.itemId) return it;
+          if (it.status === 'completed' || it.status === 'cancelled') return it; // final durumdan geri dönülmez
+          return Object.assign({}, it, { status: next });
+        });
+        const done = (s) => s === 'completed' || s === 'cancelled';
+        const settled = (s) => done(s) || s === 'confirmed' || s === 'in_progress';
+        let status = o.status || 'pending';
+        if (items.length && items.every((it) => done(it.status))) status = 'completed';
+        else if (items.length && items.every((it) => settled(it.status)) && status === 'pending') status = 'confirmed';
+        tx.update(oRef, { items, status, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      });
+    } catch (e) { console.error('reservation→order sync failed', e); }
   }
 );
 

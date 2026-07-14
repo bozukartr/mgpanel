@@ -268,6 +268,16 @@ h1, h2, h3, p { margin: 0; }
 .go-cta svg { width: 19px; height: 19px; }
 .go-cta-block { width: 100%; }
 
+/* Taleplerim sekmeleri: Talepler · Concierge */
+.go-otabs { display: flex; gap: 8px; padding: 2px 0 12px; }
+.go-otab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 11px 10px; border-radius: var(--r-md); background: var(--bg-2); border: 1px solid var(--line);
+    font-size: 13.5px; font-weight: 700; color: var(--ink-soft); transition: all .15s; }
+.go-otab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+.go-otab i { font-style: normal; font-size: 11px; font-weight: 800; background: rgba(0,0,0,.06); color: inherit;
+    min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
+.go-otab.active i { background: rgba(255,255,255,.2); }
+
 /* ════ TALEPLERİM (liste + takip) ════ */
 #goOrders, #goTrack, #goChatBody, #goProfileBody { padding: 6px 18px calc(20px + var(--safe-bottom)); }
 .go-ocard { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: var(--surface);

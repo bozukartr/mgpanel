@@ -81,7 +81,9 @@
         { category: 'Teknik', name: 'TV Sorunu', icon: '📺', eta: '30 dk', department: 'Engineering' },
         { category: 'Teknik', name: 'Wi-Fi Sorunu', icon: '📶', eta: '20 dk', department: 'Engineering' },
         { category: 'Resepsiyon', name: 'Uyandırma Servisi', icon: '⏰', eta: '—', department: 'Front Office' },
-        { category: 'Resepsiyon', name: 'Taksi Çağır', icon: '🚕', eta: '10 dk', department: 'Front Office' }
+        { category: 'Resepsiyon', name: 'Taksi Çağır', icon: '🚕', eta: '10 dk', department: 'Front Office' },
+        { category: 'Concierge', name: 'Havalimanı Transferi', icon: '🚐', eta: '—', department: 'Concierge' },
+        { category: 'Concierge', name: 'Restoran Rezervasyonu', icon: '🍽️', eta: '—', department: 'Concierge' }
     ].map((d, i) => Object.assign({ id: 'demo-' + i, active: true, sortOrder: (i + 1) * 10 }, d));
 
     const DEMO_MENUS = [
@@ -1100,6 +1102,16 @@
     }
     function toggleLive() { liveExpanded = !liveExpanded; renderLive(); buzz(8); }
 
+    // Concierge kalemi: departman/kategori Concierge'i işaret eder — bu
+    // talepler rezervasyon akışında işler ve ayrı sekmede gösterilir.
+    function isConciergeItem(it) {
+        const s = (String(it && it.department || '') + ' ' + String(it && it.category || '')).toLocaleLowerCase('tr-TR');
+        return s.indexOf('concierge') !== -1 || s.indexOf('konsiyerj') !== -1;
+    }
+    const orderHasConcierge = o => (o.items || []).some(isConciergeItem);
+    const orderHasNormal = o => (o.items || []).some(it => !isConciergeItem(it));
+    let ordersTab = 'req'; // 'req' (normal talepler) | 'con' (concierge)
+
     function showOrderList() {
         trackingId = null;
         $('goTrack').classList.add('go-hidden');
@@ -1112,7 +1124,27 @@
             wrap.querySelector('[data-go]').onclick = () => showTab('services');
             return;
         }
-        wrap.innerHTML = myOrders.map(o => {
+        // Concierge talepleri ayrı sekmede — hiç concierge siparişi yoksa
+        // sekme çubuğu hiç görünmez (mevcut davranış birebir korunur).
+        const anyCon = myOrders.some(orderHasConcierge);
+        let tabsHtml = '';
+        let list = myOrders;
+        if (anyCon) {
+            if (ordersTab === 'con') list = myOrders.filter(orderHasConcierge);
+            else list = myOrders.filter(o => orderHasNormal(o) || !orderHasConcierge(o));
+            const nReq = myOrders.filter(o => orderHasNormal(o) || !orderHasConcierge(o)).length;
+            const nCon = myOrders.filter(orderHasConcierge).length;
+            tabsHtml = `<div class="go-otabs">
+                <button class="go-otab ${ordersTab === 'req' ? 'active' : ''}" data-otab="req">Talepler<i>${nReq}</i></button>
+                <button class="go-otab ${ordersTab === 'con' ? 'active' : ''}" data-otab="con">🛎️ Concierge<i>${nCon}</i></button>
+            </div>`;
+            if (!list.length) {
+                wrap.innerHTML = tabsHtml + `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>Bu sekmede talep yok</h3></div>`;
+                wrap.querySelectorAll('[data-otab]').forEach(b => b.onclick = () => { ordersTab = b.dataset.otab; showOrderList(); });
+                return;
+            }
+        }
+        wrap.innerHTML = tabsHtml + list.map(o => {
             const st = STATUS[o.status] || STATUS.pending;
             const names = (o.items || []).map(it => it.name).join(', ');
             const when = relTime(tsMs(o));
@@ -1125,7 +1157,11 @@
                 <span class="go-ocard-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 20)}</span>
             </button>`;
         }).join('');
-        wrap.onclick = e => { const b = e.target.closest('[data-open]'); if (b) openTracking(b.dataset.open); };
+        wrap.onclick = e => {
+            const t = e.target.closest('[data-otab]');
+            if (t) { ordersTab = t.dataset.otab; showOrderList(); return; }
+            const b = e.target.closest('[data-open]'); if (b) openTracking(b.dataset.open);
+        };
     }
 
     function openTracking(id) {
