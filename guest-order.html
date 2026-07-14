@@ -58,8 +58,9 @@
                 <button class="go-back" id="goServicesBack" aria-label="Geri">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
-                <h1 class="go-topbar-title">Hizmetler</h1>
+                <h1 class="go-topbar-title" id="goServicesTitle">Hizmetler</h1>
             </div>
+            <div class="go-cathero" id="goCatHero" hidden></div>
             <div class="go-search">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                 <input type="text" id="goSearch" placeholder="Hizmet ara…" autocomplete="off" spellcheck="false">
@@ -115,6 +116,19 @@
             <div class="go-scroll" id="goProfileBody"></div>
         </section>
     </div>
+
+    <!-- ══ Canlı talep durumu — nav üstünde minimize özet, dokununca genişler ══ -->
+    <div class="go-live" id="goLive" hidden>
+        <div class="go-live-body" id="goLiveBody" hidden></div>
+        <button class="go-live-bar" id="goLiveBar" aria-label="Aktif talepleriniz"></button>
+    </div>
+
+    <!-- ══ Hizmet detayı sheet (adet + not + saat) ══ -->
+    <div class="go-backdrop" id="goItemBackdrop"></div>
+    <section class="go-sheet" id="goItemSheet" aria-hidden="true">
+        <div class="go-sheet-grip"></div>
+        <div class="go-scroll" id="goItemSheetBody"></div>
+    </section>
 
     <!-- ══ Floating "sepete git" pill ══ -->
     <button class="go-pill" id="goCartPill" hidden>
