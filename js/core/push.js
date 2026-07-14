@@ -12,13 +12,20 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
 
 (function () {
     'use strict';
-    if (!PUSH_VAPID_KEY) { console.info('[push] VAPID key not set — OS push disabled (in-app notifications still work).'); return; }
-    if (typeof firebase === 'undefined' || !firebase.messaging || typeof db === 'undefined' || typeof auth === 'undefined') return;
-    if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
-    try { if (firebase.messaging.isSupported && !firebase.messaging.isSupported()) return; } catch (e) { return; }
+    // Durum, zil panelindeki "Cihaz Bildirimleri" satırında gösterilir —
+    // kayıt sorunları artık sessiz kalmaz, personel tek dokunuşla onarır.
+    function stubPush(reason) {
+        window.Push = { supported: false, reason: reason, state: function () { return { supported: false, reason: reason }; }, repair: async function () { return { supported: false, reason: reason }; } };
+    }
+    if (!PUSH_VAPID_KEY) { stubPush('VAPID anahtarı ayarlı değil'); console.info('[push] VAPID key not set — OS push disabled (in-app notifications still work).'); return; }
+    if (typeof firebase === 'undefined' || !firebase.messaging || typeof db === 'undefined' || typeof auth === 'undefined') { stubPush('Bildirim altyapısı yüklenemedi'); return; }
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) { stubPush('Bu tarayıcı cihaz bildirimini desteklemiyor (iOS\'ta uygulamayı Ana Ekrana ekleyin)'); return; }
+    try { if (firebase.messaging.isSupported && !firebase.messaging.isSupported()) { stubPush('Bu tarayıcı cihaz bildirimini desteklemiyor'); return; } } catch (e) { stubPush('Bu tarayıcı cihaz bildirimini desteklemiyor'); return; }
 
     let inFlight = false;
     let refreshHooked = false;
+    // Teşhis durumu: bu oturumda token HANGI kullanıcı için kaydedildi?
+    const pstate = { savedUid: '', token: '', error: '', savedAt: 0 };
 
     async function saveToken(token) {
         const uid = auth.currentUser && auth.currentUser.uid;
@@ -30,6 +37,7 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
             platform: (navigator.userAgent || '').slice(0, 180),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+        pstate.savedUid = uid; pstate.token = token; pstate.savedAt = Date.now(); pstate.error = '';
     }
 
     async function enable() {
@@ -69,11 +77,32 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
             }
             console.info('[push] device registered for OS notifications.');
         } catch (e) {
+            pstate.error = (e && e.message) || 'bilinmeyen hata';
             console.warn('[push]', e && e.message);
             if (window.Monitor) Monitor.capture(e, { where: 'push.enable' });
         }
         inFlight = false;
     }
+
+    // Zil panelinin kullandığı teşhis/onarım API'si.
+    window.Push = {
+        supported: true,
+        state: function () {
+            const uid = auth.currentUser && auth.currentUser.uid;
+            return {
+                supported: true,
+                permission: Notification.permission,
+                // "Kayıtlı" = bu oturumda token ŞU ANKİ kullanıcı adına yazıldı.
+                registered: !!pstate.savedUid && pstate.savedUid === uid,
+                error: pstate.error
+            };
+        },
+        repair: async function () {
+            pstate.error = '';
+            await enable();
+            return window.Push.state();
+        }
+    };
 
     auth.onAuthStateChanged(function (u) {
         if (!u) return;
@@ -89,5 +118,16 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
             window.addEventListener('pointerdown', once, { once: true });
             window.addEventListener('click', once, { once: true });
         }
+    });
+
+    // Ortak cihazlarda hesap değişimi: pushTokens dokümanı token başına TEK uid
+    // taşır (cihazda en son kaydolan kazanır). Sekme öne her geldiğinde, token
+    // hâlâ mevcut kullanıcı adına kayıtlı değilse yeniden bağla — aksi halde
+    // "admin girince personelin push'u kesildi" durumu sessizce kalıcılaşıyordu.
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) return;
+        const uid = auth.currentUser && auth.currentUser.uid;
+        if (!uid || Notification.permission !== 'granted') return;
+        if (pstate.savedUid !== uid) enable();
     });
 })();
