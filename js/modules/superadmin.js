@@ -855,9 +855,15 @@
                 pmsHasExistingOAuthSecret = !!o.clientSecret;
                 $('pmsOAuthClientSecret').placeholder = pmsHasExistingOAuthSecret ? '•••••••• (kayıtlı — değiştirmek için yeni değer girin)' : '';
                 pmsSetField('pmsOAuthScope', o.scope);
+                // Ek header DEĞERLERİ de artık forma geri okunmuyor — sunucuda
+                // şifreli saklanıyor (bkz. functions/index.js pmsSaveConfig).
+                // Yalnızca header ADI (ör. "x-app-key") gösterilir; o hassas
+                // değil ve boş bırakılırsa kaydederken mevcut değer korunur.
                 const eh = c.extraHeaders || {}; const ehKeys = Object.keys(eh);
-                pmsSetField('pmsExtraHeader1Key', ehKeys[0]); pmsSetField('pmsExtraHeader1Val', ehKeys[0] ? eh[ehKeys[0]] : '');
-                pmsSetField('pmsExtraHeader2Key', ehKeys[1]); pmsSetField('pmsExtraHeader2Val', ehKeys[1] ? eh[ehKeys[1]] : '');
+                pmsSetField('pmsExtraHeader1Key', ehKeys[0]);
+                $('pmsExtraHeader1Val').placeholder = ehKeys[0] ? '•••••••• (kayıtlı — değiştirmek için yeni değer girin)' : 'Değer';
+                pmsSetField('pmsExtraHeader2Key', ehKeys[1]);
+                $('pmsExtraHeader2Val').placeholder = ehKeys[1] ? '•••••••• (kayıtlı — değiştirmek için yeni değer girin)' : 'Değer';
                 const m = c.map || {};
                 pmsSetField('pmsMapName', m.name); pmsSetField('pmsMapRoom', m.room);
                 pmsSetField('pmsMapCheckIn', m.checkIn); pmsSetField('pmsMapCheckOut', m.checkOut);
@@ -866,6 +872,7 @@
                 renderPmsLastTest(c._lastTest);
             } else {
                 $('pmsApiKey').placeholder = ''; $('pmsOAuthClientSecret').placeholder = '';
+                $('pmsExtraHeader1Val').placeholder = 'Değer'; $('pmsExtraHeader2Val').placeholder = 'Değer';
             }
             loadPmsErrorCount(id);
         } catch (e) { $('pmsErr').textContent = 'Yapılandırma okunamadı: ' + e.message; }
@@ -896,8 +903,12 @@
         const eh = {};
         const k1 = $('pmsExtraHeader1Key').value.trim(), v1 = $('pmsExtraHeader1Val').value.trim();
         const k2 = $('pmsExtraHeader2Key').value.trim(), v2 = $('pmsExtraHeader2Val').value.trim();
-        if (k1 && v1) eh[k1] = v1;
-        if (k2 && v2) eh[k2] = v2;
+        // Değer boş olsa bile ANAHTAR ADI gönderilir — sunucu bunu "bu anahtar
+        // için mevcut şifreli değeri koru" olarak yorumlar (form artık gerçek
+        // değeri hiç göstermiyor, bkz. openPmsModal). Anahtar da boşsa o slot
+        // tamamen atlanır.
+        if (k1) eh[k1] = v1;
+        if (k2) eh[k2] = v2;
         return {
             enabled: $('pmsEnabledChk').checked,
             presetId,

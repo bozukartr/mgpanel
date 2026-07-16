@@ -702,35 +702,13 @@ function pmsNormalize(item, map) {
   return g;
 }
 
-// Alan-seviyesi şifreleme (AES-256-GCM) — pmsConfig.apiKey / oauth2.clientSecret
-// artık DÜZ METİN değil, bu master anahtarla (PMS_CRED_ENC_KEY) şifrelenmiş
-// olarak saklanır. Çıktı "iv:tag:ciphertext" (üçü de base64) tek bir string.
-// pmsDecrypt, bu üç parçalı biçimde OLMAYAN bir değeri (ör. henüz kaydedilmemiş,
-// test edilmekte olan düz metin bir form girdisi, ya da göç öncesi eski bir
-// kayıt) OLDUĞU GİBİ geri döner — hem geriye dönük uyumluluk hem de
-// pmsTestConfig'in kaydedilmemiş form değerlerini şifresiz test edebilmesi
-// için kasıtlı.
-function pmsEncKeyBuf() {
-  return crypto.createHash('sha256').update(PMS_CRED_ENC_KEY.value()).digest();
-}
-function pmsEncrypt(plaintext) {
-  if (!plaintext) return '';
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', pmsEncKeyBuf(), iv);
-  const enc = Buffer.concat([cipher.update(String(plaintext), 'utf8'), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return iv.toString('base64') + ':' + tag.toString('base64') + ':' + enc.toString('base64');
-}
-function pmsDecrypt(blob) {
-  if (!blob || typeof blob !== 'string') return blob || '';
-  const parts = blob.split(':');
-  if (parts.length !== 3) return blob; // şifreli biçimde değil — düz metin olarak kabul et
-  try {
-    const decipher = crypto.createDecipheriv('aes-256-gcm', pmsEncKeyBuf(), Buffer.from(parts[0], 'base64'));
-    decipher.setAuthTag(Buffer.from(parts[1], 'base64'));
-    return Buffer.concat([decipher.update(Buffer.from(parts[2], 'base64')), decipher.final()]).toString('utf8');
-  } catch (e) { return ''; } // yanlış anahtar/bozuk veri — sessizce boş dön (PMS 401'i olarak yüzeye çıkar)
-}
+// Alan-seviyesi şifreleme (AES-256-GCM) — pmsConfig.apiKey / oauth2.clientSecret /
+// extraHeaders.* artık DÜZ METİN değil, bu master anahtarla (PMS_CRED_ENC_KEY)
+// şifrelenmiş saklanır. Saf şifreleme mantığı functions/pms-crypto.js'de —
+// saf birim testleriyle (tests/pms-crypto.test.js) doğrulanabilir.
+const pmsCrypto = require('./pms-crypto');
+function pmsEncrypt(plaintext) { return pmsCrypto.encrypt(plaintext, PMS_CRED_ENC_KEY.value()); }
+function pmsDecrypt(blob) { return pmsCrypto.decrypt(blob, PMS_CRED_ENC_KEY.value()); }
 
 // Tek bir HTTP denemesi, kendi zaman aşımı bütçesiyle.
 async function pmsFetchOnce(url, headers, timeoutMs) {
@@ -776,10 +754,14 @@ function logPmsFailure(tenantId, route, err) {
 
 // Bellek-içi OAuth2 token önbelleği (aynı Cloud Functions instance'ı
 // sıcakken tekrar tekrar token almayı önler). Kalıcı önbellek (soğuk
-// başlangıçlar/instance'lar arası) için tenantId verildiğinde
-// pmsConfig/{tenantId}._oauthCache kullanılır — bu alan yalnızca Admin
-// SDK'dan yazılır/okunur, client'a hiç dönmez (pmsConfig zaten
-// superadmin-only bir koleksiyon).
+// başlangıçlar/instance'lar arası) için tenantId verildiğinde AYRI
+// `pmsOAuthCache/{tenantId}` koleksiyonu kullanılır (firestore.rules:
+// deny-all — Admin SDK dışında hiçbir client, superadmin dahil, canlı
+// bearer token'ı okuyamaz). Bilinçli olarak pmsConfig'in İÇİNDE değil:
+// pmsConfig superadmin'in ayar formu için client'tan okunabiliyor —
+// canlı bir erişim token'ının o formun okuduğu belgede durması, form asla
+// göstermese bile token'ın superadmin'in tarayıcısına inmesi anlamına
+// gelirdi (bkz. PMS güvenlik denetimi).
 const oauthMemCache = new Map(); // key: tenantId || '_test' -> { token, expiresAt }
 
 async function fetchOAuth2Token(oauth2) {
@@ -821,8 +803,8 @@ async function getOAuth2Token(oauth2, tenantId) {
 
   if (tenantId) {
     try {
-      const snap = await db.collection('pmsConfig').doc(tenantId).get();
-      const cached = snap.exists ? (snap.data() || {})._oauthCache : null;
+      const snap = await db.collection('pmsOAuthCache').doc(tenantId).get();
+      const cached = snap.exists ? snap.data() : null;
       if (cached && cached.expiresAt > now) {
         oauthMemCache.set(cacheKey, cached);
         return cached.token;
@@ -833,7 +815,7 @@ async function getOAuth2Token(oauth2, tenantId) {
   const fresh = await fetchOAuth2Token(oauth2);
   oauthMemCache.set(cacheKey, fresh);
   if (tenantId) {
-    db.collection('pmsConfig').doc(tenantId).set({ _oauthCache: fresh }, { merge: true }).catch(() => {});
+    db.collection('pmsOAuthCache').doc(tenantId).set(fresh).catch(() => {});
   }
   return fresh.token;
 }
@@ -877,7 +859,10 @@ async function pmsRunLookup(cfg, query, tenantId) {
     }
     if (cfg.extraHeaders && typeof cfg.extraHeaders === 'object') {
       Object.keys(cfg.extraHeaders).forEach((k) => {
-        const v = cfg.extraHeaders[k];
+        // pmsDecrypt, şifreli olmayan (test edilmekte olan kaydedilmemiş
+        // form değeri) bir string'i olduğu gibi geri döner — bkz. yukarıdaki
+        // pmsDecrypt tanımı; geriye dönük uyumlu.
+        const v = pmsDecrypt(cfg.extraHeaders[k]);
         if (k && v) headers[k] = String(v);
       });
     }
@@ -962,6 +947,13 @@ exports.pmsTestConfig = onCall({ region: REGION, timeoutSeconds: 20, secrets: [P
       if (cfg.authType === 'oauth2' && (!cfg.oauth2 || !cfg.oauth2.clientSecret) && existing.oauth2 && existing.oauth2.clientSecret) {
         effectiveCfg = Object.assign({}, effectiveCfg, { oauth2: Object.assign({}, cfg.oauth2, { clientSecret: existing.oauth2.clientSecret }) });
       }
+      // Ek header değerleri de aynı kurala tabi: form o anahtar için boş
+      // gönderdiyse (form artık gerçek değeri hiç göstermiyor) mevcut
+      // şifreli değer teste taşınır — aksi halde ör. OPERA'nın x-app-key'i
+      // testte hiç gönderilmez ve test sahte biçimde 401 ile başarısız olur.
+      effectiveCfg = Object.assign({}, effectiveCfg, {
+        extraHeaders: pmsCrypto.fillMissingExtraHeaders(existing.extraHeaders, cfg.extraHeaders)
+      });
     }
   }
 
@@ -1008,12 +1000,15 @@ exports.pmsSaveConfig = onCall({ region: REGION, secrets: [PMS_CRED_ENC_KEY] }, 
     resultsPath: String(cfg.resultsPath || '').slice(0, 200),
     authHeader: String(cfg.authHeader || 'Authorization').slice(0, 80),
     authPrefix: String(cfg.authPrefix || '').slice(0, 40),
-    extraHeaders: (cfg.extraHeaders && typeof cfg.extraHeaders === 'object') ? cfg.extraHeaders : {},
     map: (cfg.map && typeof cfg.map === 'object') ? cfg.map : {},
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   };
   const newApiKey = String(cfg.apiKey || '').trim();
   out.apiKey = newApiKey ? pmsEncrypt(newApiKey) : (existing.apiKey || '');
+
+  // extraHeaders DEĞERLERİ de apiKey/clientSecret ile aynı kurala tabi —
+  // bkz. functions/pms-crypto.js mergeExtraHeaders.
+  out.extraHeaders = pmsCrypto.mergeExtraHeaders(existing.extraHeaders, cfg.extraHeaders, PMS_CRED_ENC_KEY.value());
 
   if (out.authType === 'oauth2') {
     const o = cfg.oauth2 || {};
@@ -1090,7 +1085,7 @@ const TENANT_FIELD_COLLECTIONS = [
   'restTables', 'restSessions', 'restOps', 'restAudit', 'stays', 'migrationReview'
 ];
 const TENANT_DOC_COLLECTIONS = [
-  'maintenance', 'financeConfig', 'pmsConfig', 'guestConfig',
+  'maintenance', 'financeConfig', 'pmsConfig', 'pmsOAuthCache', 'guestConfig',
   'notifyConfig', 'issueConfig', 'restConfig', 'restCounters'
 ];
 

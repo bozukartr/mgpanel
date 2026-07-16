@@ -361,6 +361,16 @@ service cloud.firestore {
       allow read, write: if isSuperAdmin();
     }
 
+    // --- OAuth2 access token cache for the PMS adapter (short-lived bearer
+    //     tokens). Split out of pmsConfig on purpose: pmsConfig is readable by
+    //     superadmin from the client (for the settings form), and a live
+    //     bearer token has no business being fetchable by any client SDK call,
+    //     even a superadmin one — only the Cloud Function (Admin SDK, bypasses
+    //     rules) needs it. Deny-all here is what actually enforces that. ---
+    match /pmsOAuthCache/{tid} {
+      allow read, write: if false;
+    }
+
     // --- Apex marketing site display mode (Açık / Yakında / Bakımda). Publicly
     //     readable so index.html can gate itself before auth; written only by the
     //     platform operator (superadmin). ---
