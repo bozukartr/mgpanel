@@ -322,7 +322,7 @@
             // İptal edilmiş sipariş terminaldir: misafir iptal etmişse personel
             // bir öğeyi ilerletip siparişi yeniden "onaylandı"ya çeviremez.
             const canAdv = o.status !== 'cancelled' && it.status !== 'cancelled' && sIdx >= 0 && sIdx < FLOW.length - 1;
-            const meta = [it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note]
+            const meta = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note]
                 .filter(Boolean).join(' · ');
             return `<div class="gos-item">
                 <div class="gos-ico">${esc(it.icon || '🛎️')}</div>
@@ -464,6 +464,7 @@
                 const logRef = db.collection('guestLogs').doc();
                 it.logId = logRef.id;
                 const parts = [it.name + (it.qty > 1 ? ' x' + it.qty : '')];
+                if (it.option) parts.push('Seçenek: ' + it.option);
                 if (it.preferredTime) parts.push('Saat: ' + it.preferredTime);
                 if (it.note) parts.push('Not: ' + it.note);
                 batch.set(logRef, {

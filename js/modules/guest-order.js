@@ -748,6 +748,18 @@
         wrap.innerHTML = html;
         bindItemEvents(wrap);
     }
+    // Seçenekli kalemler (ör. VIP Transfer → Vito/Sprinter/S Class) satırda
+    // doğrudan "+" ile eklenemez — misafirin ÖNCE bir seçenek seçmesi gerekir,
+    // bu yüzden henüz sepette yoksa satırdaki aksiyon "Seç"e döner (detay
+    // sheet'ini açar); sepette bir satır varsa (seçim zaten yapılmış) normal
+    // adet +/- kontrolüne dönülür — seçim değiştirmek için sheet'e girilir.
+    const hasOptions = item => Array.isArray(item && item.options) && item.options.length > 0;
+    function itemAction(item, av, line) {
+        if (!av.available) return `<span class="go-unavail">Saat dışı</span>`;
+        if (line && line.qty > 0) return stepHtml(item.id, line.qty);
+        if (hasOptions(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">Seç</button>`;
+        return `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
+    }
     function itemHtml(item) {
         const av = availInfo(item);
         const tags = [];
@@ -755,10 +767,7 @@
         if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">🕒 ${esc(av.window)}</span>`);
         if (pricesOn() && priceOf(item)) tags.push(`<span class="go-tag price">${esc(fmtPrice(priceOf(item)))}</span>`);
         const line = cart.find(l => l.catalogId === item.id);
-        let action;
-        if (!av.available) action = `<span class="go-unavail">Saat dışı</span>`;
-        else if (line && line.qty > 0) action = stepHtml(item.id, line.qty);
-        else action = `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
+        const action = itemAction(item, av, line);
         return `<div class="go-item ${av.available ? '' : 'go-item-unavail'}" data-id="${esc(item.id)}" data-open-item="${esc(item.id)}">
             <div class="go-item-emoji go-k-${catKind(item.category)}">${esc(item.icon || '🛎️')}</div>
             <div class="go-item-main">
@@ -772,6 +781,7 @@
     const stepHtml = (id, qty) => `<div class="go-step"><button data-dec="${esc(id)}">−</button><b>${qty}</b><button data-inc="${esc(id)}">+</button></div>`;
     function bindItemEvents(wrap) {
         wrap.onclick = e => {
+            const choose = e.target.closest('[data-choose]'); if (choose) return openItemSheet(choose.dataset.choose);
             const add = e.target.closest('[data-add]'); if (add) return changeQty(add.dataset.add, +1);
             const inc = e.target.closest('[data-inc]'); if (inc) return changeQty(inc.dataset.inc, +1);
             const dec = e.target.closest('[data-dec]'); if (dec) return changeQty(dec.dataset.dec, -1);
@@ -781,20 +791,30 @@
     }
 
     // ── Hizmet detayı sheet ─────────────────────────────────────
-    // Satıra dokununca açılır: açıklama + adet + not + tercih saati tek
-    // yerde. Sepette satır varsa mevcut değerlerle gelir ve günceller.
-    let sheetItemId = null, sheetQty = 1;
+    // Satıra dokununca açılır: açıklama + adet + not + tercih saati (+ varsa
+    // seçenek) tek yerde. Sepette satır varsa mevcut değerlerle gelir ve
+    // günceller.
+    let sheetItemId = null, sheetQty = 1, sheetOption = '';
+    function optPillsHtml(item, selected) {
+        return `<div class="go-fld"><label>Seçenek</label>
+            <div class="go-opt-pills" id="goShOptPills">
+                ${item.options.map(o => `<button type="button" class="go-opt-pill ${o === selected ? 'active' : ''}" data-opt="${esc(o)}">${esc(o)}</button>`).join('')}
+            </div></div>`;
+    }
     function openItemSheet(id) {
         const item = catalog.find(i => i.id === id); if (!item) return;
         const av = availInfo(item);
         const line = cart.find(l => l.catalogId === id);
         sheetItemId = id;
         sheetQty = line && line.qty > 0 ? line.qty : 1;
+        sheetOption = line ? (line.option || '') : '';
+        const withOpts = hasOptions(item);
         const maxq = lineMax(item);
         const tags = [];
         if (item.eta && item.eta !== '—') tags.push(`<span class="go-tag">${svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', 13)}${esc(item.eta)}</span>`);
         if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">🕒 ${esc(av.window)}</span>`);
         if (pricesOn() && priceOf(item)) tags.push(`<span class="go-tag price">${esc(fmtPrice(priceOf(item)))}</span>`);
+        const addDisabled = withOpts && !sheetOption;
         $('goItemSheetBody').innerHTML = `
             <div class="go-isheet-head">
                 <div class="go-item-emoji go-k-${catKind(item.category)}" style="width:56px;height:56px;font-size:28px;">${esc(item.icon || '🛎️')}</div>
@@ -807,26 +827,41 @@
             ${item.description ? `<p class="go-isheet-desc">${esc(item.description)}</p>` : ''}
             ${tags.length ? `<div class="go-item-meta" style="margin:0 0 14px;">${tags.join('')}</div>` : ''}
             ${av.available ? `
-            <div class="go-isheet-qty">
+            ${withOpts ? optPillsHtml(item, sheetOption) : ''}
+            <div class="go-isheet-qty" style="${withOpts ? 'margin-top:12px;' : ''}">
                 <span>Adet</span>
                 <div class="go-step go-step-lg"><button id="goShDec">−</button><b id="goShQty">${sheetQty}</b><button id="goShInc">+</button></div>
             </div>
             <div class="go-fld"><label>Not (opsiyonel)</label><input type="text" id="goShNote" maxlength="160" placeholder="Örn. 2 büyük havlu" value="${esc(line ? line.note || '' : '')}"></div>
             <div class="go-fld" style="margin-top:9px;"><label>Tercih saati (opsiyonel)</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
-            <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;">
-                <span id="goShAddLbl">${line ? 'Sepeti Güncelle' : 'Sepete Ekle'}</span>
-                ${(pricesOn() && priceOf(item)) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(priceOf(item) * sheetQty))}</span>` : ''}
+            <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;" ${addDisabled ? 'disabled' : ''}>
+                <span id="goShAddLbl">${addDisabled ? 'Bir seçenek seçin' : (line ? 'Sepeti Güncelle' : 'Sepete Ekle')}</span>
+                ${(!addDisabled && pricesOn() && priceOf(item)) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(priceOf(item) * sheetQty))}</span>` : ''}
             </button>
             ${line ? `<button class="go-btn-ghost go-btn-danger" id="goShRemove" style="margin-top:10px;">Sepetten Çıkar</button>` : ''}`
             : `<div class="go-unavail" style="display:block;text-align:center;padding:14px;margin-top:6px;">Bu hizmet yalnızca ${esc(av.window)} saatleri arasında verilebilir.</div>`}
         `;
+        const addB = $('goShAdd');
         const upd = () => {
             const q = $('goShQty'); if (q) q.textContent = sheetQty;
             const a = $('goShAmt'); if (a) a.textContent = fmtPrice(priceOf(item) * sheetQty);
         };
+        const syncAddState = () => {
+            if (!addB || !withOpts) return;
+            const disabled = !sheetOption;
+            addB.disabled = disabled;
+            const lbl = $('goShAddLbl'); if (lbl) lbl.textContent = disabled ? 'Bir seçenek seçin' : (line ? 'Sepeti Güncelle' : 'Sepete Ekle');
+        };
+        const pills = $('goShOptPills');
+        if (pills) pills.onclick = e => {
+            const b = e.target.closest('[data-opt]'); if (!b) return;
+            sheetOption = b.dataset.opt;
+            pills.querySelectorAll('.go-opt-pill').forEach(p => p.classList.toggle('active', p.dataset.opt === sheetOption));
+            syncAddState();
+        };
         const dec = $('goShDec'); if (dec) dec.onclick = () => { if (sheetQty > 1) { sheetQty--; upd(); } };
         const inc = $('goShInc'); if (inc) inc.onclick = () => { if (sheetQty >= maxq) { toast(capMsg(item), true); return; } sheetQty++; upd(); };
-        const addB = $('goShAdd'); if (addB) addB.onclick = () => confirmItemSheet(item);
+        if (addB) addB.onclick = () => confirmItemSheet(item);
         const rmB = $('goShRemove'); if (rmB) rmB.onclick = () => {
             cart = cart.filter(l => l.catalogId !== id);
             saveCart(); renderCartUI(); refreshItemRow(id); closeItemSheet(); toast('Sepetten çıkarıldı');
@@ -837,23 +872,24 @@
         $('goItemSheet').setAttribute('aria-hidden', 'false');
     }
     function confirmItemSheet(item) {
+        if (hasOptions(item) && !sheetOption) { toast('Lütfen bir seçenek seçin.', true); return; }
         const note = ($('goShNote') && $('goShNote').value || '').slice(0, 160);
         const time = ($('goShTime') && $('goShTime').value || '').slice(0, 10);
         let line = cart.find(l => l.catalogId === item.id);
         if (!line) {
             if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
             line = { catalogId: item.id, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
-                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '' };
+                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '' };
             cart.push(line);
         }
         line.qty = Math.min(lineMax(line), Math.max(1, sheetQty));
-        line.note = note; line.preferredTime = time;
+        line.note = note; line.preferredTime = time; line.option = sheetOption || '';
         saveCart(); renderCartUI(); refreshItemRow(item.id);
         if (currentTab === 'cart') renderCart();
         closeItemSheet(); buzz(10); toast('Sepete eklendi ✓');
     }
     function closeItemSheet() {
-        sheetItemId = null;
+        sheetItemId = null; sheetOption = '';
         $('goItemBackdrop').classList.remove('show');
         $('goItemSheet').classList.remove('show');
         $('goItemSheet').setAttribute('aria-hidden', 'true');
@@ -864,9 +900,7 @@
         const item = catalog.find(i => i.id === id); if (!item) return;
         const av = availInfo(item);
         const line = cart.find(l => l.catalogId === id);
-        if (!av.available) row.innerHTML = `<span class="go-unavail">Saat dışı</span>`;
-        else if (line && line.qty > 0) row.innerHTML = stepHtml(id, line.qty);
-        else row.innerHTML = `<button class="go-add" data-add="${esc(id)}" aria-label="Ekle">+</button>`;
+        row.innerHTML = itemAction(item, av, line);
     }
 
     // ── Cart mutations ─────────────────────────────────────────
@@ -876,10 +910,15 @@
         const item = catalog.find(i => i.id === catalogId); if (!item) return;
         if (delta > 0) { const av = availInfo(item); if (!av.available) { toast('Bu talep yalnızca ' + av.window + ' saatleri arasında verilebilir.', true); return; } }
         let line = cart.find(l => l.catalogId === catalogId);
+        // Seçenekli bir kalem sepette henüz yoksa doğrudan eklenemez — önce
+        // seçim yapılmalı (ör. ana ekrandaki "Hızlı İşlemler" kısayolu bu
+        // yoldan geçer). Sepette zaten bir satır varsa (seçim yapılmış)
+        // normal adet artırma/azaltma burada devam eder.
+        if (!line && delta > 0 && hasOptions(item)) { openItemSheet(catalogId); return; }
         if (!line && delta > 0) {
             if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
             line = { catalogId, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
-                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '' };
+                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '' };
             cart.push(line);
         }
         if (!line) return;
@@ -930,7 +969,7 @@
                 <div class="go-cline-top">
                     <div class="go-cline-emoji">${esc(l.icon || '🛎️')}</div>
                     <div class="go-cline-main">
-                        <div class="go-cline-name">${esc(l.name)}</div>
+                        <div class="go-cline-name">${esc(l.name)}${l.option ? `<span class="go-cline-opt">${esc(l.option)}</span>` : ''}</div>
                         <div class="go-cline-cat">${esc(l.category || '')}${(pricesOn() && priceOf(l)) ? ' · ' + esc(fmtPrice(priceOf(l))) : ''}</div>
                     </div>
                     <button class="go-cline-del" data-del="${i}" aria-label="Sil">🗑</button>
@@ -986,7 +1025,8 @@
             catalogId: l.catalogId || '', name: String(l.name || '').slice(0, 120), category: String(l.category || '').slice(0, 60),
             icon: String(l.icon || '🛎️').slice(0, 8), department: String(l.department || '').slice(0, 60),
             price: priceOf(l), qty: Math.min(lineMax(l), Math.max(1, l.qty || 1)),
-            note: String(l.note || '').slice(0, 160), preferredTime: String(l.preferredTime || '').slice(0, 10), status: 'pending'
+            note: String(l.note || '').slice(0, 160), preferredTime: String(l.preferredTime || '').slice(0, 10),
+            option: String(l.option || '').slice(0, 60), status: 'pending'
         }));
         const total = items.reduce((s, it) => s + (Number(it.price) || 0) * it.qty, 0);
         const done = (id) => {
@@ -1193,7 +1233,7 @@
         }).join('')}</div>`;
         const items = (o.items || []).map(it => {
             const ist = STATUS[it.status] || STATUS.pending;
-            const bits = [it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note];
+            const bits = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note];
             if (showP && Number(it.price) > 0) bits.push(money(Number(it.price) * (it.qty || 1)));
             const meta = bits.filter(Boolean).join(' · ');
             return `<div class="go-titem"><div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>

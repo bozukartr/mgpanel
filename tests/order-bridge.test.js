@@ -87,6 +87,51 @@ test('concierge kalemi: guestLogs ATLANIR, Pending rezervasyon üretilir', () =>
   assert.strictEqual(again.docs.length, 0, 'resId bağlı kalem yeniden üretilmez');
 });
 
+test('concierge seçenek (ör. VIP Transfer → Vito): Transfer kalemi vehicle alanına yazılır', () => {
+  const order = { tenantId: 'hotel-a', room: '204', items: [
+    { id: 't1', name: 'VIP Transfer', qty: 1, category: 'Concierge', option: 'Vito', note: 'Havalimanından' }
+  ]};
+  const res = bridge.buildOrderReservationDocs(order, 'ordT', { guestName: 'Ali' });
+  assert.strictEqual(res.docs.length, 1);
+  const d = res.docs[0].data;
+  assert.strictEqual(d.type, 'Transfer');
+  assert.strictEqual(d.vehicle, 'Vito', 'concierge.js Transfer görünümünün beklediği alan');
+  assert.strictEqual(d.resName, 'VIP Transfer — Vito', 'personel arama/liste ekranında seçenek görünür');
+  assert.ok(!d.notes.includes('Seçenek:'), 'Transfer tipinde seçenek notes yerine vehicle alanına gider (mükerrer olmasın)');
+  assert.ok(d.notes.includes('Havalimanından'), 'ayrıca girilen not korunur');
+});
+
+test('concierge seçenek: Other tipi kalemde otherType/resName/notes seçeneği taşır', () => {
+  const order = { tenantId: 'hotel-a', room: '204', items: [
+    { id: 'o1', name: 'Özel Kutlama', qty: 1, category: 'Concierge', option: 'Doğum Günü Paketi' }
+  ]};
+  const res = bridge.buildOrderReservationDocs(order, 'ordO', {});
+  const d = res.docs[0].data;
+  assert.strictEqual(d.type, 'Other');
+  assert.strictEqual(d.otherType, 'Özel Kutlama — Doğum Günü Paketi');
+  assert.strictEqual(d.resName, 'Özel Kutlama — Doğum Günü Paketi');
+  assert.ok(d.notes.includes('Seçenek: Doğum Günü Paketi'));
+  assert.strictEqual(d.vehicle, undefined, 'Other tipinde vehicle alanı hiç yazılmaz');
+});
+
+test('concierge seçenek yoksa (option boş/yok) davranış değişmez — geriye dönük uyum', () => {
+  const order = { tenantId: 'hotel-a', room: '204', items: [
+    { id: 't1', name: 'Havalimanı Transferi', qty: 1, category: 'Concierge' }
+  ]};
+  const res = bridge.buildOrderReservationDocs(order, 'ordN', {});
+  const d = res.docs[0].data;
+  assert.strictEqual(d.resName, 'Havalimanı Transferi');
+  assert.strictEqual(d.vehicle, undefined);
+});
+
+test('normal (guestLogs) kalemde seçenek talep metnine eklenir', () => {
+  const order = { tenantId: 'hotel-a', room: '204', items: [
+    { id: 'n1', name: 'Yastık', category: 'Konfor', option: 'Yumuşak' }
+  ]};
+  const logs = bridge.buildOrderLogDocs(order, 'ordP', { guestName: 'Ali' });
+  assert.ok(logs.docs[0].data.complaint.includes('Seçenek: Yumuşak'));
+});
+
 test('misafir adı yoksa oda etiketi kullanılır; tenantsız/boş sipariş kayıt üretmez', () => {
   const r = bridge.buildOrderLogDocs({ tenantId: 'hotel-a', room: '305', items: [{ id: 'x', name: 'Çay' }] }, 'ord4', {});
   assert.strictEqual(r.docs[0].data.guestName, 'Oda 305');
