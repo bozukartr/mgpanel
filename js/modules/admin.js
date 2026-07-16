@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(`Kullanıcı limitine ulaşıldı (${lim}). Daha fazlası için paketinizi yükseltin.`, true);
                     return;
                 }
-                const isFnb = (department === FNB_DEPT);
+                const isFnb = isFnbDept(department);
                 const fnbCode = (passwordInput.value || '').trim();
                 let password = passwordInput.value;
                 if (isFnb) {
@@ -217,7 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (d && d.name && names.indexOf(d.name) === -1) names.push(d.name);
             });
         } catch (e) { /* ignore */ }
-        if (names.indexOf(FNB_DEPT) === -1) names.push(FNB_DEPT);                 // F&B girişi için
+        // FNB_DEPT artık IssueConfig'in kanonik "Yiyecek & İçecek" departmanıyla
+        // AYNI string — normalde zaten listede olduğu için burası yalnızca otel
+        // bu departmanı kendi ayarlarından silmişse F&B girişini geri ekler
+        // (tekrar bir "Food & Beverage" kopyası oluşturmaz).
+        if (names.indexOf(FNB_DEPT) === -1) names.push(FNB_DEPT);
         if (currentValue && names.indexOf(currentValue) === -1) names.unshift(currentValue); // mevcut değeri koru
         sel.innerHTML = names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
         sel.value = currentValue || (names[0] || '');
@@ -229,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pw = document.getElementById('adminNewPassword');
         const label = document.getElementById('adminPwLabel');
         const hint = document.getElementById('adminPwHint');
-        if (dept === FNB_DEPT) {
+        if (isFnbDept(dept)) {
             pw.setAttribute('inputmode', 'numeric'); pw.setAttribute('maxlength', '5'); pw.setAttribute('pattern', '\\d{5}');
             pw.placeholder = '5 haneli kod';
             if (label) label.textContent = '5 Haneli Kod (F&B)';

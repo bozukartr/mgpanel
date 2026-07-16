@@ -20,7 +20,7 @@
 // guest-orders.js ile AYNI kategori→departman eşlemesi.
 const DEPT_BY_CAT = {
   'Temizlik': 'Housekeeping', 'Konfor': 'Housekeeping',
-  'Yiyecek & İçecek': 'Food & Beverage', 'Yiyecek-İçecek': 'Food & Beverage',
+  'Yiyecek & İçecek': 'Yiyecek & İçecek', 'Yiyecek-İçecek': 'Yiyecek & İçecek',
   'Teknik Servis': 'Engineering', 'Resepsiyon': 'Front Desk'
 };
 

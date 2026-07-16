@@ -127,7 +127,41 @@ function pmsEnabled() {
 // password of at least 6 chars, so the actual auth password is derived from the
 // code with this fixed prefix. Staff only ever type the 5 digits; the system
 // derives the same value for both account creation (admin) and login (F&B door).
-const FNB_DEPT = 'Food & Beverage';
+//
+// Departman adı: kanonik değer "Yiyecek & İçecek" — otelin "Departman & Konu"
+// ayarındaki (issue-config.js) varsayılan talep/şikayet departmanıyla AYNI
+// string, kasıtlı. Önceden bu sabit ayrı bir İngilizce isimdi
+// ("Food & Beverage"): kullanıcı oluşturma listesinde aynı departman İKİ
+// AYRI seçenek gibi görünüyordu ve — daha ciddisi — panel.js'teki katı
+// departman eşleştirmesi bu iki string'i FARKLI sayıp F&B personelinin
+// bazı kayıtları üstlenmesini engelliyordu (kaynağa göre — QR vs elle
+// giriş — aynı iş farklı departman string'iyle açılabiliyordu).
+// FNB_DEPT_LEGACY, bu değişiklikten ÖNCE yazılmış hesap/kayıtlar için
+// geriye dönük eşleştirme sağlar (isFnbDept/sameDept ikisini eş sayar) —
+// var olan F&B personeli yeniden oluşturulmadan giriş yapmaya devam eder.
+const FNB_DEPT = 'Yiyecek & İçecek';
+const FNB_DEPT_LEGACY = 'Food & Beverage';
+function deptKey(s) { return String(s || '').trim().toLocaleLowerCase('tr-TR'); }
+function isFnbDept(name) {
+    const k = deptKey(name);
+    return k === deptKey(FNB_DEPT) || k === deptKey(FNB_DEPT_LEGACY);
+}
+// İki departman adı aynı departmanı mı ifade ediyor? (biri güncel, biri eski
+// F&B ismi olabilir) — panel.js katı departman kuralı ve rapor gruplaması
+// ham string eşitliği yerine bunu kullanır.
+function sameDept(a, b) {
+    const ka = deptKey(a), kb = deptKey(b);
+    if (!ka || !kb) return ka === kb;
+    if (ka === kb) return true;
+    return isFnbDept(a) && isFnbDept(b);
+}
+// Görüntüleme/gruplama için TEK bir isme indirger: eski F&B adı ("Food &
+// Beverage") kanonik "Yiyecek & İçecek"e döner, başka her şey olduğu gibi
+// kalır. reports.js facet'leri bunu kullanır — aksi halde aynı departman
+// filtre listesinde iki ayrı chip olarak görünmeye devam ederdi.
+function canonicalDept(name) {
+    return isFnbDept(name) ? FNB_DEPT : (name || '');
+}
 function fnbPassword(code) { return 'FB' + String(code || ''); }
 // F&B personeli yalnızca 5 haneli koduyla (kullanıcı adı girmeden) giriş yapar.
 // Hem e-posta hem şifre koddan türetildiği için giriş öncesi sorguya gerek yok.

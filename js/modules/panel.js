@@ -1273,11 +1273,11 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (type === 'department') {
             const date = specific || getLocalDate();
             let data = records.filter(r => r.date === date);
-            if (dept !== 'All') data = data.filter(r => r.department === dept);
+            if (dept !== 'All') data = data.filter(r => sameDept(r.department, dept));
 
             const grouped = {};
             data.forEach(r => {
-                const d = r.department || 'Unknown';
+                const d = canonicalDept(r.department) || 'Unknown';
                 if (!grouped[d]) grouped[d] = [];
                 grouped[d].push(r);
             });
@@ -1370,7 +1370,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = (from || to) ? filterByRange(records, from, to) : records;
             const byDept = {};
             data.forEach(r => {
-                const dept = r.department || 'Diğer';
+                const dept = canonicalDept(r.department) || 'Diğer';
                 const d = byDept[dept] = byDept[dept] || { total: 0, done: 0, open: 0, resp: [], hand: [], tot: [] };
                 d.total++;
                 if (r.status === 'Solved') d.done++; else d.open++;
@@ -1405,7 +1405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Tarih': r.date || '',
                     'Oda': r.room || '',
                     'Misafir': r.guestName || '',
-                    'Departman': r.department || '',
+                    'Departman': canonicalDept(r.department) || '',
                     'Durum': statusLabelOf(r.status),
                     'Oluşturma': fmtClock(c),
                     'İşleme Alınma': fmtClock(a),
@@ -1522,11 +1522,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         else if (type === 'deptHistorical') {
             let data = (from || to) ? filterByRange(records, from, to) : records;
-            if (dept !== 'All') data = data.filter(r => r.department === dept);
+            if (dept !== 'All') data = data.filter(r => sameDept(r.department, dept));
 
             const matrix = {};
             data.forEach(r => {
-                const d = r.department || 'Unknown';
+                const d = canonicalDept(r.department) || 'Unknown';
                 if (!matrix[d]) matrix[d] = {};
                 if (!matrix[d][r.date]) matrix[d][r.date] = 0;
                 matrix[d][r.date]++;
@@ -1613,8 +1613,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const me = (firebase.auth().currentUser || {}).uid;
         const recips = {}; // uid -> username
         try {
+            // sameDept: "Food & Beverage" (eski F&B departman adı) ile kanonik
+            // "Yiyecek & İçecek" aynı departman sayılır — aksi halde legacy
+            // isimle kayıtlı bir F&B personeli yeni kayıtlar için bildirim
+            // ALAMAZDI.
             (await getStaff()).forEach(u => {
-                if (dept && u.department === dept) recips[u.uid] = u.username;
+                if (dept && sameDept(u.department, dept)) recips[u.uid] = u.username;
             });
         } catch (e) { /* yine de atanan kişiye gider */ }
         if (assignee && assignee.uid) recips[assignee.uid] = assignee.username || recips[assignee.uid] || assignee.uid;
@@ -1671,7 +1675,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function computePerformance(data) {
         const byDept = {}, byStaff = {};
         data.forEach(r => {
-            const dept = r.department || 'Diğer';
+            const dept = canonicalDept(r.department) || 'Diğer';
             const d = byDept[dept] = byDept[dept] || { total: 0, done: 0, open: 0, resp: [], hand: [], breach: 0, slaMet: 0, slaEval: 0 };
             d.total++;
             const solved = (r.status === 'Solved');
@@ -2379,10 +2383,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function canTakeRecord(record) {
         const role = (localStorage.getItem('hotelRole') || '').toLowerCase();
         if (role === 'admin' || role === 'manager' || loggedUsername.toLowerCase() === 'admin') return true;
-        const myDept = deptOf(localStorage.getItem('hotelDept'));
-        const recDept = deptOf(record && record.department);
-        if (!recDept) return true; // departmansız eski kayıtlar serbest
-        return !!myDept && myDept === recDept;
+        const myDept = localStorage.getItem('hotelDept');
+        const recDept = record && record.department;
+        if (!deptOf(recDept)) return true; // departmansız eski kayıtlar serbest
+        // sameDept (js/core/firebase-config.js): ham string eşitliği değil —
+        // "Food & Beverage" (eski F&B departman adı) ile kanonik
+        // "Yiyecek & İçecek" aynı departman sayılır (geçiş dönemi verisi).
+        return !!deptOf(myDept) && sameDept(myDept, recDept);
     }
     // İş sahipliği: üstlenilmiş bir işi yalnızca ÜSTLENEN personel (veya
     // yönetici/admin) tamamlayabilir — iki kişinin aynı işi karıştırması

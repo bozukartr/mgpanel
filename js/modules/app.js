@@ -282,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const userData = userDoc.exists ? userDoc.data() : null;
             const dept = (userData && userData.department) || '';
             const role = ((userData && userData.role) || '').toLowerCase();
-            if (dept !== FNB_DEPT && role !== 'admin') {
+            if (!isFnbDept(dept) && role !== 'admin') {
                 await auth.signOut();
                 fnbShake('Bu giriş yalnızca F&B personeli içindir.');
                 return;
