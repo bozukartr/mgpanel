@@ -344,6 +344,7 @@
                         </div>
                         <div style="display:flex; gap:8px; flex-wrap:wrap;">
                             <button class="btn btn-ghost" id="catSeedBtn">Varsayılanları Yükle</button>
+                            <button class="btn btn-ghost" id="catUnseedBtn" style="color:#dc2626;">Varsayılanları Kaldır</button>
                             <button class="btn btn-primary" id="catAddBtn">+ Talep Ekle</button>
                         </div>
                     </div>
@@ -593,6 +594,14 @@
                             <input type="checkbox" id="catActive" checked>
                             <span>Aktif (misafirlere göster) — kapalıyken misafir bu talebi göremez. Temizlik gibi taleplere uygunluk saati verebilirsiniz (örn. 09:00 → 16:00).</span>
                         </label>
+                    </div>
+                    <div class="form-group span2">
+                        <label>Seçenekler (opsiyonel) <small style="font-weight:400;color:#94a3b8;">— misafir sipariş verirken bunlardan birini seçer. Örn. VIP Transfer için: Vito, Sprinter, S Class</small></label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" id="catOptInput" maxlength="40" placeholder="Seçenek adı, ör. Vito" style="flex:1;">
+                            <button type="button" class="btn btn-ghost" id="catOptAddBtn">+ Ekle</button>
+                        </div>
+                        <div id="catOptList" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;"></div>
                     </div>
                 </div>
                 <div class="modal-actions vertical">

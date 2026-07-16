@@ -208,6 +208,9 @@ h1, h2, h3, p { margin: 0; }
 .go-add { width: 38px; height: 38px; flex-shrink: 0; border-radius: 12px; background: var(--ink); color: #fff;
     font-size: 22px; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm); transition: transform .1s; }
 .go-add:active { transform: scale(.88); }
+/* Seçenekli kalem: "+" yerine "Seç" — misafir sepete eklemeden önce
+   seçim yapmaya yönlendirilir (ör. VIP Transfer → Vito/Sprinter/S Class) */
+.go-add-choose { width: auto; padding: 0 14px; font-size: 13px; font-weight: 700; border-radius: 12px; }
 .go-step { display: inline-flex; align-items: center; gap: 2px; background: var(--ink); border-radius: 12px; flex-shrink: 0; }
 .go-step button { width: 33px; height: 38px; color: #fff; font-size: 19px; display: flex; align-items: center; justify-content: center; }
 .go-step b { min-width: 20px; text-align: center; color: #fff; font-size: 15px; font-weight: 700; }
@@ -226,6 +229,15 @@ h1, h2, h3, p { margin: 0; }
 .go-step-lg b { min-width: 26px; font-size: 16px; }
 .go-isheet-amt { font-size: 15px; font-weight: 800; background: rgba(255,255,255,.18); padding: 4px 12px; border-radius: 999px; }
 #goItemSheetBody { padding-bottom: 4px; }
+#goShAdd:disabled { opacity: .5; }
+
+/* Seçenek seçici (tek seçim pill listesi) — sepete eklemeden önce zorunlu */
+.go-opt-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.go-opt-pill { padding: 10px 16px; border-radius: 999px; border: 1.5px solid var(--line-strong); background: var(--surface);
+    font-size: 13.5px; font-weight: 700; color: var(--ink-soft); transition: all .15s; }
+.go-opt-pill.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+.go-cline-opt { display: inline-block; font-size: 11px; font-weight: 700; color: var(--gold); background: var(--gold-soft);
+    padding: 2px 8px; border-radius: 999px; margin-left: 7px; vertical-align: middle; }
 
 /* ════ SEPET ════ */
 #goCartList { padding: 4px 18px calc(120px + var(--safe-bottom)); }

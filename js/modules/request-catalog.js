@@ -13,6 +13,7 @@
     const CFG = 'guestConfig';
     let items = [];
     let editingId = null;
+    let editingOptions = []; // katalog modalı açıkken düzenlenen "Seçenekler" taslağı
     let unsub = null;
     let cfg = { hotelName: '', showPrices: false, currency: '₺', requireVerification: false };
 
@@ -77,6 +78,12 @@
         .cat-row .cat-flag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
         .cat-row .cat-flag.on { background: #f0fdf4; color: #16a34a; }
         .cat-row .cat-flag.off { background: #fef2f2; color: #dc2626; }
+        .cat-row .cat-flag.opt { background: #eef2ff; color: #4f46e5; }
+        .cat-opt-chip { display: inline-flex; align-items: center; gap: 6px; background: #eef2ff; color: #4338ca;
+            border: 1px solid #c7d2fe; font-size: 12.5px; font-weight: 600; padding: 5px 8px 5px 12px; border-radius: 999px; }
+        .cat-opt-chip button { background: none; border: none; color: #6366f1; font-size: 14px; line-height: 1;
+            cursor: pointer; padding: 2px; font-family: inherit; }
+        .cat-opt-empty { font-size: 12px; color: #94a3b8; }
         .cat-subhead { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
             color: #6366f1; margin: 12px 0 8px; display: flex; align-items: center; gap: 8px; }
         .cat-subhead::before { content: '↳'; color: #c7d2fe; font-weight: 700; }
@@ -172,6 +179,7 @@
         const cur = (cfg && cfg.currency) || '₺';
         const priceTxt = i.price ? cur + Number(i.price).toLocaleString('tr-TR') : 'Ücretsiz';
         const avail = (i.availFrom && i.availTo) ? ('🕒 ' + i.availFrom + '–' + i.availTo) : '';
+        const optCount = Array.isArray(i.options) ? i.options.length : 0;
         const sub = [i.department || '—', priceTxt, avail].filter(Boolean).join(' · ');
         return `<div class="cat-row ${active ? '' : 'inactive'}" data-edit="${esc(i.id)}">
             <div class="cat-emoji">${esc(i.icon || '🛎️')}</div>
@@ -179,6 +187,7 @@
                 <div class="cat-name">${esc(i.name)}</div>
                 <div class="cat-sub">${esc(sub)}</div>
             </div>
+            ${optCount ? `<span class="cat-flag opt" title="${esc(i.options.join(', '))}">${optCount} seçenek</span>` : ''}
             <span class="cat-flag ${active ? 'on' : 'off'}">${active ? 'Aktif' : 'Pasif'}</span>
         </div>`;
     }
@@ -200,12 +209,39 @@
         $('catAvailFrom').value = it ? (it.availFrom || '') : '';
         $('catAvailTo').value = it ? (it.availTo || '') : '';
         $('catActive').checked = it ? (it.active !== false) : true;
+        editingOptions = (it && Array.isArray(it.options)) ? it.options.slice() : [];
+        if ($('catOptInput')) $('catOptInput').value = '';
+        renderOptChips();
         $('catalogDeleteBtn').style.display = it ? 'block' : 'none';
         $('catalogModal').style.display = 'flex';
     }
     function closeModal() {
         $('catalogModal').style.display = 'none';
         editingId = null;
+        editingOptions = [];
+    }
+
+    // ── Seçenekler (options) düzenleyici — modal içindeki taslak liste ──
+    function renderOptChips() {
+        const wrap = $('catOptList'); if (!wrap) return;
+        if (!editingOptions.length) { wrap.innerHTML = `<span class="cat-opt-empty">Henüz seçenek eklenmedi.</span>`; return; }
+        wrap.innerHTML = editingOptions.map((o, i) =>
+            `<span class="cat-opt-chip">${esc(o)}<button type="button" data-optdel="${i}" aria-label="Kaldır">✕</button></span>`).join('');
+        wrap.querySelectorAll('[data-optdel]').forEach(b => b.onclick = () => {
+            editingOptions.splice(+b.dataset.optdel, 1);
+            renderOptChips();
+        });
+    }
+    function addOption() {
+        const inp = $('catOptInput'); if (!inp) return;
+        const val = inp.value.trim().slice(0, 40);
+        if (!val) return;
+        if (editingOptions.some(o => o.toLowerCase() === val.toLowerCase())) { toast('Bu seçenek zaten ekli.', true); inp.value = ''; return; }
+        if (editingOptions.length >= 10) { toast('En fazla 10 seçenek ekleyebilirsiniz.', true); return; }
+        editingOptions.push(val);
+        inp.value = '';
+        renderOptChips();
+        inp.focus();
     }
 
     function save(e) {
@@ -230,6 +266,7 @@
             availFrom: $('catAvailFrom').value || '',
             availTo: $('catAvailTo').value || '',
             active: $('catActive').checked,
+            options: editingOptions.slice(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         let p;
@@ -272,6 +309,20 @@
         });
         if (!n) { toast('Eklenecek yeni talep yok.'); return; }
         batch.commit().then(() => toast(n + ' talep eklendi.')).catch(err => { console.error(err); toast('Yüklenemedi.', true); });
+    }
+
+    // seedDefaults()'ın tersi: isim eşleşmesiyle (case-insensitive) eklenmiş
+    // varsayılan talepleri toplu siler. Yalnızca varsayılan LİSTESİNDEKİ
+    // isimlerle eşleşenleri hedefler — admin'in kendi eklediği/isim
+    // değiştirdiği talepler dokunulmadan kalır.
+    function unseedDefaults() {
+        const defaultNames = new Set(DEFAULTS.map(d => d.name.toLowerCase()));
+        const matches = items.filter(i => defaultNames.has((i.name || '').toLowerCase()));
+        if (!matches.length) { toast('Kaldırılacak varsayılan talep yok.'); return; }
+        if (!confirm(matches.length + ' varsayılan talep silinecek (isim eşleşmesiyle bulundu; kendi eklediğiniz/adını değiştirdiğiniz talepler etkilenmez). Devam edilsin mi?')) return;
+        const batch = db.batch();
+        matches.forEach(i => batch.delete(db.collection(COL).doc(i.id)));
+        batch.commit().then(() => toast(matches.length + ' varsayılan talep kaldırıldı.')).catch(err => { console.error(err); toast('Kaldırılamadı.', true); });
     }
 
     // ── Guest page settings (guestConfig) ──────────────────────
@@ -408,6 +459,9 @@
         injectStyles();
         $('catAddBtn') && ($('catAddBtn').onclick = () => openModal(null));
         $('catSeedBtn') && ($('catSeedBtn').onclick = seedDefaults);
+        $('catUnseedBtn') && ($('catUnseedBtn').onclick = unseedDefaults);
+        $('catOptAddBtn') && ($('catOptAddBtn').onclick = addOption);
+        $('catOptInput') && $('catOptInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
         $('closeCatalogModal') && ($('closeCatalogModal').onclick = closeModal);
         $('catalogForm') && ($('catalogForm').onsubmit = save);
         $('catalogDeleteBtn') && ($('catalogDeleteBtn').onclick = remove);

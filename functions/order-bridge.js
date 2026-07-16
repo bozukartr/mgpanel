@@ -48,6 +48,13 @@ function isConciergeItem(it) {
 // Concierge kalemleri → reservations dokümanları (status: Pending) + resId
 // geri yazımı. concierge.js'in beklediği şemaya birebir uyar; adı "transfer"
 // içeren kalem Transfer tipiyle, diğerleri Other/otherType ile açılır.
+//
+// it.option (katalogdaki "Seçenekler" listesinden misafirin seçtiği tek
+// değer, ör. "Vito") Transfer tipinde concierge.js'in beklediği `vehicle`
+// alanına yazılır (aksi halde Concierge panelindeki Transfer detay/rapor
+// görünümü boş araç gösterir — bkz. concierge.js rowBase/dynHtml); Other
+// tipinde otherType/resName/notes'a eklenir ki personel hangi seçeneğin
+// istendiğini adisyon gibi ayrı bir ekrana gitmeden görsün.
 function buildOrderReservationDocs(order, orderId, extra) {
   const items = Array.isArray(order.items) ? order.items : [];
   if (!items.length || !order.tenantId) return { docs: [], items: items };
@@ -60,17 +67,20 @@ function buildOrderReservationDocs(order, orderId, extra) {
     const itemId = safeId((it && it.id) || ('i' + idx));
     const resId = 'qr_' + safeId(orderId) + '_' + itemId;
     const name = String((it && it.name) || '').trim();
+    const option = String((it && it.option) || '').trim().slice(0, 60);
     const isTransfer = /transfer/.test(name.toLocaleLowerCase('tr-TR'));
     const qty = Number(it && it.qty) || 1;
     const notes = [
       'QR misafir talebi', qty > 1 ? qty + ' adet' : '',
+      (option && !isTransfer) ? 'Seçenek: ' + option : '',
       (it && it.note) ? String(it.note).slice(0, 200) : ''
     ].filter(Boolean).join(' · ');
+    const displayName = option ? name + ' — ' + option : name;
     const data = {
       tenantId: order.tenantId,
       type: isTransfer ? 'Transfer' : 'Other',
-      otherType: isTransfer ? '' : name,
-      resName: name,
+      otherType: isTransfer ? '' : displayName,
+      resName: displayName,
       date: todayYmd(),
       time: String((it && it.preferredTime) || '').slice(0, 10),
       guestName: guestName,
@@ -82,6 +92,7 @@ function buildOrderReservationDocs(order, orderId, extra) {
       orderId: orderId,
       itemId: (it && it.id) || ('i' + idx)
     };
+    if (isTransfer && option) data.vehicle = option;
     if (extra && extra.guestId) data.guestId = extra.guestId;
     if (extra && extra.stayId) data.stayId = extra.stayId;
     docs.push({ id: resId, data });
@@ -108,6 +119,7 @@ function buildOrderLogDocs(order, orderId, extra) {
     const logId = 'qr_' + safeId(orderId) + '_' + itemId;
     const qty = Number(it && it.qty) || 1;
     const parts = [String((it && it.name) || '').trim() + (qty > 1 ? ' x' + qty : '')];
+    if (it && it.option) parts.push('Seçenek: ' + String(it.option).trim().slice(0, 60));
     if (it && it.preferredTime) parts.push('Saat: ' + it.preferredTime);
     if (it && it.note) parts.push('Not: ' + String(it.note).slice(0, 200));
     const data = {
