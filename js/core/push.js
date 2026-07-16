@@ -24,8 +24,44 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
 
     let inFlight = false;
     let refreshHooked = false;
+    let messaging = null;
     // Teşhis durumu: bu oturumda token HANGI kullanıcı için kaydedildi?
     const pstate = { savedUid: '', token: '', error: '', savedAt: 0 };
+
+    // firebase.messaging() SDK singleton'ı döndürür; usePublicVapidKey() bu
+    // singleton üzerinde SADECE BİR KEZ ve getToken()'dan ÖNCE çağrılabilir —
+    // ikinci çağrıda 'messaging/use-vapid-key-after-get-token' fırlatır. enable()
+    // birden çok kez tetiklenebildiği için (giriş, sekme öne gelince otomatik
+    // yeniden bağlanma, "Onar" butonu) anahtar yalnızca ilk seferde uygulanır.
+    function getMessaging() {
+        if (!messaging) {
+            messaging = firebase.messaging();
+            messaging.usePublicVapidKey(PUSH_VAPID_KEY);
+        }
+        return messaging;
+    }
+
+    // navigator.serviceWorker.register() service worker "installing" durumundayken
+    // bile çözülür — henüz "activated" olmadan getToken() çağrılırsa PushManager
+    // "no active Service Worker" ile başarısız olur. Aktif olana (veya makul bir
+    // süre sonunda) kadar bekler.
+    function waitForActiveSW(reg, timeoutMs) {
+        if (!reg) return Promise.resolve(null);
+        if (reg.active) return Promise.resolve(reg);
+        const worker = reg.installing || reg.waiting;
+        if (!worker) return Promise.resolve(reg);
+        return new Promise((resolve) => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(reg); } };
+            worker.addEventListener('statechange', function onChange() {
+                if (worker.state === 'activated' || worker.state === 'redundant') {
+                    worker.removeEventListener('statechange', onChange);
+                    finish();
+                }
+            });
+            setTimeout(finish, timeoutMs || 4000); // güvenlik: sonsuza dek beklemez
+        });
+    }
 
     async function saveToken(token) {
         const uid = auth.currentUser && auth.currentUser.uid;
@@ -55,23 +91,23 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
             let reg = null;
             try {
                 reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/firebase-cloud-messaging-push-scope' });
+                reg = await waitForActiveSW(reg, 4000);
             } catch (e) { reg = null; }
 
-            const messaging = firebase.messaging();
-            messaging.usePublicVapidKey(PUSH_VAPID_KEY);
-            if (reg) messaging.useServiceWorker(reg);
+            const msg = getMessaging();
+            if (reg) msg.useServiceWorker(reg);
 
-            const token = await messaging.getToken();
+            const token = await msg.getToken();
             const uid = auth.currentUser && auth.currentUser.uid;
             if (!token || !uid) { inFlight = false; return; }
             await saveToken(token);
 
             // Token döndüğünde (rotasyon) yeniden kaydet — yoksa eski/ölü token'a
             // push düşmez. Yalnızca bir kez bağla.
-            if (!refreshHooked && typeof messaging.onTokenRefresh === 'function') {
+            if (!refreshHooked && typeof msg.onTokenRefresh === 'function') {
                 refreshHooked = true;
-                messaging.onTokenRefresh(async () => {
-                    try { await saveToken(await messaging.getToken()); }
+                msg.onTokenRefresh(async () => {
+                    try { await saveToken(await msg.getToken()); }
                     catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'push.onTokenRefresh' }); }
                 });
             }
