@@ -26,7 +26,7 @@
     const LOG_STATUS = { confirmed: 'Following', in_progress: 'InProgress', completed: 'Solved' };
     const DEPT_BY_CAT = {
         'Temizlik': 'Housekeeping', 'Konfor': 'Housekeeping',
-        'Yiyecek & İçecek': 'Food & Beverage', 'Yiyecek-İçecek': 'Food & Beverage',
+        'Yiyecek & İçecek': 'Yiyecek & İçecek', 'Yiyecek-İçecek': 'Yiyecek & İçecek',
         'Teknik Servis': 'Engineering', 'Resepsiyon': 'Front Desk'
     };
 

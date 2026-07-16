@@ -138,7 +138,10 @@
                     valueOf: r => (r.source === 'guest-order' || r.source === 'qr') ? 'QR Misafir' : 'Personel'
                 }),
                 facet({
-                    key: 'dept', label: 'Departman', kind: 'chips', valueOf: r => r.department || '—',
+                    // canonicalDept: eski F&B kayıtları ("Food & Beverage") kanonik
+                    // "Yiyecek & İçecek" ile aynı chip'te toplanır — iki ayrı
+                    // departman gibi görünmez (bkz. firebase-config.js).
+                    key: 'dept', label: 'Departman', kind: 'chips', valueOf: r => canonicalDept(r.department) || '—',
                     extra: () => (window.IssueConfig ? IssueConfig.departments().map(d => d.name) : [])
                 }),
                 facet({
@@ -169,7 +172,7 @@
                 { label: 'Oda', get: r => r.room || '—' },
                 { label: 'Misafir', get: r => r.guestName || '—' },
                 { label: 'Tür', get: glType },
-                { label: 'Departman', get: r => r.department || '—' },
+                { label: 'Departman', get: r => canonicalDept(r.department) || '—' },
                 { label: 'Konu', get: r => (r.type || 'complaint') === 'complaint' ? (r.topic || 'Genel') : '—' },
                 { label: 'Açıklama', get: r => r.complaint || '', wide: true },
                 { label: 'Çözüm', get: r => (r.type || 'complaint') === 'request' ? '' : (r.solution || ''), wide: true },
@@ -305,7 +308,7 @@
             facets: [
                 facet({ key: 'category', label: 'Kategori', kind: 'chips', valueOf: r => r.category || 'Diğer' }),
                 facet({ key: 'product', label: 'Ürün', kind: 'text', valueOf: r => r.name || '' }),
-                facet({ key: 'department', label: 'Departman', kind: 'chips', valueOf: r => r.department || '—' }),
+                facet({ key: 'department', label: 'Departman', kind: 'chips', valueOf: r => canonicalDept(r.department) || '—' }),
                 facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Tamamlandı', 'İptal'], valueOf: r => ORD_STATUS[r.ostatus] || 'Bekliyor' }),
                 facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
                 facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
@@ -319,7 +322,7 @@
                 { label: 'Adet', get: r => r.qty, c: true },
                 { label: 'Birim', get: r => money(r.price), c: true },
                 { label: 'Tutar', get: r => money(r.lineTotal), c: true },
-                { label: 'Departman', get: r => r.department || '—' },
+                { label: 'Departman', get: r => canonicalDept(r.department) || '—' },
                 { label: 'Durum', get: r => ORD_STATUS[r.ostatus] || 'Bekliyor' }
             ],
             summary: rows => {
