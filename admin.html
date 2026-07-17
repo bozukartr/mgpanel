@@ -459,6 +459,39 @@
                     </div>
                 </section>
 
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Vardiya Konumu</h2>
+                            <p class="card-sub">Etkinleştirilirse: otel konumundan uzaktaki personel yeni bildirim almaz ve talep/şikayet üstleyemez (yönetici/admin muaftır). Konum izni vermeyen veya kapsam dışında görünmeyen personel eski davranışta kalır — yalnızca otel dışında olduğu KANITLANMIŞ personel kısıtlanır.</p>
+                        </div>
+                        <span id="shStatus" class="status-pill">Pasif</span>
+                    </div>
+                    <div class="settings-body">
+                        <label class="switch-row">
+                            <input type="checkbox" id="shEnabled">
+                            <span>Vardiya konumu kontrolünü etkinleştir</span>
+                        </label>
+                        <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr 120px; gap:12px;">
+                            <div>
+                                <label>Enlem (lat)</label>
+                                <input type="number" id="shLat" step="0.000001" placeholder="Örn. 36.8969">
+                            </div>
+                            <div>
+                                <label>Boylam (lng)</label>
+                                <input type="number" id="shLng" step="0.000001" placeholder="Örn. 30.7133">
+                            </div>
+                            <div>
+                                <label>Yarıçap (m)</label>
+                                <input type="number" id="shRadius" min="30" step="10" placeholder="150">
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-ghost" id="shUseHere" style="align-self:flex-start;">📍 Şu anki konumumu kullan</button>
+                        <p class="mod-hint" id="shHint" style="display:none;"></p>
+                        <button class="btn btn-primary" id="shSave" style="align-self:flex-start;">Kaydet</button>
+                    </div>
+                </section>
+
                 <section class="admin-card danger-card">
                     <div class="card-header">
                         <div class="card-title">

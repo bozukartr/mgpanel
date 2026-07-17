@@ -1086,7 +1086,7 @@ const TENANT_FIELD_COLLECTIONS = [
 ];
 const TENANT_DOC_COLLECTIONS = [
   'maintenance', 'financeConfig', 'pmsConfig', 'pmsOAuthCache', 'guestConfig',
-  'notifyConfig', 'issueConfig', 'restConfig', 'restCounters'
+  'notifyConfig', 'issueConfig', 'restConfig', 'restCounters', 'shiftConfig'
 ];
 
 // Permanently remove ALL of a hotel's data (used by "Tamamen Sil").

@@ -589,6 +589,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ── VARDİYA KONUMU (shiftConfig) ────────────────────────────
+    // Etkinleştirilirse panel.js/realtime.js bu konum+yarıçapı kullanarak
+    // personelin "işbaşında" olup olmadığını (onShift) belirler — bkz.
+    // realtime.js startPresence() ve panel.js canTakeRecord/notifyRequestTeam.
+    // Ham personel koordinatları HİÇBİR ZAMAN Firestore'a yazılmaz (gizlilik) —
+    // yalnızca bu MERKEZ konum + yarıçap saklanır, mesafe hesabı her
+    // istemcide kendi cihazının konumuyla yerel olarak yapılır.
+    const shEnabled = document.getElementById('shEnabled');
+    const shLat = document.getElementById('shLat');
+    const shLng = document.getElementById('shLng');
+    const shRadius = document.getElementById('shRadius');
+    const shStatus = document.getElementById('shStatus');
+    const shHint = document.getElementById('shHint');
+
+    const loadShiftConfig = () => {
+        if (!shEnabled) return;
+        db.collection('shiftConfig').doc(TENANT_ID).onSnapshot(doc => {
+            const d = doc.exists ? doc.data() : {};
+            shEnabled.checked = !!d.enabled;
+            shLat.value = (d.lat != null) ? d.lat : '';
+            shLng.value = (d.lng != null) ? d.lng : '';
+            shRadius.value = d.radiusM || 150;
+            shStatus.textContent = d.enabled ? 'Aktif' : 'Pasif';
+            shStatus.classList.toggle('active', !!d.enabled);
+        });
+    };
+
+    document.getElementById('shUseHere') && (document.getElementById('shUseHere').onclick = () => {
+        if (!navigator.geolocation) { showToast('Bu tarayıcı konum bilgisini desteklemiyor.', true); return; }
+        shHint.style.display = ''; shHint.textContent = 'Konum alınıyor…';
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                shLat.value = pos.coords.latitude.toFixed(6);
+                shLng.value = pos.coords.longitude.toFixed(6);
+                shHint.textContent = 'Şu anki konumunuz dolduruldu (± ' + Math.round(pos.coords.accuracy) + ' m doğruluk). "Kaydet"e basmayı unutmayın.';
+            },
+            err => { shHint.textContent = 'Konum alınamadı: ' + (err && err.message || 'izin verilmedi'); },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+
+    document.getElementById('shSave') && (document.getElementById('shSave').onclick = async () => {
+        const enabled = shEnabled.checked;
+        const lat = parseFloat(shLat.value), lng = parseFloat(shLng.value);
+        const radiusM = Math.max(30, parseInt(shRadius.value, 10) || 150);
+        if (enabled && (!isFinite(lat) || !isFinite(lng))) { showToast('Vardiya kontrolünü açmak için otel konumunu girin (veya "Şu anki konumumu kullan"a basın).', true); return; }
+        try {
+            await db.collection('shiftConfig').doc(TENANT_ID).set({
+                tenantId: TENANT_ID, enabled,
+                lat: isFinite(lat) ? lat : null, lng: isFinite(lng) ? lng : null, radiusM,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            showToast('Vardiya konumu ayarları kaydedildi.');
+        } catch (err) { console.error(err); showToast('Hata: ' + err.message, true); }
+    });
+
     // ── SUBSCRIPTION PAYMENT (PayTR) ───────────────────────────
     const payBtn = document.getElementById('payBtn');
     const payModal = document.getElementById('payModal');
@@ -854,4 +910,5 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSubscription();
     fetchTickets();
     loadMaintenance();
+    loadShiftConfig();
 });

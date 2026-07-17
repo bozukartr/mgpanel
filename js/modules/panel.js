@@ -119,7 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
     resetLogoutTimer(); // Start timer on load
 
     auth.onAuthStateChanged(user => {
-        if (!user) window.location.href = 'login';
+        if (!user) { window.location.href = 'login'; return; }
+        listenShift(user.uid);
     });
 
     // ── GUEST DIRECTORY & STATUS LOGIC ────────────────────────
@@ -1617,8 +1618,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // "Yiyecek & İçecek" aynı departman sayılır — aksi halde legacy
             // isimle kayıtlı bir F&B personeli yeni kayıtlar için bildirim
             // ALAMAZDI.
-            (await getStaff()).forEach(u => {
-                if (dept && sameDept(u.department, dept)) recips[u.uid] = u.username;
+            const staff = await getStaff();
+            // Vardiya kontrolü etkinse: yönetici/admin muaf, diğer personelden
+            // yalnızca KANITLANMIŞ şekilde otel dışında olanlar (onShift===false)
+            // bildirim listesine hiç girmez — kayıt yok/izin yok durumunda
+            // (fail-open) normal şekilde bildirim alır.
+            const shiftOn = shiftControlActive();
+            const presenceMap = shiftOn ? await getPresenceMap() : null;
+            staff.forEach(u => {
+                if (!(dept && sameDept(u.department, dept))) return;
+                if (shiftOn && u.role !== 'admin' && u.role !== 'manager' && !isUidOnShift(u.uid, presenceMap)) return;
+                recips[u.uid] = u.username;
             });
         } catch (e) { /* yine de atanan kişiye gider */ }
         if (assignee && assignee.uid) recips[assignee.uid] = assignee.username || recips[assignee.uid] || assignee.uid;
@@ -2294,20 +2304,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const takeBtn = document.getElementById('wfTakeBtn');
         takeBtn.style.display = (status === 'Following') ? 'inline-flex' : 'none';
-        // Katı departman kuralı görünürlüğü: başka departmanın personeli
+        // Katı departman/vardiya kuralı görünürlüğü: engellenen personel
         // butonu devre dışı + neden açıklamalı görür (gizlemek kafa karıştırır).
-        const mayTake = canTakeRecord(record);
-        takeBtn.disabled = !mayTake;
-        takeBtn.style.opacity = mayTake ? '' : '0.45';
-        takeBtn.title = mayTake ? '' : ('Bu kaydı yalnızca "' + (record.department || '—') + '" personeli veya yönetici üstlenebilir.');
+        const takeReason = takeBlockReason(record);
+        takeBtn.disabled = !!takeReason;
+        takeBtn.style.opacity = takeReason ? '0.45' : '';
+        takeBtn.title = takeReason || '';
         // Tamamlama yalnızca işi üstlenen personelde ve yönetici/admin'de açık —
         // buton görünür kalır ama devre dışı + açıklamalı (gizlemek kafa karıştırır).
         const completeBtn = document.getElementById('wfCompleteBtn');
         completeBtn.style.display = (status !== 'Solved') ? 'inline-flex' : 'none';
-        const mayComplete = canCompleteRecord(record);
-        completeBtn.disabled = !mayComplete;
-        completeBtn.style.opacity = mayComplete ? '' : '0.45';
-        completeBtn.title = mayComplete ? '' : ('Bu işi ' + (record.acknowledgedBy || 'başka bir personel') + ' üstlendi — yalnızca o veya bir yönetici tamamlayabilir.');
+        const completeReason = completeBlockReason(record);
+        completeBtn.disabled = !!completeReason;
+        completeBtn.style.opacity = completeReason ? '0.45' : '';
+        completeBtn.title = completeReason || '';
         document.getElementById('wfReopenBtn').style.display = (status === 'Solved') ? 'inline-flex' : 'none';
         const escBtn2 = document.getElementById('wfEscalateBtn');
         const escTag = document.getElementById('wfEscTag');
@@ -2380,36 +2390,86 @@ document.addEventListener('DOMContentLoaded', () => {
         return !!(me && r.assignedTo && r.assignedTo === me);
     }
     function deptOf(s) { return String(s || '').trim().toLocaleLowerCase('tr-TR'); }
-    function canTakeRecord(record) {
+
+    // ── Vardiya konumu kontrolü (opsiyonel — admin "Sistem" ayarına bağlı) ──
+    // realtime.js'in presence heartbeat'i, admin bir otel konumu+yarıçapı
+    // tanımlamışsa personelin cihaz konumunu buna göre ölçüp presence/{uid}
+    // içine SONUCU (onShift boolean) yazar — ham koordinat asla buraya
+    // inmez. Kayıt yoksa (kontrol kapalı/izin verilmemiş/henüz ölçülmemiş)
+    // varsayılan HER ZAMAN "vardiyada" sayılır: bu kontrol yalnızca
+    // KANITLANMIŞ şekilde otel dışında olan personeli kısıtlar — aşamalı/
+    // güvenli devreye alım (bkz. admin.js shiftConfig kaydı).
+    let shiftConfig = null, myOnShift = true;
+    function shiftControlActive() { return !!(shiftConfig && shiftConfig.enabled); }
+    function listenShift(myUid) {
+        db.collection('shiftConfig').doc(TENANT_ID).onSnapshot(doc => { shiftConfig = doc.exists ? doc.data() : null; }, () => {});
+        if (!myUid) return;
+        db.collection('presence').doc(myUid).onSnapshot(doc => {
+            myOnShift = !(doc.exists && doc.data().onShift === false);
+        }, () => {});
+    }
+    let presenceCache = null, presenceCacheAt = 0;
+    async function getPresenceMap() {
+        if (presenceCache && Date.now() - presenceCacheAt < 60000) return presenceCache; // 1 dk cache — konum daha sık değişebilir
+        const map = {};
+        try {
+            const snap = await db.collection('presence').where('tenantId', '==', TENANT_ID).get();
+            snap.forEach(d => { map[d.id] = d.data() || {}; });
+            presenceCache = map; presenceCacheAt = Date.now();
+        } catch (e) { presenceCache = presenceCache || {}; }
+        return presenceCache;
+    }
+    function isUidOnShift(uid, presenceMap) {
+        const p = presenceMap && presenceMap[uid];
+        return !(p && p.onShift === false); // kayıt yok/true → vardiyada (fail-open)
+    }
+    const SHIFT_BLOCK_MSG = 'Vardiya dışısınız — bu işlem için otel konumunda olmanız gerekir (yönetici/admin muaftır).';
+
+    // Dönüş: null (izinli) veya kullanıcıya gösterilecek Türkçe gerekçe.
+    // Üç çağrı yeri (kart butonu, modal butonu, transitionRecordImpl) aynı
+    // mantığı ve mesajı paylaşsın diye tek yerde toplanır.
+    function takeBlockReason(record) {
         const role = (localStorage.getItem('hotelRole') || '').toLowerCase();
-        if (role === 'admin' || role === 'manager' || loggedUsername.toLowerCase() === 'admin') return true;
+        if (role === 'admin' || role === 'manager' || loggedUsername.toLowerCase() === 'admin') return null;
         const myDept = localStorage.getItem('hotelDept');
         const recDept = record && record.department;
-        if (!deptOf(recDept)) return true; // departmansız eski kayıtlar serbest
         // sameDept (js/core/firebase-config.js): ham string eşitliği değil —
         // "Food & Beverage" (eski F&B departman adı) ile kanonik
         // "Yiyecek & İçecek" aynı departman sayılır (geçiş dönemi verisi).
-        return !!deptOf(myDept) && sameDept(myDept, recDept);
+        if (deptOf(recDept) && !(deptOf(myDept) && sameDept(myDept, recDept))) {
+            return 'Bu kayıt "' + (record.department || '—') + '" departmanına ait — yalnızca o departman personeli veya yönetici üstlenebilir.';
+        }
+        if (shiftControlActive() && !myOnShift) return SHIFT_BLOCK_MSG;
+        return null;
     }
+    function canTakeRecord(record) { return takeBlockReason(record) == null; }
+
     // İş sahipliği: üstlenilmiş bir işi yalnızca ÜSTLENEN personel (veya
     // yönetici/admin) tamamlayabilir — iki kişinin aynı işi karıştırması
-    // önlenir. Üstlenen bilgisi olmayan eski kayıtlar departman kuralına düşer.
-    function canCompleteRecord(record) {
+    // önlenir. Üstlenen bilgisi olmayan eski kayıtlar departman/vardiya
+    // kuralına düşer (takeBlockReason). Zaten üstlenilmiş bir işi kendi
+    // sahibi vardiya dışına çıksa bile tamamlayabilir — kısıt yalnızca
+    // YENİ iş ÜSTLENMEYİ hedefler (kullanıcının talebi).
+    function completeBlockReason(record) {
         const role = (localStorage.getItem('hotelRole') || '').toLowerCase();
-        if (role === 'admin' || role === 'manager' || loggedUsername.toLowerCase() === 'admin') return true;
+        if (role === 'admin' || role === 'manager' || loggedUsername.toLowerCase() === 'admin') return null;
         const owner = String(record && record.acknowledgedBy || '').trim().toLocaleLowerCase('tr-TR');
-        if (!owner) return canTakeRecord(record);
-        return owner === loggedUsername.toLocaleLowerCase('tr-TR');
+        if (!owner) return takeBlockReason(record);
+        if (owner !== loggedUsername.toLocaleLowerCase('tr-TR')) {
+            return 'Bu işi ' + (record.acknowledgedBy || 'başka bir personel') + ' üstlendi — yalnızca o veya bir yönetici tamamlayabilir.';
+        }
+        return null;
     }
+    function canCompleteRecord(record) { return completeBlockReason(record) == null; }
     async function transitionRecordImpl(action) {
         const r = selectedRecord;
-        if (action === 'take' && !canTakeRecord(r)) {
-            showToast('Bu kayıt "' + (r.department || '—') + '" departmanına ait — yalnızca o departman personeli veya yönetici üstlenebilir.', true);
-            return;
+        if (action === 'take') {
+            const reason = takeBlockReason(r);
+            if (reason) { showToast(reason, true); return; }
         }
-        if (action === 'complete' && !canCompleteRecord(r)) {
-            showToast('Bu işi ' + (r.acknowledgedBy || 'başka bir personel') + ' üstlendi — yalnızca o veya bir yönetici tamamlayabilir.', true);
-            return;
+        if (action === 'complete') {
+            const reason = completeBlockReason(r);
+            if (reason) { showToast(reason, true); return; }
         }
         const TS = firebase.firestore.FieldValue.serverTimestamp();
         const nowDate = new Date();

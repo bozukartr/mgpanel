@@ -404,6 +404,16 @@ service cloud.firestore {
       allow write: if isStaff() && isAdmin() && tid == callerTenant();
     }
 
+    // --- Vardiya konumu (per hotel): otel merkezi + yarıçap. Personel bu
+    //     ayarı OKUR (kendi vardiya durumunu hesaplamak/panel.js katı kural
+    //     kontrolü için — bkz. realtime.js/panel.js); yalnızca admin yazar.
+    //     Personelin ham konumu BURADA DEĞİL — presence/{uid} içinde, yalnız
+    //     hesaplanan sonuç (onShift) olarak durur. ---
+    match /shiftConfig/{tid} {
+      allow read:  if isStaff() && tid == callerTenant();
+      allow write: if isStaff() && isAdmin() && tid == callerTenant();
+    }
+
     // --- Issue (guest-record) departments & topics (per hotel). The list of
     //     departments and their sub-topics used by "Misafir Kayıtları" for both
     //     talep and şikayet. Any signed-in staff member READS it; only the

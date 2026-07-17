@@ -326,13 +326,59 @@
         try { await batch.commit(); } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'RT.markAllRead' }); }
     };
 
+    // ── Vardiya konumu (shiftConfig) ────────────────────────────
+    // Otel admin'i "Sistem" ayarından bir merkez konum + yarıçap
+    // tanımlarsa, personelin cihazı buna göre "işbaşında mı" (onShift)
+    // ölçülür — panel.js canTakeRecord/notifyRequestTeam bunu okur.
+    // GİZLİLİK: ham koordinatlar HİÇBİR ZAMAN Firestore'a yazılmaz —
+    // yalnızca hesaplanan SONUÇ (onShift boolean) + ölçüm zamanı saklanır.
+    // Kontrol kapalıysa (veya izin/konum alınamazsa) bu alanlara hiç
+    // dokunulmaz; panel.js "kayıt yok" durumunu her zaman "vardiyada"
+    // (eski davranış) olarak yorumlar — güvenli/aşamalı devreye alım.
+    let shiftConfig = null, shiftConfigReady = false;
+    function loadShiftConfig(onFirst) {
+        db.collection('shiftConfig').doc(TENANT).onSnapshot(doc => {
+            shiftConfig = doc.exists ? doc.data() : null;
+            const first = !shiftConfigReady;
+            shiftConfigReady = true;
+            if (first && typeof onFirst === 'function') onFirst();
+        }, () => { shiftConfigReady = true; });
+    }
+    function haversineM(lat1, lng1, lat2, lng2) {
+        const R = 6371000, toRad = d => d * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+    }
+    function checkShiftLocation(ref) {
+        if (!shiftConfigReady || !shiftConfig || !shiftConfig.enabled) return;
+        if (shiftConfig.lat == null || shiftConfig.lng == null) return;
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                const distM = haversineM(pos.coords.latitude, pos.coords.longitude, shiftConfig.lat, shiftConfig.lng);
+                const onShift = distM <= (shiftConfig.radiusM || 150);
+                ref.set({ onShift, shiftCheckedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }).catch(() => { });
+            },
+            () => { /* izin yok/başarısız — sessizce geç, "kayıt yok" hali (vardiyada sayılır) korunur */ },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        );
+    }
+
     // ── presence heartbeat ─────────────────────────────────────
     function startPresence() {
         const ref = db.collection('presence').doc(uid);
-        const beat = () => ref.set({
-            uid, username: USERNAME, dept: DEPT, tenantId: TENANT,
-            online: true, lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).catch(() => { });
+        let beatCount = 0;
+        const SHIFT_CHECK_EVERY = 3; // konum ölçümü her heartbeat'te değil, ~2-3 dk'da bir (pil/izin dostu)
+        const beat = () => {
+            ref.set({
+                uid, username: USERNAME, dept: DEPT, tenantId: TENANT,
+                online: true, lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true }).catch(() => { });
+            if (beatCount % SHIFT_CHECK_EVERY === 0) checkShiftLocation(ref);
+            beatCount++;
+        };
+        loadShiftConfig(() => checkShiftLocation(ref)); // vardiya ayarı ilk yüklendiğinde de bir kez ölç
         beat();
         setInterval(() => { if (!document.hidden) beat(); }, HEARTBEAT_MS);
         window.addEventListener('focus', beat);
