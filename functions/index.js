@@ -478,11 +478,22 @@ exports.onGuestOrderCreate = onDocumentCreated(
       }
     } catch (e) { console.error('order→log/res bridge failed', e); }
 
+    // Bildirimler İDEMPOTENT yazılır: kimlik sipariş+alıcı+bildirim-türünden
+    // türetilir (auto-id DEĞİL). Cloud Functions tetikleyicileri "en az bir
+    // kez" çalışır — bir retry (ör. yukarıdaki köprü adımından sonra zaman
+    // aşımı) aynı ID'yi merge ile üzerine yazar, kişi başı mükerrer bildirim
+    // ASLA oluşmaz. targetedUids: departman-özel bildirim alan kişiler genel
+    // yayından da AYRICA bildirim almasın diye (aynı sipariş için iki kez
+    // rahatsız edilmesinler) toplanır.
+    const targetedUids = new Set();
+    const notifId = (kind, uid) => 'qr_' + event.params.id + '_' + kind + '_' + uid;
+
     // Concierge talebi bildirimi: Concierge departmanı personeline; o
     // departman yoksa Ön Büro/Front Office/Resepsiyon personeline düşer.
+    let staffAll = null;
     if (conciergeResNames.length) {
       try {
-        const staffAll = await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+        staffAll = staffAll || await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
         const deptOf = (d) => String((d.data() || {}).department || '').toLocaleLowerCase('tr-TR');
         let recips = staffAll.docs.filter((d) => /concierge|konsiyerj/.test(deptOf(d)));
         if (!recips.length) recips = staffAll.docs.filter((d) => /ön ?büro|onburo|front|resepsiyon/.test(deptOf(d)));
@@ -491,14 +502,44 @@ exports.onGuestOrderCreate = onDocumentCreated(
           + (conciergeResNames.length > 3 ? ' +' + (conciergeResNames.length - 3) : '')
           + (stamped.guestName ? ' — ' + stamped.guestName : '');
         const nb = db.batch();
-        recips.forEach((d) => nb.set(db.collection('notifications').doc(), {
-          tenantId, toUid: d.id, toUsername: (d.data() || {}).username || '',
-          fromUid: 'system', fromUsername: 'QR-Misafir',
-          title, body, recordId: event.params.id, type: 'guestOrder', read: false,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
-        }));
+        recips.forEach((d) => {
+          targetedUids.add(d.id);
+          nb.set(db.collection('notifications').doc(notifId('concierge', d.id)), {
+            tenantId, toUid: d.id, toUsername: (d.data() || {}).username || '',
+            fromUid: 'system', fromUsername: 'QR-Misafir',
+            title, body, recordId: event.params.id, type: 'guestOrder', read: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
         if (recips.length) await nb.commit();
       } catch (e) { console.error('concierge notify failed', e); }
+    }
+
+    // F&B (oda servisi) siparişi bildirimi: yalnızca F&B/mutfak personeline —
+    // aksi halde her oda servisi siparişinde temizlik/teknik/resepsiyon dahil
+    // TÜM personel rahatsız edilirdi (denetimde tespit edilen boşluk).
+    const fnbItems = items.filter((it) => orderBridge.isFnbItem(it));
+    if (fnbItems.length) {
+      try {
+        staffAll = staffAll || await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+        const deptOf = (d) => String((d.data() || {}).department || '').toLocaleLowerCase('tr-TR');
+        const recips = staffAll.docs.filter((d) => /yiyecek|i̇çecek|icecek|içecek|food|beverage|f&b/.test(deptOf(d)));
+        const names = fnbItems.map((it) => String((it && it.name) || '').trim() + (it && it.qty > 1 ? ' x' + it.qty : '')).filter(Boolean);
+        const title = '🍽️ Yeni oda servisi siparişi' + (room ? ' · Oda ' + room : '');
+        let body = names.slice(0, 3).join(', ') + (names.length > 3 ? ' +' + (names.length - 3) : '');
+        if (stamped.guestName) body += ' — ' + stamped.guestName;
+        const nb = db.batch();
+        recips.forEach((d) => {
+          targetedUids.add(d.id);
+          nb.set(db.collection('notifications').doc(notifId('fnb', d.id)), {
+            tenantId, toUid: d.id, toUsername: (d.data() || {}).username || '',
+            fromUid: 'system', fromUsername: 'QR-Misafir',
+            title, body, recordId: event.params.id, type: 'guestOrder', read: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
+        if (recips.length) await nb.commit();
+      } catch (e) { console.error('fnb notify failed', e); }
     }
 
     // Otelin bildirim ayarları (admin "Bildirimler" sekmesi). Yoksa makul
@@ -507,7 +548,7 @@ exports.onGuestOrderCreate = onDocumentCreated(
     try { const c = await db.collection('notifyConfig').doc(tenantId).get(); if (c.exists) cfg = c.data() || {}; } catch (e) { /* varsayılanlarla devam */ }
     if (cfg.guestOrderEnabled === false) return; // operatör bildirimi kapatmış
 
-    const staffSnap = await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+    const staffSnap = staffAll || await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
     if (staffSnap.empty) return;
     let recipients = staffSnap.docs;
     if (cfg.guestOrderRecipients === 'managers') {
@@ -516,6 +557,9 @@ exports.onGuestOrderCreate = onDocumentCreated(
         return r === 'admin' || r === 'manager';
       });
     }
+    // Departman-özel bildirim (Concierge/F&B) zaten alan personel genel
+    // yayından hariç tutulur — aynı sipariş için iki kez bildirim gitmez.
+    recipients = recipients.filter((d) => !targetedUids.has(d.id));
     if (!recipients.length) return;
 
     const title = (cfg.guestOrderTitle && String(cfg.guestOrderTitle).trim()) || '🛎️ Yeni misafir talebi';
@@ -536,7 +580,7 @@ exports.onGuestOrderCreate = onDocumentCreated(
 
     const batch = db.batch();
     recipients.forEach((doc) => {
-      const ref = db.collection('notifications').doc();
+      const ref = db.collection('notifications').doc(notifId('general', doc.id));
       batch.set(ref, {
         toUid: doc.id,
         toUsername: (doc.data() || {}).username || '',
@@ -549,7 +593,7 @@ exports.onGuestOrderCreate = onDocumentCreated(
         tenantId: tenantId,
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      }, { merge: true });
     });
     try { await batch.commit(); } catch (e) { console.error('guest order notify failed', e); }
   }
