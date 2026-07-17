@@ -180,6 +180,31 @@
 .status-pill.active { background: var(--red-bg); color: var(--red); }
 .status-pill.active#shStatus, #shStatus.active { background: var(--green-bg); color: var(--green); } /* vardiya "aktif" = olumlu durum */
 
+/* ════════ Hazır Talepler — alt sekmeler (Talepler/Sayfa Ayarları/Menüler & QR) ════════ */
+.cat-subtabs { display: flex; gap: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border, #e2e8f0); }
+.cat-subtab {
+    padding: 9px 2px; margin-bottom: -1px; border: none; background: none; cursor: pointer;
+    font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--faint);
+    border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+}
+.cat-subtab:hover { color: var(--text, #1e293b); }
+.cat-subtab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.cat-subview { display: none; }
+.cat-subview.active { display: block; animation: admFade .18s ease; }
+.cat-toolbar { margin-bottom: 12px; }
+.cat-search {
+    width: 100%; max-width: 340px; padding: 9px 12px; border: 1px solid var(--border, #d8dee6);
+    border-radius: var(--r-sm); font-family: inherit; font-size: 13.5px; color: var(--text, #0f172a);
+}
+.cat-search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); outline: none; }
+
+/* ════════ Modal içi bölüm başlıkları (ör. katalog kalemi modalı) ════════ */
+.modal-section-h {
+    grid-column: 1 / -1; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--faint); padding-top: 14px; margin-top: 4px; border-top: 1px solid var(--border, #eef1f5);
+}
+.modal-section-h.first { padding-top: 0; margin-top: 0; border-top: none; }
+
 /* ════════ Forms ════════ */
 .settings-body { display: flex; flex-direction: column; gap: 15px; }
 .switch-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: #334155; cursor: pointer; }
@@ -270,7 +295,7 @@ table { width: 100%; border-collapse: collapse; }
 .modal-body { padding: 20px 22px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .modal-body .form-group { margin-bottom: 14px; }
 .modal-body .form-group:last-child { margin-bottom: 0; }
-.modal-body .form-group input, .modal-body .form-group select, .modal-body .form-group textarea { width: 100%; box-sizing: border-box; }
+.modal-body .form-group input:not([type="checkbox"]):not([type="radio"]), .modal-body .form-group select, .modal-body .form-group textarea { width: 100%; box-sizing: border-box; }
 .modal-body .form-group textarea { resize: vertical; min-height: 76px; }
 
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; align-content: start; }

@@ -135,6 +135,28 @@
         return seen;
     }
 
+    // ── Arama (Talepler listesi) ────────────────────────────────
+    let searchTerm = '';
+    function norm(s) { return String(s || '').trim().toLocaleLowerCase('tr-TR'); }
+    function visibleItems() {
+        const t = norm(searchTerm);
+        if (!t) return items;
+        return items.filter(i => norm(i.name).includes(t) || norm(i.category).includes(t) || norm(i.subcategory).includes(t));
+    }
+    function categoriesIn(list) {
+        const seen = [];
+        list.slice().sort(byOrder).forEach(i => { const c = i.category || 'Diğer'; if (!seen.includes(c)) seen.push(c); });
+        return seen;
+    }
+    function subcatsIn(list, cat) {
+        const seen = [];
+        list.filter(i => (i.category || 'Diğer') === cat).slice().sort(byOrder).forEach(i => {
+            const s = (i.subcategory || '').trim();
+            if (!seen.includes(s)) seen.push(s);
+        });
+        return seen;
+    }
+
     function render() {
         const wrap = $('catalogList');
         if (!wrap) return;
@@ -149,7 +171,9 @@
             const url = `${base}?tenant=${encodeURIComponent(TENANT_ID)}&room=ODA_NO`;
             hint.innerHTML = `<div class="cat-qr">📱 Misafir QR adresi: <code>${esc(url)}</code> — her oda için <code>ODA_NO</code> yerine oda numarasını yazıp QR oluşturun.</div>`;
         }
-        // Category + subcategory datalists for the modal
+        // Category + subcategory datalists for the modal — HER ZAMAN tüm
+        // kataloğa göre (arama filtresine göre değil, admin arama kutusuna bir
+        // şey yazsa bile modalda tüm kategorileri görebilmeli).
         const dl = $('catCatOptions');
         if (dl) dl.innerHTML = categoriesOrdered().map(c => `<option value="${esc(c)}">`).join('');
         const dls = $('catSubOptions');
@@ -159,10 +183,15 @@
             wrap.innerHTML = `<div class="cat-empty">Henüz talep eklenmemiş.<br>“Varsayılanları Yükle” ile başlayabilir veya “Talep Ekle” diyebilirsiniz.</div>`;
             return;
         }
-        wrap.innerHTML = categoriesOrdered().map(cat => {
-            const catItems = items.filter(i => (i.category || 'Diğer') === cat);
+        const list = visibleItems();
+        if (!list.length) {
+            wrap.innerHTML = `<div class="cat-empty">"${esc(searchTerm.trim())}" ile eşleşen talep yok.</div>`;
+            return;
+        }
+        wrap.innerHTML = categoriesIn(list).map(cat => {
+            const catItems = list.filter(i => (i.category || 'Diğer') === cat);
             // Group the category's items by subcategory ('' = ungrouped, shown first).
-            const subs = subcatsOrdered(cat);
+            const subs = subcatsIn(list, cat);
             const blocks = subs.map(sub => {
                 const rows = catItems.filter(i => (i.subcategory || '').trim() === sub).sort(byOrder).map(rowHtml).join('');
                 const head = sub ? `<div class="cat-subhead">${esc(sub)}</div>` : '';
@@ -661,6 +690,7 @@
             return;
         }
         injectStyles();
+        $('catSearch') && $('catSearch').addEventListener('input', (e) => { searchTerm = e.target.value; render(); });
         $('catAddBtn') && ($('catAddBtn').onclick = () => openModal(null));
         $('catSeedBtn') && ($('catSeedBtn').onclick = seedDefaults);
         $('catUnseedBtn') && ($('catUnseedBtn').onclick = unseedDefaults);
