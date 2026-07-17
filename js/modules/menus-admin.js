@@ -18,11 +18,7 @@
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
     }
-    function toast(msg, isErr) {
-        var t = $('toast'); if (!t) { alert(msg); return; }
-        t.textContent = msg; t.className = 'toast-notification show' + (isErr ? ' error' : '');
-        setTimeout(function () { t.className = 'toast-notification'; }, 2600);
-    }
+    var toast = window.showToast; // js/utils/toast.js (paylaşımlı)
 
     function injectStyles() {
         if (document.getElementById('menus-admin-styles')) return;
@@ -81,8 +77,10 @@
             activeEl.addEventListener('change', function () { saveField({ active: activeEl.checked }); });
             var delBtn = row.querySelector('.menu-del');
             delBtn.addEventListener('click', function () {
-                if (!confirm('Bu menüyü silmek istediğinize emin misiniz?')) return;
-                db.collection(COL).doc(id).delete().catch(function () { toast('Silinemedi.', true); });
+                AppDialog.confirm({ title: 'Menüyü sil', danger: true, confirmText: 'Sil', message: 'Bu menüyü silmek istediğinize emin misiniz?' }).then(function (ok) {
+                    if (!ok) return;
+                    db.collection(COL).doc(id).delete().catch(function () { toast('Silinemedi.', true); });
+                });
             });
             var upBtn = row.querySelector('.menu-up'), downBtn = row.querySelector('.menu-down');
             var idx = menus.findIndex(function (m) { return m.id === id; });

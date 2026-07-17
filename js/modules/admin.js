@@ -4,13 +4,9 @@ function esc(s) {
 }
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Auth Guard
-    const toast = document.getElementById('toast');
-
-    function showToast(message, isError = false) {
-        toast.textContent = message;
-        toast.className = 'toast-notification show' + (isError ? ' error' : '');
-        setTimeout(() => { toast.className = 'toast-notification'; }, 3000);
-    }
+    // showToast: js/utils/toast.js (paylaşımlı — bkz. tasarım denetimi, 4 ayrı
+    // kopya tek yerde toplandı). AppDialog: js/utils/app-dialog.js (native
+    // confirm()/prompt() yerine, .modal üzerine kurulu, Promise tabanlı).
 
     // Kullanıcı departman seçenekleri issueConfig'ten gelir → bir kez yükle ve canlı tut.
     if (window.IssueConfig) {
@@ -259,26 +255,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     closeUserModalBtn.onclick = () => userModal.style.display = 'none';
 
-    window.deleteUser = (id) => {
-        if (confirm('Are you sure you want to remove this user?')) {
-            db.collection('systemUsers').doc(id).delete();
-            showToast('User removed from system.');
-        }
+    window.deleteUser = async (id) => {
+        const ok = await AppDialog.confirm({
+            title: 'Kullanıcıyı kaldır', danger: true, confirmText: 'Kaldır',
+            message: 'Bu kullanıcının erişimini kaldırmak istediğinize emin misiniz?'
+        });
+        if (!ok) return;
+        db.collection('systemUsers').doc(id).delete();
+        showToast('User removed from system.');
     };
 
     // Şifreyi GERÇEKTEN geçersiz kılar (yeni rastgele bir geçici şifre +
     // oturum iptali) — önceden yalnızca bir bayrak yazılıyordu ve eski şifre
     // kullanıcı elle değiştirene kadar geçerli kalıyordu; bkz. auth denetimi.
     window.resetUserPassword = async (id, username) => {
-        if (!confirm(`Reset password for ${username}?\n\nA new temporary password will be generated and their current password/sessions will stop working immediately. They will be required to set a new password on next login.`)) {
-            return;
-        }
+        const ok = await AppDialog.confirm({
+            title: 'Şifreyi sıfırla', confirmText: 'Sıfırla',
+            message: `${username} için yeni bir geçici şifre üretilecek; mevcut şifre/oturumlar hemen geçersiz olacak. Bir sonraki girişte yeni şifre belirlemesi istenecek. Devam edilsin mi?`
+        });
+        if (!ok) return;
         try {
             const call = firebase.app().functions('us-central1').httpsCallable('resetUserPassword');
             const res = await call({ uid: id });
             const tempPw = res.data && res.data.tempPassword;
             if (tempPw) {
-                prompt(`${username} için geçici şifre (bu kişiye iletin — bir daha gösterilmeyecek):`, tempPw);
+                await AppDialog.info({
+                    title: 'Geçici şifre', copyValue: tempPw,
+                    message: `${username} için geçici şifre — bu kişiye iletin, bir daha gösterilmeyecek:`
+                });
             }
             showToast(`${username} will be asked to set a new password on next login.`);
         } catch (err) {
@@ -288,16 +292,35 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // System Eject (Backup & Wipe)
+    // Native confirm() eskiden SENKRON/BLOKLAYICIYDI — açıkken sayfadaki
+    // hiçbir buton (bu buton dahil) tıklanamazdı, o yüzden ek bir kilit
+    // gerekmiyordu. AppDialog ASENKRON olduğundan bu güvenlik özelliği
+    // kendiliğinden gelmiyor: buton ve sidebar navigasyonu burada AÇIKÇA
+    // kilitlenir (bkz. tasarım denetimi — re-entrancy riski).
     const ejectBtn = document.getElementById('adminEjectBtn');
     if (ejectBtn) {
+        const setNavLocked = (locked) => {
+            document.querySelectorAll('.sb-link').forEach(b => { b.disabled = locked; b.style.opacity = locked ? '.45' : ''; b.style.pointerEvents = locked ? 'none' : ''; });
+        };
         ejectBtn.onclick = async () => {
-            if (!confirm("⚠️ DİKKAT: Tüm sistem verileri (rezervasyonlar, misafirler, kayıtlar, personel hesapları) KALICI olarak silinecek!\n\nSilmeden önce bir yedek dosyası indirilecek.\n\nDevam etmek istediğinize emin misiniz?")) {
-                return;
-            }
-            if (!confirm("⚠️ SON UYARI: Bu işlem geri alınamaz. Sistemi sıfırlamak istediğinize kesinlikle emin misiniz?")) {
-                return;
-            }
+            if (ejectBtn.disabled) return; // çift tıklama koruması
+            ejectBtn.disabled = true;
+            try {
+                const ok1 = await AppDialog.confirm({
+                    title: '⚠️ Dikkat', danger: true, confirmText: 'Devam Et',
+                    message: 'Tüm sistem verileri (rezervasyonlar, misafirler, kayıtlar, personel hesapları) KALICI olarak silinecek!\n\nSilmeden önce bir yedek dosyası indirilecek.\n\nDevam etmek istediğinize emin misiniz?'
+                });
+                if (!ok1) { ejectBtn.disabled = false; return; }
+                const ok2 = await AppDialog.confirm({
+                    title: '⚠️ Son Uyarı', danger: true, confirmText: 'Sistemi Sıfırla',
+                    message: 'Bu işlem geri alınamaz. Sistemi sıfırlamak istediğinize kesinlikle emin misiniz?'
+                });
+                if (!ok2) { ejectBtn.disabled = false; return; }
+            } catch (e) { ejectBtn.disabled = false; return; }
 
+            // Noktai dönüşsüz: yedekleme + silme başlıyor — sayfadan ayrılmayı/
+            // başka bir işlemi tetiklemeyi (sidebar dahil) reload'a kadar engelle.
+            setNavLocked(true);
             showToast("Sistem yedeği oluşturuluyor...", false);
 
             try {
@@ -365,6 +388,10 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 console.error(err);
                 showToast("Sıfırlama başarısız: " + err.message, true);
+                // Yarım kalan bir hata (ör. ağ sorunu) kullanıcıyı kalıcı kilitli
+                // bırakmasın — yeniden denemesi/sayfadan çıkması mümkün olsun.
+                ejectBtn.disabled = false;
+                setNavLocked(false);
             }
         };
     }

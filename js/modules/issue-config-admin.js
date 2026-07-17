@@ -20,13 +20,7 @@
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
     const $ = id => document.getElementById(id);
-    function toast(msg, isError) {
-        const t = $('toast');
-        if (!t) return;
-        t.textContent = msg;
-        t.className = 'toast-notification show' + (isError ? ' error' : '');
-        setTimeout(() => { t.className = 'toast-notification'; }, 2600);
-    }
+    const toast = window.showToast; // js/utils/toast.js (paylaşımlı)
 
     function kindLabel(k) {
         return k === 'request' ? 'Talep' : (k === 'complaint' ? 'Şikayet' : 'Talep & Şikayet');
@@ -133,16 +127,20 @@
         persist(editingIdx >= 0 ? 'Departman güncellendi.' : 'Departman eklendi.').then(closeModal).catch(() => {});
     }
 
-    function remove() {
+    async function remove() {
         if (editingIdx < 0) return;
-        if (!confirm('Bu departmanı silmek istediğinize emin misiniz?')) return;
+        const ok = await AppDialog.confirm({ title: 'Departmanı sil', danger: true, confirmText: 'Sil', message: 'Bu departmanı silmek istediğinize emin misiniz?' });
+        if (!ok) return;
         depts.splice(editingIdx, 1);
         persist('Departman silindi.').then(closeModal).catch(() => {});
     }
 
-    function seedDefaults() {
+    async function seedDefaults() {
         const defs = (window.IssueConfig && IssueConfig.DEFAULTS) || [];
-        if (depts.length && !confirm('Varsayılan departmanlar eklensin mi? (Aynı isimdekiler atlanır)')) return;
+        if (depts.length) {
+            const ok = await AppDialog.confirm({ title: 'Varsayılanları yükle', confirmText: 'Ekle', message: 'Varsayılan departmanlar eklensin mi? (Aynı isimdekiler atlanır)' });
+            if (!ok) return;
+        }
         const names = Object.create(null);
         depts.forEach(d => names[(d.name || '').toLowerCase()] = 1);
         let added = 0;
@@ -188,14 +186,15 @@
             </span>`).join('');
         wrap.querySelectorAll('[data-del]').forEach(b => b.onclick = () => removeTopic(b.dataset.del));
     }
-    function removeTopic(id) {
+    async function removeTopic(id) {
         const entry = topicEntries.filter(t => t.id === id)[0];
         const name = entry ? entry.name : '';
-        if (!confirm(`“${name}” konusu öneri listesinden silinsin mi? (Mevcut kayıtlar etkilenmez)`)) return;
+        const ok = await AppDialog.confirm({ title: 'Konuyu sil', danger: true, confirmText: 'Sil', message: `"${name}" konusu öneri listesinden silinsin mi? (Mevcut kayıtlar etkilenmez)` });
+        if (!ok) return;
         if (window.IssueConfig) IssueConfig.deleteTopic(id).then(() => toast('Konu silindi.')).catch(() => toast('Silinemedi.', true));
     }
-    function addTopicPrompt() {
-        const name = (prompt('Yeni konu adı:') || '').trim();
+    async function addTopicPrompt() {
+        const name = (await AppDialog.prompt({ title: 'Konu ekle', message: 'Yeni konu adı:', placeholder: 'Örn. Klima' }) || '').trim();
         if (!name) return;
         if (topicEntries.some(t => t.name.toLowerCase() === name.toLowerCase())) { toast('Bu konu zaten var.'); return; }
         if (window.IssueConfig) IssueConfig.addTopic(name).then(() => toast('Konu eklendi.')).catch(() => toast('Eklenemedi.', true));
@@ -210,7 +209,7 @@
         // Feature-gated: if the hotel's plan doesn't include "Misafir Kayıtları"
         // (guestIssues), drop the admin tab entirely.
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestIssues')) {
-            const tab = document.querySelector('.adm-tab[data-view="issues"]');
+            const tab = document.querySelector('.sb-link[data-view="issues"]');
             if (tab) tab.remove();
             const view = $('view-issues');
             if (view) view.remove();
