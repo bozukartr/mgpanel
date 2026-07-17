@@ -345,9 +345,14 @@
                         <div style="display:flex; gap:8px; flex-wrap:wrap;">
                             <button class="btn btn-ghost" id="catSeedBtn">Varsayılanları Yükle</button>
                             <button class="btn btn-ghost" id="catUnseedBtn" style="color:#dc2626;">Varsayılanları Kaldır</button>
+                            <button class="btn btn-ghost" id="catExportBtn">📥 Şablon İndir</button>
+                            <button class="btn btn-ghost" id="catImportBtn">📤 Excel'den Yükle</button>
+                            <input type="file" id="catImportInput" accept=".csv,text/csv" style="display:none;">
+                            <button class="btn btn-ghost" id="catBulkAddBtn">⚡ Hızlı Toplu Ekle</button>
                             <button class="btn btn-primary" id="catAddBtn">+ Talep Ekle</button>
                         </div>
                     </div>
+                    <p class="card-sub" style="margin:0 0 6px;">"Şablon İndir" mevcut talepleri (veya boşsa örnek bir satırı) Excel'de açılabilen bir dosya olarak indirir — kategori, fiyat, seçenekler dahil tüm alanları düzenleyip "Excel'den Yükle" ile geri yükleyin. Ad + Kategori eşleşen satırlar güncellenir, eşleşmeyenler yeni talep olarak eklenir.</p>
                     <div id="catalogQrHint" class="card-sub" style="margin:0 0 6px;"></div>
                     <div id="catalogList" class="cat-list"><!-- rendered by request-catalog.js --></div>
                 </section>
@@ -642,6 +647,27 @@
                     <button type="button" class="action-btn" id="catalogDeleteBtn" style="display:none; background:#fef2f2; color:#dc2626;">Sil</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Hazır Talepler — hızlı toplu ekleme (birden fazla satır, tek seferde) -->
+    <div id="catBulkModal" class="modal">
+        <div class="modal-content" style="max-width:760px;">
+            <div class="modal-header">
+                <h3>Hızlı Toplu Ekle</h3>
+                <button class="close-modal" id="closeCatBulkModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="card-sub" style="margin:0 0 12px;">Birden fazla basit talebi tek seferde ekleyin (yalnızca ad/kategori/fiyat/departman) — alt kategori, açıklama, seçenekler gibi diğer alanları sonra "Talep Ekle" ile düzenleyebilirsiniz. Boş satırlar yok sayılır.</p>
+                <div id="catBulkHead" class="cat-bulk-row cat-bulk-head">
+                    <span>Departman</span><span>Talep Adı</span><span>Kategori</span><span>Fiyat</span><span></span>
+                </div>
+                <div id="catBulkRows"></div>
+                <button type="button" class="btn btn-ghost" id="catBulkAddRowBtn" style="margin-top:10px;">+ Satır Ekle</button>
+            </div>
+            <div class="modal-actions vertical">
+                <button type="button" class="action-btn save-btn" id="catBulkSubmitBtn">Tümünü Ekle</button>
+            </div>
         </div>
     </div>
 
