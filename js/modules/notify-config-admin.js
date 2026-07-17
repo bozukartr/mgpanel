@@ -50,7 +50,7 @@
         }).catch(function (e) {
             if (btn) { btn.disabled = false; btn.textContent = 'Kaydet'; }
             if (window.Monitor) Monitor.capture(e, { where: 'notifyConfig.save' });
-            alert('Kaydedilemedi. Yetkiniz olmayabilir (yalnızca yönetici).');
+            if (window.showToast) showToast('Kaydedilemedi. Yetkiniz olmayabilir (yalnızca yönetici).', true);
         });
     }
 

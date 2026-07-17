@@ -47,13 +47,7 @@
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
     const $ = id => document.getElementById(id);
-    function toast(msg, isError) {
-        const t = $('toast');
-        if (!t) return;
-        t.textContent = msg;
-        t.className = 'toast-notification show' + (isError ? ' error' : '');
-        setTimeout(() => { t.className = 'toast-notification'; }, 2600);
-    }
+    const toast = window.showToast; // js/utils/toast.js (paylaşımlı)
 
     // ── Styles ─────────────────────────────────────────────────
     function injectStyles() {
@@ -289,16 +283,20 @@
          .catch(err => { console.error(err); toast('Kaydedilemedi.', true); });
     }
 
-    function remove() {
+    async function remove() {
         if (!editingId) return;
-        if (!confirm('Bu talebi silmek istediğinize emin misiniz?')) return;
+        const ok = await AppDialog.confirm({ title: 'Talebi sil', danger: true, confirmText: 'Sil', message: 'Bu talebi silmek istediğinize emin misiniz?' });
+        if (!ok) return;
         db.collection(COL).doc(editingId).delete()
             .then(() => { toast('Talep silindi.'); closeModal(); })
             .catch(err => { console.error(err); toast('Silinemedi.', true); });
     }
 
-    function seedDefaults() {
-        if (items.length && !confirm('Mevcut listeye varsayılan talepler eklensin mi? (Aynı isimdekiler atlanır)')) return;
+    async function seedDefaults() {
+        if (items.length) {
+            const ok = await AppDialog.confirm({ title: 'Varsayılanları yükle', confirmText: 'Ekle', message: 'Mevcut listeye varsayılan talepler eklensin mi? (Aynı isimdekiler atlanır)' });
+            if (!ok) return;
+        }
         const existingNames = new Set(items.map(i => (i.name || '').toLowerCase()));
         const batch = db.batch();
         let n = 0;
@@ -323,11 +321,15 @@
     // varsayılan talepleri toplu siler. Yalnızca varsayılan LİSTESİNDEKİ
     // isimlerle eşleşenleri hedefler — admin'in kendi eklediği/isim
     // değiştirdiği talepler dokunulmadan kalır.
-    function unseedDefaults() {
+    async function unseedDefaults() {
         const defaultNames = new Set(DEFAULTS.map(d => d.name.toLowerCase()));
         const matches = items.filter(i => defaultNames.has((i.name || '').toLowerCase()));
         if (!matches.length) { toast('Kaldırılacak varsayılan talep yok.'); return; }
-        if (!confirm(matches.length + ' varsayılan talep silinecek (isim eşleşmesiyle bulundu; kendi eklediğiniz/adını değiştirdiğiniz talepler etkilenmez). Devam edilsin mi?')) return;
+        const ok = await AppDialog.confirm({
+            title: 'Varsayılanları kaldır', danger: true, confirmText: 'Kaldır',
+            message: matches.length + ' varsayılan talep silinecek (isim eşleşmesiyle bulundu; kendi eklediğiniz/adını değiştirdiğiniz talepler etkilenmez). Devam edilsin mi?'
+        });
+        if (!ok) return;
         const batch = db.batch();
         matches.forEach(i => batch.delete(db.collection(COL).doc(i.id)));
         batch.commit().then(() => toast(matches.length + ' varsayılan talep kaldırıldı.')).catch(err => { console.error(err); toast('Kaldırılamadı.', true); });
@@ -652,7 +654,7 @@
         // Feature-gated module: if the hotel's plan doesn't include "Misafir
         // Talepleri" (superadmin toggle), drop the admin tab entirely.
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) {
-            const tab = document.querySelector('.adm-tab[data-view="catalog"]');
+            const tab = document.querySelector('.sb-link[data-view="catalog"]');
             if (tab) tab.remove();
             const view = $('view-catalog');
             if (view) view.remove();
