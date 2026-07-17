@@ -129,7 +129,7 @@
     // ── State ──────────────────────────────────────────────────
     let catalog = [], cart = [], sessionUid = null;
     let myOrders = [], ordersUnsub = null, lastStatusMap = {};
-    let activeCat = 'all', searchTerm = '', currentTab = 'home';
+    let activeCat = 'all', activeDept = '', searchTerm = '', currentTab = 'home';
     let trackingId = null, guestName = '';
     let demoTimer = null;
 
@@ -201,6 +201,51 @@
         teknik: 'Teknik sorunları hızla çözelim.'
     };
     const catBlurb = cat => CAT_BLURB[catKind(cat)] || '';
+
+    // ── Departman → görsel/ad (ana ekran kartları) ───────────────
+    // BİLİNÇLİ OLARAK catKind()'dan AYRI: services sekmesindeki kategori
+    // serbest metindir (admin istediğini yazabilir — ör. "Transfer"), bu
+    // yüzden ana ekranın 3 büyük kartı için görsel eşlemesini kategoriye göre
+    // yapmak hep eksik/yanlış kalıyordu (regex hiçbirine uymayan bir kategori
+    // görselsiz düz renkte kalıyordu). Departman SABİT bir kümedir
+    // (Housekeeping/Front Desk/Engineering/Yiyecek & İçecek/Concierge) —
+    // ana ekran kartları bu yüzden kategori değil DEPARTMAN'a göre gruplanır.
+    const DEPT_KIND_DEFS = {
+        housekeeping: { label: 'Kat Hizmetleri', img: 'housekeeping_button.webp', color: '#33574a' },
+        frontdesk: { label: 'Ön Büro', img: 'frontoffice_button.webp', color: '#1f3a5c' },
+        concierge: { label: 'Concierge', img: 'vip_transfer_button.webp', color: '#5c5470' },
+        engineering: { label: 'Teknik Servis', img: '', color: '#33485c' },
+        fnb: { label: 'Yiyecek & İçecek', img: 'fnb_button.webp', color: '#7a5a44' }
+    };
+    // Kalemin departmanını çözer: açık `department` alanı varsa o, yoksa
+    // (admin panelinde "Otomatik") kategoriden tahmin — order-bridge.js'teki
+    // DEPT_BY_CAT ile aynı ruhta, sunucu tarafıyla tutarlı.
+    const CAT_DEPT_GUESS = {
+        'Temizlik': 'Housekeeping', 'Konfor': 'Housekeeping', 'Kat Hizmetleri': 'Housekeeping',
+        'Yiyecek & İçecek': 'Yiyecek & İçecek', 'Yiyecek-İçecek': 'Yiyecek & İçecek', 'Oda Servisi': 'Yiyecek & İçecek',
+        'Teknik': 'Engineering', 'Teknik Servis': 'Engineering',
+        'Resepsiyon': 'Front Desk', 'Front Office': 'Front Desk', 'Concierge': 'Concierge'
+    };
+    function deptOf(item) {
+        const explicit = String((item && item.department) || '').trim();
+        if (explicit) return explicit;
+        return CAT_DEPT_GUESS[String((item && item.category) || '').trim()] || '';
+    }
+    // Departman metnini SABİT 5 anahtardan birine indirger (F&B için Turkish-
+    // locale güvenli isFnbDept/firebase-config.js kullanılır; diğerleri
+    // ASCII olduğundan düz alt string eşleşmesi yeterli ve güvenlidir).
+    function deptKindKey(dept) {
+        const d = String(dept || '').trim();
+        if (!d) return '';
+        if (typeof isFnbDept === 'function' && isFnbDept(d)) return 'fnb';
+        const low = d.toLowerCase();
+        if (low.indexOf('housekeep') !== -1 || low.indexOf('kat hizmet') !== -1) return 'housekeeping';
+        if (low.indexOf('concierge') !== -1 || low.indexOf('konsiyerj') !== -1) return 'concierge';
+        if (low.indexOf('front') !== -1 || low.indexOf('resepsiyon') !== -1) return 'frontdesk';
+        if (low.indexOf('engineer') !== -1 || low.indexOf('teknik') !== -1) return 'engineering';
+        return '';
+    }
+    function itemDeptKey(item) { return deptKindKey(deptOf(item)); }
 
     // ── Cart persistence ───────────────────────────────────────
     function loadCart() {
@@ -417,26 +462,38 @@
         other: '<rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/>'
     };
     function card3Icon(cat, size) { return svg(CARD_KIND_ICON[catKind(cat)] || CARD_KIND_ICON.other, size); }
+    // Ana ekranın 3 büyük kartı: kategoriye göre DEĞİL, departmana göre
+    // gruplanır (bkz. deptOf/deptKindKey yukarıdaki not) — aynı departmanın
+    // birden fazla kategorisi (ör. Housekeeping: Temizlik + Konfor) tek
+    // kartta birleşir, her departman kendi görseliyle görünür.
+    function homeDeptGroups() {
+        const seen = [];
+        catalog.forEach(i => {
+            const key = itemDeptKey(i);
+            if (!key || seen.some(g => g.key === key)) return;
+            seen.push(Object.assign({ key }, DEPT_KIND_DEFS[key]));
+        });
+        return seen;
+    }
     function renderCats() {
         const wrap = $('goCats'); if (!wrap) return;
-        const cats = categories();
-        if (!cats.length) {
+        const groups = homeDeptGroups();
+        if (!groups.length) {
             wrap.innerHTML = `<div class="go-empty" style="grid-column:1/-1"><div class="go-empty-ic">🛎️</div><h3>Hizmet yok</h3><p>Bu otel için talepler henüz hazır değil.</p></div>`;
             return;
         }
-        wrap.innerHTML = cats.slice(0, 3).map((c, i) => {
-            const color = CARD_COLORS[i % CARD_COLORS.length];
-            const img = CARD_IMG[catKind(c)];
-            const style = img
-                ? `background-color:${color};background-image:linear-gradient(180deg,rgba(16,24,36,.20),rgba(16,24,36,.66)),url('${img}');background-size:cover;background-position:center;`
+        wrap.innerHTML = groups.slice(0, 3).map((g, i) => {
+            const color = g.color || CARD_COLORS[i % CARD_COLORS.length];
+            const style = g.img
+                ? `background-color:${color};background-image:linear-gradient(180deg,rgba(16,24,36,.20),rgba(16,24,36,.66)),url('${g.img}');background-size:cover;background-position:center;`
                 : `background:${color};`;
-            return `<button class="go-card3" data-cat="${esc(c)}" style="${style}">
-                <span class="go-card3-tx">${esc(c)}</span>
+            return `<button class="go-card3" data-dept="${esc(g.key)}" style="${style}">
+                <span class="go-card3-tx">${esc(g.label)}</span>
             </button>`;
         }).join('');
         wrap.onclick = e => {
-            const b = e.target.closest('[data-cat]'); if (!b) return;
-            activeCat = b.dataset.cat; searchTerm = '';
+            const b = e.target.closest('[data-dept]'); if (!b) return;
+            activeDept = b.dataset.dept; activeCat = 'all'; searchTerm = '';
             const sx = $('goSearch'); if (sx) sx.value = '';
             const xx = $('goSearchX'); if (xx) xx.hidden = true;
             showTab('services');
@@ -468,7 +525,7 @@
             </div>
             ${phone ? `<a class="go-cta go-cta-block" href="tel:${esc(phone)}">${svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>', 18)} Resepsiyonu Ara</a>` : ''}
             <button class="go-btn-ghost" id="goChatNew">Yeni Talep Oluştur</button>`;
-        const nb = $('goChatNew'); if (nb) nb.onclick = () => { activeCat = 'all'; showTab('services'); };
+        const nb = $('goChatNew'); if (nb) nb.onclick = () => { activeDept = ''; activeCat = 'all'; showTab('services'); };
     }
 
     // ── Profil ──────────────────────────────────────────────────
@@ -687,6 +744,29 @@
     const HERO_COLORS = { temiz: '#33574a', konfor: '#4d6155', food: '#7a5a44', teknik: '#33485c', bell: '#1f3a5c', other: '#5c5470' };
     function renderCatHero() {
         const hero = $('goCatHero'), title = $('goServicesTitle'); if (!hero) return;
+        // Ana ekrandan bir DEPARTMAN kartıyla gelindiyse (activeDept), o
+        // departmanın tüm kategorilerini kapsayan tek bir bant gösterilir —
+        // tek kategori seçiliyken (activeCat) aşağıdaki eski davranış sürer.
+        if (activeDept) {
+            const def = DEPT_KIND_DEFS[activeDept];
+            if (!def) { activeDept = ''; }
+            else {
+                const style = def.img
+                    ? `background-color:${def.color};background-image:linear-gradient(100deg,rgba(16,24,36,.72),rgba(16,24,36,.38)),url('${def.img}');background-size:cover;background-position:center;`
+                    : `background:${def.color};`;
+                const n = filteredItems().length;
+                hero.hidden = false;
+                hero.innerHTML = `<div class="go-cathero-in" style="${style}">
+                    <span class="go-cathero-tx">
+                        <b>${esc(def.label)}</b>
+                        <span>${n} hizmet</span>
+                    </span>
+                    <span class="go-cathero-n">${n}</span>
+                </div>`;
+                if (title) title.textContent = def.label;
+                return;
+            }
+        }
         if (activeCat === 'all') {
             hero.hidden = true;
             if (title) title.textContent = 'Hizmetler';
@@ -714,15 +794,19 @@
         const cats = categories();
         if (activeCat !== 'all' && !cats.includes(activeCat)) activeCat = 'all';
         renderCatHero();
-        chips.innerHTML = [`<button class="go-chip ${activeCat === 'all' ? 'active' : ''}" data-chip="all">Tümü<i>${catalog.length}</i></button>`]
-            .concat(cats.map(c => `<button class="go-chip ${activeCat === c ? 'active' : ''}" data-chip="${esc(c)}"><span class="go-chip-ic">${catIcon(c, 18)}</span>${esc(c)}<i>${catCount(c)}</i></button>`)).join('');
-        chips.onclick = e => { const b = e.target.closest('[data-chip]'); if (!b) return; activeCat = b.dataset.chip; renderServices(); const a = chips.querySelector('.go-chip.active'); if (a) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); };
+        const allActive = !activeDept && activeCat === 'all';
+        chips.innerHTML = [`<button class="go-chip ${allActive ? 'active' : ''}" data-chip="all">Tümü<i>${catalog.length}</i></button>`]
+            .concat(cats.map(c => `<button class="go-chip ${(!activeDept && activeCat === c) ? 'active' : ''}" data-chip="${esc(c)}"><span class="go-chip-ic">${catIcon(c, 18)}</span>${esc(c)}<i>${catCount(c)}</i></button>`)).join('');
+        // Herhangi bir kategori çipine (Tümü dahil) tıklamak departman
+        // modundan çıkar — kullanıcı artık tek kategori/tüm liste görünümünde.
+        chips.onclick = e => { const b = e.target.closest('[data-chip]'); if (!b) return; activeDept = ''; activeCat = b.dataset.chip; renderServices(); const a = chips.querySelector('.go-chip.active'); if (a) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); };
         renderItems();
     }
     function filteredItems() {
         const term = norm(searchTerm);
         return catalog.filter(i => {
-            if (activeCat !== 'all' && (i.category || 'Diğer') !== activeCat) return false;
+            if (activeDept) { if (itemDeptKey(i) !== activeDept) return false; }
+            else if (activeCat !== 'all' && (i.category || 'Diğer') !== activeCat) return false;
             if (term) { const hay = norm((i.name || '') + ' ' + (i.category || '') + ' ' + (i.description || '')); if (!hay.includes(term)) return false; }
             return true;
         });
@@ -734,9 +818,10 @@
             wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">🔍</div><h3>Sonuç yok</h3><p>${searchTerm ? 'Aramanızla eşleşen hizmet bulunamadı.' : 'Bu kategoride hizmet yok.'}</p></div>`;
             return;
         }
-        // group by category when "all" and no search
+        // group by category when showing "all", or a whole department's
+        // multiple categories, and there's no active search term
         let html = '';
-        if (activeCat === 'all' && !searchTerm) {
+        if ((activeDept || activeCat === 'all') && !searchTerm) {
             categories().forEach(c => {
                 const sub = items.filter(i => (i.category || 'Diğer') === c);
                 if (!sub.length) return;
