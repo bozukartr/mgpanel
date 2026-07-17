@@ -50,6 +50,7 @@
     // Aktif sekmeyi taze veriyle render et (modül içi işlemler sekme değiştirmeden yansısın).
     function renderView(v) {
         if (v === 'floor') renderFloor();
+        else if (v === 'qr') renderQr();
         else if (v === 'stock') renderStock();
         else if (v === 'menu') renderMenu();
         else if (v === 'folio') renderFolio();
@@ -105,7 +106,7 @@
     // Manager (ve Admin) diğer sekmeleri (Gün Sonu, Oda Hesapları, Menü, Stok, Ayarlar) de görür.
     const RST_ROLE = ((typeof localStorage !== 'undefined' && localStorage.getItem('hotelRole')) || '').toLowerCase();
     const RST_FULL_ACCESS = (RST_ROLE === 'manager' || RST_ROLE === 'admin');
-    const STAFF_TABS = ['floor', 'archive'];
+    const STAFF_TABS = ['floor', 'qr', 'archive'];
     function applyRoleTabs() {
         if (RST_FULL_ACCESS) return;
         const nav = $('rstSubnav'); if (!nav) return;
@@ -117,6 +118,225 @@
             const floorTab = nav.querySelector('.rst-tab[data-view="floor"]');
             if (floorTab) floorTab.click();
         }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  QR SİPARİŞLERİ — misafirin QR menüden verdiği oda servisi
+    //  siparişleri, mutfak bileti görünümünde.
+    //
+    //  Kaynak: guestLogs — order-bridge.js (functions/) her QR kalemi için
+    //  SİPARİŞ GELDİĞİ ANDA burada bir kayıt açar (panel.js'in İşlerim/SLA/
+    //  eskalasyon/rapor akışıyla AYNI kayıt — bilinçli olarak ayrı bir
+    //  koleksiyona TAŞINMADI, aksi halde raporlama/SLA F&B siparişleri için
+    //  sessizce kırılırdı). Burada yalnızca F&B departmanına ait olanlar,
+    //  aynı siparişin kalemleri tek "bilet" kartında gruplanmış halde
+    //  gösterilir. Üstlenme/tamamlama panel.js ile AYNI sunucu-taraflı
+    //  transaction deseniyle doğrulanır: departman zaten sorguyla garanti,
+    //  ama vardiya + sahiplik kuralı BURADA DA uygulanmazsa restaurant.js
+    //  vardiya kısıtının (bkz. panel.js takeBlockReason) bir bypass yolu
+    //  olurdu.
+    // ════════════════════════════════════════════════════════════
+    const QR_WINDOW_DAYS = 3;
+    let qrRecords = [];
+    let qrShowDone = false;
+
+    let shiftConfig = null, myOnShift = true;
+    function shiftControlActive() { return !!(shiftConfig && shiftConfig.enabled); }
+    function listenShiftQr() {
+        db.collection('shiftConfig').doc(TENANT_ID).onSnapshot(doc => {
+            shiftConfig = doc.exists ? doc.data() : null; renderQr();
+        }, () => {});
+        const uid = (typeof auth !== 'undefined' && auth.currentUser) ? auth.currentUser.uid : null;
+        if (!uid) return;
+        db.collection('presence').doc(uid).onSnapshot(doc => {
+            myOnShift = !(doc.exists && doc.data().onShift === false);
+            renderQr();
+        }, () => {});
+    }
+    const QR_SHIFT_MSG = 'Vardiya dışısınız — bu işlem için otel konumunda olmanız gerekir (yönetici/admin muaftır).';
+    function qrTakeBlockReason() {
+        if (RST_FULL_ACCESS) return null;
+        if (shiftControlActive() && !myOnShift) return QR_SHIFT_MSG;
+        return null;
+    }
+    function qrCompleteBlockReason(r) {
+        if (RST_FULL_ACCESS) return null;
+        const owner = String((r && r.acknowledgedBy) || '').trim().toLocaleLowerCase('tr-TR');
+        if (!owner) return qrTakeBlockReason();
+        if (owner !== loggedUser.toLocaleLowerCase('tr-TR')) {
+            return 'Bu işi ' + (r.acknowledgedBy || 'başka bir personel') + ' üstlendi — yalnızca o veya bir yönetici tamamlayabilir.';
+        }
+        return null;
+    }
+
+    function listenQrOrders() {
+        const cutoff = firebase.firestore.Timestamp.fromMillis(Date.now() - QR_WINDOW_DAYS * 86400000);
+        db.collection('guestLogs').where('tenantId', '==', TENANT_ID)
+            .where('department', 'in', [FNB_DEPT, FNB_DEPT_LEGACY])
+            .where('createdAt', '>=', cutoff)
+            .onSnapshot(snap => {
+                qrRecords = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                updateQrBadge();
+                renderQr();
+            }, err => console.error('qr orders', err));
+    }
+    function updateQrBadge() {
+        const badge = $('qrTabBadge'); if (!badge) return;
+        const n = qrRecords.filter(r => r.status !== 'Solved').length;
+        badge.textContent = n; badge.style.display = n ? '' : 'none';
+    }
+
+    function qrTsToDate(v) {
+        if (!v) return null;
+        if (v.toDate) { try { return v.toDate(); } catch (e) { return null; } }
+        if (v.seconds) return new Date(v.seconds * 1000);
+        return null;
+    }
+    function qrElapsedMin(r) { const t = qrTsToDate(r.createdAt); return t ? Math.floor((Date.now() - t.getTime()) / 60000) : 0; }
+    function qrElapsed(r) {
+        const m = qrElapsedMin(r);
+        if (m < 1) return 'az önce';
+        if (m < 60) return m + ' dk';
+        return Math.floor(m / 60) + ' sa ' + (m % 60) + ' dk';
+    }
+    function qrAgeClass(r) { return qrElapsedMin(r) >= 45 ? ' age-late' : (qrElapsedMin(r) >= 20 ? ' age-warn' : ''); }
+
+    // Aynı siparişin kalemleri (orderId) tek bilette gruplanır; QR kaynaklı
+    // olmayan (panel.js'ten elle girilmiş) F&B kayıtları kendi tek-kalemlik
+    // biletini oluşturur.
+    function qrGroupKey(r) { return (r.source === 'guest-order' && r.orderId) ? r.orderId : r.id; }
+    function qrGroups() {
+        const map = new Map();
+        qrRecords.forEach(r => {
+            if (!qrShowDone && r.status === 'Solved') return;
+            const k = qrGroupKey(r);
+            if (!map.has(k)) map.set(k, []);
+            map.get(k).push(r);
+        });
+        // En uzun bekleyen bilet en üstte (mutfak FIFO önceliği).
+        return Array.from(map.values()).sort((a, b) => qrElapsedMin(b[0]) - qrElapsedMin(a[0]));
+    }
+    function qrGroupState(items) {
+        if (items.every(i => i.status === 'Solved')) return { key: 'done', label: 'Tamamlandı' };
+        if (items.some(i => i.status === 'InProgress')) return { key: 'progress', label: 'Hazırlanıyor' };
+        return { key: 'new', label: 'Yeni' };
+    }
+
+    function renderQr() {
+        const wrap = $('qrTickets'); if (!wrap) return;
+        const groups = qrGroups();
+        if (!groups.length) {
+            wrap.innerHTML = `<div class="rst-empty">${qrShowDone ? 'Kayıt yok.' : 'Bekleyen QR siparişi yok.'}</div>`;
+            return;
+        }
+        wrap.innerHTML = groups.map(qrTicketHtml).join('');
+        wrap.querySelectorAll('[data-qr-take]').forEach(b => {
+            b.onclick = () => qrTransition(JSON.parse(b.getAttribute('data-qr-take')), 'take');
+        });
+        wrap.querySelectorAll('[data-qr-complete]').forEach(b => {
+            b.onclick = () => qrTransition(JSON.parse(b.getAttribute('data-qr-complete')), 'complete');
+        });
+    }
+    function qrTicketHtml(items) {
+        const first = items[0];
+        const st = qrGroupState(items);
+        const room = first.room || '—';
+        const guest = first.guestName || '';
+        const itemsHtml = items.map(it =>
+            `<li class="${it.status === 'Solved' ? 'done' : ''}">${esc(it.complaint || it.topic || '—')}</li>`
+        ).join('');
+        const pendingIds = items.filter(i => i.status === 'Following').map(i => i.id);
+        const activeIds = items.filter(i => i.status !== 'Solved').map(i => i.id);
+        const takeReason = qrTakeBlockReason();
+        const completeReason = qrCompleteBlockReason(items.find(i => i.status !== 'Solved') || first);
+        const canTake = st.key === 'new' && pendingIds.length > 0;
+        const canComplete = st.key !== 'done' && activeIds.length > 0;
+        const actions = st.key === 'done' ? '' : `<div class="rst-qr-ticket-actions">
+            ${canTake ? `<button class="rst-btn send" data-qr-take='${esc(JSON.stringify(pendingIds))}' ${takeReason ? 'disabled' : ''} title="${esc(takeReason || '')}">🔥 Hazırlanıyor</button>` : ''}
+            ${canComplete ? `<button class="rst-btn serve" data-qr-complete='${esc(JSON.stringify(activeIds))}' ${completeReason ? 'disabled' : ''} title="${esc(completeReason || '')}">✓ Hazır / Teslim</button>` : ''}
+        </div>`;
+        return `<div class="rst-qr-ticket st-${st.key}${qrAgeClass(first)}">
+            <div class="rst-qr-ticket-rail"></div>
+            <div class="rst-qr-ticket-top">
+                <span class="rst-qr-ticket-room">Oda ${esc(room)}</span>
+                <span class="rst-qr-ticket-time">${esc(qrElapsed(first))}</span>
+            </div>
+            ${guest ? `<div class="rst-qr-ticket-guest">${esc(guest)}</div>` : ''}
+            <ul class="rst-qr-ticket-items">${itemsHtml}</ul>
+            <div class="rst-qr-ticket-foot">
+                <span class="rst-qr-ticket-pill">${esc(st.label)}</span>
+            </div>
+            ${actions}
+        </div>`;
+    }
+
+    function qrWorkflowNote(text) {
+        return { user: loggedUser, text: text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), timestamp: Date.now(), isEdited: false, isSystem: true };
+    }
+    // phase: 'in_progress' | 'completed' — panel.js'teki syncOrderItem ile
+    // AYNI davranış: bağlı guestOrders kalemini geri senkronlar, misafirin
+    // canlı takip ekranı hangi personel arayüzünden ilerletildiğinden
+    // bağımsız olarak güncel kalır.
+    async function qrSyncOrderItem(orderId, itemId, phase) {
+        try {
+            const oRef = db.collection('guestOrders').doc(orderId);
+            await db.runTransaction(async tx => {
+                const snap = await tx.get(oRef);
+                if (!snap.exists) return;
+                const o = snap.data();
+                if (o.status === 'cancelled') return;
+                const items = (o.items || []).map(it => {
+                    if (!it || it.id !== itemId || it.status === 'cancelled') return it;
+                    if (phase === 'completed') return Object.assign({}, it, { status: 'completed' });
+                    return (it.status === 'pending' || it.status === 'confirmed' || !it.status)
+                        ? Object.assign({}, it, { status: 'in_progress' }) : it;
+                });
+                const allDone = items.length && items.every(it => it.status === 'completed' || it.status === 'cancelled');
+                tx.update(oRef, { items, status: allDone ? 'completed' : (o.status === 'pending' ? 'in_progress' : o.status), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+            });
+        } catch (e) { console.error('qr order sync', e); }
+    }
+    // action: 'take' | 'complete' — panel.js'teki transitionRecordImpl ile
+    // AYNI sunucu-taraflı doğrulama: her kayıt kendi transaction'ında güncel
+    // status'u okuyup teyit ettikten sonra yazılır (eşzamanlı iki personelin
+    // aynı bileti üstlenmesi/tamamlaması sessiz bir yarışa dönüşmez).
+    async function qrTransition(ids, action) {
+        const TS = firebase.firestore.FieldValue.serverTimestamp();
+        let ok = 0, blocked = 0;
+        for (const id of ids) {
+            const rec = qrRecords.find(r => r.id === id);
+            const reason = action === 'take' ? qrTakeBlockReason() : qrCompleteBlockReason(rec);
+            if (reason) { blocked++; continue; }
+            try {
+                const ref = db.collection('guestLogs').doc(id);
+                const result = await db.runTransaction(async tx => {
+                    const snap = await tx.get(ref);
+                    if (!snap.exists) return { skip: true };
+                    const cur = snap.data();
+                    if (action === 'take' && cur.status !== 'Following') return { skip: true };
+                    if (action === 'complete' && cur.status === 'Solved') return { skip: true };
+                    const payload = {};
+                    if (action === 'take') {
+                        payload.status = 'InProgress'; payload.acknowledgedAt = TS; payload.acknowledgedBy = loggedUser;
+                        payload.acknowledgedDept = FNB_DEPT;
+                        payload.updates = firebase.firestore.FieldValue.arrayUnion(qrWorkflowNote('🔥 Mutfakta hazırlanmaya başlandı'));
+                    } else {
+                        payload.status = 'Solved'; payload.completedAt = TS; payload.completedBy = loggedUser;
+                        payload.updates = firebase.firestore.FieldValue.arrayUnion(qrWorkflowNote('✅ Hazır / teslim edildi'));
+                    }
+                    tx.update(ref, payload);
+                    return { ok: true, source: cur.source, orderId: cur.orderId, itemId: cur.itemId };
+                });
+                if (result.ok) {
+                    ok++;
+                    if (result.source === 'guest-order' && result.orderId && result.itemId) {
+                        qrSyncOrderItem(result.orderId, result.itemId, action === 'take' ? 'in_progress' : 'completed');
+                    }
+                }
+            } catch (e) { console.error('qr transition', e); }
+        }
+        if (blocked && !ok) toast(action === 'take' ? qrTakeBlockReason() : 'Bu işlem için yetkiniz yok.', true);
+        else if (ok) toast(action === 'take' ? 'Sipariş hazırlanmaya alındı.' : 'Sipariş tamamlandı.');
     }
 
     function categoriesOrdered() {
@@ -2050,8 +2270,10 @@ ${row('İptal (void)', money(z.voidValue), z.voids + ' adisyon')}
         $('menuDeleteBtn').onclick = removeMenu;
         $('menuModal').addEventListener('click', e => { if (e.target === $('menuModal')) closeModal(); });
         wireFloorPos();
+        if ($('qrShowDone')) $('qrShowDone').onchange = e => { qrShowDone = e.target.checked; renderQr(); };
         const go = () => {
             loadConfig(); listenMenu(); listenChecks(); listenInhouse(); listenFolio();
+            listenQrOrders(); listenShiftQr();
             if ($('arcDate')) { $('arcDate').value = todayYmd(); loadArchive(); }
             if ($('zDate')) $('zDate').value = todayYmd();
         };
@@ -2059,11 +2281,16 @@ ${row('İptal (void)', money(z.voidValue), z.voids + ' adisyon')}
         else go();
         // Salon kartlarındaki süre/uyarı renklerini canlı tut (yeniden render olmadan)
         setInterval(tickFloor, 30000);
+        setInterval(tickQr, 30000);
     }
     function tickFloor() {
         if ($('posOverlay') && $('posOverlay').classList.contains('open')) return;
         const fv = $('view-floor'); if (!fv || !fv.classList.contains('active')) return;
         renderFloor();
+    }
+    function tickQr() {
+        const qv = $('view-qr'); if (!qv || !qv.classList.contains('active')) return;
+        renderQr();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();

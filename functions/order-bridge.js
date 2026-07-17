@@ -45,6 +45,16 @@ function isConciergeItem(it) {
   return s.indexOf('concierge') !== -1 || s.indexOf('konsiyerj') !== -1;
 }
 
+// F&B tespiti: kanonik "Yiyecek & İçecek" + eski "Food & Beverage" adı +
+// "Oda Servisi" kategorisi (guest-order.js'in varsayılan kataloğu) hepsi
+// aynı mutfak kalemi sayılır — restaurant.js'in "QR Siparişleri" ekranı ve
+// onGuestOrderCreate'in departman-hedefli bildirimi bu eşleşmeyi kullanır.
+function isFnbItem(it) {
+  const s = (String((it && it.department) || '') + ' ' + String((it && it.category) || ''))
+    .toLocaleLowerCase('tr-TR');
+  return /yiyecek|i̇çecek|icecek|içecek|food|beverage|f&b|oda servisi|room service/.test(s);
+}
+
 // Concierge kalemleri → reservations dokümanları (status: Pending) + resId
 // geri yazımı. concierge.js'in beklediği şemaya birebir uyar; adı "transfer"
 // içeren kalem Transfer tipiyle, diğerleri Other/otherType ile açılır.
@@ -149,4 +159,4 @@ function buildOrderLogDocs(order, orderId, extra) {
   return { docs, items: outItems };
 }
 
-module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, DEPT_BY_CAT };
+module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, DEPT_BY_CAT };

@@ -132,6 +132,15 @@ test('normal (guestLogs) kalemde seçenek talep metnine eklenir', () => {
   assert.ok(logs.docs[0].data.complaint.includes('Seçenek: Yumuşak'));
 });
 
+test('isFnbItem: kanonik/eski F&B departman adı + Oda Servisi kategorisi tanınır', () => {
+  assert.strictEqual(bridge.isFnbItem({ name: 'Çay', department: 'Yiyecek & İçecek' }), true);
+  assert.strictEqual(bridge.isFnbItem({ name: 'Çay', department: 'Food & Beverage' }), true, 'eski departman adı da tanınmalı');
+  assert.strictEqual(bridge.isFnbItem({ name: 'Su', category: 'Oda Servisi' }), true, 'guest-order.js varsayılan kataloğu');
+  assert.strictEqual(bridge.isFnbItem({ name: 'Havlu', department: 'Housekeeping' }), false);
+  assert.strictEqual(bridge.isFnbItem({ name: 'Klima Arızası', category: 'Teknik Servis' }), false);
+  assert.strictEqual(bridge.isFnbItem({}), false);
+});
+
 test('misafir adı yoksa oda etiketi kullanılır; tenantsız/boş sipariş kayıt üretmez', () => {
   const r = bridge.buildOrderLogDocs({ tenantId: 'hotel-a', room: '305', items: [{ id: 'x', name: 'Çay' }] }, 'ord4', {});
   assert.strictEqual(r.docs[0].data.guestName, 'Oda 305');
