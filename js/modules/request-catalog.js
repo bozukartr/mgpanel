@@ -96,7 +96,15 @@
         .qr-card .qr-img { width: 100%; max-width: 150px; margin: 0 auto; line-height: 0; }
         .qr-card .qr-img img, .qr-card .qr-img canvas { width: 100% !important; height: auto !important; border-radius: 6px; }
         .qr-card .qr-room { font-weight: 800; font-size: 15px; margin-top: 9px; color: #1e293b; }
-        .qr-card .qr-dl { margin-top: 5px; font-size: 12px; color: #2563eb; cursor: pointer; background: none; border: none; font-weight: 600; font-family: inherit; }`;
+        .qr-card .qr-dl { margin-top: 5px; font-size: 12px; color: #2563eb; cursor: pointer; background: none; border: none; font-weight: 600; font-family: inherit; }
+        .cat-bulk-row { display: grid; grid-template-columns: 150px 1fr 1fr 100px 32px; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .cat-bulk-row.cat-bulk-head { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: #94a3b8; margin-bottom: 6px; }
+        .cat-bulk-row select, .cat-bulk-row input { width: 100%; padding: 9px 10px; border: 1px solid #e2e8f0; border-radius: 8px;
+            font-size: 13.5px; font-family: inherit; color: #1e293b; box-sizing: border-box; }
+        .cat-bulk-row select:focus, .cat-bulk-row input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+        .cat-bulk-row-del { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; width: 32px; height: 34px;
+            cursor: pointer; font-size: 13px; line-height: 1; font-family: inherit; }
+        .cat-bulk-row-del:hover { background: #fee2e2; }`;
         const el = document.createElement('style');
         el.id = 'cat-admin-styles';
         el.textContent = css;
@@ -437,6 +445,200 @@
     }
 
     // ── Listen ─────────────────────────────────────────────────
+    // ── Excel/CSV şablon indir + yükle (toplu ekle/düzenle) ─────
+    // Gerçek .xlsx yerine bilinçli olarak CSV kullanılır: harici bir
+    // kütüphane (CDN) gerektirmez, Excel .csv dosyalarını doğrudan açar/
+    // kaydeder — kullanıcı deneyimi aynı ("indir, doldur, yükle"), ancak
+    // dış bağımlılık riski yok. Sütun ayıracı olarak `;` seçildi (Türkçe
+    // Excel varsayılanı `,`'yi ondalık ayıracı sayar, .csv'yi tek sütunda
+    // açabilir) — "Seçenekler" listesi bu yüzden `,` ile ayrılır.
+    const CSV_HEADERS = ['Talep Adı', 'Kategori', 'Alt Kategori', 'İkon', 'Departman', 'Açıklama', 'Fiyat', 'Süre', 'Maks Adet', 'Uygun Başlangıç', 'Uygun Bitiş', 'Aktif', 'Seçenekler'];
+    function csvEscape(s) {
+        s = String(s == null ? '' : s);
+        return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function exportCsv() {
+        const rows = items.length ? items.slice().sort(byOrder) : [{
+            name: 'Örnek: Ekstra Havlu', category: 'Konfor', subcategory: '', icon: '🧺', department: '',
+            description: '', price: 0, eta: '15 dk', maxQty: 1, availFrom: '', availTo: '', active: true, options: []
+        }];
+        const lines = [CSV_HEADERS.join(';')];
+        rows.forEach(it => {
+            lines.push([
+                it.name, it.category, it.subcategory || '', it.icon || '', it.department || '',
+                it.description || '', it.price || 0, it.eta || '', it.maxQty || 0,
+                it.availFrom || '', it.availTo || '', (it.active !== false) ? 'Evet' : 'Hayır',
+                (it.options || []).join(', ')
+            ].map(csvEscape).join(';'));
+        });
+        const csv = '\uFEFF' + lines.join('\r\n'); // BOM: Excel'de Türkçe karakterler doğru görünsün
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'hazir-talepler-sablon.csv';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+    // RFC4180 benzeri basit ayrıştırıcı: tırnaklı alanlar (`;`/`"`/satır sonu
+    // içerebilir), çift tırnak kaçışı (""), CRLF/LF.
+    function parseCsv(text) {
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+        const rows = []; let row = [], field = '', inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (inQuotes) {
+                if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+                else field += c;
+            } else if (c === '"') inQuotes = true;
+            else if (c === ';') { row.push(field); field = ''; }
+            else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+            else if (c === '\r') { /* \n satır sonunu ele alır */ }
+            else field += c;
+        }
+        if (field.length || row.length) { row.push(field); rows.push(row); }
+        return rows.filter(r => r.some(c => c.trim() !== ''));
+    }
+    function itemKey(name, category) {
+        return (String(name || '').trim() + '␟' + String(category || '').trim()).toLocaleLowerCase('tr-TR');
+    }
+    function commitBulkOps(ops, skipped) {
+        const CHUNK = 450;
+        const chunks = [];
+        for (let i = 0; i < ops.length; i += CHUNK) chunks.push(ops.slice(i, i + CHUNK));
+        let p = Promise.resolve();
+        chunks.forEach(chunk => {
+            p = p.then(() => {
+                const b = db.batch();
+                chunk.forEach(op => op.isNew ? b.set(op.ref, op.data) : b.update(op.ref, op.data));
+                return b.commit();
+            });
+        });
+        return p.then(() => {
+            const added = ops.filter(o => o.isNew).length, updated = ops.length - added;
+            let msg = added + ' eklendi, ' + updated + ' güncellendi.';
+            if (skipped && skipped.length) msg += ' (' + skipped.length + ' satır atlandı — satır ' + skipped.join(', ') + ': Ad/Kategori eksik)';
+            toast(msg);
+        }, err => { console.error(err); toast('Yükleme sırasında hata: ' + err.message, true); });
+    }
+    function importCsvFile(file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            let rows;
+            try { rows = parseCsv(String(reader.result)); }
+            catch (e) { console.error(e); toast('Dosya okunamadı: ' + e.message, true); return; }
+            if (rows.length < 2) { toast('Dosyada veri satırı bulunamadı.', true); return; }
+            const header = rows[0].map(h => h.trim());
+            const idx = {};
+            CSV_HEADERS.forEach(h => { idx[h] = header.indexOf(h); });
+            if (idx['Talep Adı'] === -1 || idx['Kategori'] === -1) {
+                toast('Şablon başlıkları tanınmadı — lütfen "Şablon İndir" ile indirilen dosyayı kullanın.', true);
+                return;
+            }
+            const existingMap = new Map(items.map(it => [itemKey(it.name, it.category), it]));
+            let maxOrder = items.reduce((m, i) => Math.max(m, i.sortOrder || 0), 0);
+            const ops = [], skipped = [];
+            for (let r = 1; r < rows.length; r++) {
+                const cols = rows[r];
+                const get = (h) => { const i = idx[h]; return (i == null || i === -1 || i >= cols.length) ? '' : String(cols[i] || '').trim(); };
+                const name = get('Talep Adı').slice(0, 120);
+                const category = get('Kategori').slice(0, 60);
+                if (!name || !category) { skipped.push(r + 1); continue; }
+                const activeRaw = get('Aktif').toLocaleLowerCase('tr-TR');
+                const active = activeRaw === '' || ['evet', 'true', '1', 'x', 'aktif'].indexOf(activeRaw) !== -1;
+                const options = get('Seçenekler').split(',').map(s => s.trim()).filter(Boolean).slice(0, 10).map(s => s.slice(0, 40));
+                const data = {
+                    tenantId: TENANT_ID, name, category,
+                    subcategory: get('Alt Kategori').slice(0, 60),
+                    icon: (get('İkon') || '🛎️').slice(0, 8),
+                    department: get('Departman').slice(0, 60),
+                    description: get('Açıklama').slice(0, 160),
+                    price: Math.max(0, parseInt(get('Fiyat'), 10) || 0),
+                    eta: get('Süre').slice(0, 20),
+                    maxQty: Math.max(0, parseInt(get('Maks Adet'), 10) || 0),
+                    availFrom: get('Uygun Başlangıç'), availTo: get('Uygun Bitiş'),
+                    active, options,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                const existing = existingMap.get(itemKey(name, category));
+                if (existing) {
+                    ops.push({ ref: db.collection(COL).doc(existing.id), data, isNew: false });
+                } else {
+                    maxOrder += 10;
+                    data.sortOrder = maxOrder;
+                    data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                    ops.push({ ref: db.collection(COL).doc(), data, isNew: true });
+                }
+            }
+            if (!ops.length) {
+                toast(skipped.length ? ('Hiçbir satır işlenemedi (satır ' + skipped.join(', ') + ': Ad/Kategori eksik).') : 'İşlenecek satır bulunamadı.', true);
+                return;
+            }
+            commitBulkOps(ops, skipped);
+        };
+        reader.onerror = () => toast('Dosya okunamadı.', true);
+        reader.readAsText(file, 'utf-8');
+    }
+
+    // ── Hızlı Toplu Ekle — birden fazla basit satırı tek seferde ekler ──
+    const BULK_DEPTS = ['', 'Housekeeping', 'Front Desk', 'Engineering', 'Food & Beverage', 'Concierge'];
+    let bulkRowSeq = 0;
+    function bulkRowHtml() {
+        const id = bulkRowSeq++;
+        return `<div class="cat-bulk-row" data-row="${id}">
+            <select class="cbr-dept">${BULK_DEPTS.map(d => `<option value="${esc(d)}">${d ? esc(d) : 'Otomatik'}</option>`).join('')}</select>
+            <input type="text" class="cbr-name" maxlength="120" placeholder="Talep adı">
+            <input type="text" class="cbr-cat" maxlength="60" list="catCatOptions" placeholder="Kategori">
+            <input type="number" class="cbr-price" min="0" step="1" placeholder="Fiyat">
+            <button type="button" class="cat-bulk-row-del" data-del="${id}" aria-label="Satırı kaldır">✕</button>
+        </div>`;
+    }
+    function wireBulkRowDelete() {
+        $('catBulkRows').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+            const row = b.closest('.cat-bulk-row'); if (row) row.remove();
+        });
+    }
+    function openBulkModal() {
+        bulkRowSeq = 0;
+        const wrap = $('catBulkRows'); if (!wrap) return;
+        wrap.innerHTML = Array.from({ length: 5 }, bulkRowHtml).join('');
+        wireBulkRowDelete();
+        $('catBulkModal').style.display = 'flex';
+    }
+    function closeBulkModal() { $('catBulkModal').style.display = 'none'; }
+    function addBulkRow() {
+        const wrap = $('catBulkRows'); if (!wrap) return;
+        if (wrap.children.length >= 30) { toast('En fazla 30 satır ekleyebilirsiniz.', true); return; }
+        wrap.insertAdjacentHTML('beforeend', bulkRowHtml());
+        wireBulkRowDelete();
+    }
+    function submitBulk() {
+        const rows = Array.from($('catBulkRows').querySelectorAll('.cat-bulk-row'));
+        let order = items.reduce((m, i) => Math.max(m, i.sortOrder || 0), 0);
+        const toAdd = [], badRows = [];
+        rows.forEach((row, i) => {
+            const name = row.querySelector('.cbr-name').value.trim().slice(0, 120);
+            const category = row.querySelector('.cbr-cat').value.trim().slice(0, 60);
+            if (!name && !category) return; // tamamen boş satır — sessizce atla
+            if (!name || !category) { badRows.push(i + 1); return; }
+            order += 10;
+            toAdd.push({
+                tenantId: TENANT_ID, name, category, subcategory: '', icon: '🛎️',
+                department: row.querySelector('.cbr-dept').value,
+                description: '', price: Math.max(0, parseInt(row.querySelector('.cbr-price').value, 10) || 0),
+                eta: '', maxQty: 0, availFrom: '', availTo: '', active: true, options: [], sortOrder: order,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        if (badRows.length) { toast('Satır ' + badRows.join(', ') + ': Ad ve Kategori zorunlu.', true); return; }
+        if (!toAdd.length) { toast('Eklenecek satır yok.', true); return; }
+        const b = db.batch();
+        toAdd.forEach(data => b.set(db.collection(COL).doc(), data));
+        b.commit().then(() => {
+            toast(toAdd.length + ' talep eklendi.');
+            closeBulkModal();
+        }).catch(err => { console.error(err); toast('Eklenemedi: ' + err.message, true); });
+    }
+
     function listen() {
         if (unsub) return;
         unsub = db.collection(COL).where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
@@ -460,6 +662,19 @@
         $('catAddBtn') && ($('catAddBtn').onclick = () => openModal(null));
         $('catSeedBtn') && ($('catSeedBtn').onclick = seedDefaults);
         $('catUnseedBtn') && ($('catUnseedBtn').onclick = unseedDefaults);
+        $('catExportBtn') && ($('catExportBtn').onclick = exportCsv);
+        $('catImportBtn') && ($('catImportBtn').onclick = () => $('catImportInput').click());
+        $('catImportInput') && ($('catImportInput').onchange = (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (f) importCsvFile(f);
+            e.target.value = '';
+        });
+        $('catBulkAddBtn') && ($('catBulkAddBtn').onclick = openBulkModal);
+        $('closeCatBulkModal') && ($('closeCatBulkModal').onclick = closeBulkModal);
+        $('catBulkAddRowBtn') && ($('catBulkAddRowBtn').onclick = addBulkRow);
+        $('catBulkSubmitBtn') && ($('catBulkSubmitBtn').onclick = submitBulk);
+        const bulkModal = $('catBulkModal');
+        if (bulkModal) bulkModal.addEventListener('click', e => { if (e.target === bulkModal) closeBulkModal(); });
         $('catOptAddBtn') && ($('catOptAddBtn').onclick = addOption);
         $('catOptInput') && $('catOptInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
         $('closeCatalogModal') && ($('closeCatalogModal').onclick = closeModal);
