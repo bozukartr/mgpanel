@@ -255,16 +255,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // EXPORT: JSON (Full System Backup)
+    // NOT: concierge.js'deki eşdeğer export (v3.0) guestDirectory'yi de
+    // içeriyordu, burası (v2.0) eklenmemiş kalmıştı — panel.html'den alınan
+    // "Tam Sistem Yedeği" misafir dizinini KAYBEDİYORDU (operasyonel denetim
+    // bulgusu). concierge.js ile AYNI şema/versiyon numarasına hizalandı.
     exportDataBtn?.addEventListener('click', async () => {
         try {
             const logsSnap = await db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get();
             const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
+            const dirSnap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
 
             const fullBackup = {
                 guestLogs: logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 reservations: resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                guestDirectory: dirSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 backupDate: new Date().toISOString(),
-                version: "2.0"
+                version: "3.0"
             };
 
             const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
@@ -300,9 +306,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const batch = db.batch();
                 let logCount = 0;
                 let resCount = 0;
+                let dirCount = 0;
 
                 // Case 1: New Unified Backup Format
-                if (data.guestLogs || data.reservations) {
+                if (data.guestLogs || data.reservations || data.guestDirectory) {
                     if (data.guestLogs) {
                         data.guestLogs.forEach(item => {
                             const { id, ...rest } = item;
@@ -315,6 +322,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             const { id, ...rest } = item;
                             batch.set(db.collection('reservations').doc(id), rest, { merge: true });
                             resCount++;
+                        });
+                    }
+                    if (data.guestDirectory) {
+                        data.guestDirectory.forEach(item => {
+                            const { id, ...rest } = item;
+                            batch.set(db.collection('guestDirectory').doc(id), rest, { merge: true });
+                            dirCount++;
                         });
                     }
                 }
@@ -330,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 await batch.commit();
-                showToast(`İçe aktarma başarılı: ${logCount} kayıt, ${resCount} rezervasyon.`);
+                showToast(`İçe aktarma başarılı: ${logCount} kayıt, ${resCount} rezervasyon, ${dirCount} CRM profili.`);
                 e.target.value = '';
             } catch (err) { showToast('İçe aktarma başarısız: ' + err.message, true); }
         };

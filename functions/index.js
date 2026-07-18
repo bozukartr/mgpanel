@@ -17,6 +17,7 @@ const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const dns = require('dns').promises;
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -754,6 +755,20 @@ const pmsCrypto = require('./pms-crypto');
 function pmsEncrypt(plaintext) { return pmsCrypto.encrypt(plaintext, PMS_CRED_ENC_KEY.value()); }
 function pmsDecrypt(blob) { return pmsCrypto.decrypt(blob, PMS_CRED_ENC_KEY.value()); }
 
+// SSRF savunması (baseUrl/tokenUrl doğrulaması) — saf mantık functions/
+// pms-ssrf-guard.js'de (bkz. tests/pms-ssrf-guard.test.js). DNS çözümleyici
+// burada (gerçek dns.promises.lookup ile) enjekte edilir; HttpsError'a
+// çeviren ince bir sarmalayıcı.
+const pmsSsrfGuard = require('./pms-ssrf-guard');
+async function assertSafeOutboundUrl(urlStr, label) {
+  try {
+    await pmsSsrfGuard.assertSafeOutboundUrl(urlStr, label,
+      async (hostname) => (await dns.lookup(hostname, { all: true })).map((r) => r.address));
+  } catch (e) {
+    throw new HttpsError(e.code || 'invalid-argument', e.message);
+  }
+}
+
 // Tek bir HTTP denemesi, kendi zaman aşımı bütçesiyle.
 async function pmsFetchOnce(url, headers, timeoutMs) {
   const ctrl = new AbortController();
@@ -785,12 +800,25 @@ async function pmsFetchWithRetry(url, headers, timeoutMs) {
 // personel ne süperadmin arızayı fark edebiliyordu. tenantId varsa (gerçek
 // personel araması) mevcut errorLogs koleksiyonuna da yazılır — süperadmin
 // panelinin "Hatalar" sekmesinde diğer istemci hatalarıyla birlikte görünür.
+// GÜVENLİK DÜZELTMESİ (minör bilgi sızıntısı): otel admin'i errorLogs'u
+// okuyabiliyor ama pmsConfig'i (baseUrl dahil) OKUYAMIYOR (yalnızca
+// superadmin) — fetch hata mesajları (ör. DNS/ECONNREFUSED metinleri) hedef
+// URL/hostname'i içerdiğinden, admin normalde erişemediği PMS altyapı
+// bilgisini hata metninden dolaylı görebiliyordu (bkz. operasyonel denetim).
+// Tam mesaj yalnızca console.error'a (Cloud Logging — yalnızca platform
+// operatörü erişir) gider; errorLogs'a (tenant admin okuyabilir) yazılan
+// kopyada URL/hostname benzeri alt dizeler kırpılır.
+function redactHostInfo(msg) {
+  return String(msg || '')
+    .replace(/https?:\/\/[^\s'"]+/gi, '[url gizlendi]')
+    .replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/gi, '[host gizlendi]');
+}
 function logPmsFailure(tenantId, route, err) {
   const message = String((err && err.message) || err || 'bilinmeyen hata').slice(0, 500);
   console.error('[PMS]', route, tenantId || '(tenantsız/test)', message);
   if (!tenantId) return;
   db.collection('errorLogs').add({
-    tenantId, level: 'error', message, stack: '', route, context: null,
+    tenantId, level: 'error', message: redactHostInfo(message).slice(0, 500), stack: '', route, context: null,
     uid: null, username: 'PMS', userAgent: 'cloud-function',
     createdAt: admin.firestore.FieldValue.serverTimestamp()
   }).catch(() => {});
@@ -810,6 +838,7 @@ const oauthMemCache = new Map(); // key: tenantId || '_test' -> { token, expires
 
 async function fetchOAuth2Token(oauth2) {
   if (!oauth2 || !oauth2.tokenUrl) throw new HttpsError('failed-precondition', 'OAuth2 token URL tanımlı değil.');
+  await assertSafeOutboundUrl(oauth2.tokenUrl, 'OAuth2 token URL');
   const body = new URLSearchParams({
     grant_type: 'client_credentials',
     client_id: oauth2.clientId || '',
@@ -888,6 +917,7 @@ async function pmsRunLookup(cfg, query, tenantId) {
     if (!cfg.baseUrl) throw new HttpsError('failed-precondition', 'PMS baseUrl tanımlı değil.');
     const path = (cfg.searchPath || '?q={q}').replace(/\{q\}/g, encodeURIComponent(q));
     const url = cfg.baseUrl.replace(/\/+$/, '') + (path.startsWith('/') || path.startsWith('?') ? path : '/' + path);
+    await assertSafeOutboundUrl(url, 'PMS baseUrl');
     const headers = { 'Accept': 'application/json' };
 
     if (cfg.authType === 'oauth2') {
