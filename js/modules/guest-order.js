@@ -960,7 +960,7 @@
                 <div class="go-step go-step-lg"><button id="goShDec">−</button><b id="goShQty">${sheetQty}</b><button id="goShInc">+</button></div>
             </div>
             <div class="go-fld"><label>Not (opsiyonel)</label><input type="text" id="goShNote" maxlength="160" placeholder="Örn. 2 büyük havlu" value="${esc(line ? line.note || '' : '')}"></div>
-            <div class="go-fld" style="margin-top:9px;"><label>Tercih saati (opsiyonel)</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
+            <div class="go-fld"><label>Tercih saati (opsiyonel)</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
             <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;" ${addDisabled ? 'disabled' : ''}>
                 <span id="goShAddLbl">${addDisabled ? 'Bir seçenek seçin' : (line ? 'Sepeti Güncelle' : 'Sepete Ekle')}</span>
                 ${(!addDisabled && pricesOn() && sheetUnitPrice()) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(sheetUnitPrice() * sheetQty))}</span>` : ''}
@@ -1123,17 +1123,28 @@
             <span class="go-cart-sum-tx"><b>${cart.length} talep · ${cartCount()} adet</b><span>Oda ${esc(ROOM || '—')} için hazırlanacak</span></span>
             ${(pricesOn() && t) ? `<span class="go-cart-sum-amt">${esc(fmtPrice(t))}</span>` : ''}
         </div>`;
-        wrap.innerHTML = summary + cart.map((l, i) => `
+        // Sepet kartı KOMPAKT tutulur: not/tercih saati için ayrı, her zaman
+        // açık giriş alanları yerine (eski tasarım — kart başına 4 dikey blok)
+        // hepsi tek bir etiket (chip) satırında özetlenir; kart artık uçtan
+        // uca dokunulabilir ve openItemSheet()'i açar (o sheet zaten
+        // seçenek/modifier/not/saati önceden dolduruyor ve geri yazıyor —
+        // bkz. openItemSheet/confirmItemSheet). "Adet" için ayrıca salt-okunur
+        // bir kutu YOKTUR — bir satır üstteki stepper zaten aynı bilgiyi taşır.
+        wrap.innerHTML = summary + cart.map((l, i) => {
+            const chips = [];
+            if (l.option) chips.push(`<span class="go-cline-opt">${esc(l.option)}</span>`);
+            (l.modifiers || []).forEach(m => chips.push(`<span class="go-cline-mod">${m.type === 'extra' ? '+' : '−'} ${esc(m.name)}</span>`));
+            if (l.preferredTime) chips.push(`<span class="go-cline-mod">🕒 ${esc(l.preferredTime)}</span>`);
+            if (l.note) chips.push(`<span class="go-cline-mod go-cline-notechip">📝 ${esc(l.note)}</span>`);
+            const chipsHtml = chips.length ? `<div class="go-cline-chips">${chips.join('')}</div>` : '';
+            return `
             <div class="go-cline" data-i="${i}">
                 <div class="go-cline-top">
                     <div class="go-cline-emoji">${esc(l.icon || '🛎️')}</div>
-                    <div class="go-cline-main">
+                    <div class="go-cline-main" data-editline="${i}">
                         <div class="go-cline-name">${esc(l.name)}</div>
-                        <div class="go-cline-cat">${esc(l.category || '')}</div>
-                        ${(l.option || (Array.isArray(l.modifiers) && l.modifiers.length)) ? `<div class="go-cline-chips" data-editline="${i}" title="Değiştirmek için dokunun">
-                            ${l.option ? `<span class="go-cline-opt">${esc(l.option)}</span>` : ''}
-                            ${(l.modifiers || []).map(m => `<span class="go-cline-mod">${m.type === 'extra' ? '+' : '−'} ${esc(m.name)}</span>`).join('')}
-                        </div>` : ''}
+                        <div class="go-cline-cat">${esc(l.category || '')}<span class="go-cline-editic" aria-hidden="true">✎</span></div>
+                        ${chipsHtml}
                         ${lineBreakdownHtml(l)}
                     </div>
                     <button class="go-cline-del" data-del="${i}" aria-label="Sil">🗑</button>
@@ -1142,25 +1153,17 @@
                     ${stepHtml('c' + i, l.qty).replace('data-dec="c' + i + '"', 'data-cdec="' + i + '"').replace('data-inc="c' + i + '"', 'data-cinc="' + i + '"')}
                     ${(pricesOn() && priceOf(l)) ? `<span class="go-cline-price">${esc(fmtPrice(priceOf(l) * l.qty))}</span>` : ''}
                 </div>
-                <div class="go-cline-fields">
-                    <div class="go-fld-2">
-                        <div class="go-fld"><label>Tercih saati</label><input type="time" data-time="${i}" value="${esc(l.preferredTime || '')}"></div>
-                        <div class="go-fld"><label>Adet</label><input type="text" value="${l.qty} adet" readonly style="text-align:center"></div>
-                    </div>
-                    <div class="go-fld"><label>Not (opsiyonel)</label><input type="text" data-note="${i}" maxlength="160" placeholder="Örn. 2 büyük havlu" value="${esc(l.note || '')}"></div>
-                </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
         wrap.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { cart.splice(+b.dataset.del, 1); saveCart(); renderCartUI(); renderCart(); refreshAllItemRows(); });
         wrap.querySelectorAll('[data-cinc]').forEach(b => b.onclick = () => bumpLine(+b.dataset.cinc, +1));
         wrap.querySelectorAll('[data-cdec]').forEach(b => b.onclick = () => bumpLine(+b.dataset.cdec, -1));
-        wrap.querySelectorAll('[data-note]').forEach(inp => inp.oninput = () => { const l = cart[+inp.dataset.note]; if (l) { l.note = inp.value; saveCart(); } });
-        // Seçenek/özelleştirme etiketlerine dokununca o kalemin ürün detay
-        // sheet'i yeniden açılır — değiştirmek için sepetten ayrı bir yere
-        // gitmeye gerek kalmaz.
+        // Kartın tamamına (isim/kategori/etiketler alanı) dokununca o kalemin
+        // ürün detay sheet'i açılır — seçenek/modifier/not/saat değiştirmek
+        // için sepetten ayrı bir yere gitmeye gerek kalmaz.
         wrap.querySelectorAll('[data-editline]').forEach(el => el.onclick = () => {
             const l = cart[+el.dataset.editline]; if (l) openItemSheet(l.catalogId);
         });
-        wrap.querySelectorAll('[data-time]').forEach(inp => inp.onchange = () => { const l = cart[+inp.dataset.time]; if (l) { l.preferredTime = inp.value; saveCart(); } });
     }
     function bumpLine(i, delta) {
         const l = cart[i]; if (!l) return;
