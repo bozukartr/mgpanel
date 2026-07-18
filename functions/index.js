@@ -1341,6 +1341,11 @@ function _istanbulToday() {
   const d = new Date(Date.now() + 3 * 3600 * 1000); // UTC+3 (Europe/Istanbul)
   return d.toISOString().slice(0, 10);
 }
+function hhmmIstanbul() {
+  const d = new Date(Date.now() + 3 * 3600 * 1000); // UTC+3 (Europe/Istanbul)
+  const p = (n) => (n < 10 ? '0' + n : '' + n);
+  return p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
+}
 
 // ── Hız sınırlama: getGuestName/getGuestStay kimlik doğrulaması gerektirmez
 //    (misafir henüz "doğrulanmadan" çağırıyor), bu yüzden kötüye kullanıma
@@ -1500,6 +1505,245 @@ exports.getGuestName = onCall({ region: REGION }, async (request) => {
 
   if (matchedNames.size !== 1) return { ok: false };
   return { ok: true, name: Array.from(matchedNames)[0] };
+});
+
+// ── Kimlik doğrulama (QR self-servis) — Soyad + Doğum Yılı ──────────
+// Oda numarası artık bir "kimlik kanıtı" değildir (bkz. güvenlik denetimi):
+// guest-order.html'in URL'sindeki room= parametresi düzenlenebilir bir alan
+// olduğundan, eskiden doğrulama (surname+room) açık olsa bile sunucu
+// tarafında yalnızca "gönderilen oda açık mı" (roomIsOpen) kontrol
+// ediliyordu — doğrulanan soyadın GERÇEKTEN o odaya ait olduğu ASLA teyit
+// edilmiyordu; bir misafir kendi odasında doğrulandıktan sonra URL'deki
+// room= değerini başka (dolu) bir odayla değiştirip oraya sipariş
+// açabiliyordu. Bu callable bunu kapatır: soyad+doğum yılı guestDirectory
+// ile SUNUCU tarafında eşleştirilir, ve yalnızca BAŞARILI eşleşmede
+// misafirin GERÇEK odası verifiedGuestSessions/{uid} dokümanına yazılır.
+// firestore.rules guestOrders.create bu dokümanı her yazımda CANLI olarak
+// kontrol eder (bkz. verifiedSessionRoom()) — istemcinin gönderdiği room
+// değeri artık güvenlik açısından hiç güvenilmez. Yan fayda: aynı odada
+// kalan farklı isimli refakatçi misafirler artık kendi kimlikleriyle ayrı
+// ayrı doğrulanabilir (eskiden yalnızca ortak bir "oda numarası" bilmek
+// yeterliydi).
+exports.verifyGuestIdentity = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const d = request.data || {};
+  const surname = String(d.surname || '').trim().slice(0, 60);
+  const birthYear = parseInt(d.birthYear, 10);
+  const thisYear = new Date().getFullYear();
+  if (!surname || !isFinite(birthYear) || birthYear < 1900 || birthYear > thisYear) return { ok: false };
+
+  // Tenant, istemcinin iddiasından değil, ZATEN doğrulanmış tenantId claim'inden
+  // (mintGuestClaim) türetilir — getGuestName/getGuestStay'in "istemcinin tenant
+  // iddiasına güvenme" zayıflığı burada tekrarlanmadı. Claim yoksa (Worker'sız
+  // yerel/dev ortam) istemci parametresine düşülür — geriye dönük uyumlu, tıpkı
+  // firestore.rules'daki guestClaimTenant() deseninde olduğu gibi.
+  const claimTenant = request.auth.token && request.auth.token.tenantId;
+  const tenant = String(claimTenant || d.tenant || '').trim().toLowerCase().slice(0, 40);
+  if (!tenant) return { ok: false };
+
+  // Aynı paylaşılan hız sınırlama bütçesi (getGuestName/getGuestStay ile) —
+  // hedef anahtar burada "oda" değil, normalize edilmiş soyad.
+  if (!(await checkGuestLookupRateLimit(request, tenant, _normTr(surname)))) return { ok: false };
+
+  let snap;
+  try {
+    snap = await db.collection('guestDirectory')
+      .where('tenantId', '==', tenant).where('status', '==', 'in_house').get();
+  } catch (e) {
+    return { ok: false };
+  }
+  const today = _istanbulToday();
+  const sTokens = _nameTokens(surname);
+  const matches = [];
+  snap.forEach((doc) => {
+    const g = doc.data() || {};
+    if (g.checkOut && String(g.checkOut) < today) return; // çıkış yapmış
+    // Doğum yılı hiç kayıtlı değilse (özellik öncesi check-in) BİLİNÇLİ
+    // OLARAK eşleştirilmez — sessiz bir zayıf soyad-only fallback bırakmak
+    // kalıcı bir güvenlik açığına dönüşebilir (bkz. plan notu). Resepsiyon
+    // CRM'den doğum yılını eklemeli.
+    if (!g.birthYear || Number(g.birthYear) !== birthYear) return;
+    const gTokens = _nameTokens(g.name);
+    if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) matches.push({ id: doc.id, data: g });
+  });
+
+  // Tam olarak BİR eşleşme gerekir — sıfır (yanlış bilgi ya da doğum yılı
+  // eksik) veya birden fazla (son derece nadir bir soyad+doğum yılı
+  // çakışması) durumunda fail-closed: "resepsiyona danışın".
+  if (matches.length !== 1) return { ok: false };
+  const guest = matches[0];
+  const room = String(guest.data.room || '').trim();
+  if (!room) return { ok: false }; // ör. pre-arrival — henüz oda atanmamış
+
+  try {
+    await db.collection('verifiedGuestSessions').doc(request.auth.uid).set({
+      tenantId: tenant,
+      guestId: guest.id,
+      room: room,
+      verifiedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (e) {
+    console.error('verifiedGuestSessions write failed', e);
+    return { ok: false };
+  }
+
+  return { ok: true, room: room, guestName: String(guest.data.name || '').trim() };
+});
+
+// ── Gönderilmiş sipariş kalemi düzenleme/iptal (QR self-servis) ────────
+// Misafir, personel henüz üstlenmediği (kalem hâlâ 'pending' VE ona bağlı
+// guestLogs aynası hâlâ 'Following') bir kalemi değiştirebilir/iptal
+// edebilir. guestOrders.items[itemId] VE onun deterministik guestLogs
+// aynası (qr_{orderId}_{itemId}, bkz. order-bridge.js) TEK bir transaction
+// içinde birlikte güncellenir — yalnızca guestOrders güncellenip guestLogs
+// aynası eskide kalırsa personel artık var olmayan/değişmiş bir işle
+// uğraşabilir (panel.js'in syncOrderItem'ındaki SIRALI/best-effort iki-
+// transaction deseni, düşük riskli TERS yön için yeterliydi ama bu yön
+// için değil). guestLogs'ta 'Cancelled' durumu yoktur (yalnızca
+// Following/InProgress/Solved) — iptal edilen, hâlâ dokunulmamış bir ayna
+// yeni bir durum icat etmek yerine doğrudan SİLİNİR.
+// Yalnızca qty + note yamalanabilir — bilinçli bir sınırlama: option/
+// modifiers da patchlenebilseydi cur.price (sepet ekleme anında seçilen
+// seçenek/özelleştirmenin farkıyla birlikte GÖMÜLMÜŞ tek birim fiyat,
+// bkz. guest-order.js confirmItemSheet) o an yeniden hesaplanması
+// gerekirdi; misafir tarafı UI bunu hiç sunmuyor (yalnızca adet/not
+// düzenlenebilir), bu yüzden fiyatı bozabilecek bir yüzey hiç açılmıyor.
+function guestOrderItemPatch(raw) {
+  const d = raw || {};
+  const patch = {};
+  if (d.qty !== undefined) {
+    const qty = Number(d.qty);
+    if (!isFinite(qty) || qty < 1 || qty > 10) return null;
+    patch.qty = qty;
+  }
+  if (d.note !== undefined) {
+    patch.note = String(d.note || '').slice(0, 300);
+  }
+  return Object.keys(patch).length ? patch : null;
+}
+
+function findOrderItemIndex(items, itemId) {
+  return items.findIndex((it, i) => String((it && it.id) || ('i' + i)) === itemId);
+}
+
+exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const d = request.data || {};
+  const orderId = String(d.orderId || '').trim().slice(0, 200);
+  const itemId = String(d.itemId || '').trim().slice(0, 200);
+  if (!orderId || !itemId) throw new HttpsError('invalid-argument', 'orderId/itemId gerekli.');
+  const patch = guestOrderItemPatch(d.patch);
+  if (!patch) throw new HttpsError('invalid-argument', 'Geçersiz değişiklik.');
+
+  const orderRef = db.collection('guestOrders').doc(orderId);
+  try {
+    await db.runTransaction(async (tx) => {
+      const orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw new HttpsError('not-found', 'Sipariş bulunamadı.');
+      const order = orderSnap.data() || {};
+      if (order.sessionUid !== request.auth.uid) throw new HttpsError('permission-denied', 'Bu sipariş size ait değil.');
+      if (order.status === 'cancelled') throw new HttpsError('failed-precondition', 'Bu sipariş iptal edilmiş.');
+      const items = Array.isArray(order.items) ? order.items.slice() : [];
+      const idx = findOrderItemIndex(items, itemId);
+      if (idx === -1) throw new HttpsError('not-found', 'Kalem bulunamadı.');
+      const cur = items[idx];
+      if ((cur.status || 'pending') !== 'pending') {
+        throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
+      }
+
+      let logRef = null;
+      if (cur.logId) {
+        logRef = db.collection('guestLogs').doc(cur.logId);
+        const logSnap = await tx.get(logRef);
+        if (logSnap.exists && (logSnap.data() || {}).status !== 'Following') {
+          throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
+        }
+      }
+
+      const updated = Object.assign({}, cur, patch);
+      items[idx] = updated;
+      // order.total gönderim anında dondurulmuş bir toplamdı — qty burada
+      // değiştiğinde yeniden hesaplanmazsa misafirin takip ekranındaki
+      // "Toplam" eski (yanlış) değerde donup kalırdı. İptal edilmiş kalemler
+      // toplamdan hariç tutulur (cancelGuestOrderItem ile AYNI formül).
+      const total = items.reduce((s, it) =>
+        s + ((it.status || 'pending') === 'cancelled' ? 0 : (Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
+      tx.update(orderRef, { items, total, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      if (logRef) {
+        tx.update(logRef, {
+          complaint: orderBridge.itemComplaintText(updated),
+          updates: admin.firestore.FieldValue.arrayUnion({
+            user: 'QR-Misafir', text: 'Misafir talebi güncelledi.',
+            time: hhmmIstanbul(), timestamp: Date.now(), isSystem: true
+          })
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    console.error('updateGuestOrderItem failed', e);
+    throw new HttpsError('internal', 'Güncelleme başarısız.');
+  }
+  return { ok: true };
+});
+
+exports.cancelGuestOrderItem = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const d = request.data || {};
+  const orderId = String(d.orderId || '').trim().slice(0, 200);
+  const itemId = String(d.itemId || '').trim().slice(0, 200);
+  if (!orderId || !itemId) throw new HttpsError('invalid-argument', 'orderId/itemId gerekli.');
+
+  const orderRef = db.collection('guestOrders').doc(orderId);
+  try {
+    await db.runTransaction(async (tx) => {
+      const orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw new HttpsError('not-found', 'Sipariş bulunamadı.');
+      const order = orderSnap.data() || {};
+      if (order.sessionUid !== request.auth.uid) throw new HttpsError('permission-denied', 'Bu sipariş size ait değil.');
+      if (order.status === 'cancelled') throw new HttpsError('failed-precondition', 'Bu sipariş zaten iptal edilmiş.');
+      const items = Array.isArray(order.items) ? order.items.slice() : [];
+      const idx = findOrderItemIndex(items, itemId);
+      if (idx === -1) throw new HttpsError('not-found', 'Kalem bulunamadı.');
+      const cur = items[idx];
+      if ((cur.status || 'pending') !== 'pending') {
+        throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
+      }
+
+      let logRef = null;
+      let deleteLog = false;
+      if (cur.logId) {
+        logRef = db.collection('guestLogs').doc(cur.logId);
+        const logSnap = await tx.get(logRef);
+        if (logSnap.exists) {
+          if ((logSnap.data() || {}).status !== 'Following') {
+            throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
+          }
+          deleteLog = true; // guestLogs'ta 'Cancelled' durumu yok — hâlâ dokunulmamışsa doğrudan sil
+        }
+      }
+
+      items[idx] = Object.assign({}, cur, { status: 'cancelled' });
+      // panel.js'in syncOrderItem'ıyla AYNI rollup mantığı: tüm kalemler
+      // iptal edildiyse sipariş de iptal olur; tümü bitti/iptal ise
+      // tamamlandı sayılır; aksi halde mevcut sipariş durumu korunur.
+      const allCancelled = items.every((it) => (it.status || 'pending') === 'cancelled');
+      const allDone = items.length > 0 && items.every((it) =>
+        (it.status || 'pending') === 'completed' || (it.status || 'pending') === 'cancelled');
+      const newStatus = allCancelled ? 'cancelled' : (allDone ? 'completed' : order.status);
+      // updateGuestOrderItem ile AYNI formül — iptal edilen kalem artık
+      // toplamdan düşer, misafir takip ekranında güncel tutarı görür.
+      const total = items.reduce((s, it) =>
+        s + ((it.status || 'pending') === 'cancelled' ? 0 : (Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
+      tx.update(orderRef, { items, status: newStatus, total, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      if (logRef && deleteLog) tx.delete(logRef);
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    console.error('cancelGuestOrderItem failed', e);
+    throw new HttpsError('internal', 'İptal başarısız.');
+  }
+  return { ok: true };
 });
 
 // ── Konaklama bilgilerim (Folio + Rezervasyonlar + tarihler) — güvenli özet ──

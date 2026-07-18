@@ -53,11 +53,11 @@
 
     // ── Config ─────────────────────────────────────────────────
     const DEFAULT_CONFIG = {
-        hotelName: '', showPrices: false, currency: '₺', requireVerification: false,
+        hotelName: '', showPrices: false, currency: '₺',
         welcome: '', phone: '', wifiName: '', wifiPass: '', checkoutTime: '', breakfast: '', address: '', heroImage: ''
     };
     const DEMO_CONFIG = {
-        hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺', requireVerification: true,
+        hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺',
         heroImage: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1100&q=80',
         welcome: 'Konaklamanızın keyfini çıkarın — ihtiyacınız olan her şey bir dokunuş uzağınızda.',
         phone: '0 (212) 000 00 00', wifiName: 'GrandDemo-Guest', wifiPass: 'demo2024',
@@ -153,17 +153,12 @@
     }
     function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
 
-    // Ad normalizasyonu — room-access.js ile birebir aynı kalmalı.
+    // Ad normalizasyonu — arama (renderItems) için kullanılır.
     function norm(s) {
         return String(s == null ? '' : s).trim().toLocaleLowerCase('tr-TR')
             .replace(/ı/g, 'i').replace(/ç/g, 'c').replace(/ş/g, 's')
             .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o')
             .normalize('NFD').replace(/[̀-ͯ]/g, '');
-    }
-    function nameTokens(name) { return norm(name).split(/\s+/).filter(t => t.length >= 2); }
-    async function sha16(str) {
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
     }
 
     // ── Kategori → ikon / renk ─────────────────────────────────
@@ -279,7 +274,42 @@
     function priceOf(it) { const p = Number(it && it.price) || 0; return p > 0 ? p : 0; }
     function pricesOn() { return !!config.showPrices; }
     function fmtPrice(n) { return config.currency + Number(n || 0).toLocaleString('tr-TR'); }
+    function fmtDelta(n) { n = Number(n) || 0; return (n > 0 ? '+' : n < 0 ? '−' : '') + fmtPrice(Math.abs(n)); }
     function cartTotal() { return cart.reduce((s, l) => s + priceOf(l) * (l.qty || 0), 0); }
+
+    // Eski katalog kayıtları options: string[] idi (fiyat farkı yoktu); yeni
+    // kayıtlar options: {name,priceDelta}[] — request-catalog.js'teki
+    // normalizeOption ile AYNI mantık, ikisi birbirinden bağımsız (admin ve
+    // misafir ayrı JS paketleri) ama şema hep tutarlı kalmalı.
+    function normalizeOption(o) {
+        return (o && typeof o === 'object')
+            ? { name: String(o.name || '').trim(), priceDelta: Number(o.priceDelta) || 0 }
+            : { name: String(o || '').trim(), priceDelta: 0 };
+    }
+    function optionsOf(item) { return Array.isArray(item && item.options) ? item.options.map(normalizeOption) : []; }
+    function optionDelta(item, name) {
+        if (!name) return 0;
+        const o = optionsOf(item).find(x => x.name === name);
+        return o ? o.priceDelta : 0;
+    }
+
+    // Çıkarılabilir/ekstra ürün bileşenleri (ör. "Soğansız", "Ekstra Peynir")
+    // — options'tan farkı: misafir BİRDEN FAZLASINI seçebilir. request-
+    // catalog.js'teki normalizeModifier ile AYNI şema.
+    function normalizeModifier(m) {
+        return {
+            name: String((m && m.name) || '').trim(),
+            type: (m && m.type) === 'extra' ? 'extra' : 'remove',
+            priceDelta: Number(m && m.priceDelta) || 0
+        };
+    }
+    function modifiersOf(item) { return Array.isArray(item && item.modifiers) ? item.modifiers.map(normalizeModifier) : []; }
+    function hasModifiers(item) { return modifiersOf(item).length > 0; }
+    function modifiersDelta(item, names) {
+        if (!Array.isArray(names) || !names.length) return 0;
+        const all = modifiersOf(item);
+        return names.reduce((s, n) => { const m = all.find(x => x.name === n); return s + (m ? m.priceDelta : 0); }, 0);
+    }
 
     function categories() {
         const seen = [];
@@ -631,9 +661,8 @@
 
     // ── Konaklama (tarihler + Oda Hesabım özeti + rezervasyonlar) ─
     // Tek bir sunucu-taraflı doğrulanmış çağrı (getGuestStay) ile gelir; soyadı
-    // gate'te girildiğinde saklanır (SURNAME_KEY). Doğrulama hiç yapılmamışsa
-    // (requireVerification kapalıysa) bu sekme "doğrulama gerekli" gösterir —
-    // yeni bir zorunlu akış icat etmek yerine.
+    // gate'te girildiğinde saklanır (SURNAME_KEY). Doğrulama hiç yapılmamışsa bu
+    // sekme "doğrulama gerekli" gösterir — yeni bir zorunlu akış icat etmek yerine.
     let stayData = null; // { checkIn, checkOut, folio:{total,count,items}, reservations:[...] }
     const RES_TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
     function resDetailText(r) {
@@ -690,7 +719,7 @@
         if (DEMO) { stayData = DEMO_STAY; renderStay(); return; }
         const surname = loadSurname();
         if (!fns || !ROOM || !surname) {
-            $('goStayBody').innerHTML = '<div class="go-empty"><div class="go-empty-ic">🔒</div><h3>Doğrulama gerekli</h3><p>Konaklama bilgilerinizi görmek için önce soyadı ve oda numaranızla doğrulanmanız gerekir.</p></div>';
+            $('goStayBody').innerHTML = '<div class="go-empty"><div class="go-empty-ic">🔒</div><h3>Doğrulama gerekli</h3><p>Konaklama bilgilerinizi görmek için önce soyadı ve doğum yılınızla doğrulanmanız gerekir.</p></div>';
             return;
         }
         if (stayData) { renderStay(); return; }
@@ -842,7 +871,7 @@
     function itemAction(item, av, line) {
         if (!av.available) return `<span class="go-unavail">Saat dışı</span>`;
         if (line && line.qty > 0) return stepHtml(item.id, line.qty);
-        if (hasOptions(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">Seç</button>`;
+        if (hasOptions(item) || hasModifiers(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">Seç</button>`;
         return `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
     }
     function itemHtml(item) {
@@ -879,11 +908,20 @@
     // Satıra dokununca açılır: açıklama + adet + not + tercih saati (+ varsa
     // seçenek) tek yerde. Sepette satır varsa mevcut değerlerle gelir ve
     // günceller.
-    let sheetItemId = null, sheetQty = 1, sheetOption = '';
+    let sheetItemId = null, sheetQty = 1, sheetOption = '', sheetModifiers = [];
     function optPillsHtml(item, selected) {
         return `<div class="go-fld"><label>Seçenek</label>
             <div class="go-opt-pills" id="goShOptPills">
-                ${item.options.map(o => `<button type="button" class="go-opt-pill ${o === selected ? 'active' : ''}" data-opt="${esc(o)}">${esc(o)}</button>`).join('')}
+                ${optionsOf(item).map(o => `<button type="button" class="go-opt-pill ${o.name === selected ? 'active' : ''}" data-opt="${esc(o.name)}">${esc(o.name)}${(pricesOn() && o.priceDelta) ? ` <span class="go-opt-pill-delta">${esc(fmtDelta(o.priceDelta))}</span>` : ''}</button>`).join('')}
+            </div></div>`;
+    }
+    // Çıkarılabilir/ekstra bileşenler — options'tan farklı olarak ÇOKLU seçim
+    // (her chip kendi başına açık/kapalı, "active" olması bir üstekini
+    // dışlamaz).
+    function modChipsHtml(item, selectedNames) {
+        return `<div class="go-fld"><label>Özelleştir <span class="go-ink-mute" style="font-weight:400;">(opsiyonel, birden fazla seçebilirsiniz)</span></label>
+            <div class="go-opt-pills" id="goShModPills">
+                ${modifiersOf(item).map(m => `<button type="button" class="go-opt-pill go-mod-pill ${selectedNames.indexOf(m.name) !== -1 ? 'active' : ''}" data-mod="${esc(m.name)}">${m.type === 'extra' ? '+' : '−'} ${esc(m.name)}${(pricesOn() && m.priceDelta) ? ` <span class="go-opt-pill-delta">${esc(fmtDelta(m.priceDelta))}</span>` : ''}</button>`).join('')}
             </div></div>`;
     }
     function openItemSheet(id) {
@@ -893,13 +931,16 @@
         sheetItemId = id;
         sheetQty = line && line.qty > 0 ? line.qty : 1;
         sheetOption = line ? (line.option || '') : '';
+        sheetModifiers = line && Array.isArray(line.modifiers) ? line.modifiers.map(m => m.name) : [];
         const withOpts = hasOptions(item);
+        const withMods = hasModifiers(item);
         const maxq = lineMax(item);
         const tags = [];
         if (item.eta && item.eta !== '—') tags.push(`<span class="go-tag">${svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', 13)}${esc(item.eta)}</span>`);
         if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">🕒 ${esc(av.window)}</span>`);
-        if (pricesOn() && priceOf(item)) tags.push(`<span class="go-tag price">${esc(fmtPrice(priceOf(item)))}</span>`);
+        if (pricesOn() && priceOf(item)) tags.push(`<span class="go-tag price">${esc(fmtPrice(priceOf(item)))}${(withOpts || withMods) ? ' +' : ''}</span>`);
         const addDisabled = withOpts && !sheetOption;
+        const sheetUnitPrice = () => priceOf(item) + optionDelta(item, sheetOption) + modifiersDelta(item, sheetModifiers);
         $('goItemSheetBody').innerHTML = `
             <div class="go-isheet-head">
                 <div class="go-item-emoji go-k-${catKind(item.category)}" style="width:56px;height:56px;font-size:28px;">${esc(item.icon || '🛎️')}</div>
@@ -913,7 +954,8 @@
             ${tags.length ? `<div class="go-item-meta" style="margin:0 0 14px;">${tags.join('')}</div>` : ''}
             ${av.available ? `
             ${withOpts ? optPillsHtml(item, sheetOption) : ''}
-            <div class="go-isheet-qty" style="${withOpts ? 'margin-top:12px;' : ''}">
+            ${withMods ? modChipsHtml(item, sheetModifiers) : ''}
+            <div class="go-isheet-qty" style="${(withOpts || withMods) ? 'margin-top:12px;' : ''}">
                 <span>Adet</span>
                 <div class="go-step go-step-lg"><button id="goShDec">−</button><b id="goShQty">${sheetQty}</b><button id="goShInc">+</button></div>
             </div>
@@ -921,7 +963,7 @@
             <div class="go-fld" style="margin-top:9px;"><label>Tercih saati (opsiyonel)</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
             <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;" ${addDisabled ? 'disabled' : ''}>
                 <span id="goShAddLbl">${addDisabled ? 'Bir seçenek seçin' : (line ? 'Sepeti Güncelle' : 'Sepete Ekle')}</span>
-                ${(!addDisabled && pricesOn() && priceOf(item)) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(priceOf(item) * sheetQty))}</span>` : ''}
+                ${(!addDisabled && pricesOn() && sheetUnitPrice()) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(sheetUnitPrice() * sheetQty))}</span>` : ''}
             </button>
             ${line ? `<button class="go-btn-ghost go-btn-danger" id="goShRemove" style="margin-top:10px;">Sepetten Çıkar</button>` : ''}`
             : `<div class="go-unavail" style="display:block;text-align:center;padding:14px;margin-top:6px;">Bu hizmet yalnızca ${esc(av.window)} saatleri arasında verilebilir.</div>`}
@@ -929,7 +971,7 @@
         const addB = $('goShAdd');
         const upd = () => {
             const q = $('goShQty'); if (q) q.textContent = sheetQty;
-            const a = $('goShAmt'); if (a) a.textContent = fmtPrice(priceOf(item) * sheetQty);
+            const a = $('goShAmt'); if (a) a.textContent = fmtPrice(sheetUnitPrice() * sheetQty);
         };
         const syncAddState = () => {
             if (!addB || !withOpts) return;
@@ -942,7 +984,16 @@
             const b = e.target.closest('[data-opt]'); if (!b) return;
             sheetOption = b.dataset.opt;
             pills.querySelectorAll('.go-opt-pill').forEach(p => p.classList.toggle('active', p.dataset.opt === sheetOption));
-            syncAddState();
+            syncAddState(); upd();
+        };
+        const modPills = $('goShModPills');
+        if (modPills) modPills.onclick = e => {
+            const b = e.target.closest('[data-mod]'); if (!b) return;
+            const name = b.dataset.mod;
+            const i = sheetModifiers.indexOf(name);
+            if (i === -1) sheetModifiers.push(name); else sheetModifiers.splice(i, 1);
+            b.classList.toggle('active', i === -1);
+            upd();
         };
         const dec = $('goShDec'); if (dec) dec.onclick = () => { if (sheetQty > 1) { sheetQty--; upd(); } };
         const inc = $('goShInc'); if (inc) inc.onclick = () => { if (sheetQty >= maxq) { toast(capMsg(item), true); return; } sheetQty++; upd(); };
@@ -969,12 +1020,18 @@
         }
         line.qty = Math.min(lineMax(line), Math.max(1, sheetQty));
         line.note = note; line.preferredTime = time; line.option = sheetOption || '';
+        line.modifiers = modifiersOf(item).filter(m => sheetModifiers.indexOf(m.name) !== -1);
+        // Seçilen seçenek/özelleştirmelerin fiyat farkı BURADA satır fiyatına
+        // gömülür (bakılan an itibarıyla) — priceOf(line) her yerde tek bir
+        // toplam birim fiyat olarak okunur, sepet/gönderim ayrıca delta
+        // hesaplamaz.
+        line.price = priceOf(item) + optionDelta(item, sheetOption) + modifiersDelta(item, sheetModifiers);
         saveCart(); renderCartUI(); refreshItemRow(item.id);
         if (currentTab === 'cart') renderCart();
         closeItemSheet(); buzz(10); toast('Sepete eklendi ✓');
     }
     function closeItemSheet() {
-        sheetItemId = null; sheetOption = '';
+        sheetItemId = null; sheetOption = ''; sheetModifiers = [];
         $('goItemBackdrop').classList.remove('show');
         $('goItemSheet').classList.remove('show');
         $('goItemSheet').setAttribute('aria-hidden', 'true');
@@ -999,7 +1056,7 @@
         // seçim yapılmalı (ör. ana ekrandaki "Hızlı İşlemler" kısayolu bu
         // yoldan geçer). Sepette zaten bir satır varsa (seçim yapılmış)
         // normal adet artırma/azaltma burada devam eder.
-        if (!line && delta > 0 && hasOptions(item)) { openItemSheet(catalogId); return; }
+        if (!line && delta > 0 && (hasOptions(item) || hasModifiers(item))) { openItemSheet(catalogId); return; }
         if (!line && delta > 0) {
             if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
             line = { catalogId, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
@@ -1015,6 +1072,23 @@
         renderCartUI();
         if (currentTab === 'cart') renderCart();
         if (delta > 0) { buzz(10); if (cartCount() === 1) toast('Sepete eklendi'); }
+    }
+
+    // Sepet satırındaki fiyat dökümü (taban + seçenek farkı + özelleştirme
+    // farkları) — l.price zaten toplamı taşır, bu yalnızca GÖRSEL bir
+    // döküm; kalemin katalogdaki güncel hâli bulunamazsa (ör. o hizmet
+    // sonradan silindi) sessizce hiçbir şey göstermez.
+    function lineBreakdownHtml(l) {
+        if (!pricesOn()) return '';
+        const item = catalog.find(i => i.id === l.catalogId); if (!item) return '';
+        const base = priceOf(item);
+        const optD = optionDelta(item, l.option);
+        const modD = modifiersDelta(item, (l.modifiers || []).map(m => m.name));
+        if (!optD && !modD) return '';
+        const parts = [fmtPrice(base)];
+        if (optD) parts.push(fmtDelta(optD));
+        if (modD) parts.push(fmtDelta(modD));
+        return `<div class="go-cline-breakdown">${esc(parts.join(' '))} = ${esc(fmtPrice(base + optD + modD))}</div>`;
     }
 
     // ── Sepet ekranı + pill + badge ────────────────────────────
@@ -1054,8 +1128,13 @@
                 <div class="go-cline-top">
                     <div class="go-cline-emoji">${esc(l.icon || '🛎️')}</div>
                     <div class="go-cline-main">
-                        <div class="go-cline-name">${esc(l.name)}${l.option ? `<span class="go-cline-opt">${esc(l.option)}</span>` : ''}</div>
-                        <div class="go-cline-cat">${esc(l.category || '')}${(pricesOn() && priceOf(l)) ? ' · ' + esc(fmtPrice(priceOf(l))) : ''}</div>
+                        <div class="go-cline-name">${esc(l.name)}</div>
+                        <div class="go-cline-cat">${esc(l.category || '')}</div>
+                        ${(l.option || (Array.isArray(l.modifiers) && l.modifiers.length)) ? `<div class="go-cline-chips" data-editline="${i}" title="Değiştirmek için dokunun">
+                            ${l.option ? `<span class="go-cline-opt">${esc(l.option)}</span>` : ''}
+                            ${(l.modifiers || []).map(m => `<span class="go-cline-mod">${m.type === 'extra' ? '+' : '−'} ${esc(m.name)}</span>`).join('')}
+                        </div>` : ''}
+                        ${lineBreakdownHtml(l)}
                     </div>
                     <button class="go-cline-del" data-del="${i}" aria-label="Sil">🗑</button>
                 </div>
@@ -1075,6 +1154,12 @@
         wrap.querySelectorAll('[data-cinc]').forEach(b => b.onclick = () => bumpLine(+b.dataset.cinc, +1));
         wrap.querySelectorAll('[data-cdec]').forEach(b => b.onclick = () => bumpLine(+b.dataset.cdec, -1));
         wrap.querySelectorAll('[data-note]').forEach(inp => inp.oninput = () => { const l = cart[+inp.dataset.note]; if (l) { l.note = inp.value; saveCart(); } });
+        // Seçenek/özelleştirme etiketlerine dokununca o kalemin ürün detay
+        // sheet'i yeniden açılır — değiştirmek için sepetten ayrı bir yere
+        // gitmeye gerek kalmaz.
+        wrap.querySelectorAll('[data-editline]').forEach(el => el.onclick = () => {
+            const l = cart[+el.dataset.editline]; if (l) openItemSheet(l.catalogId);
+        });
         wrap.querySelectorAll('[data-time]').forEach(inp => inp.onchange = () => { const l = cart[+inp.dataset.time]; if (l) { l.preferredTime = inp.value; saveCart(); } });
     }
     function bumpLine(i, delta) {
@@ -1101,7 +1186,7 @@
         const cd = cooldownLeft();
         if (cd > 0) { toast(`Çok hızlı! Lütfen ${Math.ceil(cd / 1000)} sn sonra deneyin.`, true); return; }
         if (hasPending()) { toast('Zaten onay bekleyen bir talebiniz var. Önce o sonuçlansın 🙏', true); showTab('orders'); return; }
-        if (config.requireVerification && !isVerified()) { openGate(); return; }
+        if (!isVerified()) { openGate(); return; }
         if (!ROOM) { openGate(); return; }
 
         const btn = $('goSubmit'); btn.disabled = true; $('goSubmitLabel').textContent = 'Gönderiliyor…';
@@ -1111,7 +1196,10 @@
             icon: String(l.icon || '🛎️').slice(0, 8), department: String(l.department || '').slice(0, 60),
             price: priceOf(l), qty: Math.min(lineMax(l), Math.max(1, l.qty || 1)),
             note: String(l.note || '').slice(0, 160), preferredTime: String(l.preferredTime || '').slice(0, 10),
-            option: String(l.option || '').slice(0, 60), status: 'pending'
+            option: String(l.option || '').slice(0, 60),
+            modifiers: (Array.isArray(l.modifiers) ? l.modifiers : []).slice(0, 10)
+                .map(m => ({ name: String((m && m.name) || '').slice(0, 60), type: (m && m.type) === 'extra' ? 'extra' : 'remove', priceDelta: Number(m && m.priceDelta) || 0 })),
+            status: 'pending'
         }));
         const total = items.reduce((s, it) => s + (Number(it.price) || 0) * it.qty, 0);
         const done = (id) => {
@@ -1185,6 +1273,17 @@
         const idx = Math.max(0, FLOW.indexOf(status));
         return `<span class="go-live-prog">${FLOW.map((s, i) => `<i class="${i <= idx ? 'on' : ''}"></i>`).join('')}</span>`;
     }
+    // Kalem bazlı kısa döküm: her kalemin adı + kendi mini durum noktası —
+    // genişletilmiş panelde tek bir birleştirilmiş isim yerine (eskisi gibi)
+    // hangi kalemin nerede olduğu tek bakışta görülsün diye.
+    function liveItemsHtml(ord) {
+        const its = (ord.items || []).filter(it => (it.status || 'pending') !== 'cancelled');
+        if (!its.length) return '';
+        return `<div class="go-live-items">${its.slice(0, 4).map(it => {
+            const s = STATUS[it.status] || STATUS.pending;
+            return `<span class="go-live-item"><i class="go-live-item-dot go-st-${esc(it.status || 'pending')}"></i>${esc(it.name)}${it.qty > 1 ? ' ×' + it.qty : ''}</span>`;
+        }).join('')}${its.length > 4 ? `<span class="go-live-item go-live-item-more">+${its.length - 4}</span>` : ''}</div>`;
+    }
     function renderLive() {
         const wrap = $('goLive'); if (!wrap) return;
         const act = activeOrdersList();
@@ -1195,12 +1294,14 @@
         const o = act[0];
         const st = STATUS[o.status] || STATUS.pending;
         const names = (o.items || []).map(it => it.name).join(', ');
+        const elapsed = relTime(tsMs(o));
         $('goLiveBar').innerHTML = `
             <span class="go-live-ic">${esc(st.emoji)}</span>
             <span class="go-live-main">
                 <span class="go-live-tl"><b>${act.length > 1 ? act.length + ' aktif talep' : esc(st.label)}</b>
                     <span class="go-statepill go-st-${esc(o.status)}">${esc(st.label)}</span></span>
                 ${liveProgress(o.status)}
+                <span class="go-live-elapsed">${elapsed ? esc(elapsed) : ''}${elapsed && act.length > 1 ? ' · ' : ''}${act.length > 1 ? act.length + ' talep aktif' : ''}</span>
             </span>
             <span class="go-live-chev ${liveExpanded ? 'open' : ''}">${svg('<polyline points="18 15 12 9 6 15"/>', 18)}</span>`;
         const barTl = $('goLiveBar').querySelector('.go-live-tl b');
@@ -1211,12 +1312,15 @@
             body.innerHTML = act.map(ord => {
                 const s = STATUS[ord.status] || STATUS.pending;
                 const nm = (ord.items || []).map(it => it.name).join(', ');
+                const el = relTime(tsMs(ord));
                 return `<button class="go-live-row" data-track="${esc(ord.id)}">
                     <span class="go-live-ic sm">${esc(s.emoji)}</span>
                     <span class="go-live-main">
                         <span class="go-live-tl"><b>${esc(nm.length > 30 ? nm.slice(0, 29) + '…' : nm || ((ord.items || []).length + ' talep'))}</b>
                             <span class="go-statepill go-st-${esc(ord.status)}">${esc(s.label)}</span></span>
                         ${liveProgress(ord.status)}
+                        ${liveItemsHtml(ord)}
+                        ${el ? `<span class="go-live-elapsed">${esc(el)}</span>` : ''}
                     </span>
                     <span class="go-live-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 16)}</span>
                 </button>`;
@@ -1226,6 +1330,11 @@
         }
     }
     function toggleLive() { liveExpanded = !liveExpanded; renderLive(); buzz(8); }
+    // Geçen süre metni ("5 dk önce") Firestore'dan yeni bir güncelleme
+    // gelmeden de eskiyeceğinden, widget aktif talep varken periyodik olarak
+    // yeniden çizilir — onSnapshot yalnızca VERİ değiştiğinde tetiklenir,
+    // saatin ilerlemesiyle değil.
+    setInterval(() => { if (activeOrdersList().length) renderLive(); }, 30000);
 
     // Concierge kalemi: departman/kategori Concierge'i işaret eder — bu
     // talepler rezervasyon akışında işler ve ayrı sekmede gösterilir.
@@ -1291,6 +1400,7 @@
 
     function openTracking(id) {
         trackingId = id;
+        trackEditItemId = null;
         showTab('orders', { keepTrack: true });
         $('goOrders').classList.add('go-hidden');
         $('goTrack').classList.remove('go-hidden');
@@ -1300,6 +1410,11 @@
         $('goTrack').scrollTop = 0;
     }
     function currentTracked() { return myOrders.find(o => o.id === trackingId) || null; }
+    // Kalem hâlâ 'pending' (personel henüz üstlenmedi) olduğu sürece misafir
+    // o kalemi düzenleyebilir/iptal edebilir — sunucuda updateGuestOrderItem/
+    // cancelGuestOrderItem AYNI şartı (item.status + guestLogs durumu) tekrar
+    // kontrol eder (bkz. functions/index.js), burası yalnızca UI kapısı.
+    let trackEditItemId = null, trackEditQty = 1;
     function renderTracking() {
         const o = currentTracked(); const wrap = $('goTrack'); if (!wrap) return;
         if (!o) { showOrderList(); return; }
@@ -1319,10 +1434,29 @@
         const items = (o.items || []).map(it => {
             const ist = STATUS[it.status] || STATUS.pending;
             const bits = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note];
+            if (Array.isArray(it.modifiers) && it.modifiers.length) bits.push(it.modifiers.map(m => (m.type === 'extra' ? '+' : '−') + ' ' + m.name).join(', '));
             if (showP && Number(it.price) > 0) bits.push(money(Number(it.price) * (it.qty || 1)));
             const meta = bits.filter(Boolean).join(' · ');
+            const canAct = !DEMO && !cancelled && (it.status || 'pending') === 'pending';
+            if (canAct && trackEditItemId === it.id) {
+                return `<div class="go-titem go-titem-editing">
+                    <div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>
+                    <div class="go-titem-main" style="width:100%;">
+                        <div class="go-titem-name">${esc(it.name)}</div>
+                        <div class="go-fld-2" style="margin-top:8px;">
+                            <div class="go-fld"><label>Adet</label><div class="go-step"><button id="goTEDec">−</button><b id="goTEQty">${trackEditQty}</b><button id="goTEInc">+</button></div></div>
+                        </div>
+                        <div class="go-fld" style="margin-top:8px;"><label>Not</label><input type="text" id="goTENote" maxlength="160" value="${esc(it.note || '')}"></div>
+                        <div class="go-track-btns" style="margin-top:10px;">
+                            <button class="go-btn-ghost" id="goTECancel">Vazgeç</button>
+                            <button class="go-cta" id="goTESave">Kaydet</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
             return `<div class="go-titem"><div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>
-                <div class="go-titem-main"><div class="go-titem-name">${esc(it.name)}</div>${meta ? `<div class="go-titem-meta">${esc(meta)}</div>` : ''}</div>
+                <div class="go-titem-main"><div class="go-titem-name">${esc(it.name)}</div>${meta ? `<div class="go-titem-meta">${esc(meta)}</div>` : ''}
+                ${canAct ? `<div class="go-titem-acts"><button class="go-titem-act" data-item-edit="${esc(it.id)}">Düzenle</button><button class="go-titem-act danger" data-item-cancel="${esc(it.id)}">İptal Et</button></div>` : ''}</div>
                 <span class="go-statepill go-st-${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>`;
         }).join('');
         wrap.innerHTML = `
@@ -1349,6 +1483,43 @@
             </div>`;
         const cb = $('goCancelBtn'); if (cb) cb.onclick = () => cancelOrder(o.id);
         $('goNewBtn').onclick = () => showTab('services');
+        wrap.querySelectorAll('[data-item-edit]').forEach(b => b.onclick = () => {
+            const it = (o.items || []).find(x => x.id === b.dataset.itemEdit); if (!it) return;
+            trackEditItemId = it.id; trackEditQty = Math.max(1, it.qty || 1);
+            renderTracking();
+        });
+        wrap.querySelectorAll('[data-item-cancel]').forEach(b => b.onclick = () => cancelOrderItem(o.id, b.dataset.itemCancel));
+        const teDec = $('goTEDec'), teInc = $('goTEInc'), teQty = $('goTEQty');
+        if (teDec) teDec.onclick = () => { if (trackEditQty > 1) { trackEditQty--; teQty.textContent = trackEditQty; } };
+        if (teInc) teInc.onclick = () => { if (trackEditQty < MAX_QTY) { trackEditQty++; teQty.textContent = trackEditQty; } };
+        const teCancel = $('goTECancel'); if (teCancel) teCancel.onclick = () => { trackEditItemId = null; renderTracking(); };
+        const teSave = $('goTESave'); if (teSave) teSave.onclick = () => saveTrackItemEdit(o.id, trackEditItemId);
+    }
+    async function saveTrackItemEdit(orderId, itemId) {
+        if (!fns) { toast('Bağlantı kurulamadı.', true); return; }
+        const note = ($('goTENote') && $('goTENote').value || '').slice(0, 160);
+        const btn = $('goTESave'); if (btn) { btn.disabled = true; btn.textContent = 'Kaydediliyor…'; }
+        try {
+            const res = await fns.httpsCallable('updateGuestOrderItem')({ orderId, itemId, patch: { qty: trackEditQty, note } });
+            if (!res || !res.data || !res.data.ok) throw new Error('fail');
+            trackEditItemId = null; toast('Kalem güncellendi ✓'); renderTracking();
+        } catch (e) {
+            console.error('update item failed', e);
+            toast('Güncellenemedi. Personel muhtemelen zaten üstlendi.', true);
+            if (btn) { btn.disabled = false; btn.textContent = 'Kaydet'; }
+        }
+    }
+    async function cancelOrderItem(orderId, itemId) {
+        if (!confirm('Bu kalemi iptal etmek istediğinize emin misiniz?')) return;
+        if (!fns) { toast('Bağlantı kurulamadı.', true); return; }
+        try {
+            const res = await fns.httpsCallable('cancelGuestOrderItem')({ orderId, itemId });
+            if (!res || !res.data || !res.data.ok) throw new Error('fail');
+            toast('Kalem iptal edildi.');
+        } catch (e) {
+            console.error('cancel item failed', e);
+            toast('İptal edilemedi. Personel muhtemelen zaten üstlendi.', true);
+        }
     }
     function cancelOrder(id) {
         if (!confirm('Talebinizi iptal etmek istediğinize emin misiniz?')) return;
@@ -1371,25 +1542,12 @@
     // ════════════════════════════════════════════════════════════
     //  DOĞRULAMA (soyadı + oda) + güvenli ad
     // ════════════════════════════════════════════════════════════
-    function maybeGate() { if (config.requireVerification && !isVerified()) openGate(); }
+    function maybeGate() { if (!isVerified()) openGate(); }
     function openGate() {
         $('goGateBackdrop').classList.add('show');
         $('goGate').classList.add('show');
         $('goGate').setAttribute('aria-hidden', 'false');
-        const r = $('goGateRoom'); if (r && ROOM) r.value = ROOM;
-        // requireVerification=false olan otellerde bu kapı yalnızca ROOM
-        // eksik olduğunda (?room= yoksa) açılır — misafirin siparişi hangi
-        // odaya gideceğini bilmemiz gerekir, ama soyadı/roomAccess ile tam
-        // doğrulama otel tarafından istenmiyor demektir. Soyadı alanı gizlenir
-        // ve doVerify() bu durumda roomAccess kontrolü yapmadan yalnızca oda
-        // numarasını kabul eder.
-        const sf = $('goGateSurnameField'), title = $('goGateTitle'), sub = $('goGateSub');
-        if (sf) sf.style.display = config.requireVerification ? '' : 'none';
-        if (title) title.textContent = config.requireVerification ? 'Sizi tanıyalım' : 'Oda numaranız';
-        if (sub) sub.textContent = config.requireVerification
-            ? 'Talep oluşturmak için rezervasyondaki soyadınızı ve oda numaranızı doğrulayın.'
-            : 'Talebinizi doğru odaya iletebilmemiz için oda numaranızı girin.';
-        setTimeout(() => { const el = config.requireVerification ? $('goGateSurname') : $('goGateRoom'); if (el) el.focus(); }, 250);
+        setTimeout(() => { const el = $('goGateSurname'); if (el) el.focus(); }, 250);
     }
     function closeGate() {
         $('goGateBackdrop').classList.remove('show');
@@ -1398,17 +1556,22 @@
     }
     async function doVerify() {
         const surname = ($('goGateSurname').value || '').trim();
-        const room = ($('goGateRoom').value || '').trim().slice(0, 40);
+        const byRaw = ($('goGateBirthYear').value || '').trim();
+        const birthYear = parseInt(byRaw, 10);
         const err = $('goGateErr'); const setErr = m => err.textContent = m || '';
-        // Otel requireVerification'ı kapatmışsa soyadı zorunlu değildir —
-        // yalnızca hangi odaya gönderileceğini bilmemiz gerekir.
-        if (config.requireVerification && surname.length < 2) { setErr('Lütfen soyadınızı girin.'); return; }
-        if (!room) { setErr('Lütfen oda numaranızı girin.'); return; }
+        if (surname.length < 2) { setErr('Lütfen soyadınızı girin.'); return; }
+        const thisYear = new Date().getFullYear();
+        if (!byRaw || !isFinite(birthYear) || birthYear < 1900 || birthYear > thisYear) { setErr('Lütfen geçerli bir doğum yılı girin.'); return; }
         setErr('');
         const btn = $('goGateBtn'), lbl = $('goGateBtnLabel');
         btn.disabled = true; lbl.textContent = 'Kontrol ediliyor…';
         const fail = m => { btn.disabled = false; lbl.textContent = 'Doğrula ve Devam Et'; setErr(m); buzz(70); };
-        const ok = (name) => {
+        // room ARTIK istemciden gelmiyor — sunucu (verifyGuestIdentity),
+        // soyad+doğum yılını guestDirectory ile eşleştirip misafirin GERÇEK
+        // odasını döner. QR'ın URL'sindeki eski room= değeri (varsa) yalnızca
+        // ilk yüklemede sepet anahtarı bağlamı için kullanılmıştı; güvenlik
+        // açısından hiç güvenilmiyordu ve burada tamamen göz ardı edilir.
+        const ok = (room, name) => {
             // ROOM ilk kez atanıyorsa (önceden boştu, genel 'x' anahtarı
             // altında bir sepet olabilir) bu sepeti yeni oda-bazlı anahtara
             // TAŞI — aksi halde recomputeKeys()+loadCart() doğrulama öncesi
@@ -1427,27 +1590,11 @@
             toast(guestName ? ('Hoş geldiniz, ' + guestName.split(' ')[0] + ' 👋') : 'Doğrulandı 👋');
         };
         try {
-            if (DEMO) { await new Promise(r => setTimeout(r, 500)); ok(titleCase(surname)); return; }
-            if (!config.requireVerification) {
-                // Doğrulama otel tarafından istenmiyor: roomAccess/soyadı
-                // eşleştirmesi hiç yapılmaz (o doküman hiç var olmayabilir —
-                // yalnızca requireVerification açık otellerde tutulur), oda
-                // numarası doğrudan kabul edilir.
-                ok(surname ? titleCase(surname) : '');
-                return;
-            }
-            const doc = await db.collection('roomAccess').doc(TENANT + '__' + room).get();
-            if (!doc.exists || doc.data().open !== true) { fail('Bu oda şu anda talebe kapalı görünüyor. Aktif konaklamanız yoksa resepsiyona başvurun.'); return; }
-            const keys = doc.data().nameKeys || [];
-            let matched = false;
-            for (const t of nameTokens(surname)) { const h = await sha16(TENANT + '|' + room + '|' + t); if (keys.indexOf(h) !== -1) { matched = true; break; } }
-            if (!matched) { fail('Soyadı bu oda ile eşleşmedi. Lütfen rezervasyondaki soyadınızı girin.'); return; }
-            // Güvenli ad çözümleme (best-effort)
-            let fullName = '';
-            try {
-                if (fns) { const res = await fns.httpsCallable('getGuestName')({ tenant: TENANT, room, surname }); if (res && res.data && res.data.ok) fullName = res.data.name || ''; }
-            } catch (e) { /* ad alınamazsa sorun değil */ }
-            ok(fullName);
+            if (DEMO) { await new Promise(r => setTimeout(r, 500)); ok(ROOM || '101', titleCase(surname)); return; }
+            if (!fns) { fail('Bağlantı kurulamadı. Lütfen tekrar deneyin.'); return; }
+            const res = await fns.httpsCallable('verifyGuestIdentity')({ tenant: TENANT, surname, birthYear });
+            if (!res || !res.data || !res.data.ok) { fail('Soyadı ve doğum yılı eşleşmedi. Lütfen resepsiyona başvurun.'); return; }
+            ok(res.data.room, res.data.guestName || '');
         } catch (e) { console.error('verify failed', e); fail('Doğrulama yapılamadı. Lütfen tekrar deneyin.'); }
     }
     function titleCase(s) { return String(s || '').toLocaleLowerCase('tr-TR').replace(/(^|\s)\S/g, c => c.toLocaleUpperCase('tr-TR')); }
@@ -1525,7 +1672,7 @@
         $('goCartClear').onclick = () => { if (cart.length && confirm('Sepeti temizlemek istiyor musunuz?')) { cart = []; saveCart(); renderCartUI(); renderCart(); refreshAllItemRows(); } };
         $('goSubmit').onclick = submitOrder;
         $('goGateBtn').onclick = doVerify;
-        $('goGateBackdrop').onclick = () => { if (!(config.requireVerification && !isVerified())) closeGate(); };
+        $('goGateBackdrop').onclick = () => { if (isVerified()) closeGate(); };
         const fc = $('goFolioClose'); if (fc) fc.onclick = closeFolio;
         const fb = $('goFolioBackdrop'); if (fb) fb.onclick = closeFolio;
         const ic = $('goInfoClose'); if (ic) ic.onclick = closeInfo;
@@ -1541,7 +1688,7 @@
         // Soyadı büyük harf (TR)
         const su = $('goGateSurname');
         if (su) su.addEventListener('input', () => { const p = su.selectionStart; su.value = su.value.toLocaleUpperCase('tr-TR').replace(/[^A-ZÇĞİÖŞÜ \-']/g, ''); try { su.setSelectionRange(p, p); } catch (e) {} });
-        ['goGateSurname', 'goGateRoom'].forEach(id => { const el = $(id); if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doVerify(); }); });
+        ['goGateSurname', 'goGateBirthYear'].forEach(id => { const el = $(id); if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doVerify(); }); });
     }
 
     // ── Go ─────────────────────────────────────────────────────

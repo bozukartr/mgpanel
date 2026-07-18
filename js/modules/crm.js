@@ -158,10 +158,15 @@ document.addEventListener('DOMContentLoaded', () => {
         listEl.innerHTML = filtered.map(g => {
             const missingDates = (g.status === 'in_house' || g.status === 'pre_arrival') && (!g.checkIn || !g.checkOut);
             const dateAlert = missingDates ? `<span style="font-size:9px; background:#ef4444; color:white; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:bold;">Tarih Eksik</span>` : '';
+            // Doğum yılı olmayan bir konaklayan misafir QR self-servis sayfasında
+            // kendi kimliğiyle doğrulanamaz (bkz. verifyGuestIdentity) — resepsiyonu
+            // hızlıca tamamlamaya yönlendiren aynı stildeki uyarı rozeti.
+            const missingBirthYear = g.status === 'in_house' && !g.birthYear;
+            const birthYearAlert = missingBirthYear ? `<span style="font-size:9px; background:#f59e0b; color:white; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:bold;">Doğum Yılı Eksik</span>` : '';
             return `
             <div class="guest-card ${currentGuestId === g.id ? 'active' : ''} ${missingDates ? 'missing-dates' : ''}" onclick="viewGuestDetail('${g.id}')">
                 <div class="guest-card-header">
-                    <span class="guest-card-name">${esc(g.name)}${dateAlert}</span>
+                    <span class="guest-card-name">${esc(g.name)}${dateAlert}${birthYearAlert}</span>
                     <span class="guest-card-status ${g.status === 'in_house' ? 'status-in-house' : (g.status === 'pre_arrival' ? 'status-arrival' : 'status-checked-out')}">
                         ${g.status === 'in_house' ? 'Konaklayan' : (g.status === 'pre_arrival' ? 'Bekleyen' : 'Çıkış yaptı')}
                     </span>
@@ -217,6 +222,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         Oda ${esc(guest.room || '—')} • Güncellendi ${new Date(guest.lastUpdated).toLocaleDateString('tr-TR')}
                         ${guest.checkIn ? `<br><span style="color:#2563eb; font-weight:600;">Giriş: ${esc(guest.checkIn)}</span>` : ''}
                         ${guest.checkOut ? ` <span style="color:#e11d48; font-weight:600; margin-left:10px;">Çıkış: ${esc(guest.checkOut)}</span>` : ''}
+                        ${guest.birthYear
+                            ? ` <span style="color:#64748b; font-weight:600; margin-left:10px;">Doğum Yılı: ${esc(guest.birthYear)}</span>`
+                            : (guest.status === 'in_house' ? ` <span style="color:#f59e0b; font-weight:700; margin-left:10px;">⚠ Doğum yılı eksik — QR self-servis girişi çalışmaz</span>` : '')}
                     </div>
                 </div>
                 <div class="profile-actions" style="display: flex; gap: 8px;">
@@ -505,7 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── Manual guest add (works without a PMS) ─────────────────
     const addGuestModal = document.getElementById('addGuestModal');
     const openAddGuest = () => {
-        ['agName', 'agRoom', 'agCheckIn', 'agCheckOut'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        ['agName', 'agRoom', 'agCheckIn', 'agCheckOut', 'agBirthYear'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
         document.getElementById('agStatus').value = 'in_house';
         addGuestModal.style.display = 'block';
         setTimeout(() => document.getElementById('agName')?.focus(), 80);
@@ -523,8 +531,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const room = document.getElementById('agRoom').value.trim();
         const checkIn = toIsoDate(smartExpandDate(document.getElementById('agCheckIn').value.trim()));
         const checkOut = toIsoDate(smartExpandDate(document.getElementById('agCheckOut').value.trim()));
+        const birthYearRaw = document.getElementById('agBirthYear').value.trim();
+        const birthYear = birthYearRaw ? parseInt(birthYearRaw, 10) : null;
+        const thisYear = new Date().getFullYear();
         if (!name) return showToast('Lütfen misafir adını girin.', true);
         if (status === 'in_house' && !room) return showToast('In House için oda numarası gerekli.', true);
+        // Doğum yılı artık misafirin QR self-servis sayfasında kendi kimliğiyle
+        // (soyad + doğum yılı) doğrulanabilmesi için ZORUNLU — bkz. güvenlik
+        // denetimi: eskiden oda numarası tek başına "kimlik" gibi davranıyordu,
+        // aynı odadaki farklı isimli misafirler kendi kimlikleriyle
+        // doğrulanamıyordu ve oda numarası URL'de kolayca değiştirilebiliyordu.
+        if (!birthYear || birthYear < 1900 || birthYear > thisYear) {
+            return showToast('Lütfen geçerli bir doğum yılı girin — misafirin QR ile giriş yapabilmesi için gerekli.', true);
+        }
         const dup = guestDirectory.find(g => (g.name || '').toLowerCase() === name.toLowerCase() && g.status !== 'checked_out');
         if (dup && !confirm(`"${name}" zaten kayıtlı görünüyor. Yine de yeni kayıt eklensin mi?`)) return;
         const btn = document.getElementById('agSave');
@@ -553,6 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: status,
                 checkIn: checkIn || '',
                 checkOut: checkOut || '',
+                birthYear: birthYear,
                 tenantId: TENANT_ID,
                 lastUpdated: new Date().toISOString()
             });
@@ -667,6 +687,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('rcNewRoom').value = currentRoom;
         document.getElementById('rcCheckIn').value = toDisplayDate(checkIn) || '';
         document.getElementById('rcCheckOut').value = toDisplayDate(checkOut) || '';
+        const byEl = document.getElementById('rcBirthYear');
+        if (byEl) byEl.value = guest.birthYear || '';
 
         const isPreArrivalBox = document.getElementById('rcIsPreArrival');
         if (isPreArrivalBox) {
@@ -696,6 +718,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const checkInDate = toIsoDate(smartExpandDate(rawCheckIn));
         const checkOutDate = toIsoDate(smartExpandDate(rawCheckOut));
+        const rcBirthYearRaw = (document.getElementById('rcBirthYear')?.value || '').trim();
+        // Doğum yılı burada (mevcut misafiri düzenlerken) OPSİYONEL bırakılır —
+        // özellik öncesi check-in yapılmış misafirleri düzenlemeyi
+        // engellememek için; yalnızca girilirse kaydedilir/doğrulanır.
+        const rcBirthYear = rcBirthYearRaw ? parseInt(rcBirthYearRaw, 10) : null;
+        if (rcBirthYearRaw && (!rcBirthYear || rcBirthYear < 1900 || rcBirthYear > new Date().getFullYear())) {
+            return showToast('Geçerli bir doğum yılı girin (veya alanı boş bırakın).', true);
+        }
 
         if (!isPreArrival && !newRoomRaw) return showToast('Please enter a room number.', true);
         if (!newName) return showToast('Please enter a guest name.', true);
@@ -724,6 +754,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             if (isPreArrival) updates.status = 'pre_arrival';
             if (nameChanged) updates.name = newName;
+            if (rcBirthYear) updates.birthYear = rcBirthYear;
 
             // Aynı merge akışındaki gibi (bkz. yukarısı): tek batch 500 işlem
             // limitini aşabileceğinden ops toplanıp 450'lik parçalar halinde

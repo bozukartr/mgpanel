@@ -86,6 +86,10 @@
                 <div class="crm-field"><label>Giriş</label><input type="tel" id="rcCheckIn" placeholder="GG/AA/YYYY"></div>
                 <div class="crm-field"><label>Çıkış</label><input type="tel" id="rcCheckOut" placeholder="GG/AA/YYYY"></div>
             </div>
+            <div class="crm-field">
+                <label>Doğum Yılı <span style="font-weight:400;color:#94a3b8;">— misafirin QR ile kendi kimliğiyle giriş yapabilmesi için gerekli</span></label>
+                <input type="number" id="rcBirthYear" min="1900" max="2100" step="1" placeholder="Örn. 1990">
+            </div>
             <div class="crm-modal-actions">
                 <button class="crm-btn crm-btn-ghost" onclick="closeRoomChangeModal()">Vazgeç</button>
                 <button class="crm-btn crm-btn-primary" onclick="submitRoomChange()">Kaydet</button>
@@ -105,6 +109,10 @@
             <div class="crm-row2">
                 <div class="crm-field"><label>Giriş</label><input type="tel" id="agCheckIn" placeholder="GG/AA/YYYY"></div>
                 <div class="crm-field"><label>Çıkış</label><input type="tel" id="agCheckOut" placeholder="GG/AA/YYYY"></div>
+            </div>
+            <div class="crm-field">
+                <label>Doğum Yılı <span style="font-weight:400;color:#94a3b8;">— misafirin QR ile kendi kimliğiyle giriş yapabilmesi için gerekli</span></label>
+                <input type="number" id="agBirthYear" min="1900" max="2100" step="1" placeholder="Örn. 1990">
             </div>
             <div class="crm-field">
                 <label>Durum</label>

@@ -296,10 +296,7 @@
                                 <input type="checkbox" id="cfgShowPrices">
                                 <span>Fiyatları göster (fiyatı girilen ürünlerde)</span>
                             </label>
-                            <label class="switch-row">
-                                <input type="checkbox" id="cfgRequireVerify">
-                                <span>Misafir doğrulaması iste (soyadı + oda) — çıkış yapan oda talep oluşturamaz</span>
-                            </label>
+                            <p class="card-sub" style="margin:0;">🔒 Misafir kimlik doğrulaması (soyadı + doğum yılı) artık tüm oteller için zorunlu ve otomatik — ayrıca bir ayar gerekmez.</p>
                             <div class="form-group">
                                 <label>Kapak görseli (URL) — misafir ana sayfasının üst görseli</label>
                                 <input type="url" id="cfgHeroImage" maxlength="500" placeholder="https://… (otel/lobi/manzara fotoğrafı). Boş bırakılırsa sıcak bir arka plan kullanılır.">
@@ -672,12 +669,26 @@
                         </label>
                     </div>
                     <div class="form-group span2">
-                        <label>Seçenekler (opsiyonel) <small style="font-weight:400;color:#94a3b8;">— misafir sipariş verirken bunlardan birini seçer. Örn. VIP Transfer için: Vito, Sprinter, S Class</small></label>
+                        <label>Seçenekler (opsiyonel) <small style="font-weight:400;color:#94a3b8;">— misafir sipariş verirken bunlardan birini seçer. Örn. VIP Transfer için: Vito, Sprinter, S Class. Fiyat farkı isteğe bağlıdır (ör. daha büyük araç için +150₺).</small></label>
                         <div style="display:flex; gap:8px;">
                             <input type="text" id="catOptInput" maxlength="40" placeholder="Seçenek adı, ör. Vito" style="flex:1;">
+                            <input type="number" id="catOptPriceInput" placeholder="+₺ fark" style="width:100px;">
                             <button type="button" class="btn btn-ghost" id="catOptAddBtn">+ Ekle</button>
                         </div>
                         <div id="catOptList" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;"></div>
+                    </div>
+                    <div class="form-group span2">
+                        <label>Özelleştirme seçenekleri (opsiyonel) <small style="font-weight:400;color:#94a3b8;">— misafir birden fazlasını seçebilir. Örn. "Soğansız" (çıkar) veya "Ekstra Peynir" (ekle, +30₺).</small></label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" id="catModInput" maxlength="40" placeholder="Ör. Soğansız" style="flex:1;">
+                            <select id="catModType" style="width:110px;">
+                                <option value="remove">Çıkar</option>
+                                <option value="extra">Ekle</option>
+                            </select>
+                            <input type="number" id="catModPriceInput" placeholder="+₺ fark" style="width:100px;">
+                            <button type="button" class="btn btn-ghost" id="catModAddBtn">+ Ekle</button>
+                        </div>
+                        <div id="catModList" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;"></div>
                     </div>
                 </div>
                 <div class="modal-actions vertical">

@@ -14,8 +14,9 @@
     let items = [];
     let editingId = null;
     let editingOptions = []; // katalog modalı açıkken düzenlenen "Seçenekler" taslağı
+    let editingModifiers = []; // katalog modalı açıkken düzenlenen "Özelleştirme" taslağı (çıkar/ekstra)
     let unsub = null;
-    let cfg = { hotelName: '', showPrices: false, currency: '₺', requireVerification: false };
+    let cfg = { hotelName: '', showPrices: false, currency: '₺' };
 
     // Default starter menu — 4 operational categories.
     const DEFAULTS = [
@@ -211,6 +212,7 @@
         const priceTxt = i.price ? cur + Number(i.price).toLocaleString('tr-TR') : 'Ücretsiz';
         const avail = (i.availFrom && i.availTo) ? ('🕒 ' + i.availFrom + '–' + i.availTo) : '';
         const optCount = Array.isArray(i.options) ? i.options.length : 0;
+        const optTitle = optCount ? i.options.map(normalizeOption).map(o => o.name + (o.priceDelta ? ` (${o.priceDelta > 0 ? '+' : ''}${o.priceDelta}₺)` : '')).join(', ') : '';
         const sub = [i.department || '—', priceTxt, avail].filter(Boolean).join(' · ');
         return `<div class="cat-row ${active ? '' : 'inactive'}" data-edit="${esc(i.id)}">
             <div class="cat-emoji">${esc(i.icon || '🛎️')}</div>
@@ -218,7 +220,7 @@
                 <div class="cat-name">${esc(i.name)}</div>
                 <div class="cat-sub">${esc(sub)}</div>
             </div>
-            ${optCount ? `<span class="cat-flag opt" title="${esc(i.options.join(', '))}">${optCount} seçenek</span>` : ''}
+            ${optCount ? `<span class="cat-flag opt" title="${esc(optTitle)}">${optCount} seçenek</span>` : ''}
             <span class="cat-flag ${active ? 'on' : 'off'}">${active ? 'Aktif' : 'Pasif'}</span>
         </div>`;
     }
@@ -240,9 +242,17 @@
         $('catAvailFrom').value = it ? (it.availFrom || '') : '';
         $('catAvailTo').value = it ? (it.availTo || '') : '';
         $('catActive').checked = it ? (it.active !== false) : true;
-        editingOptions = (it && Array.isArray(it.options)) ? it.options.slice() : [];
+        // Geriye dönük uyumluluk: eski kayıtlarda options düz string dizisiydi
+        // (priceDelta yoktu) — normalizeOption() ikisini de {name,priceDelta}
+        // biçimine indirger, save() her zaman nesne yazar.
+        editingOptions = (it && Array.isArray(it.options)) ? it.options.map(normalizeOption) : [];
         if ($('catOptInput')) $('catOptInput').value = '';
+        if ($('catOptPriceInput')) $('catOptPriceInput').value = '';
         renderOptChips();
+        editingModifiers = (it && Array.isArray(it.modifiers)) ? it.modifiers.map(normalizeModifier) : [];
+        if ($('catModInput')) $('catModInput').value = '';
+        if ($('catModPriceInput')) $('catModPriceInput').value = '';
+        renderModChips();
         $('catalogDeleteBtn').style.display = it ? 'block' : 'none';
         $('catalogModal').style.display = 'flex';
     }
@@ -250,14 +260,27 @@
         $('catalogModal').style.display = 'none';
         editingId = null;
         editingOptions = [];
+        editingModifiers = [];
+    }
+
+    // Eski kayıtlar options: string[] idi (priceDelta yok); yeni kayıtlar
+    // options: {name, priceDelta}[]. Bu fonksiyon her iki şekli de tek bir
+    // nesne biçimine indirger — admin editörü ve guest-order.js AYNI
+    // normalizasyonu kullanır (bkz. guest-order.js normalizeOption).
+    function normalizeOption(o) {
+        return (o && typeof o === 'object')
+            ? { name: String(o.name || '').trim().slice(0, 40), priceDelta: Number(o.priceDelta) || 0 }
+            : { name: String(o || '').trim().slice(0, 40), priceDelta: 0 };
     }
 
     // ── Seçenekler (options) düzenleyici — modal içindeki taslak liste ──
     function renderOptChips() {
         const wrap = $('catOptList'); if (!wrap) return;
         if (!editingOptions.length) { wrap.innerHTML = `<span class="cat-opt-empty">Henüz seçenek eklenmedi.</span>`; return; }
-        wrap.innerHTML = editingOptions.map((o, i) =>
-            `<span class="cat-opt-chip">${esc(o)}<button type="button" data-optdel="${i}" aria-label="Kaldır">✕</button></span>`).join('');
+        wrap.innerHTML = editingOptions.map((o, i) => {
+            const label = o.name + (o.priceDelta ? ` (${o.priceDelta > 0 ? '+' : ''}${o.priceDelta}₺)` : '');
+            return `<span class="cat-opt-chip">${esc(label)}<button type="button" data-optdel="${i}" aria-label="Kaldır">✕</button></span>`;
+        }).join('');
         wrap.querySelectorAll('[data-optdel]').forEach(b => b.onclick = () => {
             editingOptions.splice(+b.dataset.optdel, 1);
             renderOptChips();
@@ -265,13 +288,54 @@
     }
     function addOption() {
         const inp = $('catOptInput'); if (!inp) return;
+        const priceInp = $('catOptPriceInput');
         const val = inp.value.trim().slice(0, 40);
         if (!val) return;
-        if (editingOptions.some(o => o.toLowerCase() === val.toLowerCase())) { toast('Bu seçenek zaten ekli.', true); inp.value = ''; return; }
+        if (editingOptions.some(o => o.name.toLowerCase() === val.toLowerCase())) { toast('Bu seçenek zaten ekli.', true); inp.value = ''; return; }
         if (editingOptions.length >= 10) { toast('En fazla 10 seçenek ekleyebilirsiniz.', true); return; }
-        editingOptions.push(val);
+        const priceDelta = priceInp ? (Number(priceInp.value) || 0) : 0;
+        editingOptions.push({ name: val, priceDelta });
         inp.value = '';
+        if (priceInp) priceInp.value = '';
         renderOptChips();
+        inp.focus();
+    }
+
+    // Çıkarılabilir/ekstra ürün bileşenleri (ör. "Soğansız", "Ekstra Peynir").
+    // options'tan farkı: misafir TEK değil BİRDEN FAZLA seçebilir (bkz.
+    // guest-order.js item sheet'indeki çoklu-seçim chip listesi).
+    function normalizeModifier(m) {
+        return {
+            name: String((m && m.name) || '').trim().slice(0, 40),
+            type: (m && m.type) === 'extra' ? 'extra' : 'remove',
+            priceDelta: Number(m && m.priceDelta) || 0
+        };
+    }
+    function renderModChips() {
+        const wrap = $('catModList'); if (!wrap) return;
+        if (!editingModifiers.length) { wrap.innerHTML = `<span class="cat-opt-empty">Henüz özelleştirme eklenmedi.</span>`; return; }
+        wrap.innerHTML = editingModifiers.map((m, i) => {
+            const label = (m.type === 'extra' ? '+ ' : '− ') + m.name + (m.priceDelta ? ` (${m.priceDelta > 0 ? '+' : ''}${m.priceDelta}₺)` : '');
+            return `<span class="cat-opt-chip">${esc(label)}<button type="button" data-moddel="${i}" aria-label="Kaldır">✕</button></span>`;
+        }).join('');
+        wrap.querySelectorAll('[data-moddel]').forEach(b => b.onclick = () => {
+            editingModifiers.splice(+b.dataset.moddel, 1);
+            renderModChips();
+        });
+    }
+    function addModifier() {
+        const inp = $('catModInput'); if (!inp) return;
+        const typeSel = $('catModType'), priceInp = $('catModPriceInput');
+        const val = inp.value.trim().slice(0, 40);
+        if (!val) return;
+        if (editingModifiers.some(m => m.name.toLowerCase() === val.toLowerCase())) { toast('Bu özelleştirme zaten ekli.', true); inp.value = ''; return; }
+        if (editingModifiers.length >= 10) { toast('En fazla 10 özelleştirme ekleyebilirsiniz.', true); return; }
+        const type = typeSel && typeSel.value === 'extra' ? 'extra' : 'remove';
+        const priceDelta = priceInp ? (Number(priceInp.value) || 0) : 0;
+        editingModifiers.push({ name: val, type, priceDelta });
+        inp.value = '';
+        if (priceInp) priceInp.value = '';
+        renderModChips();
         inp.focus();
     }
 
@@ -298,6 +362,7 @@
             availTo: $('catAvailTo').value || '',
             active: $('catActive').checked,
             options: editingOptions.slice(),
+            modifiers: editingModifiers.slice(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         let p;
@@ -373,11 +438,10 @@
     function loadConfig() {
         db.collection(CFG).doc(TENANT_ID).get().then(doc => {
             if (doc.exists) cfg = Object.assign(cfg, doc.data());
-            const hn = $('cfgHotelName'), cur = $('cfgCurrency'), sp = $('cfgShowPrices'), rv = $('cfgRequireVerify');
+            const hn = $('cfgHotelName'), cur = $('cfgCurrency'), sp = $('cfgShowPrices');
             if (hn) hn.value = cfg.hotelName || '';
             if (cur) cur.value = cfg.currency || '₺';
             if (sp) sp.checked = !!cfg.showPrices;
-            if (rv) rv.checked = !!cfg.requireVerification;
             const hi = $('cfgHeroImage'); if (hi) hi.value = cfg.heroImage || '';
             Object.keys(INFO_FIELDS).forEach(id => { const el = $(id); if (el) el.value = cfg[INFO_FIELDS[id]] || ''; });
             render();
@@ -388,7 +452,6 @@
             hotelName: ($('cfgHotelName').value || '').trim().slice(0, 60),
             currency: ($('cfgCurrency').value || '₺').trim().slice(0, 4) || '₺',
             showPrices: $('cfgShowPrices').checked,
-            requireVerification: $('cfgRequireVerify').checked,
             heroImage: (($('cfgHeroImage') || {}).value || '').trim().slice(0, 500)
         };
         Object.keys(INFO_FIELDS).forEach(id => { const el = $(id); if (el) cfg[INFO_FIELDS[id]] = (el.value || '').trim().slice(0, 160); });
@@ -709,6 +772,10 @@
         if (bulkModal) bulkModal.addEventListener('click', e => { if (e.target === bulkModal) closeBulkModal(); });
         $('catOptAddBtn') && ($('catOptAddBtn').onclick = addOption);
         $('catOptInput') && $('catOptInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
+        $('catOptPriceInput') && $('catOptPriceInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
+        $('catModAddBtn') && ($('catModAddBtn').onclick = addModifier);
+        $('catModInput') && $('catModInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addModifier(); } });
+        $('catModPriceInput') && $('catModPriceInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addModifier(); } });
         $('closeCatalogModal') && ($('closeCatalogModal').onclick = closeModal);
         $('catalogForm') && ($('catalogForm').onsubmit = save);
         $('catalogDeleteBtn') && ($('catalogDeleteBtn').onclick = remove);

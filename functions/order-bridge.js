@@ -36,6 +36,30 @@ function hhmm(d) {
 }
 function safeId(s) { return String(s || '').replace(/[\/#?%\[\]]/g, '_').slice(0, 60); }
 
+// guestLogs'ın tek-satırlık `complaint` metnini bir sipariş kalemi
+// nesnesinden üretir — buildOrderLogDocs (ilk oluşturma) VE
+// updateGuestOrderItem callable'ı (misafir daha sonra düzenlerse, bkz.
+// functions/index.js) AYNI biçimlendirmeyi paylaşsın diye tek yerde
+// toplanır; ikisi farklı metin üretirse personel eski/tutarsız bir açıklama
+// görebilirdi.
+function itemComplaintText(it) {
+  const qty = Number(it && it.qty) || 1;
+  const parts = [String((it && it.name) || '').trim() + (qty > 1 ? ' x' + qty : '')];
+  if (it && it.option) parts.push('Seçenek: ' + String(it.option).trim().slice(0, 60));
+  if (Array.isArray(it && it.modifiers) && it.modifiers.length) {
+    // modifiers: {name, type:'remove'|'extra', priceDelta?}[] — düz string
+    // DEĞİL, bu yüzden String(m) burada "[object Object]" üretirdi; ad
+    // alanı ayrıca okunur, tip işaretiyle (−/+) birlikte gösterilir.
+    const modTxt = it.modifiers
+      .map((m) => (m && m.type === 'extra' ? '+' : '−') + ' ' + String((m && m.name) || '').trim().slice(0, 60))
+      .filter((s) => s.length > 2).join(', ');
+    if (modTxt) parts.push('Özelleştirme: ' + modTxt);
+  }
+  if (it && it.preferredTime) parts.push('Saat: ' + it.preferredTime);
+  if (it && it.note) parts.push('Not: ' + String(it.note).slice(0, 200));
+  return parts.filter(Boolean).join(' · ').slice(0, 500);
+}
+
 // Concierge tespiti: kalemin departmanı veya kategorisi Concierge'i işaret
 // ediyorsa bu kalem NORMAL talep değildir — guestLogs yerine Concierge
 // panelinde "Bekleyen" bir rezervasyon olarak doğar.
@@ -127,18 +151,13 @@ function buildOrderLogDocs(order, orderId, extra) {
     if (it && it.logId) return it; // zaten bağlı (eski istemci köprüsü) — dokunma
     if (isConciergeItem(it)) return it; // concierge → rezervasyon akışı
     const logId = 'qr_' + safeId(orderId) + '_' + itemId;
-    const qty = Number(it && it.qty) || 1;
-    const parts = [String((it && it.name) || '').trim() + (qty > 1 ? ' x' + qty : '')];
-    if (it && it.option) parts.push('Seçenek: ' + String(it.option).trim().slice(0, 60));
-    if (it && it.preferredTime) parts.push('Saat: ' + it.preferredTime);
-    if (it && it.note) parts.push('Not: ' + String(it.note).slice(0, 200));
     const data = {
       date: todayYmd(),
       room: String(order.room || '').trim(),
       guestName: guestName,
       department: String((it && it.department) || DEPT_BY_CAT[(it && it.category)] || 'Concierge').trim(),
       topic: '',
-      complaint: parts.filter(Boolean).join(' · ').slice(0, 500),
+      complaint: itemComplaintText(it),
       solution: '',
       staffInitial: 'QR-Misafir',
       tenantId: order.tenantId,
@@ -159,4 +178,4 @@ function buildOrderLogDocs(order, orderId, extra) {
   return { docs, items: outItems };
 }
 
-module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, DEPT_BY_CAT };
+module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, DEPT_BY_CAT };
