@@ -141,6 +141,22 @@ test('isFnbItem: kanonik/eski F&B departman adı + Oda Servisi kategorisi tanın
   assert.strictEqual(bridge.isFnbItem({}), false);
 });
 
+test('itemComplaintText: modifiers nesne dizisi ([object Object] DEĞİL, ad + tip işareti) doğru biçimlenir', () => {
+  const order = { tenantId: 'hotel-a', room: '204', items: [
+    { id: 'm1', name: 'Burger', qty: 1, category: 'Yiyecek & İçecek',
+      modifiers: [{ name: 'Soğan', type: 'remove', priceDelta: 0 }, { name: 'Ekstra Peynir', type: 'extra', priceDelta: 30 }] }
+  ]};
+  const logs = bridge.buildOrderLogDocs(order, 'ordM', {});
+  const txt = logs.docs[0].data.complaint;
+  assert.ok(!txt.includes('[object Object]'), 'modifiers nesneleri düz metne çevrilmeli, [object Object] üretilmemeli');
+  assert.ok(txt.includes('Özelleştirme: − Soğan, + Ekstra Peynir'), 'ad + tip işareti (−/+) sırayla görünmeli: ' + txt);
+});
+
+test('itemComplaintText: modifiers boş dizi veya alan yoksa Özelleştirme bölümü hiç eklenmez', () => {
+  assert.ok(!bridge.itemComplaintText({ name: 'Su', qty: 1, modifiers: [] }).includes('Özelleştirme'));
+  assert.ok(!bridge.itemComplaintText({ name: 'Su', qty: 1 }).includes('Özelleştirme'));
+});
+
 test('misafir adı yoksa oda etiketi kullanılır; tenantsız/boş sipariş kayıt üretmez', () => {
   const r = bridge.buildOrderLogDocs({ tenantId: 'hotel-a', room: '305', items: [{ id: 'x', name: 'Çay' }] }, 'ord4', {});
   assert.strictEqual(r.docs[0].data.guestName, 'Oda 305');

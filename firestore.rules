@@ -49,26 +49,28 @@ service cloud.firestore {
       return request.auth.token.get('tenantId', null);
     }
 
-    // Per-hotel guest-page setting: does this hotel require a guest to verify
-    // (surname + room) before ordering? Default false (opt-in).
-    function verificationRequired(tid) {
-      return exists(/databases/$(database)/documents/guestConfig/$(tid))
-        && get(/databases/$(database)/documents/guestConfig/$(tid)).data.get('requireVerification', false) == true;
-    }
-    // Is the room currently "open" for guest requests? Maintained from the
-    // hotel's live occupancy (guestDirectory) into a public per-room doc, so a
-    // checked-out room can no longer order even with the same QR.
-    function roomIsOpen(tid, room) {
-      return exists(/databases/$(database)/documents/roomAccess/$(tid + '__' + room))
-        && get(/databases/$(database)/documents/roomAccess/$(tid + '__' + room)).data.get('open', false) == true;
+    // Misafirin doğrulanmış oturumu (bkz. functions/index.js:verifyGuestIdentity)
+    // — soyad+doğum yılı guestDirectory ile SUNUCU tarafında eşleştirilip
+    // yalnızca Admin SDK ile buraya yazılır (istemci asla yazamaz, aşağıdaki
+    // verifiedGuestSessions match bloğuna bakın). guestDirectory.status
+    // kontrolü SAYESİNDE checkout anında (personel misafiri çıkışa aldığı an)
+    // oturum otomatik geçersiz olur — ayrı bir "temizlik" fonksiyonu gerekmez.
+    // Eşleşmezse/oturum yoksa null döner; null hiçbir gerçek oda değeriyle
+    // ASLA eşleşmez (guestOrders.create'de kullanılışına bakın).
+    function verifiedSessionRoom(tid) {
+      let s = get(/databases/$(database)/documents/verifiedGuestSessions/$(request.auth.uid));
+      return (s.data.tenantId == tid
+        && get(/databases/$(database)/documents/guestDirectory/$(s.data.guestId)).data.get('status', '') == 'in_house')
+        ? s.data.room : null;
     }
     // A room the hotel EXPLICITLY knows is closed (checked-out guest) can
-    // never order — regardless of the hotel's verification setting. Unlike
-    // roomIsOpen() this is NOT gated by verificationRequired: it only blocks
-    // a room the system has PROOF is closed (mirrored doc exists AND
-    // open==false); an unmirrored/unknown room (hotel not using live
-    // occupancy tracking) is left untouched — zero behavior change for
-    // hotels that never populate roomAccess.
+    // never order — regardless of verifiedSessionRoom(). This is an
+    // ADDITIONAL defense layer with a different source of truth (roomAccess
+    // vs. verifiedGuestSessions/guestDirectory): it only blocks a room the
+    // system has PROOF is closed (mirrored doc exists AND open==false); an
+    // unmirrored/unknown room (hotel not using live occupancy tracking) is
+    // left untouched — zero behavior change for hotels that never populate
+    // roomAccess.
     function roomIsExplicitlyClosed(tid, room) {
       return exists(/databases/$(database)/documents/roomAccess/$(tid + '__' + room))
         && get(/databases/$(database)/documents/roomAccess/$(tid + '__' + room)).data.get('open', true) == false;
@@ -77,13 +79,18 @@ service cloud.firestore {
     // metin bloğu). İstemci tarafı sınırların (guest-order.js: MAX_QTY=10,
     // MAX_DISTINCT=20) sunucu tarafı garantisi. Rules dilinde döngü
     // olmadığından sabit indeks açılımı kullanılır (items zaten <=20).
+    // modifiers (çıkar/ekstra özelleştirme, ör. "soğansız") opsiyoneldir;
+    // eleman sayısı ve alan boyutları sınırlanır — döngüsüz dilde her
+    // elemanı ayrıca doğrulamak yerine yalnızca liste boyutu ve genel
+    // şekli kontrol edilir (kalem başına en fazla 10 modifier).
     function validGuestOrderItem(it) {
       return it.name is string && it.name.size() > 0 && it.name.size() <= 120
         && (it.get('qty', 1) is number && it.get('qty', 1) >= 1 && it.get('qty', 1) <= 10)
         && (it.get('category', '') is string && it.get('category', '').size() <= 60)
         && (it.get('department', '') is string && it.get('department', '').size() <= 60)
         && (it.get('note', '') is string && it.get('note', '').size() <= 300)
-        && (it.get('option', '') is string && it.get('option', '').size() <= 80);
+        && (it.get('option', '') is string && it.get('option', '').size() <= 80)
+        && (it.get('modifiers', []) is list && it.get('modifiers', []).size() <= 10);
     }
     function validGuestOrderItems(items) {
       return (items.size() < 1  || validGuestOrderItem(items[0]))
@@ -416,6 +423,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Misafirin doğrulanmış oturumu (bkz. verifiedSessionRoom() yukarıda) —
+    // yalnızca functions/index.js:verifyGuestIdentity tarafından Admin SDK
+    // ile yazılır (kurallardan bağımsız). İstemciye (misafir veya personel
+    // farketmez) hiçbir zaman doğrudan okuma/yazma izni verilmez — misafir
+    // kendi odasını kendi oturumuna sahte olarak yazamasın diye.
+    match /verifiedGuestSessions/{uid} {
+      allow read, write: if false;
+    }
+
     // --- Apex marketing site display mode (Açık / Yakında / Bakımda). Publicly
     //     readable so index.html can gate itself before auth; written only by the
     //     platform operator (superadmin). ---
@@ -542,13 +558,15 @@ service cloud.firestore {
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 20
         && validGuestOrderItems(request.resource.data.items)
-        // If the hotel requires verification, the room must be currently open
-        // (an in-house guest exists) — blocks checked-out rooms reusing the QR.
-        && (!verificationRequired(request.resource.data.tenantId)
-            || roomIsOpen(request.resource.data.tenantId, request.resource.data.room))
-        // Doğrulama KAPALI olsa bile, sistemin KANITLA bildiği (check-out
-        // yapılmış) bir odaya yeni sipariş açılamaz — eski QR'ın tekrar
-        // kullanılmasını/terk edilmiş odaya şaka sipariş açılmasını engeller.
+        // Doğrulama artık TÜM oteller için ZORUNLU (eski opsiyonel
+        // requireVerification anahtarı kaldırıldı): sipariş yalnızca,
+        // misafirin verifyGuestIdentity ile SUNUCU tarafında doğrulanmış
+        // GERÇEK odasıyla eşleşirse oluşturulabilir — istemcinin gönderdiği
+        // room değeri (eskiden URL'den okunuyordu) artık tek başına HİÇBİR
+        // ŞEY kanıtlamaz, yalnızca doğrulanmış oturumla eşleşmesi gerekir.
+        && request.resource.data.room == verifiedSessionRoom(request.resource.data.tenantId)
+        // Sistemin KANITLA bildiği (check-out yapılmış) bir odaya yeni
+        // sipariş açılamaz — ek savunma katmanı (farklı kaynak: roomAccess).
         && !roomIsExplicitlyClosed(request.resource.data.tenantId, request.resource.data.room)
         // Worker-doğrulanmış claim VARSA sipariş yalnızca o gerçek tenant'a
         // yazılabilir (?tenant= veya başka bir client-taraflı iddia ile
@@ -571,27 +589,24 @@ service cloud.firestore {
       allow delete: if isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
     }
 
-    // --- Per-room access state for the guest QR page. Mirrored from the hotel's
-    //     live occupancy by staff clients (room-access.js): holds only whether the
-    //     room currently accepts requests (`open`) and salted HASHES of the
-    //     in-house guests' name tokens (`nameKeys`) — never plaintext names.
-    //     Readable by anyone signed in (incl. anonymous guests) so the QR page can
-    //     verify surname + room; written only by the hotel's own staff. ---
+    // --- Per-room access state. Mirrored from the hotel's live occupancy by
+    //     staff clients (room-access.js): holds only whether the room
+    //     currently accepts requests (`open`) — read internally (via get())
+    //     by roomIsExplicitlyClosed() in guestOrders.create; that internal
+    //     read is NOT subject to this match's `allow` rules, so no client
+    //     (staff or guest) needs direct read access anymore. Misafir kimlik
+    //     doğrulaması artık burada değil, verifiedGuestSessions/guestDirectory
+    //     üzerinden yapılıyor (bkz. verifyGuestIdentity/verifiedSessionRoom). ---
     match /roomAccess/{id} {
       // STAFF callers carry a real tenant (their own systemUsers doc), so
-      // their `get` is locked to their own hotel's rooms — closes the
-      // cross-tenant leak where any hotel's logged-in staff could read
-      // another hotel's live room-occupancy + hashed guest names by
-      // guessing `{tenantId}__{room}`. Anonymous guests: if mintGuestClaim
-      // verified their real subdomain (see guestClaimTenant()), the same
-      // lock applies; otherwise (Worker not in front, e.g. local dev) falls
-      // back to the old open behavior needed for the anonymous verification
-      // gate — geriye dönük uyumlu. `list` stays denied outright (stops bulk
-      // enumeration for both audiences).
-      allow get:  if signedIn() && (
-        (isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant())
-        || (!isStaff() && (guestClaimTenant() == null || guestClaimTenant() == resource.data.get('tenantId', 'NO_TENANT_DOC')))
-      );
+      // `get` is locked to their own hotel's rooms — closes the cross-tenant
+      // leak where any hotel's logged-in staff could read another hotel's
+      // live room-occupancy by guessing `{tenantId}__{room}`. No staff UI
+      // reads this today, but the rule stays tenant-scoped rather than
+      // wide-open in case one is added later. Anonymous guests get NO read
+      // access at all (unlike before) — the client no longer needs it.
+      // `list` stays denied outright (stops bulk enumeration).
+      allow get:  if isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow list: if false;
       allow create, update: if isStaff()
         && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();

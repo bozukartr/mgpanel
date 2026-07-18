@@ -171,14 +171,14 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>
         </div>
         <h2 class="go-gate-title" id="goGateTitle">Sizi tanıyalım</h2>
-        <p class="go-gate-sub" id="goGateSub">Talep oluşturmak için rezervasyondaki <b>soyadınızı</b> ve <b>oda numaranızı</b> doğrulayın.</p>
-        <div class="go-field" id="goGateSurnameField">
+        <p class="go-gate-sub" id="goGateSub">Talep oluşturmak için rezervasyondaki <b>soyadınızı</b> ve <b>doğum yılınızı</b> doğrulayın.</p>
+        <div class="go-field">
             <label for="goGateSurname">Soyadı</label>
             <input type="text" id="goGateSurname" maxlength="60" placeholder="Örn. YILMAZ" autocomplete="family-name" autocapitalize="characters" spellcheck="false">
         </div>
         <div class="go-field">
-            <label for="goGateRoom">Oda numarası</label>
-            <input type="text" id="goGateRoom" maxlength="40" inputmode="numeric" placeholder="Örn. 1205">
+            <label for="goGateBirthYear">Doğum yılı</label>
+            <input type="tel" id="goGateBirthYear" maxlength="4" inputmode="numeric" placeholder="Örn. 1990">
         </div>
         <div class="go-gate-err" id="goGateErr"></div>
         <button class="go-cta go-cta-block" id="goGateBtn"><span id="goGateBtnLabel">Doğrula ve Devam Et</span></button>
