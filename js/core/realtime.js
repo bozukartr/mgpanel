@@ -279,10 +279,24 @@
         out.sort((a, b) => (a.username || '').localeCompare(b.username || '', 'tr'));
         return out;
     };
+    // OPERASYONEL DÜZELTME: eskiden auto-ID (.add()) kullanılıyordu — sunucu
+    // tetikleyicilerinin (onGuestOrderCreate, forgotPasswordRequest) TAMAMI
+    // deterministik ID + merge:true ile idempotent yazarken, bu istemci
+    // taraflı yol bir ağ yeniden denemesinde veya çift tıklamada mükerrer
+    // bildirim üretebiliyordu (bkz. operasyonel denetim). Kimlik artık
+    // type+recordId+toUid+dakika-penceresinden türetilir: aynı dakika
+    // içindeki bir yeniden deneme AYNI dokümana düşüp üzerine yazar (mükerrer
+    // önlenir); GERÇEKTEN farklı bir zamanda olan yeni bir olay (ör. yeniden
+    // atama) farklı bir kovaya düşüp taze bir doküman + push bildirimi
+    // üretir (onNotificationCreate yalnızca CREATE'te tetiklenir, aynı ID'ye
+    // merge güncellemesinde tetiklenmez).
     RT.sendNotification = async function (opts) {
         opts = opts || {};
         if (!opts.toUid || !uid) return;
-        await db.collection('notifications').add({
+        const bucket = Math.floor(Date.now() / 60000);
+        const key = [opts.type || 'request', opts.recordId || '', opts.toUid, bucket]
+            .join('_').replace(/[\/#?%[\]]/g, '_').slice(0, 400);
+        await db.collection('notifications').doc(key).set({
             tenantId: TENANT,
             toUid: opts.toUid,
             toUsername: opts.toUsername || '',
@@ -294,7 +308,7 @@
             type: opts.type || 'request',
             read: false,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        }, { merge: true });
     };
     // Per-type openers let a page handle its own notifications inline (e.g. the
     // Concierge guest-orders drawer) instead of navigating to the panel.

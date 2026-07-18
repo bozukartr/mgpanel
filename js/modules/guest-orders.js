@@ -408,117 +408,135 @@
     // Set every live item of an order to a target status (bulk action).
     // `extra` opsiyonel olarak sipariş dokümanına ek alanlar yazar (ör. iptal nedeni).
     function bulkSet(orderId, status, extra) {
-        const o = findOrder(orderId);
-        if (!o) return;
-        // İptal terminaldir: zaten iptal edilmiş bir siparişi başka bir duruma çekme.
-        if (o.status === 'cancelled' && status !== 'cancelled') return;
-        const items = (o.items || []).map(it => {
-            if (status === 'cancelled') return Object.assign({}, it, { status: 'cancelled' });
-            if (it.status === 'cancelled') return it;
-            return Object.assign({}, it, { status });
+        if (!findOrder(orderId)) return; // hızlı UX kontrolü — asıl doğrulama transaction içinde
+        commit(orderId, (freshOrder) => {
+            // İptal terminaldir: zaten iptal edilmiş bir siparişi başka bir duruma çekme.
+            if (freshOrder.status === 'cancelled' && status !== 'cancelled') return null;
+            const items = (freshOrder.items || []).map(it => {
+                if (status === 'cancelled') return Object.assign({}, it, { status: 'cancelled' });
+                if (it.status === 'cancelled') return it;
+                return Object.assign({}, it, { status });
+            });
+            return { items, extra };
         });
-        commit(o, items, extra);
     }
 
     // Advance a single item by one step.
     function advanceItem(orderId, itemId) {
-        const o = findOrder(orderId);
-        if (!o) return;
-        // İptal edilmiş sipariş terminaldir — ilerletme siparişi yeniden açmamalı.
-        if (o.status === 'cancelled') return;
-        const items = (o.items || []).map(it => {
-            if (it.id !== itemId || it.status === 'cancelled') return it;
-            const idx = FLOW.indexOf(it.status);
-            if (idx < 0 || idx >= FLOW.length - 1) return it;
-            return Object.assign({}, it, { status: FLOW[idx + 1] });
+        if (!findOrder(orderId)) return;
+        commit(orderId, (freshOrder) => {
+            // İptal edilmiş sipariş terminaldir — ilerletme siparişi yeniden açmamalı.
+            if (freshOrder.status === 'cancelled') return null;
+            const items = (freshOrder.items || []).map(it => {
+                if (it.id !== itemId || it.status === 'cancelled') return it;
+                const idx = FLOW.indexOf(it.status);
+                if (idx < 0 || idx >= FLOW.length - 1) return it;
+                return Object.assign({}, it, { status: FLOW[idx + 1] });
+            });
+            return { items };
         });
-        commit(o, items);
     }
 
     // Persist new item statuses: writes/updates a guestLog per item so each lands
     // in the room's history, recomputes the order status, and appends a log entry.
-    function commit(order, items, extra) {
-        const newStatus = deriveStatus(items);
-        const batch = db.batch();
-        const orderRef = db.collection('guestOrders').doc(order.id);
+    //
+    // GÜVENLİK/OPERASYONEL DÜZELTMESİ: eskiden bulkSet/advanceItem yeni items[]
+    // dizisini yerel (onSnapshot) önbellekteki `order`den hesaplayıp düz bir
+    // db.batch() ile yazıyordu — transaction OLMADAN. Mutfak (restaurant.js:
+    // qrSyncOrderItem) veya misafirin kendi iptali (Cloud Functions:
+    // cancelGuestOrderItem) TAM O ANDA araya girip aynı items[] dizisini
+    // güncellerse, bu batch yazımı o değişikliği SESSİZCE ezebiliyordu
+    // (kaybolan güncelleme — bkz. operasyonel denetim). `mutate(freshOrder)`
+    // artık transaction İÇİNDE tx.get() ile okunan TAZE sunucu verisine
+    // uygulanır; panel.js:syncOrderItem ve functions/index.js'teki diğer tüm
+    // guestOrders.items yazımlarıyla AYNI transaction deseni.
+    function commit(orderId, mutate) {
+        const orderRef = db.collection('guestOrders').doc(orderId);
+        db.runTransaction(async (tx) => {
+            const snap = await tx.get(orderRef);
+            if (!snap.exists) return;
+            const freshOrder = Object.assign({ id: orderId }, snap.data());
+            const result = mutate(freshOrder);
+            if (!result) return; // ör. sipariş taze veriye göre zaten iptal edilmiş
+            const items = result.items, extra = result.extra;
+            const newStatus = deriveStatus(items);
 
-        const oldById = {};
-        (order.items || []).forEach(it => { if (it && it.id) oldById[it.id] = it.status; });
-        items.forEach(it => {
-            // İptal edilen kalemin kaydı AÇIK bırakılmaz — aksi halde SLA
-            // eskalasyonu süresiz tetiklenirdi. Çözüldü olarak kapatılır,
-            // çözüm notu iptali belirtir.
-            if (it.status === 'cancelled' && it.logId && oldById[it.id] !== 'cancelled') {
-                batch.update(db.collection('guestLogs').doc(it.logId), {
-                    status: 'Solved',
-                    solution: 'Talep iptal edildi.',
-                    completedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    completedBy: USERNAME
-                });
-                return;
-            }
-            const logStatus = LOG_STATUS[it.status];
-            if (!logStatus) return; // pending: kayıt Following olarak bekler (sunucu köprüsü açtı)
-            if (!it.logId) {
-                // First time this item enters the workflow → create its room log.
-                const logRef = db.collection('guestLogs').doc();
-                it.logId = logRef.id;
-                const parts = [it.name + (it.qty > 1 ? ' x' + it.qty : '')];
-                if (it.option) parts.push('Seçenek: ' + it.option);
-                if (it.preferredTime) parts.push('Saat: ' + it.preferredTime);
-                if (it.note) parts.push('Not: ' + it.note);
-                batch.set(logRef, {
-                    date: today(),
-                    room: order.room || '',
-                    guestName: guestNameForRoom(order.room, order.guestName),
-                    department: it.department || DEPT_BY_CAT[it.category] || 'Concierge',
-                    complaint: parts.join(' · '),
-                    solution: '',
-                    staffInitial: USERNAME,
-                    tenantId: TENANT,
-                    type: 'request',
-                    status: logStatus,
-                    source: 'guest-order',
-                    orderId: order.id,
-                    itemId: it.id,
-                    assignedTo: order.assignedTo || null,
-                    assignedToName: order.assignedToName || '',
-                    updates: [{ user: USERNAME, text: 'Misafir self-servis talebi alındı.', time: hhmm(), timestamp: Date.now(), isSystem: true }],
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            } else {
-                // Keep the existing room log's status in sync.
-                const upd = { status: logStatus };
-                // ÜSTLENME zamanı: kalem ilk kez işleme alındığında (in_progress)
-                // kayda acknowledgedAt/By yazılır — "misafir talebi ne kadar
-                // sürede üstlenildi" raporu QR talepleri için de çalışır.
-                if (it.status === 'in_progress' && oldById[it.id] !== 'in_progress') {
-                    upd.acknowledgedAt = firebase.firestore.FieldValue.serverTimestamp();
-                    upd.acknowledgedBy = USERNAME;
-                    upd.acknowledgedDept = (localStorage.getItem('hotelDept') || '').trim();
+            const oldById = {};
+            (freshOrder.items || []).forEach(it => { if (it && it.id) oldById[it.id] = it.status; });
+            items.forEach(it => {
+                // İptal edilen kalemin kaydı AÇIK bırakılmaz — aksi halde SLA
+                // eskalasyonu süresiz tetiklenirdi. Çözüldü olarak kapatılır,
+                // çözüm notu iptali belirtir.
+                if (it.status === 'cancelled' && it.logId && oldById[it.id] !== 'cancelled') {
+                    tx.update(db.collection('guestLogs').doc(it.logId), {
+                        status: 'Solved',
+                        solution: 'Talep iptal edildi.',
+                        completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        completedBy: USERNAME
+                    });
+                    return;
                 }
-                if (it.status === 'completed') {
-                    upd.completedAt = firebase.firestore.FieldValue.serverTimestamp();
-                    upd.completedBy = USERNAME;
-                    // Çekmeceden hiç işleme alınmadan tamamlandıysa üstlenme de şimdi.
-                    if (!oldById[it.id] || oldById[it.id] === 'pending' || oldById[it.id] === 'confirmed') {
-                        upd.acknowledgedAt = upd.acknowledgedAt || firebase.firestore.FieldValue.serverTimestamp();
-                        upd.acknowledgedBy = upd.acknowledgedBy || USERNAME;
+                const logStatus = LOG_STATUS[it.status];
+                if (!logStatus) return; // pending: kayıt Following olarak bekler (sunucu köprüsü açtı)
+                if (!it.logId) {
+                    // First time this item enters the workflow → create its room log.
+                    const logRef = db.collection('guestLogs').doc();
+                    it.logId = logRef.id;
+                    const parts = [it.name + (it.qty > 1 ? ' x' + it.qty : '')];
+                    if (it.option) parts.push('Seçenek: ' + it.option);
+                    if (it.preferredTime) parts.push('Saat: ' + it.preferredTime);
+                    if (it.note) parts.push('Not: ' + it.note);
+                    tx.set(logRef, {
+                        date: today(),
+                        room: freshOrder.room || '',
+                        guestName: guestNameForRoom(freshOrder.room, freshOrder.guestName),
+                        department: it.department || DEPT_BY_CAT[it.category] || 'Concierge',
+                        complaint: parts.join(' · '),
+                        solution: '',
+                        staffInitial: USERNAME,
+                        tenantId: TENANT,
+                        type: 'request',
+                        status: logStatus,
+                        source: 'guest-order',
+                        orderId: orderId,
+                        itemId: it.id,
+                        assignedTo: freshOrder.assignedTo || null,
+                        assignedToName: freshOrder.assignedToName || '',
+                        updates: [{ user: USERNAME, text: 'Misafir self-servis talebi alındı.', time: hhmm(), timestamp: Date.now(), isSystem: true }],
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    // Keep the existing room log's status in sync.
+                    const upd = { status: logStatus };
+                    // ÜSTLENME zamanı: kalem ilk kez işleme alındığında (in_progress)
+                    // kayda acknowledgedAt/By yazılır — "misafir talebi ne kadar
+                    // sürede üstlenildi" raporu QR talepleri için de çalışır.
+                    if (it.status === 'in_progress' && oldById[it.id] !== 'in_progress') {
+                        upd.acknowledgedAt = firebase.firestore.FieldValue.serverTimestamp();
+                        upd.acknowledgedBy = USERNAME;
+                        upd.acknowledgedDept = (localStorage.getItem('hotelDept') || '').trim();
                     }
+                    if (it.status === 'completed') {
+                        upd.completedAt = firebase.firestore.FieldValue.serverTimestamp();
+                        upd.completedBy = USERNAME;
+                        // Çekmeceden hiç işleme alınmadan tamamlandıysa üstlenme de şimdi.
+                        if (!oldById[it.id] || oldById[it.id] === 'pending' || oldById[it.id] === 'confirmed') {
+                            upd.acknowledgedAt = upd.acknowledgedAt || firebase.firestore.FieldValue.serverTimestamp();
+                            upd.acknowledgedBy = upd.acknowledgedBy || USERNAME;
+                        }
+                    }
+                    tx.update(db.collection('guestLogs').doc(it.logId), upd);
                 }
-                batch.update(db.collection('guestLogs').doc(it.logId), upd);
-            }
-        });
+            });
 
-        const statusLog = (order.statusLog || []).concat([{ status: newStatus, at: Date.now(), by: USERNAME }]);
-        batch.update(orderRef, Object.assign({
-            items,
-            status: newStatus,
-            statusLog,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, extra || {}));
-
-        batch.commit().catch(err => { console.error('guest order commit failed', err); alert('İşlem kaydedilemedi.'); });
+            const statusLog = (freshOrder.statusLog || []).concat([{ status: newStatus, at: Date.now(), by: USERNAME }]);
+            tx.update(orderRef, Object.assign({
+                items,
+                status: newStatus,
+                statusLog,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, extra || {}));
+        }).catch(err => { console.error('guest order commit failed', err); alert('İşlem kaydedilemedi.'); });
     }
 
     function assignOrder(orderId, uid, uname) {

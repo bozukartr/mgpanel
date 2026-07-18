@@ -75,14 +75,34 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/roomAccess/$(tid + '__' + room))
         && get(/databases/$(database)/documents/roomAccess/$(tid + '__' + room)).data.get('open', true) == false;
     }
+    // GÜVENLİK DÜZELTMESİ: modifiers listesinin yalnızca ELEMAN SAYISI
+    // (<=10) sınırlanıyordu, her elemanın KENDİ alan boyutları (name/type)
+    // hiç kontrol edilmiyordu — 20 kalem × 10 modifier × sınırsız string
+    // boyutuyla doküman şişirilip DoS/depolama suistimali yapılabilirdi
+    // (diğer tüm alanlar — note/option/category — sıkı sınırlanmışken bu
+    // alan atlanmıştı). validModifier/validModifiers, validGuestOrderItem
+    // ile AYNI döngüsüz sabit-indeks açılım deseniyle her elemanı doğrular.
+    function validModifier(m) {
+      return m.name is string && m.name.size() > 0 && m.name.size() <= 60
+        && m.get('type', 'remove') is string && m.get('type', 'remove').size() <= 20
+        && m.get('priceDelta', 0) is number;
+    }
+    function validModifiers(mods) {
+      return (mods.size() < 1  || validModifier(mods[0]))
+        && (mods.size() < 2  || validModifier(mods[1]))
+        && (mods.size() < 3  || validModifier(mods[2]))
+        && (mods.size() < 4  || validModifier(mods[3]))
+        && (mods.size() < 5  || validModifier(mods[4]))
+        && (mods.size() < 6  || validModifier(mods[5]))
+        && (mods.size() < 7  || validModifier(mods[6]))
+        && (mods.size() < 8  || validModifier(mods[7]))
+        && (mods.size() < 9  || validModifier(mods[8]))
+        && (mods.size() < 10 || validModifier(mods[9]));
+    }
     // Kalem şekli/aralığı doğrulaması (DoS/abuse önleme — aşırı miktar, dev
     // metin bloğu). İstemci tarafı sınırların (guest-order.js: MAX_QTY=10,
     // MAX_DISTINCT=20) sunucu tarafı garantisi. Rules dilinde döngü
     // olmadığından sabit indeks açılımı kullanılır (items zaten <=20).
-    // modifiers (çıkar/ekstra özelleştirme, ör. "soğansız") opsiyoneldir;
-    // eleman sayısı ve alan boyutları sınırlanır — döngüsüz dilde her
-    // elemanı ayrıca doğrulamak yerine yalnızca liste boyutu ve genel
-    // şekli kontrol edilir (kalem başına en fazla 10 modifier).
     function validGuestOrderItem(it) {
       return it.name is string && it.name.size() > 0 && it.name.size() <= 120
         && (it.get('qty', 1) is number && it.get('qty', 1) >= 1 && it.get('qty', 1) <= 10)
@@ -90,7 +110,7 @@ service cloud.firestore {
         && (it.get('department', '') is string && it.get('department', '').size() <= 60)
         && (it.get('note', '') is string && it.get('note', '').size() <= 300)
         && (it.get('option', '') is string && it.get('option', '').size() <= 80)
-        && (it.get('modifiers', []) is list && it.get('modifiers', []).size() <= 10);
+        && (it.get('modifiers', []) is list && it.get('modifiers', []).size() <= 10 && validModifiers(it.get('modifiers', [])));
     }
     function validGuestOrderItems(items) {
       return (items.size() < 1  || validGuestOrderItem(items[0]))
@@ -368,13 +388,50 @@ service cloud.firestore {
     // --- In-app notifications. A teammate creates one addressed to another
     //     user (toUid) in the same hotel; only the recipient can read it, and
     //     may only flip it to read. ---
+    // GÜVENLİK DÜZELTMESİ: eskiden yalnızca gönderenin (fromUid) kimliği ve
+    // tenantId alanı kontrol ediliyordu — toUid'nin GERÇEKTEN aynı tenant'a
+    // ait olduğu hiç doğrulanmıyordu, ve title/body gibi alanlara boyut/şekil
+    // sınırı yoktu. Bu, herhangi bir otelin personelinin BAŞKA bir otelin
+    // personeline (toUid'sini tahmin/bilerek) sınırsız içerikli bildirim
+    // enjekte edip okutabilmesine (cross-tenant spam/phishing) açık
+    // bırakıyordu. targetTenant() ile hedefin KENDİ tenant'ı (systemUsers
+    // dokümanından) okunup çağıranınkiyle eşleştirilir.
+    function targetTenant(uid) {
+      return get(/databases/$(database)/documents/systemUsers/$(uid)).data.get('tenantId', 'NO_TENANT_USER');
+    }
+    // create'de doğrulanan şekil/boyut kurallarını tek yerde toplar — hem
+    // `allow create` hem de gönderenin AYNI idempotency penceresi içinde
+    // kendi bildirimini set({merge:true}) ile yeniden yazdığı `allow update`
+    // dalı (bkz. js/core/realtime.js:RT.sendNotification — deterministik
+    // ID + dakika-penceresi ile mükerrer bildirimi önler) AYNI şekli
+    // paylaşsın diye.
+    function validNotification(d) {
+      return d.keys().hasOnly(
+              ['tenantId', 'toUid', 'toUsername', 'fromUid', 'fromUsername', 'title', 'body', 'recordId', 'type', 'read', 'createdAt'])
+        && d.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
+        && d.fromUid == request.auth.uid
+        && d.toUid is string && d.toUid.size() > 0
+        && targetTenant(d.toUid) == callerTenant()
+        && d.get('title', '') is string && d.get('title', '').size() <= 200
+        && d.get('body', '') is string && d.get('body', '').size() <= 500
+        && d.get('recordId', '') is string && d.get('recordId', '').size() <= 200;
+    }
     match /notifications/{id} {
       allow read:   if signedIn() && resource.data.toUid == request.auth.uid;
-      allow create: if signedIn()
-        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
-        && request.resource.data.fromUid == request.auth.uid;
-      allow update: if signedIn() && resource.data.toUid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create: if signedIn() && validNotification(request.resource.data);
+      allow update: if signedIn() && (
+            // Alıcı yalnızca 'read' bayrağını çevirebilir.
+            (resource.data.toUid == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']))
+            // GÖNDEREN, KENDİ gönderdiği bir bildirimi (fromUid sahipliği +
+            // AYNI create-şekli) yeniden yazabilir — RT.sendNotification'ın
+            // set({merge:true}) ile aynı dakika-penceresindeki yeniden
+            // denemesi/çift tıklaması burada "update" olarak değerlendirilir
+            // (doküman zaten var); bu dal olmadan yalnızca ilk create
+            // başarılı olur, idempotent yeniden deneme permission-denied
+            // alırdı.
+            || (resource.data.fromUid == request.auth.uid && validNotification(request.resource.data))
+          );
       allow delete: if signedIn() && resource.data.toUid == request.auth.uid;
     }
 
@@ -608,8 +665,30 @@ service cloud.firestore {
       // `list` stays denied outright (stops bulk enumeration).
       allow get:  if isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
       allow list: if false;
-      allow create, update: if isStaff()
-        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
+      // GÜVENLİK DÜZELTMESİ: eskiden yalnızca request.resource.data.tenantId
+      // kontrol ediliyordu — doküman ID'sinin (tenantId + '__' + room)
+      // GERÇEKTEN o tenant'a ait olduğu hiç doğrulanmıyordu. Bir otelin
+      // personeli kendi tenantId'siyle ama BAŞKA bir otelin ID'sini taşıyan
+      // (ör. "hotel-b__101") bir doküman yazabiliyordu; roomIsExplicitlyClosed()
+      // yalnızca ID'ye bakıp `open` alanını okuduğundan bu, başka bir otelin
+      // GERÇEK bir odasını kalıcı olarak "kapalı" işaretleyip o odanın
+      // misafirlerinin QR sipariş vermesini engelleyen bir cross-tenant DoS'a
+      // açık kapı bırakıyordu (tenant ID'ler subdomain'den, oda numaraları da
+      // kolayca tahmin edilebilir olduğundan pratik bir saldırı yüzeyiydi).
+      // id.split('__')[0] ile ID'nin GERÇEKTEN çağıranın tenant'ıyla
+      // başladığı doğrulanır (tenant slug'ları '__' içeremez — yalnızca
+      // [a-z0-9-] — bu yüzden split her zaman doğru öneki izole eder).
+      // update ayrıca dokümanın MEVCUT sahibini de doğrular (diğer
+      // koleksiyonlardaki writeOwnTenant deseniyle aynı) — aksi halde
+      // var olan, meşru bir dokümanın sahipliği create/update ile başka
+      // bir tenant'a devralınabilirdi.
+      allow create: if isStaff()
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
+        && id.split('__')[0] == callerTenant();
+      allow update: if isStaff()
+        && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
+        && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
+        && id.split('__')[0] == callerTenant();
       allow delete:        if isStaff()
         && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
     }
