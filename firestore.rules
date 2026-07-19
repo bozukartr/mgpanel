@@ -110,7 +110,14 @@ service cloud.firestore {
         && (it.get('department', '') is string && it.get('department', '').size() <= 60)
         && (it.get('note', '') is string && it.get('note', '').size() <= 300)
         && (it.get('option', '') is string && it.get('option', '').size() <= 80)
-        && (it.get('modifiers', []) is list && it.get('modifiers', []).size() <= 10 && validModifiers(it.get('modifiers', [])));
+        && (it.get('modifiers', []) is list && it.get('modifiers', []).size() <= 10 && validModifiers(it.get('modifiers', [])))
+        // Transfer'e özel yapılandırılmış alanlar (Nereden/Nereye/Tarih/Saat)
+        // — diğer tüm alanlarla AYNI desen: yalnızca tip/boyut sınırı,
+        // format doğrulaması yok (personel için kozmetik, güvenlik değil).
+        && (it.get('transferFrom', '') is string && it.get('transferFrom', '').size() <= 80)
+        && (it.get('transferTo', '') is string && it.get('transferTo', '').size() <= 80)
+        && (it.get('transferDate', '') is string && it.get('transferDate', '').size() <= 10)
+        && (it.get('transferTime', '') is string && it.get('transferTime', '').size() <= 5);
     }
     function validGuestOrderItems(items) {
       return (items.size() < 1  || validGuestOrderItem(items[0]))
@@ -631,17 +638,20 @@ service cloud.firestore {
         // (Worker'ın önünde olmayan ortam) eski davranışa düşülür.
         && (guestClaimTenant() == null || guestClaimTenant() == request.resource.data.tenantId);
 
-      // Staff manage status/assignment within their hotel (tenant + owner frozen);
-      // OR the guest cancels their own still-pending order.
-      allow update: if (isStaff()
+      // Staff manage status/assignment within their hotel (tenant + owner frozen).
+      // GÜVENLİK/OPERASYONEL DÜZELTME: misafirin kendi siparişini doğrudan
+      // `.update({status:'cancelled'})` ile iptal edebildiği eski OR-dalı
+      // KALDIRILDI — artık tek yol `cancelGuestOrder`/`cancelGuestOrderItem`
+      // Cloud Function'ları (Admin SDK, kuralları atlar). Bu callable'lar
+      // guestOrders İLE bağlı guestLogs/reservations dokümanlarını TEK bir
+      // transaction'da senkronize ediyor; eski direkt-yazım yolu canlı
+      // kalsaydı bu senkronu tamamen atlayan bir bypass olurdu (bağlı
+      // dokümanlar yetim kalırdı — bkz. Concierge/Transfer çift-yönlü
+      // senkron denetimi).
+      allow update: if isStaff()
             && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
             && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == resource.data.get('tenantId', 'NO_TENANT_DOC')
-            && request.resource.data.get('sessionUid', '') == resource.data.get('sessionUid', ''))
-        || (signedIn()
-            && resource.data.get('sessionUid', '') == request.auth.uid
-            && resource.data.status == 'pending'
-            && request.resource.data.status == 'cancelled'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
+            && request.resource.data.get('sessionUid', '') == resource.data.get('sessionUid', '');
 
       allow delete: if isStaff() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant();
     }

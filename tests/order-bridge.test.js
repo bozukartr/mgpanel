@@ -124,6 +124,50 @@ test('concierge seçenek yoksa (option boş/yok) davranış değişmez — geriy
   assert.strictEqual(d.vehicle, undefined);
 });
 
+test('Transfer: misafirin girdiği transferDate/transferTime/transferFrom/transferTo reservations dokümanına yazılır', () => {
+  const order = { tenantId: 'hotel-a', room: '204', items: [
+    { id: 't2', name: 'VIP Transfer', qty: 1, category: 'Concierge', option: 'Sprinter',
+      transferFrom: 'Otel Lobisi', transferTo: 'Havalimanı', transferDate: '2026-08-01', transferTime: '14:30' }
+  ]};
+  const res = bridge.buildOrderReservationDocs(order, 'ordTF', { guestName: 'Ayşe' });
+  const d = res.docs[0].data;
+  assert.strictEqual(d.date, '2026-08-01', 'misafirin seçtiği tarih — artık her zaman bugün DEĞİL');
+  assert.strictEqual(d.time, '14:30');
+  assert.strictEqual(d.from, 'Otel Lobisi');
+  assert.strictEqual(d.to, 'Havalimanı');
+  assert.strictEqual(d.vehicle, 'Sprinter');
+});
+
+test('Transfer: transferDate/transferTime yoksa (eski/kısmi veri) bugüne ve preferredTime\'a düşer — geriye dönük uyum', () => {
+  const order = { tenantId: 'hotel-a', room: '204', items: [
+    { id: 't3', name: 'Havalimanı Transferi', qty: 1, category: 'Concierge', preferredTime: '09:15' }
+  ]};
+  const res = bridge.buildOrderReservationDocs(order, 'ordTG', {});
+  const d = res.docs[0].data;
+  assert.match(d.date, /^\d{4}-\d{2}-\d{2}$/, 'transferDate yoksa todayYmd() biçiminde bugüne düşmeli');
+  assert.strictEqual(d.time, '09:15', 'transferTime yoksa preferredTime\'a düşmeli');
+});
+
+test('Transfer olmayan concierge kaleminde transferFrom/To/Date/Time hiç yazılmaz', () => {
+  const order = { tenantId: 'hotel-a', room: '204', items: [
+    { id: 'o2', name: 'Restoran Rezervasyonu', qty: 1, category: 'Concierge',
+      transferFrom: 'sızarsa hata', transferTo: 'sızarsa hata', transferDate: '2026-08-01', transferTime: '14:30' }
+  ]};
+  const res = bridge.buildOrderReservationDocs(order, 'ordNT', {});
+  const d = res.docs[0].data;
+  assert.strictEqual(d.type, 'Other');
+  assert.strictEqual(d.from, undefined, 'Transfer olmayan kalemde from/to alanı hiç eklenmemeli');
+  assert.strictEqual(d.to, undefined);
+});
+
+test('reservationNotesText: itemComplaintText ile AYNI kalıpta ama reservations şemasına uygun (QR misafir talebi öneki)', () => {
+  const txt = bridge.reservationNotesText({ name: 'Restoran Rezervasyonu', qty: 2, option: 'Pencere kenarı', note: 'Doğum günü' });
+  assert.ok(txt.startsWith('QR misafir talebi'));
+  assert.ok(txt.includes('2 adet'));
+  assert.ok(txt.includes('Seçenek: Pencere kenarı'));
+  assert.ok(txt.includes('Doğum günü'));
+});
+
 test('normal (guestLogs) kalemde seçenek talep metnine eklenir', () => {
   const order = { tenantId: 'hotel-a', room: '204', items: [
     { id: 'n1', name: 'Yastık', category: 'Konfor', option: 'Yumuşak' }

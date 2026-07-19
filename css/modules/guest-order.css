@@ -363,6 +363,10 @@ h1, h2, h3, p { margin: 0; }
 .go-cancel-reason { background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--r-lg); padding: 14px 16px; margin-bottom: 18px; }
 .go-cancel-reason-h { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: #b91c1c; margin-bottom: 4px; }
 .go-cancel-reason-b { font-size: 14px; line-height: 1.45; color: #7f1d1d; }
+/* Kalem-seviyesi iptal nedeni (personel iptal ederken girdiği neden,
+   onReservationUpdate ile buraya taşınır) — yukarıdaki sipariş-seviyesi
+   kutunun küçük ölçekli, satır-içi karşılığı. */
+.go-titem-cancel-reason { font-size: 12px; color: #b91c1c; margin-top: 4px; line-height: 1.4; }
 
 .go-steps { padding: 4px 4px 4px 6px; margin-bottom: 20px; }
 .go-stp { display: flex; gap: 14px; position: relative; padding-bottom: var(--sp-5); }

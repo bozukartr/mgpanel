@@ -1564,8 +1564,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            // İptal nedeni zorunlu — guest-orders.js'in personel iptal
+            // akışıyla AYNI desen. QR-kaynaklı rezervasyonlarda bu neden
+            // onReservationUpdate ile misafirin kalem-seviyesi takip
+            // ekranına taşınır (bkz. çift-yönlü senkron denetimi); manuel
+            // rezervasyonlarda yalnızca personelin kendi denetim izinde
+            // kalır, zararsızdır.
+            const upd = { status: st };
+            if (st === 'Cancelled') {
+                const raw = prompt('İptal nedeni (misafire gösterilecektir):');
+                if (raw === null) return;
+                const reason = raw.trim();
+                if (!reason) { showToast('İptal nedeni belirtmelisiniz.', true); return; }
+                upd.cancelReason = reason.slice(0, 300);
+                upd.cancelledBy = loggedUsername;
+            }
+
             try {
-                await db.collection('reservations').doc(r.id).update({ status: st });
+                await db.collection('reservations').doc(r.id).update(upd);
                 showToast('Durum: ' + ({ Pending: 'Bekleyen', Confirmed: 'Onaylı', Cancelled: 'İptal' }[st] || st));
             } catch (e) { showToast('Hata', true); }
         };
