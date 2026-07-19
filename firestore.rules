@@ -180,8 +180,18 @@ service cloud.firestore {
       // (after a password re-auth prompt) — that check lived purely in
       // client JS. Mirrored here so it can't be bypassed by calling the SDK
       // directly; superadmin keeps its usual override via readOwnTenant().
+      // QR-kaynaklı kayıtların staffInitial'ı hep sabit 'QR-Misafir' (bkz.
+      // order-bridge.js) — gerçek bir personel adı ASLA buna eşit olmaz, bu
+      // yüzden "yalnızca oluşturan silebilir" kuralı bu kayıtları HİÇBİR
+      // personelin (admin dahil) silemediği bir duruma sokuyordu (bkz. QR
+      // Concierge denetimi). Bu kayıtların "gerçek" bir sahibi olmadığından
+      // (misafirden otomatik geldi), tenant'ın herhangi bir personeli
+      // silebilir — update kuralı zaten aynı gevşeklikte (herhangi bir
+      // personel serbestçe düzenleyebiliyor).
       allow delete: if readOwnTenant()
-        && (isSuperAdmin() || resource.data.get('staffInitial', 'NO_CREATOR') == callerUsername());
+        && (isSuperAdmin()
+          || resource.data.get('staffInitial', 'NO_CREATOR') == callerUsername()
+          || resource.data.get('staffInitial', 'NO_CREATOR') == 'QR-Misafir');
     }
     match /guestLogs/{id} {
       allow read:   if readOwnTenant();

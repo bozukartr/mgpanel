@@ -2568,12 +2568,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r.source === 'guest-order' && r.orderId && r.itemId) {
                 if (action === 'take') syncOrderItem(r.orderId, r.itemId, 'in_progress');
                 else if (action === 'complete') syncOrderItem(r.orderId, r.itemId, 'completed');
+                // 'reopen' EKSİKTİ — personel tamamlanmış bir QR talebini
+                // yeniden açtığında misafirin ekranındaki kalem kalıcı olarak
+                // 'completed'de donup kalıyordu (misafir talebi bitti sanıp
+                // aktif takipten düşüyordu, personel hâlâ üzerinde çalışıyor
+                // olsa bile) — bkz. QR Concierge denetimi.
+                else if (action === 'reopen') syncOrderItem(r.orderId, r.itemId, 'reopen');
             }
         } catch (e) { showToast('Güncelleme başarısız: ' + e.message, true); }
     }
-    // phase: 'in_progress' (iş üstlenildi) | 'completed' (iş bitti).
-    // in_progress yalnızca bekleyen/onaylı kalemi ilerletir; tamamlanmış veya
-    // iptal edilmiş kaleme asla geri gitmez.
+    // phase: 'in_progress' (iş üstlenildi) | 'completed' (iş bitti) |
+    // 'reopen' (tamamlanmış iş yeniden açıldı). in_progress yalnızca
+    // bekleyen/onaylı kalemi ilerletir; iptal edilmiş kaleme asla dokunmaz.
     async function syncOrderItem(orderId, itemId, phase) {
         try {
             const oRef = db.collection('guestOrders').doc(orderId);
@@ -2585,14 +2591,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const items = (o.items || []).map(it => {
                     if (!it || it.id !== itemId || it.status === 'cancelled') return it;
                     if (phase === 'completed') return Object.assign({}, it, { status: 'completed' });
+                    if (phase === 'reopen') {
+                        return it.status === 'completed' ? Object.assign({}, it, { status: 'in_progress' }) : it;
+                    }
                     // in_progress: yalnız ileri yönde (pending/confirmed → in_progress)
                     return (it.status === 'pending' || it.status === 'confirmed' || !it.status)
                         ? Object.assign({}, it, { status: 'in_progress' }) : it;
                 });
                 const allDone = items.length && items.every(it => it.status === 'completed' || it.status === 'cancelled');
+                // Sipariş daha önce 'completed' damgalanmıştı ama bir kalem
+                // 'reopen' ile geri açıldıysa artık TÜM kalemler bitmiş
+                // değil — durumu 'in_progress'e geri almazsak sipariş kalıcı
+                // olarak 'tamamlandı' görünmeye devam ederdi.
+                let status = o.status;
+                if (allDone) status = 'completed';
+                else if (status === 'pending' || status === 'completed') status = 'in_progress';
                 tx.update(oRef, {
                     items,
-                    status: allDone ? 'completed' : (o.status === 'pending' ? 'in_progress' : o.status),
+                    status,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
             });
