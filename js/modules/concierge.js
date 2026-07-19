@@ -1000,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (search || statusFilter) {
             const results = reservations.filter(r => {
                 const matchesText = !search || [
-                    r.guestName, r.room, r.type, r.resName, r.vessel, r.provider, r.from, r.to, r.notes
+                    r.guestName, r.room, r.type, r.resName, r.otherType, r.vessel, r.provider, r.from, r.to, r.notes
                 ].some(val => val && val.toString().toLocaleLowerCase('tr-TR').includes(search));
 
                 const matchesStatus = !statusFilter || r.status === statusFilter;
@@ -1610,8 +1610,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('d-confirmDelete').onclick = () => {
         if (!window.selectedReservation) return;
 
-        // Security Check: Only creator can delete
-        if (window.selectedReservation.staffInitial !== loggedUsername) {
+        // Security Check: Only creator can delete — QR-kaynaklı kayıtların
+        // staffInitial'ı hep sabit 'QR-Misafir' (gerçek bir personel adı
+        // ASLA buna eşit olmaz), bu istisna olmadan hiçbir personel (admin
+        // dahil) bu kayıtları silemiyordu (bkz. QR Concierge denetimi).
+        // firestore.rules'daki AYNI istisnayla eşleşir.
+        if (window.selectedReservation.staffInitial !== loggedUsername
+            && window.selectedReservation.staffInitial !== 'QR-Misafir') {
             showToast('Bu kaydı yalnızca oluşturan kişi silebilir!', true);
             return;
         }
@@ -1834,7 +1839,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (r.type === 'Restaurant' || r.type === 'Beach') details = r.resName || '';
         else if (r.type === 'Transfer') details = `${r.from || ''} -> ${r.to || ''} (${r.vehicle || ''})`;
         else if (r.type === 'Boat' || r.type === 'Tour') details = `${r.vessel || ''} (${r.provider || ''})`;
-        else details = r.notes || '';
+        // Other + Flower/Cake — otherType/resName ÖNCE notes'a düşmeden
+        // kontrol edilir (bkz. QR Concierge denetimi).
+        else details = r.otherType || r.resName || r.notes || '';
 
         return {
             Date: r.date,
@@ -2151,7 +2158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.type === 'Restaurant' || item.type === 'Beach') details = `<strong>${esc(item.resName)}</strong><br>Pax: ${esc(item.pax)}`;
             else if (item.type === 'Transfer') details = `<strong>Path:</strong> ${esc(item.from)} ➔ ${esc(item.to)}<br><strong>Vehicle:</strong> ${esc(item.vehicle || 'Standard')}`;
             else if (item.type === 'Boat' || item.type === 'Tour') details = `<strong>Service:</strong> ${esc(item.vessel || 'Private Tour')}<br><strong>Provider:</strong> ${esc(item.provider || 'Hotel Direct')}`;
-            else details = `<strong>Request:</strong> ${esc(item.resName || item.type)}`;
+            else details = `<strong>Request:</strong> ${esc(item.otherType || item.resName || item.type)}`;
 
             html += `
                 <tr>
@@ -2204,7 +2211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (r.type === 'Restaurant' || r.type === 'Beach') details = `Restaurant: <strong>${esc(r.resName)}</strong><br>Guests: ${esc(r.pax)} Pax`;
         else if (r.type === 'Transfer') details = `Path: <strong>${esc(r.from)} ➔ ${esc(r.to)}</strong><br>Vehicle/Flight: ${esc(r.vehicle || 'Standard')}<br>Pax: ${esc(r.pax || '—')}`;
         else if (r.type === 'Boat' || r.type === 'Tour') details = `Service: <strong>${esc(r.vessel || r.type)}</strong><br>Provider: ${esc(r.provider || 'Hotel Direct')}<br>Pax: ${esc(r.pax || '—')}`;
-        else details = `Arrangement: <strong>${esc(r.resName || r.type)}</strong>`;
+        else details = `Arrangement: <strong>${esc(r.otherType || r.resName || r.type)}</strong>`;
 
         let html = `
             <style>

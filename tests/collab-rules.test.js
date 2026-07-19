@@ -126,3 +126,58 @@ test('verifiedGuestSessions hâlâ tamamen kapalı (bu PR\'ın kapsamı değişm
   const db = staffCtx(env, 'hotel-a-admin').firestore();
   await assertFails(getDoc(doc(db, 'verifiedGuestSessions', 'anyone')));
 });
+
+// ── reservations: silme yetkisi — QR-kaynaklı kayıtlar herkese açık,
+//    manuel kayıtlar hâlâ yalnızca oluşturana kapalı (bkz. QR Concierge
+//    denetimi: staffInitial='QR-Misafir' hiçbir gerçek kullanıcı adına eşit
+//    olmadığından, bu istisna olmadan QR kayıtları HİÇBİR personel
+//    tarafından silinemiyordu) ──────────────────────────────────────────
+test('reservations: manuel (staffInitial=gerçek personel) kaydı BAŞKA bir personel SİLEMEZ', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const { doc: d, setDoc: s } = require('firebase/firestore');
+    await s(d(ctx.firestore(), 'reservations', 'manual-res-1'), {
+      tenantId: 'hotel-a', type: 'Other', otherType: 'Spa', guestName: 'Test',
+      room: '101', date: '2026-08-01', status: 'Pending', staffInitial: 'hotel-a.garson'
+    });
+  });
+  const db = staffCtx(env, 'hotel-a-admin').firestore();
+  await assertFails(deleteDoc(doc(db, 'reservations', 'manual-res-1')));
+});
+
+test('reservations: manuel kaydı OLUŞTURAN personel SİLEBİLİR', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const { doc: d, setDoc: s } = require('firebase/firestore');
+    await s(d(ctx.firestore(), 'reservations', 'manual-res-2'), {
+      tenantId: 'hotel-a', type: 'Other', otherType: 'Spa', guestName: 'Test',
+      room: '101', date: '2026-08-01', status: 'Pending', staffInitial: 'hotel-a.garson'
+    });
+  });
+  const db = staffCtx(env, 'hotel-a-staff').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'reservations', 'manual-res-2')));
+});
+
+test('reservations: QR-kaynaklı (staffInitial="QR-Misafir") kaydı HERHANGİ bir tenant personeli silebilir — eskiden hiçbir personel silemiyordu', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const { doc: d, setDoc: s } = require('firebase/firestore');
+    await s(d(ctx.firestore(), 'reservations', 'qr-res-1'), {
+      tenantId: 'hotel-a', type: 'Transfer', resName: 'Havalimanı Transferi — Vito',
+      guestName: 'Misafir', room: '101', date: '2026-08-01', status: 'Pending',
+      staffInitial: 'QR-Misafir', source: 'guest-order', orderId: 'ord1', itemId: 'i0'
+    });
+  });
+  const db = staffCtx(env, 'hotel-a-admin').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'reservations', 'qr-res-1')));
+});
+
+test('reservations: QR-kaynaklı kayıt BAŞKA bir tenant\'ın personeli tarafından silinemez (cross-tenant korunuyor)', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const { doc: d, setDoc: s } = require('firebase/firestore');
+    await s(d(ctx.firestore(), 'reservations', 'qr-res-2'), {
+      tenantId: 'hotel-a', type: 'Transfer', resName: 'Havalimanı Transferi',
+      guestName: 'Misafir', room: '101', date: '2026-08-01', status: 'Pending',
+      staffInitial: 'QR-Misafir', source: 'guest-order', orderId: 'ord2', itemId: 'i0'
+    });
+  });
+  const db = staffCtx(env, 'hotel-b-admin').firestore();
+  await assertFails(deleteDoc(doc(db, 'reservations', 'qr-res-2')));
+});

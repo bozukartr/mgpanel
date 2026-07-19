@@ -669,8 +669,10 @@
         if (r.type === 'Restaurant' || r.type === 'Beach') return [r.resName, r.pax ? r.pax + ' kişi' : ''].filter(Boolean).join(' · ');
         if (r.type === 'Transfer') return [r.from, r.to].filter(Boolean).join(' → ') + (r.vehicle ? ' · ' + r.vehicle : '');
         if (r.type === 'Boat' || r.type === 'Tour') return [r.vessel, r.provider].filter(Boolean).join(' · ');
-        if (r.type === 'Other') return r.otherType || '';
-        return r.resName || '';
+        // Other + Flower/Cake (+ bilinmeyen tür) — önceden yalnızca 'Other'
+        // otherType'a bakıyordu, Flower/Cake her zaman "Detay yok" gösteriyordu
+        // (bkz. QR Concierge denetimi — concierge.js'in eşdeğer catch-all'ı).
+        return r.otherType || r.resName || '';
     }
     function reservationRow(r, i) {
         const detail = resDetailText(r);

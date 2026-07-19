@@ -477,7 +477,18 @@ exports.onGuestOrderCreate = onDocumentCreated(
         await lb.commit();
         conciergeResNames = resBridge.docs.map((d) => d.data.resName).filter(Boolean);
       }
-    } catch (e) { console.error('order→log/res bridge failed', e); }
+    } catch (e) {
+      console.error('order→log/res bridge failed', e);
+      // Köprü başarısız olursa kalemler asla logId/resId almaz — personel bu
+      // talebi HİÇBİR yerde göremez, misafirin sonraki düzenleme/iptal
+      // çağrıları (resId/logId yok) sessizce "başarılı" döner ama hiçbir
+      // gerçek kayda dokunmaz (bkz. QR Concierge denetimi). Otomatik yeniden
+      // deneme yok (kapsam dışı) ama en azından Firestore'da görünür bir
+      // bayrak bırakılır ki operasyon/destek ekibi sorguyla tespit edebilsin.
+      try {
+        await snap.ref.update({ bridgeError: true, bridgeErrorAt: admin.firestore.FieldValue.serverTimestamp() });
+      } catch (e2) { console.error('bridge error flag write also failed', e2); }
+    }
 
     // Bildirimler İDEMPOTENT yazılır: kimlik sipariş+alıcı+bildirim-türünden
     // türetilir (auto-id DEĞİL). Cloud Functions tetikleyicileri "en az bir
@@ -1752,19 +1763,21 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
         throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
       }
 
-      let logRef = null;
+      let logRef = null, logExists = false;
       if (cur.logId) {
         logRef = db.collection('guestLogs').doc(cur.logId);
         const logSnap = await tx.get(logRef);
-        if (!canCancelItem(cur, logSnap.exists ? logSnap.data() : null)) {
+        logExists = logSnap.exists;
+        if (!canCancelItem(cur, logExists ? logSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
         }
       }
-      let resRef = null;
+      let resRef = null, resExists = false;
       if (cur.resId) {
         resRef = db.collection('reservations').doc(cur.resId);
         const resSnap = await tx.get(resRef);
-        if (!canCancelItem(cur, resSnap.exists ? resSnap.data() : null)) {
+        resExists = resSnap.exists;
+        if (!canCancelItem(cur, resExists ? resSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
         }
       }
@@ -1777,7 +1790,12 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
       // toplamdan hariç tutulur (cancelGuestOrderItem ile AYNI formül).
       const total = computeOrderTotal(items);
       tx.update(orderRef, { items, total, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      if (logRef) {
+      // tx.update() var OLMAYAN bir dokümanda çağrılırsa Firestore transaction
+      // NOT_FOUND ile TÜMÜNÜ geri alır (yukarıdaki guestOrders yazımı dahil) —
+      // bağlı log/rezervasyon kaydı silinmiş olabilir (bkz. çift-yönlü senkron
+      // denetimi: canCancelItem zaten bu durumu tolere edecek şekilde
+      // yazılmıştı ama buradaki yazım .exists kontrolünü unutmuştu).
+      if (logRef && logExists) {
         tx.update(logRef, {
           complaint: orderBridge.itemComplaintText(updated),
           updates: admin.firestore.FieldValue.arrayUnion({
@@ -1790,7 +1808,7 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
       // Concierge panelindeki notes alanına da yansıtılmazsa misafir
       // "başarıyla düzenledim" görür ama personel eski notu görmeye devam
       // ederdi (bkz. çift-yönlü senkron denetimi).
-      if (resRef) tx.update(resRef, { notes: orderBridge.reservationNotesText(updated) });
+      if (resRef && resExists) tx.update(resRef, { notes: orderBridge.reservationNotesText(updated) });
     });
   } catch (e) {
     if (e instanceof HttpsError) throw e;
@@ -1835,13 +1853,15 @@ exports.cancelGuestOrderItem = onCall({ region: REGION }, async (request) => {
         if (logSnap.exists) deleteLog = true;
       }
       let resRef = null;
+      let resExists = false;
       if (cur.resId) {
         resRef = db.collection('reservations').doc(cur.resId);
         const resSnap = await tx.get(resRef);
-        if (!canCancelItem(cur, resSnap.exists ? resSnap.data() : null)) {
+        resExists = resSnap.exists;
+        if (!canCancelItem(cur, resExists ? resSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
         }
-        if (resSnap.exists) {
+        if (resExists) {
           notify = { tenantId: order.tenantId, room: order.room, guestName: order.guestName, resName: (resSnap.data() || {}).resName, orderId, itemId: cur.id || itemId };
         }
       }
@@ -1853,7 +1873,10 @@ exports.cancelGuestOrderItem = onCall({ region: REGION }, async (request) => {
       const total = computeOrderTotal(items);
       tx.update(orderRef, { items, status: newStatus, total, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       if (logRef && deleteLog) tx.delete(logRef);
-      if (resRef) tx.update(resRef, { status: 'Cancelled', cancelledBy: 'guest', cancelledAt: admin.firestore.FieldValue.serverTimestamp() });
+      // resExists guard'ı YOKTU — silinmiş bir rezervasyona tx.update() TÜM
+      // transaction'ı (yukarıdaki guestOrders yazımı dahil) NOT_FOUND ile geri
+      // alıyordu; guestLogs dalı (deleteLog) zaten aynı korumayı yapıyordu.
+      if (resRef && resExists) tx.update(resRef, { status: 'Cancelled', cancelledBy: 'guest', cancelledAt: admin.firestore.FieldValue.serverTimestamp() });
     });
   } catch (e) {
     if (e instanceof HttpsError) throw e;
@@ -1908,8 +1931,11 @@ exports.cancelGuestOrder = onCall({ region: REGION }, async (request) => {
         if (it.logId) {
           if (snap.exists) tx.delete(snap.ref);
         } else if (it.resId) {
-          tx.update(snap.ref, { status: 'Cancelled', cancelledBy: 'guest', cancelledAt: admin.firestore.FieldValue.serverTimestamp() });
+          // snap.exists guard'ı YOKTU — silinmiş bir rezervasyona tx.update()
+          // TÜM transaction'ı NOT_FOUND ile geri alıyordu (bkz. logId dalındaki
+          // AYNI koruma deseni hemen yukarıda).
           if (snap.exists) {
+            tx.update(snap.ref, { status: 'Cancelled', cancelledBy: 'guest', cancelledAt: admin.firestore.FieldValue.serverTimestamp() });
             notifications.push({ tenantId: order.tenantId, room: order.room, guestName: order.guestName, resName: (linkedData || {}).resName, orderId, itemId: it.id || String(i) });
           }
         }
