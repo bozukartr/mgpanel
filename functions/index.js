@@ -613,7 +613,14 @@ exports.onReservationUpdate = onDocumentUpdated(
     if (!before || !after) return;
     if (after.source !== 'guest-order' || !after.orderId || !after.itemId) return;
     if (before.status === after.status) return;
-    const MAP = { Confirmed: 'confirmed', Cancelled: 'cancelled', Done: 'completed' };
+    // GÜVENLİK/OPERASYONEL DÜZELTME: 'Pending' MAP'te YOKTU — personel
+    // yanlışlıkla Onayladığı bir rezervasyonu Pending'e geri alırsa, misafir
+    // ekranı eskiden 'confirmed'de donup kalıyordu (MAP[after.status]
+    // undefined → aşağıdaki `if (!next) return;` ile sessizce no-op) —
+    // misafir hâlâ onaylı sanıp gelebilirdi (bkz. çift-yönlü senkron
+    // denetimi). 'Done' kasıtlı olarak ölü kalır — concierge.js hiçbir
+    // yerde bu durumu set etmiyor.
+    const MAP = { Pending: 'pending', Confirmed: 'confirmed', Cancelled: 'cancelled', Done: 'completed' };
     const next = MAP[after.status];
     if (!next) return;
     const oRef = db.collection('guestOrders').doc(after.orderId);
@@ -626,7 +633,13 @@ exports.onReservationUpdate = onDocumentUpdated(
         const items = (Array.isArray(o.items) ? o.items : []).map((it) => {
           if (!it || it.id !== after.itemId) return it;
           if (it.status === 'completed' || it.status === 'cancelled') return it; // final durumdan geri dönülmez
-          return Object.assign({}, it, { status: next });
+          const patched = Object.assign({}, it, { status: next });
+          // Personel iptal nedeni girdiyse (bkz. concierge.js zorunlu-neden
+          // promptu) bunu KALEM-seviyesinde taşı — mevcut sipariş-seviyesi
+          // o.cancelReason, guest-orders.js'in AYRI/ilgisiz toplu-iptal
+          // akışından gelir, burada KARIŞTIRILMAZ.
+          if (next === 'cancelled' && after.cancelReason) patched.cancelReason = String(after.cancelReason).slice(0, 300);
+          return patched;
         });
         const done = (s) => s === 'completed' || s === 'cancelled';
         const settled = (s) => done(s) || s === 'confirmed' || s === 'in_progress';
@@ -1656,6 +1669,64 @@ function findOrderItemIndex(items, itemId) {
   return items.findIndex((it, i) => String((it && it.id) || ('i' + i)) === itemId);
 }
 
+// ── Misafir↔personel çift-yönlü senkron — paylaşılan yardımcılar ───────
+// Personel→misafir yönü zaten onReservationUpdate ile vardı; bu yardımcılar
+// EKSİK olan misafir→personel yönünü (kalem iptal/düzenle + tüm sipariş
+// iptali) kapatan üç çağrı noktasında (updateGuestOrderItem,
+// cancelGuestOrderItem, cancelGuestOrder) tekrarı önler.
+//
+// Bir kalem YA guestLogs (cur.logId) YA DA reservations (cur.resId) aynası
+// taşır, asla ikisini birden (order-bridge.js her kalemi ikisinden yalnızca
+// birine yönlendirir) — guestLogs'ta 'Cancelled' durumu yok (yalnızca
+// Following/InProgress/Solved, hâlâ dokunulmamışsa doğrudan SİLİNİR);
+// reservations'ta normal bir terminal 'Cancelled' durumu VAR (Concierge
+// panelinde her yerde kullanılıyor, silmek denetim izini kaybettirir —
+// yalnızca status çevrilir).
+function canCancelItem(cur, linkedData) {
+  if (cur.logId) return !linkedData || linkedData.status === 'Following';
+  if (cur.resId) return !linkedData || linkedData.status === 'Pending';
+  return true;
+}
+function computeOrderTotal(items) {
+  return items.reduce((s, it) =>
+    s + ((it.status || 'pending') === 'cancelled' ? 0 : (Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
+}
+// panel.js'in syncOrderItem'ıyla AYNI rollup mantığı: tüm kalemler iptal
+// edildiyse sipariş de iptal olur; tümü bitti/iptal ise tamamlandı sayılır;
+// aksi halde mevcut sipariş durumu korunur (yalnızca yükselir, asla geri
+// inmez — bkz. onReservationUpdate'teki AYNI bilinçli sınırlama).
+function rollupOrderStatus(items, currentStatus) {
+  const allCancelled = items.every((it) => (it.status || 'pending') === 'cancelled');
+  const allDone = items.length > 0 && items.every((it) =>
+    (it.status || 'pending') === 'completed' || (it.status || 'pending') === 'cancelled');
+  return allCancelled ? 'cancelled' : (allDone ? 'completed' : currentStatus);
+}
+// Misafir bir Concierge/Transfer kalemini iptal ettiğinde personele
+// bildirim — onGuestOrderCreate'in "yeni Concierge talebi" bildirimiyle
+// AYNI departman-fallback deseni (Concierge yoksa Ön Büro/Front/Resepsiyon)
+// ve AYNI deterministik-ID idempotency kuralı ('qr_cancel_...', merge:true).
+async function notifyConciergeCancel(tenantId, room, guestName, resName, orderId, itemId) {
+  try {
+    const staffAll = await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+    const deptOf = (d) => String((d.data() || {}).department || '').toLocaleLowerCase('tr-TR');
+    let recips = staffAll.docs.filter((d) => /concierge|konsiyerj/.test(deptOf(d)));
+    if (!recips.length) recips = staffAll.docs.filter((d) => /ön ?büro|onburo|front|resepsiyon/.test(deptOf(d)));
+    if (!recips.length) return;
+    const title = '✖️ Misafir talebi iptal etti' + (room ? ' · Oda ' + room : '');
+    const body = (resName || 'Concierge talebi') + (guestName ? ' — ' + guestName : '');
+    const nb = db.batch();
+    recips.forEach((d) => {
+      nb.set(db.collection('notifications').doc('qr_cancel_' + orderId + '_' + itemId + '_' + d.id), {
+        tenantId, toUid: d.id, toUsername: (d.data() || {}).username || '',
+        fromUid: 'system', fromUsername: 'QR-Misafir',
+        title, body, recordId: orderId, type: 'guestOrder', read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+    await nb.commit();
+  } catch (e) { console.error('notifyConciergeCancel failed', e); }
+}
+
 exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
   const d = request.data || {};
@@ -1685,7 +1756,15 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
       if (cur.logId) {
         logRef = db.collection('guestLogs').doc(cur.logId);
         const logSnap = await tx.get(logRef);
-        if (logSnap.exists && (logSnap.data() || {}).status !== 'Following') {
+        if (!canCancelItem(cur, logSnap.exists ? logSnap.data() : null)) {
+          throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
+        }
+      }
+      let resRef = null;
+      if (cur.resId) {
+        resRef = db.collection('reservations').doc(cur.resId);
+        const resSnap = await tx.get(resRef);
+        if (!canCancelItem(cur, resSnap.exists ? resSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
         }
       }
@@ -1696,8 +1775,7 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
       // değiştiğinde yeniden hesaplanmazsa misafirin takip ekranındaki
       // "Toplam" eski (yanlış) değerde donup kalırdı. İptal edilmiş kalemler
       // toplamdan hariç tutulur (cancelGuestOrderItem ile AYNI formül).
-      const total = items.reduce((s, it) =>
-        s + ((it.status || 'pending') === 'cancelled' ? 0 : (Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
+      const total = computeOrderTotal(items);
       tx.update(orderRef, { items, total, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       if (logRef) {
         tx.update(logRef, {
@@ -1708,6 +1786,11 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
           })
         });
       }
+      // Concierge/Transfer kalemleri: misafirin düzenlediği not/adet
+      // Concierge panelindeki notes alanına da yansıtılmazsa misafir
+      // "başarıyla düzenledim" görür ama personel eski notu görmeye devam
+      // ederdi (bkz. çift-yönlü senkron denetimi).
+      if (resRef) tx.update(resRef, { notes: orderBridge.reservationNotesText(updated) });
     });
   } catch (e) {
     if (e instanceof HttpsError) throw e;
@@ -1725,6 +1808,7 @@ exports.cancelGuestOrderItem = onCall({ region: REGION }, async (request) => {
   if (!orderId || !itemId) throw new HttpsError('invalid-argument', 'orderId/itemId gerekli.');
 
   const orderRef = db.collection('guestOrders').doc(orderId);
+  let notify = null; // yalnızca bir reservations kaydı gerçekten iptal edildiyse doldurulur
   try {
     await db.runTransaction(async (tx) => {
       const orderSnap = await tx.get(orderRef);
@@ -1745,34 +1829,102 @@ exports.cancelGuestOrderItem = onCall({ region: REGION }, async (request) => {
       if (cur.logId) {
         logRef = db.collection('guestLogs').doc(cur.logId);
         const logSnap = await tx.get(logRef);
-        if (logSnap.exists) {
-          if ((logSnap.data() || {}).status !== 'Following') {
-            throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
-          }
-          deleteLog = true; // guestLogs'ta 'Cancelled' durumu yok — hâlâ dokunulmamışsa doğrudan sil
+        if (!canCancelItem(cur, logSnap.exists ? logSnap.data() : null)) {
+          throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
+        }
+        if (logSnap.exists) deleteLog = true;
+      }
+      let resRef = null;
+      if (cur.resId) {
+        resRef = db.collection('reservations').doc(cur.resId);
+        const resSnap = await tx.get(resRef);
+        if (!canCancelItem(cur, resSnap.exists ? resSnap.data() : null)) {
+          throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
+        }
+        if (resSnap.exists) {
+          notify = { tenantId: order.tenantId, room: order.room, guestName: order.guestName, resName: (resSnap.data() || {}).resName, orderId, itemId: cur.id || itemId };
         }
       }
 
       items[idx] = Object.assign({}, cur, { status: 'cancelled' });
-      // panel.js'in syncOrderItem'ıyla AYNI rollup mantığı: tüm kalemler
-      // iptal edildiyse sipariş de iptal olur; tümü bitti/iptal ise
-      // tamamlandı sayılır; aksi halde mevcut sipariş durumu korunur.
-      const allCancelled = items.every((it) => (it.status || 'pending') === 'cancelled');
-      const allDone = items.length > 0 && items.every((it) =>
-        (it.status || 'pending') === 'completed' || (it.status || 'pending') === 'cancelled');
-      const newStatus = allCancelled ? 'cancelled' : (allDone ? 'completed' : order.status);
+      const newStatus = rollupOrderStatus(items, order.status);
       // updateGuestOrderItem ile AYNI formül — iptal edilen kalem artık
       // toplamdan düşer, misafir takip ekranında güncel tutarı görür.
-      const total = items.reduce((s, it) =>
-        s + ((it.status || 'pending') === 'cancelled' ? 0 : (Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
+      const total = computeOrderTotal(items);
       tx.update(orderRef, { items, status: newStatus, total, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       if (logRef && deleteLog) tx.delete(logRef);
+      if (resRef) tx.update(resRef, { status: 'Cancelled', cancelledBy: 'guest', cancelledAt: admin.firestore.FieldValue.serverTimestamp() });
     });
   } catch (e) {
     if (e instanceof HttpsError) throw e;
     console.error('cancelGuestOrderItem failed', e);
     throw new HttpsError('internal', 'İptal başarısız.');
   }
+  if (notify) await notifyConciergeCancel(notify.tenantId, notify.room, notify.guestName, notify.resName, notify.orderId, notify.itemId);
+  return { ok: true };
+});
+
+// ── Tüm siparişi iptal et (misafir) ─────────────────────────────────────
+// Eskiden guest-order.js'in cancelOrder() fonksiyonu doğrudan bir client
+// `.update({status:'cancelled'})` yazıyordu — hiçbir bağlı guestLogs/
+// reservations dokümanına dokunmuyordu (bkz. çift-yönlü senkron denetimi).
+// Bu callable, cancelGuestOrderItem'in AYNI mantığını TÜM hâlâ 'pending'
+// kalemlere tek bir transaction'da uygular; personel tarafından zaten ele
+// alınmış/alınmakta olan kalemler dokunulmadan bırakılır (hata fırlatılmaz
+// — "make it so" davranışı: sipariş zaten (kısmen) iptal edilebilir olduğu
+// kadar iptal edilir).
+exports.cancelGuestOrder = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const d = request.data || {};
+  const orderId = String(d.orderId || '').trim().slice(0, 200);
+  if (!orderId) throw new HttpsError('invalid-argument', 'orderId gerekli.');
+
+  const orderRef = db.collection('guestOrders').doc(orderId);
+  const notifications = [];
+  try {
+    await db.runTransaction(async (tx) => {
+      const orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw new HttpsError('not-found', 'Sipariş bulunamadı.');
+      const order = orderSnap.data() || {};
+      if (order.sessionUid !== request.auth.uid) throw new HttpsError('permission-denied', 'Bu sipariş size ait değil.');
+      if (order.status === 'cancelled') return; // zaten iptal — idempotent no-op
+
+      const items = Array.isArray(order.items) ? order.items.slice() : [];
+      // Firestore transaction kuralı: TÜM okumalar TÜM yazımlardan önce —
+      // önce ilgili tüm guestLogs/reservations dokümanlarını oku.
+      const pendingIdx = items
+        .map((it, i) => ({ it, i }))
+        .filter(({ it }) => (it.status || 'pending') === 'pending' && (it.logId || it.resId));
+      const linkedSnaps = await Promise.all(pendingIdx.map(({ it }) => {
+        const ref = it.logId ? db.collection('guestLogs').doc(it.logId) : db.collection('reservations').doc(it.resId);
+        return tx.get(ref);
+      }));
+
+      pendingIdx.forEach(({ it, i }, k) => {
+        const snap = linkedSnaps[k];
+        const linkedData = snap.exists ? snap.data() : null;
+        if (!canCancelItem(it, linkedData)) return; // personel zaten üstlenmiş — dokunma
+        items[i] = Object.assign({}, it, { status: 'cancelled' });
+        if (it.logId) {
+          if (snap.exists) tx.delete(snap.ref);
+        } else if (it.resId) {
+          tx.update(snap.ref, { status: 'Cancelled', cancelledBy: 'guest', cancelledAt: admin.firestore.FieldValue.serverTimestamp() });
+          if (snap.exists) {
+            notifications.push({ tenantId: order.tenantId, room: order.room, guestName: order.guestName, resName: (linkedData || {}).resName, orderId, itemId: it.id || String(i) });
+          }
+        }
+      });
+
+      const newStatus = rollupOrderStatus(items, order.status);
+      const total = computeOrderTotal(items);
+      tx.update(orderRef, { items, status: newStatus, total, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    console.error('cancelGuestOrder failed', e);
+    throw new HttpsError('internal', 'İptal başarısız.');
+  }
+  await Promise.all(notifications.map((n) => notifyConciergeCancel(n.tenantId, n.room, n.guestName, n.resName, n.orderId, n.itemId)));
   return { ok: true };
 });
 

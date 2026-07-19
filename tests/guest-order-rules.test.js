@@ -15,7 +15,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, setDoc, getDoc, collection, addDoc } = require('firebase/firestore');
+const { doc, setDoc, getDoc, updateDoc, collection, addDoc } = require('firebase/firestore');
 const { rulesEnv, anonCtx } = require('./helpers');
 
 const PID = 'guest-order-rules-test';
@@ -147,4 +147,48 @@ test('20 kalemin TAMAMI doğrulanır — 20. kalem geçersizse (qty>10) REDDEDİ
   const items = Array.from({ length: 19 }, (_, i) => ({ id: 'i' + i, name: 'Su', qty: 1 }));
   items.push({ id: 'i19', name: 'Kötü', qty: 999 });
   await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({ room: '101', items })));
+});
+
+// ── Transfer'e özel yapılandırılmış alanlar (Nereden/Nereye/Tarih/Saat) ──
+test('Transfer alanları (transferFrom/To/Date/Time) sınır içindeyse OLUŞTURULABİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertSucceeds(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{
+      id: 'i1', name: 'VIP Transfer', qty: 1, option: 'Sprinter',
+      transferFrom: 'Otel Lobisi', transferTo: 'Havalimanı', transferDate: '2026-08-01', transferTime: '14:30'
+    }]
+  })));
+});
+
+test('transferFrom 80 karakterden uzunsa REDDEDİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'VIP Transfer', qty: 1, transferFrom: 'x'.repeat(81) }]
+  })));
+});
+
+test('transferDate 10 karakterden uzunsa REDDEDİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'VIP Transfer', qty: 1, transferDate: '2026-08-01-fazla' }]
+  })));
+});
+
+test('transferTime 5 karakterden uzunsa REDDEDİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'VIP Transfer', qty: 1, transferTime: '14:30:00' }]
+  })));
+});
+
+// ── Misafir artık siparişini DOĞRUDAN iptal edemez (yalnızca Cloud
+//    Function üzerinden — bkz. cancelGuestOrder/cancelGuestOrderItem) ──
+test('misafir kendi siparişini DOĞRUDAN .update({status:"cancelled"}) ile iptal EDEMEZ (yalnızca Cloud Function üzerinden)', async () => {
+  const id = 'direct-cancel-test-order';
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'guestOrders', id), baseOrder({ room: '101' }));
+  });
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(updateDoc(doc(db, 'guestOrders', id), { status: 'cancelled' }));
 });

@@ -871,7 +871,7 @@
     function itemAction(item, av, line) {
         if (!av.available) return `<span class="go-unavail">Saat dışı</span>`;
         if (line && line.qty > 0) return stepHtml(item.id, line.qty);
-        if (hasOptions(item) || hasModifiers(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">Seç</button>`;
+        if (hasOptions(item) || hasModifiers(item) || isTransferItem(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">Seç</button>`;
         return `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
     }
     function itemHtml(item) {
@@ -935,6 +935,8 @@
         const withOpts = hasOptions(item);
         const withMods = hasModifiers(item);
         const maxq = lineMax(item);
+        const isTransfer = isTransferItem(item);
+        const tmb = isTransfer ? transferMinBound() : null;
         const tags = [];
         if (item.eta && item.eta !== '—') tags.push(`<span class="go-tag">${svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', 13)}${esc(item.eta)}</span>`);
         if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">🕒 ${esc(av.window)}</span>`);
@@ -960,7 +962,17 @@
                 <div class="go-step go-step-lg"><button id="goShDec">−</button><b id="goShQty">${sheetQty}</b><button id="goShInc">+</button></div>
             </div>
             <div class="go-fld"><label>Not (opsiyonel)</label><input type="text" id="goShNote" maxlength="160" placeholder="Örn. 2 büyük havlu" value="${esc(line ? line.note || '' : '')}"></div>
+            ${isTransfer ? `
+            <div class="go-fld"><label>Nereden</label><input type="text" id="goShFrom" maxlength="80" placeholder="Örn. Otel Lobisi" value="${esc(line ? line.transferFrom || '' : '')}"></div>
+            <div class="go-fld"><label>Nereye</label><input type="text" id="goShTo" maxlength="80" placeholder="Örn. Havalimanı" value="${esc(line ? line.transferTo || '' : '')}"></div>
+            <div class="go-fld-2">
+                <div class="go-fld"><label>Tarih</label><input type="date" id="goShDate" min="${tmb.dateIso}" value="${esc(line && line.transferDate || tmb.dateIso)}"></div>
+                <div class="go-fld"><label>Saat</label><input type="time" id="goShTime" min="${tmb.timeHHMM}" value="${esc(line && line.transferTime || tmb.timeHHMM)}"></div>
+            </div>
+            ${!withOpts ? `<div class="go-fld"><label>Araç</label><input type="text" id="goShVehicle" maxlength="80" placeholder="Örn. Vito" value="${esc(line ? line.option || '' : '')}"></div>` : ''}
+            ` : `
             <div class="go-fld"><label>Tercih saati (opsiyonel)</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
+            `}
             <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;" ${addDisabled ? 'disabled' : ''}>
                 <span id="goShAddLbl">${addDisabled ? 'Bir seçenek seçin' : (line ? 'Sepeti Güncelle' : 'Sepete Ekle')}</span>
                 ${(!addDisabled && pricesOn() && sheetUnitPrice()) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(sheetUnitPrice() * sheetQty))}</span>` : ''}
@@ -997,6 +1009,13 @@
         };
         const dec = $('goShDec'); if (dec) dec.onclick = () => { if (sheetQty > 1) { sheetQty--; upd(); } };
         const inc = $('goShInc'); if (inc) inc.onclick = () => { if (sheetQty >= maxq) { toast(capMsg(item), true); return; } sheetQty++; upd(); };
+        // Yalnızca UX cilası — asıl "en yakın yarım saat" doğrulaması
+        // confirmItemSheet()'te yapılır. Bugünden farklı bir tarih
+        // seçildiğinde saat alanı serbest bırakılır.
+        if (isTransfer) {
+            const dateEl = $('goShDate'), timeEl = $('goShTime');
+            if (dateEl && timeEl) dateEl.onchange = () => { timeEl.min = dateEl.value === tmb.dateIso ? tmb.timeHHMM : ''; };
+        }
         if (addB) addB.onclick = () => confirmItemSheet(item);
         const rmB = $('goShRemove'); if (rmB) rmB.onclick = () => {
             cart = cart.filter(l => l.catalogId !== id);
@@ -1009,18 +1028,45 @@
     }
     function confirmItemSheet(item) {
         if (hasOptions(item) && !sheetOption) { toast('Lütfen bir seçenek seçin.', true); return; }
+        const isTransfer = isTransferItem(item);
+        let transferFrom = '', transferTo = '', transferDate = '', transferTime = '';
+        if (isTransfer) {
+            if (!hasOptions(item)) {
+                const veh = ($('goShVehicle') && $('goShVehicle').value || '').trim().slice(0, 80);
+                if (!veh) { toast('Lütfen araç tipini girin.', true); return; }
+                sheetOption = veh;
+            }
+            transferFrom = ($('goShFrom') && $('goShFrom').value || '').trim().slice(0, 80);
+            transferTo = ($('goShTo') && $('goShTo').value || '').trim().slice(0, 80);
+            transferDate = ($('goShDate') && $('goShDate').value || '').slice(0, 10);
+            transferTime = ($('goShTime') && $('goShTime').value || '').slice(0, 5);
+            if (!transferFrom) { toast("Lütfen 'Nereden' bilgisini girin.", true); return; }
+            if (!transferTo) { toast("Lütfen 'Nereye' bilgisini girin.", true); return; }
+            if (!transferDate) { toast('Lütfen transfer tarihini seçin.', true); return; }
+            if (!transferTime) { toast('Lütfen transfer saatini seçin.', true); return; }
+            const picked = new Date(transferDate + 'T' + transferTime + ':00');
+            const b = transferMinBound();
+            if (isNaN(picked.getTime()) || picked.getTime() < b.ms) {
+                toast(`Transfer saati en erken ${b.timeHHMM} (${b.dateIso.split('-').reverse().join('.')}) olabilir.`, true);
+                return;
+            }
+        }
         const note = ($('goShNote') && $('goShNote').value || '').slice(0, 160);
-        const time = ($('goShTime') && $('goShTime').value || '').slice(0, 10);
+        // Transfer kalemlerinde preferredTime kullanılmaz (mutually exclusive
+        // — bkz. transferDate/transferTime).
+        const time = isTransfer ? '' : ($('goShTime') && $('goShTime').value || '').slice(0, 10);
         let line = cart.find(l => l.catalogId === item.id);
         if (!line) {
             if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
             line = { catalogId: item.id, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
-                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '' };
+                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '',
+                transferFrom: '', transferTo: '', transferDate: '', transferTime: '' };
             cart.push(line);
         }
         line.qty = Math.min(lineMax(line), Math.max(1, sheetQty));
         line.note = note; line.preferredTime = time; line.option = sheetOption || '';
         line.modifiers = modifiersOf(item).filter(m => sheetModifiers.indexOf(m.name) !== -1);
+        line.transferFrom = transferFrom; line.transferTo = transferTo; line.transferDate = transferDate; line.transferTime = transferTime;
         // Seçilen seçenek/özelleştirmelerin fiyat farkı BURADA satır fiyatına
         // gömülür (bakılan an itibarıyla) — priceOf(line) her yerde tek bir
         // toplam birim fiyat olarak okunur, sepet/gönderim ayrıca delta
@@ -1056,11 +1102,16 @@
         // seçim yapılmalı (ör. ana ekrandaki "Hızlı İşlemler" kısayolu bu
         // yoldan geçer). Sepette zaten bir satır varsa (seçim yapılmış)
         // normal adet artırma/azaltma burada devam eder.
-        if (!line && delta > 0 && (hasOptions(item) || hasModifiers(item))) { openItemSheet(catalogId); return; }
+        // Transfer kalemleri Nereden/Nereye/Tarih/Saat zorunlu olduğundan
+        // seçenek/modifier'ı olmasa bile HER ZAMAN sheet'ten geçer — aksi
+        // halde "Hızlı İşlemler" kısayolu bu zorunlu alanları hiç sormadan
+        // sepete ekleyebilirdi.
+        if (!line && delta > 0 && (hasOptions(item) || hasModifiers(item) || isTransferItem(item))) { openItemSheet(catalogId); return; }
         if (!line && delta > 0) {
             if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
             line = { catalogId, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
-                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '' };
+                department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '',
+                transferFrom: '', transferTo: '', transferDate: '', transferTime: '' };
             cart.push(line);
         }
         if (!line) return;
@@ -1135,6 +1186,10 @@
             if (l.option) chips.push(`<span class="go-cline-opt">${esc(l.option)}</span>`);
             (l.modifiers || []).forEach(m => chips.push(`<span class="go-cline-mod">${m.type === 'extra' ? '+' : '−'} ${esc(m.name)}</span>`));
             if (l.preferredTime) chips.push(`<span class="go-cline-mod">🕒 ${esc(l.preferredTime)}</span>`);
+            // Transfer'e özel alanlar — preferredTime bu kalemlerde zaten
+            // boş kalır (mutually exclusive), o yüzden çakışma olmaz.
+            if (l.transferFrom || l.transferTo) chips.push(`<span class="go-cline-mod">${esc((l.transferFrom || '?') + ' → ' + (l.transferTo || '?'))}</span>`);
+            if (l.transferDate || l.transferTime) chips.push(`<span class="go-cline-mod">🕒 ${esc([l.transferDate ? String(l.transferDate).split('-').reverse().join('.') : '', l.transferTime].filter(Boolean).join(' '))}</span>`);
             if (l.note) chips.push(`<span class="go-cline-mod go-cline-notechip">📝 ${esc(l.note)}</span>`);
             const chipsHtml = chips.length ? `<div class="go-cline-chips">${chips.join('')}</div>` : '';
             return `
@@ -1192,6 +1247,21 @@
         if (!isVerified()) { openGate(); return; }
         if (!ROOM) { openGate(); return; }
 
+        // Sepette beklerken transfer için seçilen tarih/saat, "en yakın yarım
+        // saat" penceresini geçmiş olabilir — göndermeden hemen önce taze bir
+        // sınıra karşı yeniden doğrula; geçersizse kalemin sheet'ini açıp
+        // durdur (bkz. Transfer alanları — operasyonel denetim).
+        const tb = transferMinBound();
+        for (const l of cart) {
+            if (!l.transferDate || !l.transferTime) continue;
+            const picked = new Date(l.transferDate + 'T' + l.transferTime + ':00');
+            if (isNaN(picked.getTime()) || picked.getTime() < tb.ms) {
+                toast(`"${l.name}" için seçilen transfer saati geçti, lütfen güncelleyin.`, true);
+                openItemSheet(l.catalogId);
+                return;
+            }
+        }
+
         const btn = $('goSubmit'); btn.disabled = true; $('goSubmitLabel').textContent = 'Gönderiliyor…';
         const items = cart.map((l, idx) => ({
             id: 'i' + idx + '_' + Date.now().toString(36),
@@ -1202,6 +1272,8 @@
             option: String(l.option || '').slice(0, 60),
             modifiers: (Array.isArray(l.modifiers) ? l.modifiers : []).slice(0, 10)
                 .map(m => ({ name: String((m && m.name) || '').slice(0, 60), type: (m && m.type) === 'extra' ? 'extra' : 'remove', priceDelta: Number(m && m.priceDelta) || 0 })),
+            transferFrom: String(l.transferFrom || '').slice(0, 80), transferTo: String(l.transferTo || '').slice(0, 80),
+            transferDate: String(l.transferDate || '').slice(0, 10), transferTime: String(l.transferTime || '').slice(0, 5),
             status: 'pending'
         }));
         const total = items.reduce((s, it) => s + (Number(it.price) || 0) * it.qty, 0);
@@ -1345,6 +1417,31 @@
         const s = (String(it && it.department || '') + ' ' + String(it && it.category || '')).toLocaleLowerCase('tr-TR');
         return s.indexOf('concierge') !== -1 || s.indexOf('konsiyerj') !== -1;
     }
+    // Transfer tespiti: functions/order-bridge.js'teki AYNI ada-dayalı
+    // sezgi (katalog şemasına yeni bir alan eklemek yerine mevcut,
+    // kanıtlanmış deseni client-side'da da kullanır) — "Nereden/Nereye/
+    // Tarih/Saat zorunlu" özel formunu yalnızca adı "transfer" içeren
+    // kalemlerde gösterir (operasyonel denetim).
+    function isTransferItem(item) {
+        return /transfer/.test(String((item && item.name) || '').toLocaleLowerCase('tr-TR'));
+    }
+    // En yakın yarım saate yuvarlar — misafir bir transferi geçmişte veya
+    // birkaç dakika sonrasına talep edemesin diye (bu bir zamanlama UX
+    // kılavuzu, güvenlik sınırı değil — yalnızca client-side uygulanır,
+    // bkz. Transfer alanları planı).
+    function nextHalfHourFrom(d) {
+        const ms = 30 * 60 * 1000;
+        return new Date(Math.ceil(d.getTime() / ms) * ms);
+    }
+    function transferMinBound() {
+        const min = nextHalfHourFrom(new Date());
+        const p = n => String(n).padStart(2, '0');
+        return {
+            dateIso: min.getFullYear() + '-' + p(min.getMonth() + 1) + '-' + p(min.getDate()),
+            timeHHMM: p(min.getHours()) + ':' + p(min.getMinutes()),
+            ms: min.getTime()
+        };
+    }
     const orderHasConcierge = o => (o.items || []).some(isConciergeItem);
     const orderHasNormal = o => (o.items || []).some(it => !isConciergeItem(it));
     let ordersTab = 'req'; // 'req' (normal talepler) | 'con' (concierge)
@@ -1436,7 +1533,15 @@
         }).join('')}</div>`;
         const items = (o.items || []).map(it => {
             const ist = STATUS[it.status] || STATUS.pending;
-            const bits = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note];
+            // Transfer kalemleri: Nereden→Nereye + tarih/saat ayrı gösterilir;
+            // preferredTime bu kalemlerde zaten boş kalır (mutually exclusive
+            // — bkz. Transfer alanları), o yüzden yalnızca transfer bilgisi
+            // YOKSA gösterilir.
+            const transferMeta = (it.transferFrom || it.transferTo) ? (it.transferFrom || '?') + ' → ' + (it.transferTo || '?') : '';
+            const transferWhen = (it.transferDate || it.transferTime)
+                ? [it.transferDate ? String(it.transferDate).split('-').reverse().join('.') : '', it.transferTime].filter(Boolean).join(' ') : '';
+            const bits = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', transferMeta, transferWhen,
+                (!transferWhen && it.preferredTime) ? '🕐 ' + it.preferredTime : '', it.note];
             if (Array.isArray(it.modifiers) && it.modifiers.length) bits.push(it.modifiers.map(m => (m.type === 'extra' ? '+' : '−') + ' ' + m.name).join(', '));
             if (showP && Number(it.price) > 0) bits.push(money(Number(it.price) * (it.qty || 1)));
             const meta = bits.filter(Boolean).join(' · ');
@@ -1459,6 +1564,7 @@
             }
             return `<div class="go-titem"><div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>
                 <div class="go-titem-main"><div class="go-titem-name">${esc(it.name)}</div>${meta ? `<div class="go-titem-meta">${esc(meta)}</div>` : ''}
+                ${it.status === 'cancelled' && it.cancelReason ? `<div class="go-titem-cancel-reason">${esc(it.cancelReason)}</div>` : ''}
                 ${canAct ? `<div class="go-titem-acts"><button class="go-titem-act" data-item-edit="${esc(it.id)}">Düzenle</button><button class="go-titem-act danger" data-item-cancel="${esc(it.id)}">İptal Et</button></div>` : ''}</div>
                 <span class="go-statepill go-st-${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>`;
         }).join('');
@@ -1527,7 +1633,14 @@
     function cancelOrder(id) {
         if (!confirm('Talebinizi iptal etmek istediğinize emin misiniz?')) return;
         if (DEMO) { const o = loadDemoOrder(id); if (o) { o.cancelled = true; saveDemoOrder(o); } if (demoTimer) { clearInterval(demoTimer); } loadDemoOrders(); return; }
-        db.collection('guestOrders').doc(id).update({ status: 'cancelled', updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+        if (!fns) { toast('Bağlantı kurulamadı.', true); return; }
+        // Eskiden çıplak bir client .update({status:'cancelled'}) idi — hiçbir
+        // bağlı guestLogs/reservations dokümanına dokunmuyordu (misafir
+        // iptal etti gibi görünüyordu ama personel Concierge panelinde
+        // hiç haberdar olmuyordu). Artık tek transaction'da bağlı tüm
+        // dokümanları senkronize eden Cloud Function'ı çağırıyor.
+        fns.httpsCallable('cancelGuestOrder')({ orderId: id })
+            .then(res => { if (!res || !res.data || !res.data.ok) throw new Error('fail'); toast('Talebiniz iptal edildi.'); })
             .catch(err => { console.error(err); toast('İptal edilemedi.', true); });
     }
 

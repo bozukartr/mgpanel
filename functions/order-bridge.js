@@ -79,6 +79,23 @@ function isFnbItem(it) {
   return /yiyecek|i̇çecek|icecek|içecek|food|beverage|f&b|oda servisi|room service/.test(s);
 }
 
+// reservations dokümanının tek-satırlık `notes` metnini bir sipariş kalemi
+// nesnesinden üretir — buildOrderReservationDocs (ilk oluşturma) VE
+// updateGuestOrderItem callable'ı (misafir daha sonra not/adet düzenlerse,
+// bkz. functions/index.js) AYNI biçimlendirmeyi paylaşsın diye tek yerde
+// toplanır — itemComplaintText'in (guestLogs için) AYNI gerekçesi.
+function reservationNotesText(it) {
+  const qty = Number(it && it.qty) || 1;
+  const name = String((it && it.name) || '').trim();
+  const option = String((it && it.option) || '').trim().slice(0, 60);
+  const isTransfer = /transfer/.test(name.toLocaleLowerCase('tr-TR'));
+  return [
+    'QR misafir talebi', qty > 1 ? qty + ' adet' : '',
+    (option && !isTransfer) ? 'Seçenek: ' + option : '',
+    (it && it.note) ? String(it.note).slice(0, 200) : ''
+  ].filter(Boolean).join(' · ');
+}
+
 // Concierge kalemleri → reservations dokümanları (status: Pending) + resId
 // geri yazımı. concierge.js'in beklediği şemaya birebir uyar; adı "transfer"
 // içeren kalem Transfer tipiyle, diğerleri Other/otherType ile açılır.
@@ -89,6 +106,13 @@ function isFnbItem(it) {
 // görünümü boş araç gösterir — bkz. concierge.js rowBase/dynHtml); Other
 // tipinde otherType/resName/notes'a eklenir ki personel hangi seçeneğin
 // istendiğini adisyon gibi ayrı bir ekrana gitmeden görsün.
+//
+// it.transferFrom/transferTo/transferDate/transferTime (guest-order.js'in
+// Transfer kalemleri için sunduğu yapılandırılmış alanlar — bkz. güvenlik/
+// operasyonel denetim: eskiden misafir yalnızca "bugün" için, Nereden/
+// Nereye olmadan transfer talep edebiliyordu, personelin manuel formundaki
+// from/to/date alanlarıyla uyumsuzdu) personelin manuel Transfer formuyla
+// (concierge.js rs-from/rs-to/rs-date) AYNI alan adlarına yazılır.
 function buildOrderReservationDocs(order, orderId, extra) {
   const items = Array.isArray(order.items) ? order.items : [];
   if (!items.length || !order.tenantId) return { docs: [], items: items };
@@ -103,30 +127,28 @@ function buildOrderReservationDocs(order, orderId, extra) {
     const name = String((it && it.name) || '').trim();
     const option = String((it && it.option) || '').trim().slice(0, 60);
     const isTransfer = /transfer/.test(name.toLocaleLowerCase('tr-TR'));
-    const qty = Number(it && it.qty) || 1;
-    const notes = [
-      'QR misafir talebi', qty > 1 ? qty + ' adet' : '',
-      (option && !isTransfer) ? 'Seçenek: ' + option : '',
-      (it && it.note) ? String(it.note).slice(0, 200) : ''
-    ].filter(Boolean).join(' · ');
     const displayName = option ? name + ' — ' + option : name;
     const data = {
       tenantId: order.tenantId,
       type: isTransfer ? 'Transfer' : 'Other',
       otherType: isTransfer ? '' : displayName,
       resName: displayName,
-      date: todayYmd(),
-      time: String((it && it.preferredTime) || '').slice(0, 10),
+      date: (isTransfer && it && it.transferDate) ? String(it.transferDate).slice(0, 10) : todayYmd(),
+      time: (isTransfer && it && it.transferTime) ? String(it.transferTime).slice(0, 5) : String((it && it.preferredTime) || '').slice(0, 5),
       guestName: guestName,
       room: String(order.room || '').trim(),
       status: 'Pending',
-      notes: notes,
+      notes: reservationNotesText(it),
       staffInitial: 'QR-Misafir',
       source: 'guest-order',
       orderId: orderId,
       itemId: (it && it.id) || ('i' + idx)
     };
     if (isTransfer && option) data.vehicle = option;
+    if (isTransfer) {
+      if (it && it.transferFrom) data.from = String(it.transferFrom).trim().slice(0, 80);
+      if (it && it.transferTo) data.to = String(it.transferTo).trim().slice(0, 80);
+    }
     if (extra && extra.guestId) data.guestId = extra.guestId;
     if (extra && extra.stayId) data.stayId = extra.stayId;
     docs.push({ id: resId, data });
@@ -178,4 +200,4 @@ function buildOrderLogDocs(order, orderId, extra) {
   return { docs, items: outItems };
 }
 
-module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, DEPT_BY_CAT };
+module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT };
