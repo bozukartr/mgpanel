@@ -1230,7 +1230,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="field-group"><label>Provider / Guide</label><input type="text" id="rs-provider"></div>
                     <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
                 </div>`;
-        } else if (type === 'Other') {
+        } else if (type === 'Other' || type === 'Flower' || type === 'Cake') {
             html = `
                 <div class="field-row">
                     <div class="field-group"><label>Service Name</label><input type="text" id="rs-otherType" placeholder="e.g. Spa, Rent a Car, Babysitter"></div>
@@ -1504,7 +1504,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (r.type === 'Restaurant' || r.type === 'Beach') dynHtml = `<p><strong>${esc(r.resName || '—')}</strong> (${esc(r.pax || '?')} Pax)</p>`;
         else if (r.type === 'Transfer') dynHtml = `<p><strong>${esc(r.from || '?')} ➔ ${esc(r.to || '?')}</strong><br><small>${esc(r.vehicle || '')} (${esc(r.pax || '?')} Pax)</small></p>`;
         else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${esc(r.vessel || '')}</strong><br><small>Provider: ${esc(r.provider || '')} (${esc(r.pax || '?')} Pax)</small></p>`;
-        else if (r.type === 'Other') dynHtml = `<p><strong>${esc(r.otherType || 'Other Service')}</strong></p>`;
+        // 'Other' + Flower/Cake (+ herhangi bilinmeyen tür) — önceden yalnızca
+        // 'Other' bir catch-all dalıydı, Flower/Cake tamamen BOŞ kalıyordu
+        // (bkz. QR Concierge paneli denetimi).
+        else dynHtml = `<p><strong>${esc(r.otherType || r.resName || r.type || 'Diğer Hizmet')}</strong></p>`;
         document.getElementById('d-dynamic-info').innerHTML = dynHtml;
     };
 
