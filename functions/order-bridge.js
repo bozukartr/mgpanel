@@ -200,4 +200,4 @@ function buildOrderLogDocs(order, orderId, extra) {
   return { docs, items: outItems };
 }
 
-module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT };
+module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT, safeId };

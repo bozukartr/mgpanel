@@ -1954,6 +1954,56 @@ exports.cancelGuestOrder = onCall({ region: REGION }, async (request) => {
   return { ok: true };
 });
 
+// ── QR talep değerlendirmesi (1-5 yıldız) ──────────────────────────────
+// Misafir, tamamlanmış bir sipariş kalemini değerlendirir — yalnızca
+// guestLogs-bağlı (F&B/Housekeeping/Teknik Servis) kalemler için: Concierge/
+// Transfer (resId) kalemleri bugün hiç 'completed'e ulaşamıyor (bkz.
+// onReservationUpdate'teki 'Done' ölü kodu), bu yüzden cur.resId kontrolü
+// aşağıda salt savunma amaçlı. serviceRatings koleksiyonu tamamen client'a
+// kapalı (firestore.rules) — tek yazım yolu bu callable; idempotency
+// order-bridge.js'nin logId/resId damgalama deseniyle AYNI: deterministik ID
+// + kalemin kendi ratedAt alanına damgalanan "zaten değerlendirildi" bayrağı.
+exports.submitItemRating = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const d = request.data || {};
+  const orderId = String(d.orderId || '').trim().slice(0, 200);
+  const itemId = String(d.itemId || '').trim().slice(0, 200);
+  const stars = Math.round(Number(d.stars));
+  if (!orderId || !itemId) throw new HttpsError('invalid-argument', 'orderId/itemId gerekli.');
+  if (!(stars >= 1 && stars <= 5)) throw new HttpsError('invalid-argument', 'Geçersiz puan.');
+
+  const orderRef = db.collection('guestOrders').doc(orderId);
+  const ratingRef = db.collection('serviceRatings').doc('qr_rating_' + orderBridge.safeId(orderId) + '_' + orderBridge.safeId(itemId));
+  try {
+    await db.runTransaction(async (tx) => {
+      const orderSnap = await tx.get(orderRef);
+      if (!orderSnap.exists) throw new HttpsError('not-found', 'Sipariş bulunamadı.');
+      const order = orderSnap.data() || {};
+      if (order.sessionUid !== request.auth.uid) throw new HttpsError('permission-denied', 'Bu sipariş size ait değil.');
+      const items = Array.isArray(order.items) ? order.items.slice() : [];
+      const idx = findOrderItemIndex(items, itemId);
+      if (idx === -1) throw new HttpsError('not-found', 'Kalem bulunamadı.');
+      const cur = items[idx];
+      if ((cur.status || 'pending') !== 'completed') throw new HttpsError('failed-precondition', 'Bu kalem henüz tamamlanmadı.');
+      if (cur.resId) throw new HttpsError('failed-precondition', 'Bu kalem değerlendirilemez.');
+      if (cur.ratedAt) throw new HttpsError('failed-precondition', 'Bu kalem zaten değerlendirildi.');
+
+      items[idx] = Object.assign({}, cur, { rating: stars, ratedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.update(orderRef, { items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.set(ratingRef, {
+        tenantId: order.tenantId, orderId, itemId, room: order.room || '',
+        department: cur.department || '', category: cur.category || '', name: cur.name || '',
+        stars, createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    console.error('submitItemRating failed', e);
+    throw new HttpsError('internal', 'Değerlendirme kaydedilemedi.');
+  }
+  return { ok: true };
+});
+
 // ── Konaklama bilgilerim (Folio + Rezervasyonlar + tarihler) — güvenli özet ──
 // firestore.rules'da folioCharges/reservations/guestDirectory yalnızca
 // personel tarafından okunabilir; anonim misafirin doğrudan sorgu atıp başka

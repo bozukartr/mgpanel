@@ -24,6 +24,19 @@
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
     function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
     function todayStr() { return ymd(new Date()); }
+    // Haftalık/Aylık/Yıllık gruplama anahtarları — önceden yalnızca güne göre
+    // gruplama vardı (bkz. groupFacet). isoWeekKey: ISO hafta (Pazartesi
+    // başlangıç, yıl sınırındaki hafta 1/53 kenar durumunu doğru çözer).
+    function isoWeekKey(dateStr) {
+        const d = new Date(dateStr + 'T12:00:00');
+        const day = (d.getDay() + 6) % 7; // Pzt=0..Paz=6
+        d.setDate(d.getDate() - day + 3); // bu ISO haftanın Perşembesi
+        const firstThu = new Date(d.getFullYear(), 0, 4);
+        const wk = 1 + Math.round(((d - firstThu) / 86400000 - 3 + ((firstThu.getDay() + 6) % 7)) / 7);
+        return d.getFullYear() + '-W' + pad(wk);
+    }
+    function monthKey(dateStr) { return dateStr.slice(0, 7); }
+    function yearKey(dateStr) { return dateStr.slice(0, 4); }
     function tsToDate(v) {
         if (!v) return null;
         if (v.toDate) { try { return v.toDate(); } catch (e) { return null; } }
@@ -58,6 +71,17 @@
         return d + ' g ' + (h % 24) + ' sa';
     }
     function money(v) { const n = Number(v); return (isNaN(n) ? 0 : n).toLocaleString('tr-TR'); }
+    // Ortalama yıldıza göre .rep-stat tint kodu — css/modules/reports.css'teki
+    // GERÇEK renklerle doğrulandı: 's'=yeşil #16a34a (iyi), 'c'=amber #d97706
+    // (orta/dikkat), 'o'=kırmızı #dc2626 (kötü). 'w' MAVİ #2563eb'dir ve
+    // "Bekliyor" gibi nötr durumlar için kullanılır — uyarı anlamına GELMEZ,
+    // bu yüzden düşük puan vurgusunda kasıtlı olarak kullanılmadı.
+    function ratingTint(avg) {
+        if (!avg) return 'i';
+        if (avg >= 4) return 's';
+        if (avg >= 3) return 'c';
+        return 'o';
+    }
 
     // ── Domain-specific label maps ─────────────────────────────
     const GL_STATUS = { Following: 'Bekliyor', InProgress: 'İşlemde', Solved: 'Tamamlandı' };
@@ -336,6 +360,36 @@
             }
         },
 
+        serviceRatings: {
+            label: 'Hizmet Değerlendirmeleri (★)',
+            collection: 'serviceRatings', order: ['createdAt', 'desc'], tsBound: 'createdAt',
+            dateOf: r => normDate(r.createdAt),
+            facets: [
+                facet({ key: 'department', label: 'Departman', kind: 'chips', valueOf: r => canonicalDept(r.department) || '—' }),
+                facet({ key: 'category', label: 'Kategori', kind: 'chips', valueOf: r => r.category || 'Diğer' }),
+                facet({ key: 'product', label: 'Ürün', kind: 'text', valueOf: r => r.name || '' }),
+                facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
+                facet({ key: 'stars', label: 'Puan', kind: 'chips', fixed: ['1', '2', '3', '4', '5'], valueOf: r => String(r.stars || '') })
+            ],
+            columns: [
+                { label: 'Tarih', get: r => fmtDateTR(normDate(r.createdAt)) },
+                { label: 'Oda', get: r => r.room || '—' },
+                { label: 'Departman', get: r => canonicalDept(r.department) || '—' },
+                { label: 'Kategori', get: r => r.category || 'Diğer' },
+                { label: 'Ürün', get: r => r.name || '—', wide: true },
+                { label: 'Puan', get: r => '★'.repeat(r.stars || 0) + '☆'.repeat(5 - (r.stars || 0)) }
+            ],
+            summary: rows => {
+                const n = rows.length, avg = n ? rows.reduce((s, r) => s + (r.stars || 0), 0) / n : 0;
+                const low = rows.filter(r => (r.stars || 0) <= 3).length;
+                return [['Değerlendirme', n, 'i'], ['Ortalama', avg ? avg.toFixed(2) + ' ★' : '—', ratingTint(avg)], ['Düşük Puan (≤3)', low, low ? 'o' : 's']];
+            },
+            groupAgg: rows => {
+                const n = rows.length, avg = n ? rows.reduce((s, r) => s + (r.stars || 0), 0) / n : 0;
+                return n + ' değerlendirme · Ort. ' + avg.toFixed(2) + ' ★' + (avg > 0 && avg < 3 ? ' ⚠️ Düşük' : '');
+            }
+        },
+
         guestDirectory: {
             label: 'Misafirler (Rehber)',
             collection: 'guestDirectory', order: null,
@@ -447,7 +501,7 @@
             groupAgg: rows => { let q = 0, rev = 0; rows.forEach(r => { q += r.qty || 0; rev += r.lineTotal || 0; }); return rows.length + ' kalem · ' + q + ' adet · ' + money(rev) + ' ciro'; }
         }
     };
-    const DOMAIN_ORDER = ['guestLogs', 'reservations', 'guestOrders', 'orderItems', 'guestDirectory', 'restSales', 'restItems'];
+    const DOMAIN_ORDER = ['guestLogs', 'reservations', 'guestOrders', 'orderItems', 'serviceRatings', 'guestDirectory', 'restSales', 'restItems'];
 
     // ── State ──────────────────────────────────────────────────
     let domainKey = 'guestLogs';
@@ -525,10 +579,13 @@
             return true;
         });
     }
-    // group options = chip facets + Güne göre
+    // group options = chip facets + Güne/Haftaya/Aya/Yıla göre
     function groupFacet() {
         if (groupBy === 'none') return null;
         if (groupBy === '__date__') return { keyOf: r => D.dateOf(r) || '—', label: k => fmtDateTR(k) };
+        if (groupBy === '__week__') return { keyOf: r => isoWeekKey(D.dateOf(r) || todayStr()), label: k => k };
+        if (groupBy === '__month__') return { keyOf: r => monthKey(D.dateOf(r) || todayStr()), label: k => k };
+        if (groupBy === '__year__') return { keyOf: r => yearKey(D.dateOf(r) || todayStr()), label: k => k };
         const f = D.facets.find(x => x.key === groupBy);
         if (!f) return null;
         return { keyOf: r => f.valueOf(r), label: k => k };
@@ -539,7 +596,7 @@
         const map = new Map();
         rows.forEach(r => { const k = gf.keyOf(r); if (!map.has(k)) map.set(k, []); map.get(k).push(r); });
         const arr = [...map.entries()].map(([k, rs]) => ({ key: k, label: gf.label(k), rows: rs }));
-        if (groupBy === '__date__') arr.sort((a, b) => String(b.key).localeCompare(String(a.key)));
+        if (/^__(date|week|month|year)__$/.test(groupBy)) arr.sort((a, b) => String(b.key).localeCompare(String(a.key)));
         else arr.sort((a, b) => b.rows.length - a.rows.length || String(a.label).localeCompare(String(b.label), 'tr'));
         return arr;
     }
@@ -592,7 +649,8 @@
         const gb = $('repGroupBy');
         const opts = ['<option value="none">Gruplama Yok (düz liste)</option>']
             .concat(D.facets.filter(f => f.kind === 'chips').map(f => `<option value="${esc(f.key)}">${esc(f.label)}e göre</option>`))
-            .concat(['<option value="__date__">Güne göre</option>']);
+            .concat(['<option value="__date__">Güne göre</option>', '<option value="__week__">Haftaya göre</option>',
+                     '<option value="__month__">Aya göre</option>', '<option value="__year__">Yıla göre</option>']);
         gb.innerHTML = opts.join('');
         gb.value = groupBy;
     }

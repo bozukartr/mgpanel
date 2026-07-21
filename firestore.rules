@@ -193,6 +193,18 @@ service cloud.firestore {
           || resource.data.get('staffInitial', 'NO_CREATOR') == callerUsername()
           || resource.data.get('staffInitial', 'NO_CREATOR') == 'QR-Misafir');
     }
+    // Misafirin tamamlanmış bir QR talebine verdiği 1-5 yıldız değerlendirme.
+    // Tamamen sunucu-yazımlı — "bu kalem gerçekten bu misafirin oturumuna ait
+    // mi / gerçekten tamamlandı mı / daha önce değerlendirildi mi" kontrolü
+    // guestOrders ana dokümanının taze okunmasını ve AYNI transaction'da
+    // idempotency damgasının (item.ratedAt) yazılmasını gerektiriyor — bu
+    // rules'un deklaratif dilinde ifade edilemez, bu yüzden restAudit ile
+    // AYNI desen (personel okur, hiçbir client yazamaz) izlenir; tek yazım
+    // yolu functions/index.js:submitItemRating callable'ı.
+    match /serviceRatings/{id} {
+      allow read: if readOwnTenant();
+      allow create, update, delete: if false;
+    }
     match /guestLogs/{id} {
       allow read:   if readOwnTenant();
       allow create: if writeOwnTenant();
