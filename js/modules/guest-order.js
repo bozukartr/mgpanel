@@ -129,6 +129,9 @@
     // ── State ──────────────────────────────────────────────────
     let catalog = [], cart = [], sessionUid = null;
     let myOrders = [], ordersUnsub = null, lastStatusMap = {};
+    // Kalem-seviyesi tamamlanma tespiti (değerlendirme modalı tetikleyicisi)
+    // — lastStatusMap sipariş-seviyesindeydi, kalem geçişlerini hiç izlemiyordu.
+    let lastItemStatusMap = {}, ratingQueue = [], ratingOpen = false, ratingStars = 0;
     let activeCat = 'all', activeDept = '', searchTerm = '', currentTab = 'home';
     let trackingId = null, guestName = '';
     let demoTimer = null;
@@ -1328,6 +1331,22 @@
             if (prev && prev !== o.status && STATUS[o.status]) toast(STATUS[o.status].sub);
             lastStatusMap[o.id] = o.status;
         });
+        // Kalem-seviyesi tamamlanma tespiti → değerlendirme kuyruğu. !it.resId
+        // Concierge/Transfer kalemlerini dışlar (bkz. kapsam kararı — bugün
+        // zaten 'completed'e hiç ulaşmıyorlar, bu savunma amaçlı bir kontrol).
+        // !it.ratedAt, sayfa yenilemesi sonrası zaten değerlendirilmiş bir
+        // kalemin tekrar sorulmasını engeller (ratedAt sunucuda kalıcı).
+        myOrders.forEach(o => {
+            (o.items || []).forEach(it => {
+                const key = o.id + '_' + it.id;
+                const prevIt = lastItemStatusMap[key];
+                if (prevIt !== 'completed' && it.status === 'completed' && !it.resId && !it.ratedAt) {
+                    ratingQueue.push({ orderId: o.id, itemId: it.id, name: it.name, department: it.department, category: it.category });
+                }
+                lastItemStatusMap[key] = it.status;
+            });
+        });
+        maybeShowNextRating();
         const active = myOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length;
         const bell = $('goBellDot'); if (bell) bell.hidden = active === 0;
         const nb = $('goNavBadge'); if (nb) { nb.hidden = active === 0; nb.textContent = active; }
@@ -1646,6 +1665,66 @@
             .catch(err => { console.error(err); toast('İptal edilemedi.', true); });
     }
 
+    // ── Hizmet değerlendirme (tamamlanan kalem sonrası, geçilebilir) ───
+    function maybeShowNextRating() {
+        if (ratingOpen || !ratingQueue.length) return;
+        openRatingSheet(ratingQueue.shift());
+    }
+    function openRatingSheet(entry) {
+        ratingOpen = true; ratingStars = 0;
+        const dept = esc(entry.department || entry.category || '');
+        $('goRatingBody').innerHTML = `
+            <div class="go-rating-emoji">🎉</div>
+            <h2 class="go-rating-title">Nasıldı?</h2>
+            <p class="go-rating-sub">${esc(entry.name || 'Talebiniz')}${dept ? ' · ' + dept : ''}</p>
+            <div class="go-rating-stars" id="goRatingStars">${[1, 2, 3, 4, 5].map(n =>
+                `<button class="go-rstar" data-star="${n}" aria-label="${n} yıldız">★</button>`).join('')}</div>
+            <button class="go-cta go-cta-block" id="goRatingSubmit" disabled>Gönder</button>
+            <button class="go-btn-ghost" id="goRatingSkipBtn">Geç</button>`;
+        $('goRatingStars').onclick = e => {
+            const b = e.target.closest('[data-star]'); if (!b) return;
+            ratingStars = Number(b.dataset.star);
+            $('goRatingStars').querySelectorAll('[data-star]').forEach(s => s.classList.toggle('on', Number(s.dataset.star) <= ratingStars));
+            $('goRatingSubmit').disabled = false;
+        };
+        $('goRatingSubmit').onclick = () => submitRating(entry);
+        $('goRatingSkip').onclick = $('goRatingSkipBtn').onclick = closeRatingSheet;
+        $('goRatingBackdrop').classList.add('show');
+        $('goRatingSheet').classList.add('show'); $('goRatingSheet').setAttribute('aria-hidden', 'false');
+        buzz(20);
+    }
+    function closeRatingSheet() {
+        $('goRatingBackdrop').classList.remove('show');
+        $('goRatingSheet').classList.remove('show'); $('goRatingSheet').setAttribute('aria-hidden', 'true');
+        ratingOpen = false;
+        // Kapanış geçişi bitsin, sıradaki (varsa) üst üste binmesin.
+        setTimeout(maybeShowNextRating, 350);
+    }
+    async function submitRating(entry) {
+        if (!ratingStars) return;
+        if (DEMO) {
+            // demoView() kalemleri her çağrıda taze hesaplar (kalıcı bir
+            // "değerlendirildi" bayrağı taşımaz) — sayfa yenilemesi sonrası
+            // modalın tekrar çıkmaması için bayrak doğrudan localStorage'a
+            // yazılan ham sipariş nesnesine damgalanır (bkz. demoView).
+            const o = loadDemoOrder(entry.orderId);
+            if (o) { o.ratedItems = Object.assign({}, o.ratedItems, { [entry.itemId]: true }); saveDemoOrder(o); }
+            toast('Teşekkürler! ⭐ (demo)'); closeRatingSheet(); return;
+        }
+        if (!fns) { closeRatingSheet(); return; }
+        const btn = $('goRatingSubmit'); btn.disabled = true; btn.textContent = 'Gönderiliyor…';
+        try {
+            const res = await fns.httpsCallable('submitItemRating')({ orderId: entry.orderId, itemId: entry.itemId, stars: ratingStars });
+            if (!res || !res.data || !res.data.ok) throw new Error('fail');
+            toast('Teşekkürler! Değerlendirmeniz alındı. ⭐');
+            closeRatingSheet();
+        } catch (e) {
+            console.error('submitRating failed', e);
+            toast('Gönderilemedi.', true);
+            btn.disabled = false; btn.textContent = 'Gönder';
+        }
+    }
+
     // ── Zaman ──────────────────────────────────────────────────
     function clock(ms) { if (!ms) return ''; try { return new Date(ms).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
     function relTime(ms) {
@@ -1762,7 +1841,14 @@
         const e = Date.now() - (o.createdAtMs || Date.now());
         let status = 'pending'; const log = [];
         DEMO_STEPS.forEach(([t, s]) => { if (e >= t) { status = s; log.push({ status: s, at: (o.createdAtMs || 0) + t, by: t === 0 ? 'guest' : 'Personel' }); } });
-        return Object.assign({}, o, { status, items: (o.items || []).map(it => Object.assign({}, it, { status })), statusLog: log });
+        // ratedItems: submitRating()'in DEMO dalının localStorage'a yazdığı
+        // kalıcı bayrak — demoView() kalemleri her çağrıda taze hesapladığı
+        // için bu olmadan sayfa yenilemesi sonrası değerlendirme modalı
+        // tekrar çıkardı (gerçek/sunucu akışında ratedAt zaten kalıcı).
+        return Object.assign({}, o, {
+            status, statusLog: log,
+            items: (o.items || []).map(it => Object.assign({}, it, { status, ratedAt: (o.ratedItems && o.ratedItems[it.id]) ? true : it.ratedAt }))
+        });
     }
     function loadDemoOrders() {
         myOrders = demoIds().map(loadDemoOrder).filter(Boolean).map(demoView).sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
