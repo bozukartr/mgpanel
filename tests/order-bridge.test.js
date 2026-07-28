@@ -19,9 +19,13 @@ test('kalem başına kayıt + kategori→departman eşlemesi', () => {
   const r = bridge.buildOrderLogDocs(ORDER, 'ord1', { guestName: 'Ali Veli' });
   assert.strictEqual(r.docs.length, 3);
   const byItem = {}; r.docs.forEach(d => byItem[d.data.itemId] = d);
-  assert.strictEqual(byItem.itm1.data.department, 'Housekeeping');   // Temizlik →
-  assert.strictEqual(byItem.itm2.data.department, 'Engineering');    // Teknik Servis →
-  assert.strictEqual(byItem.itm3.data.department, 'Room Service');   // açık department kazanır
+  // Kategori→departman eşlemesi artık KANONİK TÜRKÇE adlar üretir. Eskiden
+  // İngilizce ('Housekeeping'/'Engineering') yazılıyordu; personel hesapları
+  // ise Türkçe varsayılan departman listesini kullandığından o kayıtları
+  // ilgili departman personeli üstlenemiyordu (bkz. tests/dept-routing.test.js).
+  assert.strictEqual(byItem.itm1.data.department, 'Kat Hizmetleri');  // Temizlik →
+  assert.strictEqual(byItem.itm2.data.department, 'Teknik');          // Teknik Servis →
+  assert.strictEqual(byItem.itm3.data.department, 'Room Service');    // açık department kazanır
   assert.strictEqual(byItem.itm1.data.status, 'Following');
   assert.strictEqual(byItem.itm1.data.type, 'request');
   assert.strictEqual(byItem.itm1.data.source, 'guest-order');
