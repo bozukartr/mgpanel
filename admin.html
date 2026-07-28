@@ -625,14 +625,12 @@
                     </div>
                     <div class="form-group">
                         <label>Departman (personel)</label>
-                        <select id="catDept">
-                            <option value="">Otomatik (kategoriye göre)</option>
-                            <option value="Housekeeping">Housekeeping</option>
-                            <option value="Front Desk">Front Desk</option>
-                            <option value="Engineering">Engineering</option>
-                            <option value="Food & Beverage">Food & Beverage</option>
-                            <option value="Concierge">Concierge</option>
-                        </select>
+                        <!-- Seçenekler request-catalog.js:fillDeptSelect ile otelin
+                             KENDİ departman listesinden (Ayarlar → Departmanlar)
+                             doldurulur. Eskiden burada sabit bir İngilizce liste
+                             vardı; personel departmanlarıyla hiç kesişmediği için
+                             o taleplerin sahiplenilmesi engelleniyordu. -->
+                        <select id="catDept"></select>
                     </div>
 
                     <div class="modal-section-h">Fiyat &amp; Kısıtlar</div>

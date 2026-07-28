@@ -20,27 +20,27 @@
 
     // Default starter menu — 4 operational categories.
     const DEFAULTS = [
-        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping', availFrom: '09:00', availTo: '16:00' },
-        { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', maxQty: 1, department: 'Housekeeping', availFrom: '09:00', availTo: '16:00' },
-        { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', department: 'Housekeeping' },
-        { category: 'Temizlik', name: 'Banyo Malzemeleri', icon: '🧴', eta: '15 dk', department: 'Housekeeping' },
-        { category: 'Konfor', name: 'Ekstra Yastık', icon: '🛏️', eta: '15 dk', department: 'Housekeeping' },
-        { category: 'Konfor', name: 'Ekstra Battaniye', icon: '🧣', eta: '15 dk', department: 'Housekeeping' },
-        { category: 'Konfor', name: 'Terlik', icon: '🥿', eta: '15 dk', department: 'Housekeeping' },
-        { category: 'Konfor', name: 'Bornoz', icon: '🥼', eta: '15 dk', department: 'Housekeeping' },
-        { category: 'Konfor', name: 'Askı', icon: '🧥', eta: '15 dk', department: 'Housekeeping' },
+        { category: 'Temizlik', name: 'Oda Temizliği', icon: '🧹', eta: '30-45 dk', maxQty: 1, department: 'Kat Hizmetleri', availFrom: '09:00', availTo: '16:00' },
+        { category: 'Temizlik', name: 'Havlu Değişimi', icon: '🧺', eta: '15-30 dk', department: 'Kat Hizmetleri' },
+        { category: 'Temizlik', name: 'Çarşaf Değişimi', icon: '🛏️', eta: '30-45 dk', maxQty: 1, department: 'Kat Hizmetleri', availFrom: '09:00', availTo: '16:00' },
+        { category: 'Temizlik', name: 'Çöp Toplama', icon: '🗑️', eta: '15 dk', department: 'Kat Hizmetleri' },
+        { category: 'Temizlik', name: 'Banyo Malzemeleri', icon: '🧴', eta: '15 dk', department: 'Kat Hizmetleri' },
+        { category: 'Konfor', name: 'Ekstra Yastık', icon: '🛏️', eta: '15 dk', department: 'Kat Hizmetleri' },
+        { category: 'Konfor', name: 'Ekstra Battaniye', icon: '🧣', eta: '15 dk', department: 'Kat Hizmetleri' },
+        { category: 'Konfor', name: 'Terlik', icon: '🥿', eta: '15 dk', department: 'Kat Hizmetleri' },
+        { category: 'Konfor', name: 'Bornoz', icon: '🥼', eta: '15 dk', department: 'Kat Hizmetleri' },
+        { category: 'Konfor', name: 'Askı', icon: '🧥', eta: '15 dk', department: 'Kat Hizmetleri' },
         { category: 'Yiyecek & İçecek', name: 'Su', icon: '💧', eta: '15 dk', department: 'Yiyecek & İçecek' },
         { category: 'Yiyecek & İçecek', name: 'Çay / Kahve', icon: '☕', eta: '15-20 dk', price: 60, department: 'Yiyecek & İçecek' },
         { category: 'Yiyecek & İçecek', name: 'Meyve Tabağı', icon: '🍎', eta: '20-30 dk', price: 120, department: 'Yiyecek & İçecek' },
         { category: 'Yiyecek & İçecek', name: 'Atıştırmalık', icon: '🍫', eta: '20 dk', price: 80, department: 'Yiyecek & İçecek' },
         { category: 'Yiyecek & İçecek', name: 'Meşrubat', icon: '🥤', eta: '20 dk', price: 70, department: 'Yiyecek & İçecek' },
         { category: 'Yiyecek & İçecek', name: 'Buz', icon: '🧊', eta: '15 dk', department: 'Yiyecek & İçecek' },
-        { category: 'Teknik', name: 'Klima Sorunu', icon: '❄️', eta: '30 dk', department: 'Engineering' },
-        { category: 'Teknik', name: 'TV Sorunu', icon: '📺', eta: '30 dk', department: 'Engineering' },
-        { category: 'Teknik', name: 'Sıcak Su Yok', icon: '🚿', eta: '30 dk', department: 'Engineering' },
-        { category: 'Teknik', name: 'Wi-Fi Sorunu', icon: '📶', eta: '20 dk', department: 'Engineering' },
-        { category: 'Teknik', name: 'Ampul Değişimi', icon: '💡', eta: '20 dk', department: 'Engineering' }
+        { category: 'Teknik', name: 'Klima Sorunu', icon: '❄️', eta: '30 dk', department: 'Teknik' },
+        { category: 'Teknik', name: 'TV Sorunu', icon: '📺', eta: '30 dk', department: 'Teknik' },
+        { category: 'Teknik', name: 'Sıcak Su Yok', icon: '🚿', eta: '30 dk', department: 'Teknik' },
+        { category: 'Teknik', name: 'Wi-Fi Sorunu', icon: '📶', eta: '20 dk', department: 'Teknik' },
+        { category: 'Teknik', name: 'Ampul Değişimi', icon: '💡', eta: '20 dk', department: 'Teknik' }
     ];
 
     function esc(s) {
@@ -225,10 +225,35 @@
         </div>`;
     }
 
+    // ── Departman listesi ──────────────────────────────────────
+    // KRİTİK DÜZELTME: departman seçenekleri admin.html'de SABİT bir İngilizce
+    // liste olarak gömülüydü (Housekeeping/Front Desk/Engineering/...), oysa
+    // personel hesapları otelin KENDİ (Türkçe, özelleştirilebilir) departman
+    // listesinden atanıyor (Ayarlar → Departmanlar → IssueConfig). İki liste
+    // kesişmediği için bu katalogdan açılan talepleri ilgili departman
+    // personeli üstlenemiyordu; otelin eklediği özel departmanlar (Spa,
+    // Güvenlik vb.) ise hiç seçilemiyordu. Artık tek kaynak IssueConfig.
+    function deptOptions() {
+        const list = (window.IssueConfig ? IssueConfig.departments() : []) || [];
+        return list.map(d => (d && d.name ? String(d.name) : '')).filter(Boolean);
+    }
+    // Seçiciyi doldurur; `current` listede olmayan eski bir değerse (ör. eski
+    // "Housekeeping" kaydı) kaybolmasın diye ayrıca eklenir.
+    function fillDeptSelect(sel, current) {
+        if (!sel) return;
+        const names = deptOptions();
+        const cur = String(current || '');
+        if (cur && !names.some(n => n.toLocaleLowerCase('tr-TR') === cur.toLocaleLowerCase('tr-TR'))) names.push(cur);
+        sel.innerHTML = ['<option value="">Otomatik (kategoriye göre)</option>']
+            .concat(names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`)).join('');
+        sel.value = cur;
+    }
+
     // ── Modal ──────────────────────────────────────────────────
     function openModal(id) {
         editingId = id || null;
         const it = id ? items.find(x => x.id === id) : null;
+        fillDeptSelect($('catDept'), it ? (it.department || '') : '');
         $('catalogModalTitle').textContent = it ? 'Talep Düzenle' : 'Talep Ekle';
         $('catName').value = it ? (it.name || '') : '';
         $('catCategory').value = it ? (it.category || '') : '';
@@ -595,7 +620,7 @@
     function itemKey(name, category) {
         return (String(name || '').trim() + '␟' + String(category || '').trim()).toLocaleLowerCase('tr-TR');
     }
-    function commitBulkOps(ops, skipped) {
+    function commitBulkOps(ops, skipped, badDept) {
         const CHUNK = 450;
         const chunks = [];
         for (let i = 0; i < ops.length; i += CHUNK) chunks.push(ops.slice(i, i + CHUNK));
@@ -611,7 +636,8 @@
             const added = ops.filter(o => o.isNew).length, updated = ops.length - added;
             let msg = added + ' eklendi, ' + updated + ' güncellendi.';
             if (skipped && skipped.length) msg += ' (' + skipped.length + ' satır atlandı — satır ' + skipped.join(', ') + ': Ad/Kategori eksik)';
-            toast(msg);
+            if (badDept && badDept.length) msg += ' (' + badDept.length + ' satır atlandı — satır ' + badDept.join(', ') + ': Departman tanınmıyor, Ayarlar → Departmanlar listesinden bir ad kullanın)';
+            toast(msg, !!(badDept && badDept.length));
         }, err => { console.error(err); toast('Yükleme sırasında hata: ' + err.message, true); });
     }
     function importCsvFile(file) {
@@ -630,13 +656,25 @@
             }
             const existingMap = new Map(items.map(it => [itemKey(it.name, it.category), it]));
             let maxOrder = items.reduce((m, i) => Math.max(m, i.sortOrder || 0), 0);
-            const ops = [], skipped = [];
+            // Departman doğrulaması: eskiden bu sütun serbest metindi ve HİÇ
+            // kontrol edilmiyordu — "Housekeeeping" gibi bir yazım hatası
+            // sessizce kaydediliyor, o talebi hiçbir personel üstlenemiyordu.
+            // Otelin gerçek departman listesiyle (büyük/küçük harf duyarsız)
+            // karşılaştırılır; tanınmayan değer satırı REDDEDER (boş bırakmak
+            // hâlâ serbest — kategoriye göre otomatik çözümlenir).
+            const knownDepts = new Map(deptOptions().map(n => [n.toLocaleLowerCase('tr-TR'), n]));
+            const ops = [], skipped = [], badDept = [];
             for (let r = 1; r < rows.length; r++) {
                 const cols = rows[r];
                 const get = (h) => { const i = idx[h]; return (i == null || i === -1 || i >= cols.length) ? '' : String(cols[i] || '').trim(); };
                 const name = get('Talep Adı').slice(0, 120);
                 const category = get('Kategori').slice(0, 60);
                 if (!name || !category) { skipped.push(r + 1); continue; }
+                const deptRaw = get('Departman').slice(0, 60);
+                if (deptRaw && !knownDepts.has(deptRaw.toLocaleLowerCase('tr-TR'))) { badDept.push(r + 1); continue; }
+                // Listedeki kanonik yazımı kullan (kullanıcının büyük/küçük
+                // harf farkı kaydı bozmasın).
+                const department = deptRaw ? knownDepts.get(deptRaw.toLocaleLowerCase('tr-TR')) : '';
                 const activeRaw = get('Aktif').toLocaleLowerCase('tr-TR');
                 const active = activeRaw === '' || ['evet', 'true', '1', 'x', 'aktif'].indexOf(activeRaw) !== -1;
                 const options = get('Seçenekler').split(',').map(s => s.trim()).filter(Boolean).slice(0, 10).map(s => s.slice(0, 40));
@@ -644,7 +682,7 @@
                     tenantId: TENANT_ID, name, category,
                     subcategory: get('Alt Kategori').slice(0, 60),
                     icon: (get('İkon') || '🛎️').slice(0, 8),
-                    department: get('Departman').slice(0, 60),
+                    department,
                     description: get('Açıklama').slice(0, 160),
                     price: Math.max(0, parseInt(get('Fiyat'), 10) || 0),
                     eta: get('Süre').slice(0, 20),
@@ -664,22 +702,28 @@
                 }
             }
             if (!ops.length) {
-                toast(skipped.length ? ('Hiçbir satır işlenemedi (satır ' + skipped.join(', ') + ': Ad/Kategori eksik).') : 'İşlenecek satır bulunamadı.', true);
+                let why = 'İşlenecek satır bulunamadı.';
+                if (badDept.length) why = 'Hiçbir satır işlenemedi (satır ' + badDept.join(', ') + ': Departman tanınmıyor — Ayarlar → Departmanlar listesindeki adlardan birini kullanın veya boş bırakın).';
+                else if (skipped.length) why = 'Hiçbir satır işlenemedi (satır ' + skipped.join(', ') + ': Ad/Kategori eksik).';
+                toast(why, true);
                 return;
             }
-            commitBulkOps(ops, skipped);
+            commitBulkOps(ops, skipped, badDept);
         };
         reader.onerror = () => toast('Dosya okunamadı.', true);
         reader.readAsText(file, 'utf-8');
     }
 
     // ── Hızlı Toplu Ekle — birden fazla basit satırı tek seferde ekler ──
-    const BULK_DEPTS = ['', 'Housekeeping', 'Front Desk', 'Engineering', 'Food & Beverage', 'Concierge'];
+    // Sabit İngilizce liste yerine otelin KENDİ departmanları (bkz.
+    // deptOptions/fillDeptSelect gerekçesi) — her satır oluşturulurken
+    // yeniden okunur ki Departmanlar sekmesindeki değişiklik anında yansısın.
+    const bulkDepts = () => [''].concat(deptOptions());
     let bulkRowSeq = 0;
     function bulkRowHtml() {
         const id = bulkRowSeq++;
         return `<div class="cat-bulk-row" data-row="${id}">
-            <select class="cbr-dept">${BULK_DEPTS.map(d => `<option value="${esc(d)}">${d ? esc(d) : 'Otomatik'}</option>`).join('')}</select>
+            <select class="cbr-dept">${bulkDepts().map(d => `<option value="${esc(d)}">${d ? esc(d) : 'Otomatik'}</option>`).join('')}</select>
             <input type="text" class="cbr-name" maxlength="120" placeholder="Talep adı">
             <input type="text" class="cbr-cat" maxlength="60" list="catCatOptions" placeholder="Kategori">
             <input type="number" class="cbr-price" min="0" step="1" placeholder="Fiyat">

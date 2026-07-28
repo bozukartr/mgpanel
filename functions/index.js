@@ -408,7 +408,19 @@ exports.onNotificationCreate = onDocumentCreated(
 // tenant. That makes the bell light up in the persistent App Shell (no matter
 // which tab is open) AND triggers onNotificationCreate for a web-push.
 exports.onGuestOrderCreate = onDocumentCreated(
-  { document: 'guestOrders/{id}', region: REGION },
+  // retry: platform bu olayı hata/zaman aşımı durumunda YENİDEN dener.
+  // Eskiden kapalıydı: köprü veya bildirim adımı zaman aşımına uğrarsa
+  // misafirin talebi personele HİÇ ulaşmıyor ve bir daha denenmiyordu.
+  // Güvenli, çünkü tüm yazımlar idempotent: guestLogs/reservations
+  // deterministik kimlikli (qr_{orderId}_{itemId}, order-bridge.js) ve
+  // bildirimler de deterministik kimlikli merge yazımı (notifId) —
+  // yeniden çalışma mükerrer kayıt/bildirim üretmez. (Mükerrer PUSH da
+  // oluşmaz: aynı kimliğe yeniden yazım 'update' sayılır, push'u tetikleyen
+  // onNotificationCreate ise yalnızca 'create'te çalışır.)
+  // Not: köprü/bildirim adımları kendi try/catch'leri içinde olduğundan
+  // yeniden deneme yalnızca GERÇEK bir çökme/zaman aşımında devreye girer —
+  // yani kalıcı bir hatada 24 saatlik deneme döngüsüne girme riski düşük.
+  { document: 'guestOrders/{id}', region: REGION, retry: true },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
@@ -452,11 +464,22 @@ exports.onGuestOrderCreate = onDocumentCreated(
     // SLA/eskalasyon/performans QR talepleri için de çalışır. Deterministik
     // kimlik (qr_{orderId}_{itemId}) → yeniden tetiklenme mükerrer üretmez.
     let conciergeResNames = [];
+    // Köprünün ÇÖZÜMLEDİĞİ departmanları taşıyan kalemler — departman-hedefli
+    // bildirim bunları kullanır (kalemin ham `department` alanı boş olabilir,
+    // asıl departman kategoriye göre burada belirlenir).
+    let bridgedItems = [];
     try {
       const extra = { guestId: stamped.guestId, stayId: stamped.stayId, guestName: stamped.guestName };
       const oWithName = Object.assign({}, o, { guestName: stamped.guestName });
       // 1) Normal kalemler → guestLogs (concierge kalemleri burada atlanır)
       const bridge = orderBridge.buildOrderLogDocs(oWithName, event.params.id, extra);
+      // Çözümlenmiş departmanı orijinal kalemin adı/adediyle eşleştir
+      // (guestLogs.complaint tam biçimlendirilmiş metindir, bildirim gövdesi
+      // için kalemin sade adı kullanılır).
+      bridgedItems = bridge.docs.map((d) => {
+        const src = items.filter((x) => String((x && x.id) || '') === String(d.data.itemId))[0] || {};
+        return { department: d.data.department, name: src.name || '', qty: Number(src.qty) || 1 };
+      });
       // 2) Concierge kalemleri → reservations (Pending) — Concierge panelinde
       //    "Bekleyen" olarak doğar; normal talep akışına girmez.
       const resBridge = orderBridge.buildOrderReservationDocs(
@@ -500,12 +523,43 @@ exports.onGuestOrderCreate = onDocumentCreated(
     const targetedUids = new Set();
     const notifId = (kind, uid) => 'qr_' + event.params.id + '_' + kind + '_' + uid;
 
+    // Otelin bildirim ayarları — TÜM bildirim bloklarından ÖNCE okunur.
+    // DENETİM DÜZELTMESİ: eskiden bu okuma Concierge/F&B bloklarından SONRA
+    // yapılıyordu, dolayısıyla "misafir talebi bildirimini kapat" ayarı o iki
+    // departmanı hiç susturmuyordu (ayar yarım çalışıyordu).
+    let cfg = {};
+    try { const c = await db.collection('notifyConfig').doc(tenantId).get(); if (c.exists) cfg = c.data() || {}; } catch (e) { /* varsayılanlarla devam */ }
+    if (cfg.guestOrderEnabled === false) return; // operatör bildirimi kapatmış
+
+    let staffAll = null;
+    const loadStaff = async () => {
+      staffAll = staffAll || await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+      return staffAll;
+    };
+    // Bir alıcı kümesine bildirim yazar. targetedUids YALNIZCA commit
+    // BAŞARILI olduktan sonra doldurulur — eskiden döngü içinde ekleniyordu,
+    // dolayısıyla commit hata alırsa o personel hem departman bildirimini
+    // alamıyor hem de genel yayından dışlanıyordu (hiç haber alamıyordu).
+    const notifyGroup = async (recips, kind, title, body) => {
+      if (!recips.length) return;
+      const nb = db.batch();
+      recips.forEach((d) => {
+        nb.set(db.collection('notifications').doc(notifId(kind, d.id)), {
+          tenantId, toUid: d.id, toUsername: (d.data() || {}).username || '',
+          fromUid: 'system', fromUsername: 'QR-Misafir',
+          title, body, recordId: event.params.id, type: 'guestOrder', read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+      await nb.commit();
+      recips.forEach((d) => targetedUids.add(d.id));
+    };
+
     // Concierge talebi bildirimi: Concierge departmanı personeline; o
     // departman yoksa Ön Büro/Front Office/Resepsiyon personeline düşer.
-    let staffAll = null;
     if (conciergeResNames.length) {
       try {
-        staffAll = staffAll || await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+        await loadStaff();
         const deptOf = (d) => String((d.data() || {}).department || '').toLocaleLowerCase('tr-TR');
         let recips = staffAll.docs.filter((d) => /concierge|konsiyerj/.test(deptOf(d)));
         if (!recips.length) recips = staffAll.docs.filter((d) => /ön ?büro|onburo|front|resepsiyon/.test(deptOf(d)));
@@ -513,19 +567,37 @@ exports.onGuestOrderCreate = onDocumentCreated(
         const body = conciergeResNames.slice(0, 3).join(', ')
           + (conciergeResNames.length > 3 ? ' +' + (conciergeResNames.length - 3) : '')
           + (stamped.guestName ? ' — ' + stamped.guestName : '');
-        const nb = db.batch();
-        recips.forEach((d) => {
-          targetedUids.add(d.id);
-          nb.set(db.collection('notifications').doc(notifId('concierge', d.id)), {
-            tenantId, toUid: d.id, toUsername: (d.data() || {}).username || '',
-            fromUid: 'system', fromUsername: 'QR-Misafir',
-            title, body, recordId: event.params.id, type: 'guestOrder', read: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-        });
-        if (recips.length) await nb.commit();
+        await notifyGroup(recips, 'concierge', title, body);
       } catch (e) { console.error('concierge notify failed', e); }
     }
+
+    // Departman-hedefli bildirim — TÜM departmanlar için.
+    // DENETİM DÜZELTMESİ: eskiden yalnızca Concierge ve F&B'nin hedefli bloğu
+    // vardı; Kat Hizmetleri/Teknik/Ön Büro talepleri SADECE genel yayına
+    // kalıyordu. Sonuç: (a) ilgili departman "sana özel" bir uyarı almıyordu,
+    // (b) otel "yalnızca yönetici" ayarını seçtiyse o personel HİÇ bildirim
+    // almıyordu. Artık köprünün ÇÖZÜMLEDİĞİ departman (guestLogs.department,
+    // eşanlamlı tablosuyla eşleştirilir) üzerinden hedefleme yapılır.
+    try {
+      const byDept = new Map(); // departman → kalem adları
+      bridgedItems.forEach((it) => {
+        const dep = String((it && it.department) || '').trim();
+        if (!dep) return; // departmansız kalem yalnızca genel yayına kalır
+        if (!byDept.has(dep)) byDept.set(dep, []);
+        byDept.get(dep).push(String((it && it.name) || '').trim() + (it && it.qty > 1 ? ' x' + it.qty : ''));
+      });
+      if (byDept.size) {
+        await loadStaff();
+        for (const [dep, names] of byDept) {
+          const recips = staffAll.docs.filter((d) =>
+            !targetedUids.has(d.id) && orderBridge.sameDept((d.data() || {}).department, dep));
+          const title = '📋 ' + dep + ' talebi' + (room ? ' · Oda ' + room : '');
+          let body = names.slice(0, 3).join(', ') + (names.length > 3 ? ' +' + (names.length - 3) : '');
+          if (stamped.guestName) body += ' — ' + stamped.guestName;
+          await notifyGroup(recips, 'dept_' + orderBridge.safeId(dep), title, body);
+        }
+      }
+    } catch (e) { console.error('department notify failed', e); }
 
     // F&B (oda servisi) siparişi bildirimi: yalnızca F&B/mutfak personeline —
     // aksi halde her oda servisi siparişinde temizlik/teknik/resepsiyon dahil
@@ -533,33 +605,22 @@ exports.onGuestOrderCreate = onDocumentCreated(
     const fnbItems = items.filter((it) => orderBridge.isFnbItem(it));
     if (fnbItems.length) {
       try {
-        staffAll = staffAll || await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
+        await loadStaff();
         const deptOf = (d) => String((d.data() || {}).department || '').toLocaleLowerCase('tr-TR');
-        const recips = staffAll.docs.filter((d) => /yiyecek|i̇çecek|icecek|içecek|food|beverage|f&b/.test(deptOf(d)));
+        // Yukarıdaki departman-hedefli blokta zaten bildirim alanlar hariç
+        // tutulur (aynı sipariş için iki kez rahatsız edilmesinler).
+        const recips = staffAll.docs.filter((d) =>
+          !targetedUids.has(d.id) && /yiyecek|i̇çecek|icecek|içecek|food|beverage|f&b|mutfak/.test(deptOf(d)));
         const names = fnbItems.map((it) => String((it && it.name) || '').trim() + (it && it.qty > 1 ? ' x' + it.qty : '')).filter(Boolean);
         const title = '🍽️ Yeni oda servisi siparişi' + (room ? ' · Oda ' + room : '');
         let body = names.slice(0, 3).join(', ') + (names.length > 3 ? ' +' + (names.length - 3) : '');
         if (stamped.guestName) body += ' — ' + stamped.guestName;
-        const nb = db.batch();
-        recips.forEach((d) => {
-          targetedUids.add(d.id);
-          nb.set(db.collection('notifications').doc(notifId('fnb', d.id)), {
-            tenantId, toUid: d.id, toUsername: (d.data() || {}).username || '',
-            fromUid: 'system', fromUsername: 'QR-Misafir',
-            title, body, recordId: event.params.id, type: 'guestOrder', read: false,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-        });
-        if (recips.length) await nb.commit();
+        await notifyGroup(recips, 'fnb', title, body);
       } catch (e) { console.error('fnb notify failed', e); }
     }
 
-    // Otelin bildirim ayarları (admin "Bildirimler" sekmesi). Yoksa makul
-    // varsayılanlar: bildirim açık, içerik gösterilir, tüm personele gider.
-    let cfg = {};
-    try { const c = await db.collection('notifyConfig').doc(tenantId).get(); if (c.exists) cfg = c.data() || {}; } catch (e) { /* varsayılanlarla devam */ }
-    if (cfg.guestOrderEnabled === false) return; // operatör bildirimi kapatmış
-
+    // Genel yayın: yukarıdaki hedefli bloklardan hiçbirini almamış personel.
+    // (cfg zaten yukarıda, tüm bloklardan ÖNCE okundu.)
     const staffSnap = staffAll || await db.collection('systemUsers').where('tenantId', '==', tenantId).get();
     if (staffSnap.empty) return;
     let recipients = staffSnap.docs;
@@ -569,8 +630,9 @@ exports.onGuestOrderCreate = onDocumentCreated(
         return r === 'admin' || r === 'manager';
       });
     }
-    // Departman-özel bildirim (Concierge/F&B) zaten alan personel genel
-    // yayından hariç tutulur — aynı sipariş için iki kez bildirim gitmez.
+    // Departman-hedefli bildirim (Concierge/F&B/ilgili departman) zaten alan
+    // personel genel yayından hariç tutulur — aynı sipariş için iki kez
+    // bildirim gitmez.
     recipients = recipients.filter((d) => !targetedUids.has(d.id));
     if (!recipients.length) return;
 
@@ -617,7 +679,11 @@ exports.onGuestOrderCreate = onDocumentCreated(
 // talebinin "Onaylandı" olduğunu canlı görür (rezervasyon koleksiyonunu
 // anonim misafir okuyamaz — durumun misafire görünen tek kaynağı sipariş).
 exports.onReservationUpdate = onDocumentUpdated(
-  { document: 'reservations/{id}', region: REGION },
+  // retry: durum senkronu misafirin ekranına yansıyan tek kaynak — bir
+  // hata/zaman aşımında yeniden denenmezse misafir personelin onayını/
+  // iptalini hiç görmezdi. Yazım idempotent (aynı durumu tekrar yazmak
+  // sonucu değiştirmez).
+  { document: 'reservations/{id}', region: REGION, retry: true },
   async (event) => {
     const before = event.data && event.data.before ? event.data.before.data() : null;
     const after = event.data && event.data.after ? event.data.after.data() : null;

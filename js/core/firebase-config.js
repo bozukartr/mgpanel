@@ -146,21 +146,61 @@ function isFnbDept(name) {
     const k = deptKey(name);
     return k === deptKey(FNB_DEPT) || k === deptKey(FNB_DEPT_LEGACY);
 }
-// İki departman adı aynı departmanı mı ifade ediyor? (biri güncel, biri eski
-// F&B ismi olabilir) — panel.js katı departman kuralı ve rapor gruplaması
-// ham string eşitliği yerine bunu kullanır.
+// ── Departman eşanlamlıları (TR ↔ EN) ────────────────────────────────────
+// KRİTİK: Hazır Talepler kataloğu departmanları İNGİLİZCE sabit bir listeden
+// seçiyordu (Housekeeping/Front Desk/Engineering — bkz. admin.html), personel
+// hesapları ise TÜRKÇE varsayılan listeden (Kat Hizmetleri/Ön Büro/Teknik —
+// bkz. js/core/issue-config.js DEFAULT_DEPTS). İki sözlük hiç kesişmediği
+// için, QR'dan gelen bir "Housekeeping" talebini "Kat Hizmetleri"
+// departmanındaki personel ÜSTLENEMİYORDU (panel.js takeBlockReason katı
+// departman kuralı) — talep görünüyor ama yalnızca yönetici alabiliyordu.
+// Yalnızca F&B çifti çalışıyordu, o da aşağıdaki isFnbDept istisnası sayesinde.
+// Bu tablo AYNI gerekçeyle diğer çiftleri de köprüler; hem eski veriyi hem
+// yeni kayıtları tek noktadan düzeltir (veri göçü gerektirmez).
+// deptKey → o gruptaki İLK (kanonik) ad. Bir ad hiçbir grupta değilse
+// (otelin kendi eklediği özel departman) tabloya hiç girmez, eşitlik
+// karşılaştırmasıyla normal şekilde çalışmaya devam eder.
+//
+// Tablo ve önbellek bilinçli olarak FONKSİYON İÇİNDE: bu dosyanın en
+// üstündeki firebase.initializeApp() bir nedenle patlarsa (SDK yüklenememesi,
+// ağ hatası) modül gövdesinin geri kalanı HİÇ çalışmaz — tablo modül
+// seviyesinde const/let olsaydı sameDept o andan itibaren "Cannot access
+// before initialization" fırlatır, departman eşleştirmesi (dolayısıyla iş
+// üstlenme ve bildirim hedeflemesi) sessizce bozulurdu. Fonksiyon
+// bildirimleri tam olarak hoist edildiğinden bu biçim her koşulda çalışır.
+function deptSynonymMap() {
+    if (deptSynonymMap._m) return deptSynonymMap._m;
+    const DEPT_SYNONYMS = [
+        ['Kat Hizmetleri', 'Housekeeping'],
+        ['Ön Büro', 'Front Desk', 'Front Office', 'Resepsiyon'],
+        ['Teknik', 'Engineering', 'Teknik Servis'],
+        ['Yiyecek & İçecek', 'Food & Beverage', 'Mutfak']
+    ];
+    const m = {};
+    DEPT_SYNONYMS.forEach(function (group) {
+        group.forEach(function (n) { m[deptKey(n)] = group[0]; });
+    });
+    deptSynonymMap._m = m;
+    return m;
+}
+// İki departman adı aynı departmanı mı ifade ediyor? (biri Türkçe, biri
+// İngilizce/eski isim olabilir) — panel.js katı departman kuralı, bildirim
+// hedeflemesi ve rapor gruplaması ham string eşitliği yerine bunu kullanır.
 function sameDept(a, b) {
     const ka = deptKey(a), kb = deptKey(b);
     if (!ka || !kb) return ka === kb;
     if (ka === kb) return true;
-    return isFnbDept(a) && isFnbDept(b);
+    const map = deptSynonymMap();
+    const ca = map[ka], cb = map[kb];
+    return !!(ca && cb && ca === cb);
 }
-// Görüntüleme/gruplama için TEK bir isme indirger: eski F&B adı ("Food &
-// Beverage") kanonik "Yiyecek & İçecek"e döner, başka her şey olduğu gibi
-// kalır. reports.js facet'leri bunu kullanır — aksi halde aynı departman
-// filtre listesinde iki ayrı chip olarak görünmeye devam ederdi.
+// Görüntüleme/gruplama için TEK bir isme indirger: eş adlar (ör. "Food &
+// Beverage" / "Mutfak" → "Yiyecek & İçecek", "Housekeeping" → "Kat
+// Hizmetleri") kanonik Türkçe karşılığına döner, tabloda olmayan her şey
+// olduğu gibi kalır. reports.js facet'leri bunu kullanır — aksi halde aynı
+// departman filtre listesinde iki ayrı chip olarak görünürdü.
 function canonicalDept(name) {
-    return isFnbDept(name) ? FNB_DEPT : (name || '');
+    return deptSynonymMap()[deptKey(name)] || (name || '');
 }
 function fnbPassword(code) { return 'FB' + String(code || ''); }
 // F&B personeli yalnızca 5 haneli koduyla (kullanıcı adı girmeden) giriş yapar.

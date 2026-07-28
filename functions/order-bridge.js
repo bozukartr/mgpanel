@@ -17,12 +17,63 @@
  */
 'use strict';
 
-// guest-orders.js ile AYNI kategori→departman eşlemesi.
+// Kategori → departman eşlemesi (kalemin kendi `department` alanı boşsa
+// kullanılan yedek yol).
+//
+// DENETİM DÜZELTMESİ: değerler eskiden İNGİLİZCE idi ('Housekeeping',
+// 'Engineering', 'Front Desk') — oysa personel hesapları TÜRKÇE varsayılan
+// departman listesini kullanıyor (js/core/issue-config.js DEFAULT_DEPTS:
+// Kat Hizmetleri / Ön Büro / Teknik / Mutfak). İki sözlük kesişmediği için
+// bu yolla açılan talepleri ilgili departman personeli ÜSTLENEMİYORDU.
+// Artık kanonik Türkçe adlar yazılır (firebase-config.js'teki eşanlamlı
+// tablosu eski İngilizce veriyi de köprüler).
+//
+// Anahtar kümesi de genişletildi: 'Teknik' (hazır kataloğun KENDİ kategori
+// adı, bkz. request-catalog.js DEFAULTS), 'Kat Hizmetleri', 'Oda Servisi'
+// ve 'Front Office' eskiden haritada YOKTU — bu kategorilerdeki departmansız
+// kalemler aşağıdaki eski 'Concierge' sabitine düşüyordu (ör. klima arızası
+// → Concierge). Eşleme büyük/küçük harf duyarsız yapılır.
 const DEPT_BY_CAT = {
-  'Temizlik': 'Housekeeping', 'Konfor': 'Housekeeping',
-  'Yiyecek & İçecek': 'Yiyecek & İçecek', 'Yiyecek-İçecek': 'Yiyecek & İçecek',
-  'Teknik Servis': 'Engineering', 'Resepsiyon': 'Front Desk'
+  'temizlik': 'Kat Hizmetleri', 'konfor': 'Kat Hizmetleri', 'kat hizmetleri': 'Kat Hizmetleri',
+  'yiyecek & i̇çecek': 'Yiyecek & İçecek', 'yiyecek-i̇çecek': 'Yiyecek & İçecek',
+  'oda servisi': 'Yiyecek & İçecek', 'mutfak': 'Yiyecek & İçecek',
+  'teknik': 'Teknik', 'teknik servis': 'Teknik',
+  'resepsiyon': 'Ön Büro', 'ön büro': 'Ön Büro', 'front office': 'Ön Büro', 'front desk': 'Ön Büro'
 };
+function deptByCat(category) {
+  return DEPT_BY_CAT[String(category || '').trim().toLocaleLowerCase('tr-TR')] || '';
+}
+
+// ── Departman eşanlamlıları — js/core/firebase-config.js'in AYNISI ───────
+// Firebase yalnızca functions/ dizinini deploy ettiğinden istemci dosyası
+// buradan require EDİLEMEZ; tablo bilinçli olarak çoğaltılmıştır. İkisinin
+// ayrışmaması tests/dept-routing.test.js tarafından zorunlu kılınır (iki
+// dosyadaki tablo birebir karşılaştırılır).
+const DEPT_SYNONYMS = [
+  ['Kat Hizmetleri', 'Housekeeping'],
+  ['Ön Büro', 'Front Desk', 'Front Office', 'Resepsiyon'],
+  ['Teknik', 'Engineering', 'Teknik Servis'],
+  ['Yiyecek & İçecek', 'Food & Beverage', 'Mutfak']
+];
+function deptKey(s) { return String(s || '').trim().toLocaleLowerCase('tr-TR'); }
+const DEPT_SYNONYM_MAP = (function () {
+  const m = {};
+  DEPT_SYNONYMS.forEach(function (group) {
+    group.forEach(function (n) { m[deptKey(n)] = group[0]; });
+  });
+  return m;
+})();
+// İki departman adı aynı departmanı mı ifade ediyor? Bildirim hedeflemesi
+// ham string eşitliği yerine bunu kullanır — aksi halde katalogdaki eski
+// İngilizce ad ile personelin Türkçe departmanı eşleşmez, o departman
+// hiç bildirim almazdı.
+function sameDept(a, b) {
+  const ka = deptKey(a), kb = deptKey(b);
+  if (!ka || !kb) return ka === kb;
+  if (ka === kb) return true;
+  const ca = DEPT_SYNONYM_MAP[ka], cb = DEPT_SYNONYM_MAP[kb];
+  return !!(ca && cb && ca === cb);
+}
 
 function todayYmd(d) {
   const x = d || new Date();
@@ -177,7 +228,13 @@ function buildOrderLogDocs(order, orderId, extra) {
       date: todayYmd(),
       room: String(order.room || '').trim(),
       guestName: guestName,
-      department: String((it && it.department) || DEPT_BY_CAT[(it && it.category)] || 'Concierge').trim(),
+      // Son çare eskiden sabit 'Concierge' idi: bilinmeyen bir kategoriden
+      // (ör. otelin eklediği "Spa"/"Havuz") gelen departmansız bir talep
+      // YANLIŞ departmana damgalanıyor ve — o otelde Concierge personeli
+      // yoksa — hiç üstlenilemiyordu. Boş bırakmak panel.js'in
+      // takeBlockReason kuralında "herkes üstlenebilir" anlamına gelir;
+      // yanlış bir departmana kilitlemekten belirgin şekilde güvenli.
+      department: String((it && it.department) || '').trim() || deptByCat(it && it.category),
       topic: '',
       complaint: itemComplaintText(it),
       solution: '',
@@ -200,4 +257,4 @@ function buildOrderLogDocs(order, orderId, extra) {
   return { docs, items: outItems };
 }
 
-module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT, safeId };
+module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT, safeId, sameDept, deptByCat, DEPT_SYNONYMS };

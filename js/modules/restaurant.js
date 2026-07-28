@@ -292,7 +292,15 @@
                         ? Object.assign({}, it, { status: 'in_progress' }) : it;
                 });
                 const allDone = items.length && items.every(it => it.status === 'completed' || it.status === 'cancelled');
-                tx.update(oRef, { items, status: allDone ? 'completed' : (o.status === 'pending' ? 'in_progress' : o.status), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                // panel.js:syncOrderItem ile AYNI rollup mantığı — daha önce
+                // bu kopya geride kalmıştı: sipariş 'completed' damgalandıktan
+                // sonra bir kalem yeniden açılsa bile durum 'tamamlandı'da
+                // donup kalıyordu (iki kopyanın sessizce ayrışması denetimde
+                // tespit edildi). İki dosya birlikte güncellenmelidir.
+                let status = o.status;
+                if (allDone) status = 'completed';
+                else if (status === 'pending' || status === 'completed') status = 'in_progress';
+                tx.update(oRef, { items, status, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
             });
         } catch (e) { console.error('qr order sync', e); }
     }
