@@ -59,7 +59,7 @@
     const DEMO_CONFIG = {
         hotelName: 'Grand Demo Otel', showPrices: true, currency: '₺',
         heroImage: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1100&q=80',
-        welcome: 'Konaklamanızın keyfini çıkarın — ihtiyacınız olan her şey bir dokunuş uzağınızda.',
+        welcome: t('guest.home.subtitle'),
         phone: '0 (212) 000 00 00', wifiName: 'GrandDemo-Guest', wifiPass: 'demo2024',
         checkoutTime: '12:00', breakfast: '07:00 – 10:30 · Lobi Restoran', address: 'Sahil Cad. No:1, İstanbul'
     };
@@ -117,12 +117,19 @@
         ]
     };
 
+    // Durum etiketleri artık ÇEVİRİ ANAHTARI taşır. `label`/`sub` birer
+    // GETTER: mevcut tüm çağrı yerleri (st.label, st.sub) hiç değişmeden
+    // çalışır, ama metin OKUNDUĞU AN aktif dilden çözülür. Emoji dilden
+    // bağımsızdır, olduğu gibi kalır.
+    function statusEntry(key, emoji) {
+        return { emoji: emoji, get label() { return t(key); }, get sub() { return t(key + 'Sub'); } };
+    }
     const STATUS = {
-        pending:     { label: 'Bekliyor',     emoji: '⏳', sub: 'Talebiniz personelimize iletildi.' },
-        confirmed:   { label: 'Onaylandı',    emoji: '✅', sub: 'Talebiniz onaylandı, hazırlanıyor.' },
-        in_progress: { label: 'İşlemde',      emoji: '🛎️', sub: 'Ekibimiz talebinizi hazırlıyor.' },
-        completed:   { label: 'Tamamlandı',   emoji: '🎉', sub: 'Talebiniz tamamlandı. Teşekkürler!' },
-        cancelled:   { label: 'İptal Edildi', emoji: '✖️', sub: 'Bu talep iptal edildi.' }
+        pending:     statusEntry('guest.status.pending', '⏳'),
+        confirmed:   statusEntry('guest.status.confirmed', '✅'),
+        in_progress: statusEntry('guest.status.inProgress', '🛎️'),
+        completed:   statusEntry('guest.status.completed', '🎉'),
+        cancelled:   statusEntry('guest.status.cancelled', '✖️')
     };
     const FLOW = ['pending', 'confirmed', 'in_progress', 'completed'];
 
@@ -193,10 +200,10 @@
     ];
     const CAT_BLURB = {
         bell: 'İhtiyacınız olan her konuda yanınızdayız.',
-        temiz: 'Temizlik, havlu, buklet ve daha fazlası.',
-        konfor: 'Konaklamanızı keyifli kılan detaylar.',
+        temiz: t('guest.dept.housekeeping'),
+        konfor: t('guest.dept.concierge'),
         food: 'Yiyecek ve içecek siparişleriniz.',
-        teknik: 'Teknik sorunları hızla çözelim.'
+        teknik: t('guest.dept.engineering')
     };
     const catBlurb = cat => CAT_BLURB[catKind(cat)] || '';
 
@@ -316,10 +323,10 @@
 
     function categories() {
         const seen = [];
-        catalog.forEach(i => { const c = (i.category || 'Diğer').trim(); if (!seen.includes(c)) seen.push(c); });
+        catalog.forEach(i => { const c = (i.category || t('common.other')).trim(); if (!seen.includes(c)) seen.push(c); });
         return seen;
     }
-    function catCount(c) { return catalog.filter(i => (i.category || 'Diğer') === c).length; }
+    function catCount(c) { return catalog.filter(i => (i.category || t('common.other')) === c).length; }
 
     // Availability window (HH:MM). Empty = always available.
     function availInfo(item) {
@@ -362,7 +369,7 @@
         });
         auth.signInAnonymously().catch(err => {
             console.error('Anon sign-in failed', err);
-            toast('Bağlantı kurulamadı. ?demo ile test edebilirsiniz.', true);
+            toast(t('guest.gate.noConnectionDemo'), true);
         });
     }
 
@@ -427,13 +434,13 @@
     function timeGreeting() {
         const h = new Date().getHours();
         if (h < 6) return 'İyi geceler,';
-        if (h < 12) return 'Günaydın,';
+        if (h < 12) return t('guest.home.greetMorning');
         if (h < 18) return 'İyi günler,';
-        return 'İyi akşamlar,';
+        return t('guest.home.greetEvening');
     }
     function firstName() {
         const n = (guestName || '').trim();
-        return n ? n.split(/\s+/)[0] : 'Misafirimiz';
+        return n ? n.split(/\s+/)[0] : t('guest.home.guestShort');
     }
     function renderGreeting() {
         const t = $('goGreetTime'); if (t) t.textContent = timeGreeting();
@@ -512,7 +519,7 @@
         const wrap = $('goCats'); if (!wrap) return;
         const groups = homeDeptGroups();
         if (!groups.length) {
-            wrap.innerHTML = `<div class="go-empty" style="grid-column:1/-1"><div class="go-empty-ic">🛎️</div><h3>Hizmet yok</h3><p>Bu otel için talepler henüz hazır değil.</p></div>`;
+            wrap.innerHTML = `<div class="go-empty" style="grid-column:1/-1"><div class="go-empty-ic">🛎️</div><h3>${esc(t('guest.services.noResult'))}</h3><p>${esc(t('guest.services.notReady'))}</p></div>`;
             return;
         }
         wrap.innerHTML = groups.slice(0, 3).map((g, i) => {
@@ -553,11 +560,11 @@
         wrap.innerHTML = `
             <div class="go-chat-hero">
                 <div class="go-chat-emoji">💬</div>
-                <h2>Size nasıl yardımcı olabiliriz?</h2>
+                <h2>${esc(t('guest.services.howCanWeHelp'))}</h2>
                 <p>Resepsiyon ekibimiz hizmetinizde. Aşağıdan ulaşın ya da hızlıca bir talep oluşturun.</p>
             </div>
             ${phone ? `<a class="go-cta go-cta-block" href="tel:${esc(phone)}">${svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>', 18)} Resepsiyonu Ara</a>` : ''}
-            <button class="go-btn-ghost" id="goChatNew">Yeni Talep Oluştur</button>`;
+            <button class="go-btn-ghost" id="goChatNew">${esc(t('guest.track.createNew'))}</button>`;
         const nb = $('goChatNew'); if (nb) nb.onclick = () => { activeDept = ''; activeCat = 'all'; showTab('services'); };
     }
 
@@ -566,24 +573,32 @@
         const wrap = $('goProfileBody'); if (!wrap) return;
         const hname = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
         const rows = [
-            infoRow('phone', 'Resepsiyon', config.phone, { tel: (config.phone || '').replace(/[^0-9+]/g, '') }),
-            infoRow('wifi', 'Wi-Fi ağı', config.wifiName, { copy: config.wifiName }),
-            infoRow('wifi', 'Wi-Fi şifresi', config.wifiPass, { copy: config.wifiPass }),
-            infoRow('clock', 'Check-out', config.checkoutTime),
-            infoRow('coffee', 'Kahvaltı', config.breakfast),
-            infoRow('pin', 'Adres', config.address, { map: config.address })
+            infoRow('phone', t('guest.info.reception'), config.phone, { tel: (config.phone || '').replace(/[^0-9+]/g, '') }),
+            infoRow('wifi', t('guest.info.wifiName'), config.wifiName, { copy: config.wifiName }),
+            infoRow('wifi', t('guest.info.wifiPass'), config.wifiPass, { copy: config.wifiPass }),
+            infoRow('clock', t('guest.info.checkout'), config.checkoutTime),
+            infoRow('coffee', t('guest.info.breakfast'), config.breakfast),
+            infoRow('pin', t('guest.info.address'), config.address, { map: config.address })
         ].filter(Boolean).join('');
         const initial = (firstName().charAt(0) || 'M').toLocaleUpperCase('tr-TR');
         wrap.innerHTML = `
             <div class="go-prof-card">
                 <div class="go-prof-av">${esc(initial)}</div>
-                <div class="go-prof-name">${esc(guestName || 'Değerli Misafirimiz')}</div>
+                <div class="go-prof-name">${esc(guestName || t('guest.home.guestFallback'))}</div>
                 <div class="go-prof-sub">${ROOM ? 'Oda ' + esc(ROOM) + ' · ' : ''}${esc(hname)}${DEMO ? ' · DEMO' : ''}</div>
             </div>
             ${config.welcome && config.welcome.trim() ? `<p class="go-prof-welcome">${esc(config.welcome.trim())}</p>` : ''}
-            <div class="go-prof-sec">Otel Bilgileri</div>
-            ${rows || '<div class="go-empty"><div class="go-empty-ic">ℹ️</div><h3>Bilgi yok</h3><p>Henüz otel bilgisi eklenmemiş.</p></div>'}`;
-        wrap.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast('Kopyalandı'); } catch (e) {} });
+            <div class="go-prof-sec">${esc(t('guest.info.title'))}</div>
+            ${rows || `<div class="go-empty"><div class="go-empty-ic">ℹ️</div><h3>${esc(t('guest.info.none'))}</h3><p>${esc(t('guest.info.noneHint'))}</p></div>`}
+            <div class="go-prof-sec">${esc(t('guest.lang.switch'))}</div>
+            <div class="go-langbar" id="goLangBar">
+                ${I18n.supported().map(l => `<button class="go-lang${l === I18n.lang() ? ' active' : ''}" data-lang="${esc(l)}">${l === 'tr' ? '🇹🇷 Türkçe' : '🇬🇧 English'}</button>`).join('')}
+            </div>`;
+        wrap.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast(t('common.copied')); } catch (e) {} });
+        // Dil değişimi sayfayı yeniler (bkz. js/core/i18n.js) — bu kadar
+        // dinamik DOM'u canlı yeniden çizmekten güvenli.
+        const lb = $('goLangBar');
+        if (lb) lb.onclick = e => { const b = e.target.closest('[data-lang]'); if (b) I18n.setLang(b.dataset.lang); };
     }
 
     // ── Otel bilgileri (Otel Bilgileri sheet + Profil sekmesi ortak ikonlar) ──
@@ -598,7 +613,7 @@
     // ── Ana carousel: 3 büyük giriş kartı (Otel Bilgileri / Menüler / Konaklama) ──
     const BIG_CARDS = [
         { key: 'info', title: 'Otel Bilgileri', img: 'info_button.webp', color: '#1f3a5c' },
-        { key: 'menus', title: 'Menüler', img: 'menus_button.webp', color: '#7a5a44' },
+        { key: 'menus', title: t('guest.menus.title'), img: 'menus_button.webp', color: '#7a5a44' },
         { key: 'stay', title: 'Konaklama', img: 'stay_button.webp', color: '#34703f' }
     ];
     function renderCarousel() {
@@ -635,11 +650,11 @@
     }
     function renderMenus(list) {
         const body = $('goMenusBody'); if (!body) return;
-        if (!list.length) { body.innerHTML = '<div class="go-empty"><div class="go-empty-ic">📋</div><h3>Menü yok</h3><p>Bu otel için henüz menü eklenmemiş.</p></div>'; return; }
+        if (!list.length) { body.innerHTML = `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>${esc(t('guest.menus.none'))}</h3><p>${esc(t('guest.menus.noneHint'))}</p></div>`; return; }
         body.innerHTML = list.map(menuRow).join('');
         body.querySelectorAll('[data-url]').forEach(b => b.onclick = () => {
             const url = b.dataset.url;
-            if (!url) { toast('Bu menü için bağlantı tanımlı değil.', true); return; }
+            if (!url) { toast(t('guest.menus.noLink'), true); return; }
             window.open(url, '_blank', 'noopener');
         });
     }
@@ -667,9 +682,9 @@
     // gate'te girildiğinde saklanır (SURNAME_KEY). Doğrulama hiç yapılmamışsa bu
     // sekme "doğrulama gerekli" gösterir — yeni bir zorunlu akış icat etmek yerine.
     let stayData = null; // { checkIn, checkOut, folio:{total,count,items}, reservations:[...] }
-    const RES_TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
+    const RES_TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: t('common.other') };
     function resDetailText(r) {
-        if (r.type === 'Restaurant' || r.type === 'Beach') return [r.resName, r.pax ? r.pax + ' kişi' : ''].filter(Boolean).join(' · ');
+        if (r.type === 'Restaurant' || r.type === 'Beach') return [r.resName, r.pax ? r.pax + ' ' + t('common.people') : ''].filter(Boolean).join(' · ');
         if (r.type === 'Transfer') return [r.from, r.to].filter(Boolean).join(' → ') + (r.vehicle ? ' · ' + r.vehicle : '');
         if (r.type === 'Boat' || r.type === 'Tour') return [r.vessel, r.provider].filter(Boolean).join(' · ');
         // Other + Flower/Cake (+ bilinmeyen tür) — önceden yalnızca 'Other'
@@ -684,7 +699,7 @@
                 <div><b>${esc(RES_TYPE_TR[r.type] || r.type || 'Rezervasyon')}</b><span>${esc(fmtDateTR(r.date))}${r.time ? ' · ' + esc(r.time) : ''}</span></div>
                 <span class="go-stay-res-chev">›</span>
             </div>
-            <div class="go-stay-res-detail">${detail ? esc(detail) : '<span class="go-ink-mute">Detay yok</span>'}</div>
+            <div class="go-stay-res-detail">${detail ? esc(detail) : `<span class="go-ink-mute">${esc(t('guest.stay.noDetail'))}</span>`}</div>
         </div>`;
     }
     function fmtDateTR(iso) {
@@ -696,8 +711,8 @@
         const body = $('goStayBody'); if (!body || !stayData) return;
         const dateRow = (stayData.checkIn || stayData.checkOut) ? `
             <div class="go-stay-dates">
-                <div><b>Giriş</b><span>${esc(fmtDateTR(stayData.checkIn))}</span></div>
-                <div><b>Çıkış</b><span>${esc(fmtDateTR(stayData.checkOut))}</span></div>
+                <div><b>${esc(t('guest.stay.checkIn'))}</b><span>${esc(fmtDateTR(stayData.checkIn))}</span></div>
+                <div><b>${esc(t('guest.stay.checkOut'))}</b><span>${esc(fmtDateTR(stayData.checkOut))}</span></div>
             </div>` : '';
         // Oda hesabı, PARA BİRİMİ BAŞINA ayrı bir buton olarak gösterilir —
         // ör. Concierge'in €150'lik ekstrası ile restoranın ₺2.400'lük
@@ -706,13 +721,13 @@
         const folioGroups = stayData.folio || [];
         const folioRowsHtml = folioGroups.length
             ? folioGroups.map((g, i) => `<button class="go-stay-folio" data-folio-i="${i}">
-                <span><b>Oda Hesabım</b><span>${g.count} kalem · ${esc(g.currency)}</span></span>
+                <span><b>${esc(t('guest.stay.folio'))}</b><span>${g.count} kalem · ${esc(g.currency)}</span></span>
                 <span class="go-stay-folio-amt">${esc(fmtCur(g.total, g.currency))}</span></button>`).join('')
-            : `<button class="go-stay-folio off" disabled><span><b>Oda Hesabım</b><span>Ekstra yok</span></span></button>`;
+            : `<button class="go-stay-folio off" disabled><span><b>${esc(t('guest.stay.folio'))}</b><span>Ekstra yok</span></span></button>`;
         const resList = (stayData.reservations || []);
         const resHtml = resList.length
-            ? `<div class="go-prof-sec">Rezervasyonlarım</div>${resList.map(reservationRow).join('')}`
-            : `<div class="go-prof-sec">Rezervasyonlarım</div><div class="go-empty" style="padding:24px 10px;"><p>Kayıtlı rezervasyon yok.</p></div>`;
+            ? `<div class="go-prof-sec">${esc(t('guest.stay.reservations'))}</div>${resList.map(reservationRow).join('')}`
+            : `<div class="go-prof-sec">${esc(t('guest.stay.reservations'))}</div><div class="go-empty" style="padding:24px 10px;"><p>${esc(t('guest.stay.noReservations'))}</p></div>`;
         body.innerHTML = `${dateRow}${folioRowsHtml}${resHtml}`;
         body.querySelectorAll('[data-folio-i]').forEach(btn => btn.onclick = () => { closeStay(); openFolio(folioGroups[+btn.dataset.folioI]); });
         body.querySelectorAll('.go-stay-res-row').forEach(row => row.onclick = () => row.classList.toggle('open'));
@@ -724,15 +739,15 @@
         if (DEMO) { stayData = DEMO_STAY; renderStay(); return; }
         const surname = loadSurname();
         if (!fns || !ROOM || !surname) {
-            $('goStayBody').innerHTML = '<div class="go-empty"><div class="go-empty-ic">🔒</div><h3>Doğrulama gerekli</h3><p>Konaklama bilgilerinizi görmek için önce soyadı ve doğum yılınızla doğrulanmanız gerekir.</p></div>';
+            $('goStayBody').innerHTML = `<div class="go-empty"><div class="go-empty-ic">🔒</div><h3>${esc(t('guest.gate.required'))}</h3><p>${esc(t('guest.gate.requiredHint'))}</p></div>`;
             return;
         }
         if (stayData) { renderStay(); return; }
         $('goStayBody').innerHTML = '<div class="go-spinner" style="margin:30px auto;"></div>';
         fns.httpsCallable('getGuestStay')({ tenant: TENANT, room: ROOM, surname }).then(res => {
             if (res && res.data && res.data.ok) { stayData = res.data; renderStay(); }
-            else $('goStayBody').innerHTML = '<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>Bilgi alınamadı</h3><p>Lütfen tekrar deneyin.</p></div>';
-        }).catch(() => { $('goStayBody').innerHTML = '<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>Bilgi alınamadı</h3><p>Lütfen tekrar deneyin.</p></div>'; });
+            else $('goStayBody').innerHTML = `<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>${esc(t('guest.stay.loadFailed'))}</h3><p>${esc(t('common.retry'))}</p></div>`;
+        }).catch(() => { $('goStayBody').innerHTML = `<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>${esc(t('guest.stay.loadFailed'))}</h3><p>${esc(t('common.retry'))}</p></div>`; });
     }
     function closeStay() {
         $('goStayBackdrop').classList.remove('show');
@@ -751,13 +766,13 @@
     function folioRow(it, currency) {
         const meta = [it.tableName || '', it.createdAt ? new Date(it.createdAt).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');
         return `<div class="go-folio-row">
-            <div class="go-folio-row-tx"><div class="go-folio-row-src">${esc(FOLIO_SOURCE_LABEL[it.source] || it.source || 'Oda Hesabı')}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
+            <div class="go-folio-row-tx"><div class="go-folio-row-src">${esc(FOLIO_SOURCE_LABEL[it.source] || it.source || t('guest.stay.folioShort'))}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
             <div class="go-folio-row-amt">${esc(fmtCur(it.amount, currency))}</div></div>`;
     }
     function openFolio(group) {
         const body = $('goFolioBody'); if (!body || !group) return;
         const rows = (group.items || []).map(it => folioRow(it, group.currency)).join('');
-        body.innerHTML = `${rows || '<div class="go-empty"><div class="go-empty-ic">🧾</div><h3>Kalem yok</h3></div>'}
+        body.innerHTML = `${rows || `<div class="go-empty"><div class="go-empty-ic">🧾</div><h3>${esc(t('guest.stay.noItems'))}</h3></div>`}
             <div class="go-folio-total"><b>Toplam (${esc(group.currency)})</b><span>${esc(fmtCur(group.total || 0, group.currency))}</span></div>`;
         $('goFolioBackdrop').classList.add('show');
         $('goFolioSheet').classList.add('show');
@@ -829,7 +844,7 @@
         if (activeCat !== 'all' && !cats.includes(activeCat)) activeCat = 'all';
         renderCatHero();
         const allActive = !activeDept && activeCat === 'all';
-        chips.innerHTML = [`<button class="go-chip ${allActive ? 'active' : ''}" data-chip="all">Tümü<i>${catalog.length}</i></button>`]
+        chips.innerHTML = [`<button class="go-chip ${allActive ? 'active' : ''}" data-chip="all">${esc(t('common.all'))}<i>${catalog.length}</i></button>`]
             .concat(cats.map(c => `<button class="go-chip ${(!activeDept && activeCat === c) ? 'active' : ''}" data-chip="${esc(c)}"><span class="go-chip-ic">${catIcon(c, 18)}</span>${esc(c)}<i>${catCount(c)}</i></button>`)).join('');
         // Herhangi bir kategori çipine (Tümü dahil) tıklamak departman
         // modundan çıkar — kullanıcı artık tek kategori/tüm liste görünümünde.
@@ -840,7 +855,7 @@
         const term = norm(searchTerm);
         return catalog.filter(i => {
             if (activeDept) { if (itemDeptKey(i) !== activeDept) return false; }
-            else if (activeCat !== 'all' && (i.category || 'Diğer') !== activeCat) return false;
+            else if (activeCat !== 'all' && (i.category || t('common.other')) !== activeCat) return false;
             if (term) { const hay = norm((i.name || '') + ' ' + (i.category || '') + ' ' + (i.description || '')); if (!hay.includes(term)) return false; }
             return true;
         });
@@ -849,7 +864,7 @@
         const wrap = $('goItems'); if (!wrap) return;
         const items = filteredItems();
         if (!items.length) {
-            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">🔍</div><h3>Sonuç yok</h3><p>${searchTerm ? 'Aramanızla eşleşen hizmet bulunamadı.' : 'Bu kategoride hizmet yok.'}</p></div>`;
+            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">🔍</div><h3>${esc(t('guest.services.noResult'))}</h3><p>${esc(searchTerm ? t('guest.services.noMatch') : t('guest.services.emptyCategory'))}</p></div>`;
             return;
         }
         // group by category when showing "all", or a whole department's
@@ -857,7 +872,7 @@
         let html = '';
         if ((activeDept || activeCat === 'all') && !searchTerm) {
             categories().forEach(c => {
-                const sub = items.filter(i => (i.category || 'Diğer') === c);
+                const sub = items.filter(i => (i.category || t('common.other')) === c);
                 if (!sub.length) return;
                 html += `<div class="go-cat-head">${esc(c)}</div>` + sub.map(itemHtml).join('');
             });
@@ -874,9 +889,9 @@
     // adet +/- kontrolüne dönülür — seçim değiştirmek için sheet'e girilir.
     const hasOptions = item => Array.isArray(item && item.options) && item.options.length > 0;
     function itemAction(item, av, line) {
-        if (!av.available) return `<span class="go-unavail">Saat dışı</span>`;
+        if (!av.available) return `<span class="go-unavail">${esc(t('guest.services.offHours'))}</span>`;
         if (line && line.qty > 0) return stepHtml(item.id, line.qty);
-        if (hasOptions(item) || hasModifiers(item) || isTransferItem(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">Seç</button>`;
+        if (hasOptions(item) || hasModifiers(item) || isTransferItem(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">${esc(t('common.select'))}</button>`;
         return `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
     }
     function itemHtml(item) {
@@ -924,7 +939,7 @@
     // (her chip kendi başına açık/kapalı, "active" olması bir üstekini
     // dışlamaz).
     function modChipsHtml(item, selectedNames) {
-        return `<div class="go-fld"><label>Özelleştir <span class="go-ink-mute" style="font-weight:400;">(opsiyonel, birden fazla seçebilirsiniz)</span></label>
+        return `<div class="go-fld"><label>${esc(t('guest.item.customize'))} <span class="go-ink-mute" style="font-weight:400;">(opsiyonel, birden fazla seçebilirsiniz)</span></label>
             <div class="go-opt-pills" id="goShModPills">
                 ${modifiersOf(item).map(m => `<button type="button" class="go-opt-pill go-mod-pill ${selectedNames.indexOf(m.name) !== -1 ? 'active' : ''}" data-mod="${esc(m.name)}">${m.type === 'extra' ? '+' : '−'} ${esc(m.name)}${(pricesOn() && m.priceDelta) ? ` <span class="go-opt-pill-delta">${esc(fmtDelta(m.priceDelta))}</span>` : ''}</button>`).join('')}
             </div></div>`;
@@ -953,7 +968,7 @@
                 <div class="go-item-emoji go-k-${catKind(item.category)}" style="width:56px;height:56px;font-size:28px;">${esc(item.icon || '🛎️')}</div>
                 <div class="go-isheet-tx">
                     <h2>${esc(item.name)}</h2>
-                    <span class="go-isheet-cat">${esc(item.category || 'Diğer')}</span>
+                    <span class="go-isheet-cat">${esc(item.category || t('common.other'))}</span>
                 </div>
                 <button class="go-sheet-close" id="goItemClose" aria-label="Kapat">✕</button>
             </div>
@@ -963,27 +978,27 @@
             ${withOpts ? optPillsHtml(item, sheetOption) : ''}
             ${withMods ? modChipsHtml(item, sheetModifiers) : ''}
             <div class="go-isheet-qty" style="${(withOpts || withMods) ? 'margin-top:12px;' : ''}">
-                <span>Adet</span>
+                <span>${esc(t('guest.item.quantity'))}</span>
                 <div class="go-step go-step-lg"><button id="goShDec">−</button><b id="goShQty">${sheetQty}</b><button id="goShInc">+</button></div>
             </div>
-            <div class="go-fld"><label>Not (opsiyonel)</label><input type="text" id="goShNote" maxlength="160" placeholder="Örn. 2 büyük havlu" value="${esc(line ? line.note || '' : '')}"></div>
+            <div class="go-fld"><label>${esc(t('guest.item.note'))}</label><input type="text" id="goShNote" maxlength="160" placeholder="${esc(t('guest.item.notePlaceholder'))}" value="${esc(line ? line.note || '' : '')}"></div>
             ${isTransfer ? `
-            <div class="go-fld"><label>Nereden</label><input type="text" id="goShFrom" maxlength="80" placeholder="Örn. Otel Lobisi" value="${esc(line ? line.transferFrom || '' : '')}"></div>
-            <div class="go-fld"><label>Nereye</label><input type="text" id="goShTo" maxlength="80" placeholder="Örn. Havalimanı" value="${esc(line ? line.transferTo || '' : '')}"></div>
+            <div class="go-fld"><label>${esc(t('guest.transfer.from'))}</label><input type="text" id="goShFrom" maxlength="80" placeholder="${esc(t('guest.transfer.fromPlaceholder'))}" value="${esc(line ? line.transferFrom || '' : '')}"></div>
+            <div class="go-fld"><label>${esc(t('guest.transfer.to'))}</label><input type="text" id="goShTo" maxlength="80" placeholder="${esc(t('guest.transfer.toPlaceholder'))}" value="${esc(line ? line.transferTo || '' : '')}"></div>
             <div class="go-fld-2">
-                <div class="go-fld"><label>Tarih</label><input type="date" id="goShDate" min="${tmb.dateIso}" value="${esc(line && line.transferDate || tmb.dateIso)}"></div>
-                <div class="go-fld"><label>Saat</label><input type="time" id="goShTime" min="${tmb.timeHHMM}" value="${esc(line && line.transferTime || tmb.timeHHMM)}"></div>
+                <div class="go-fld"><label>${esc(t('guest.transfer.date'))}</label><input type="date" id="goShDate" min="${tmb.dateIso}" value="${esc(line && line.transferDate || tmb.dateIso)}"></div>
+                <div class="go-fld"><label>${esc(t('guest.transfer.time'))}</label><input type="time" id="goShTime" min="${tmb.timeHHMM}" value="${esc(line && line.transferTime || tmb.timeHHMM)}"></div>
             </div>
-            ${!withOpts ? `<div class="go-fld"><label>Araç</label><input type="text" id="goShVehicle" maxlength="80" placeholder="Örn. Vito" value="${esc(line ? line.option || '' : '')}"></div>` : ''}
+            ${!withOpts ? `<div class="go-fld"><label>${esc(t('guest.transfer.vehicle'))}</label><input type="text" id="goShVehicle" maxlength="80" placeholder="${esc(t('guest.transfer.vehiclePlaceholder'))}" value="${esc(line ? line.option || '' : '')}"></div>` : ''}
             ` : `
-            <div class="go-fld"><label>Tercih saati (opsiyonel)</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
+            <div class="go-fld"><label>${esc(t('guest.item.preferredTime'))}</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
             `}
             <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;" ${addDisabled ? 'disabled' : ''}>
-                <span id="goShAddLbl">${addDisabled ? 'Bir seçenek seçin' : (line ? 'Sepeti Güncelle' : 'Sepete Ekle')}</span>
+                <span id="goShAddLbl">${addDisabled ? t('guest.item.pickOption') : (line ? t('guest.item.updateCart') : t('guest.item.addToCart'))}</span>
                 ${(!addDisabled && pricesOn() && sheetUnitPrice()) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(sheetUnitPrice() * sheetQty))}</span>` : ''}
             </button>
-            ${line ? `<button class="go-btn-ghost go-btn-danger" id="goShRemove" style="margin-top:10px;">Sepetten Çıkar</button>` : ''}`
-            : `<div class="go-unavail" style="display:block;text-align:center;padding:14px;margin-top:6px;">Bu hizmet yalnızca ${esc(av.window)} saatleri arasında verilebilir.</div>`}
+            ${line ? `<button class="go-btn-ghost go-btn-danger" id="goShRemove" style="margin-top:10px;">${esc(t('guest.item.removeFromCart'))}</button>` : ''}`
+            : `<div class="go-unavail" style="display:block;text-align:center;padding:14px;margin-top:6px;">${esc(t('guest.services.unavailableWindow', { window: av.window }))}</div>`}
         `;
         const addB = $('goShAdd');
         const upd = () => {
@@ -994,7 +1009,7 @@
             if (!addB || !withOpts) return;
             const disabled = !sheetOption;
             addB.disabled = disabled;
-            const lbl = $('goShAddLbl'); if (lbl) lbl.textContent = disabled ? 'Bir seçenek seçin' : (line ? 'Sepeti Güncelle' : 'Sepete Ekle');
+            const lbl = $('goShAddLbl'); if (lbl) lbl.textContent = disabled ? t('guest.item.pickOption') : (line ? t('guest.item.updateCart') : t('guest.item.addToCart'));
         };
         const pills = $('goShOptPills');
         if (pills) pills.onclick = e => {
@@ -1024,7 +1039,7 @@
         if (addB) addB.onclick = () => confirmItemSheet(item);
         const rmB = $('goShRemove'); if (rmB) rmB.onclick = () => {
             cart = cart.filter(l => l.catalogId !== id);
-            saveCart(); renderCartUI(); refreshItemRow(id); closeItemSheet(); toast('Sepetten çıkarıldı');
+            saveCart(); renderCartUI(); refreshItemRow(id); closeItemSheet(); toast(t('guest.item.removed'));
         };
         const cl = $('goItemClose'); if (cl) cl.onclick = closeItemSheet;
         $('goItemBackdrop').classList.add('show');
@@ -1032,23 +1047,23 @@
         $('goItemSheet').setAttribute('aria-hidden', 'false');
     }
     function confirmItemSheet(item) {
-        if (hasOptions(item) && !sheetOption) { toast('Lütfen bir seçenek seçin.', true); return; }
+        if (hasOptions(item) && !sheetOption) { toast(t('guest.item.pickOptionToast'), true); return; }
         const isTransfer = isTransferItem(item);
         let transferFrom = '', transferTo = '', transferDate = '', transferTime = '';
         if (isTransfer) {
             if (!hasOptions(item)) {
                 const veh = ($('goShVehicle') && $('goShVehicle').value || '').trim().slice(0, 80);
-                if (!veh) { toast('Lütfen araç tipini girin.', true); return; }
+                if (!veh) { toast(t('guest.transfer.needVehicle'), true); return; }
                 sheetOption = veh;
             }
             transferFrom = ($('goShFrom') && $('goShFrom').value || '').trim().slice(0, 80);
             transferTo = ($('goShTo') && $('goShTo').value || '').trim().slice(0, 80);
             transferDate = ($('goShDate') && $('goShDate').value || '').slice(0, 10);
             transferTime = ($('goShTime') && $('goShTime').value || '').slice(0, 5);
-            if (!transferFrom) { toast("Lütfen 'Nereden' bilgisini girin.", true); return; }
-            if (!transferTo) { toast("Lütfen 'Nereye' bilgisini girin.", true); return; }
-            if (!transferDate) { toast('Lütfen transfer tarihini seçin.', true); return; }
-            if (!transferTime) { toast('Lütfen transfer saatini seçin.', true); return; }
+            if (!transferFrom) { toast(t('guest.transfer.needFrom'), true); return; }
+            if (!transferTo) { toast(t('guest.transfer.needTo'), true); return; }
+            if (!transferDate) { toast(t('guest.transfer.needDate'), true); return; }
+            if (!transferTime) { toast(t('guest.transfer.needTime'), true); return; }
             const picked = new Date(transferDate + 'T' + transferTime + ':00');
             const b = transferMinBound();
             if (isNaN(picked.getTime()) || picked.getTime() < b.ms) {
@@ -1062,8 +1077,8 @@
         const time = isTransfer ? '' : ($('goShTime') && $('goShTime').value || '').slice(0, 10);
         let line = cart.find(l => l.catalogId === item.id);
         if (!line) {
-            if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
-            line = { catalogId: item.id, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
+            if (cart.length >= MAX_DISTINCT) { toast(t('guest.item.maxDistinct', { n: MAX_DISTINCT }), true); return; }
+            line = { catalogId: item.id, name: item.name, category: item.category || t('common.other'), icon: item.icon || '🛎️',
                 department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '',
                 transferFrom: '', transferTo: '', transferDate: '', transferTime: '' };
             cart.push(line);
@@ -1079,7 +1094,7 @@
         line.price = priceOf(item) + optionDelta(item, sheetOption) + modifiersDelta(item, sheetModifiers);
         saveCart(); renderCartUI(); refreshItemRow(item.id);
         if (currentTab === 'cart') renderCart();
-        closeItemSheet(); buzz(10); toast('Sepete eklendi ✓');
+        closeItemSheet(); buzz(10); toast(t('guest.item.added'));
     }
     function closeItemSheet() {
         sheetItemId = null; sheetOption = ''; sheetModifiers = [];
@@ -1098,10 +1113,10 @@
 
     // ── Cart mutations ─────────────────────────────────────────
     function lineMax(l) { const m = Number(l && l.maxQty) || 0; return m > 0 ? Math.min(m, MAX_QTY) : MAX_QTY; }
-    function capMsg(l) { return (Number(l && l.maxQty) || 0) > 0 ? `Bu talepten en fazla ${l.maxQty} adet verilebilir.` : `Bir talepten en fazla ${MAX_QTY} adet.`; }
+    function capMsg(l) { return (Number(l && l.maxQty) || 0) > 0 ? t('guest.item.maxQtyItem', { n: l.maxQty }) : t('guest.item.maxQtyGeneric', { n: MAX_QTY }); }
     function changeQty(catalogId, delta) {
         const item = catalog.find(i => i.id === catalogId); if (!item) return;
-        if (delta > 0) { const av = availInfo(item); if (!av.available) { toast('Bu talep yalnızca ' + av.window + ' saatleri arasında verilebilir.', true); return; } }
+        if (delta > 0) { const av = availInfo(item); if (!av.available) { toast(t('guest.services.onlyBetween', { window: av.window }), true); return; } }
         let line = cart.find(l => l.catalogId === catalogId);
         // Seçenekli bir kalem sepette henüz yoksa doğrudan eklenemez — önce
         // seçim yapılmalı (ör. ana ekrandaki "Hızlı İşlemler" kısayolu bu
@@ -1113,8 +1128,8 @@
         // sepete ekleyebilirdi.
         if (!line && delta > 0 && (hasOptions(item) || hasModifiers(item) || isTransferItem(item))) { openItemSheet(catalogId); return; }
         if (!line && delta > 0) {
-            if (cart.length >= MAX_DISTINCT) { toast(`En fazla ${MAX_DISTINCT} farklı talep ekleyebilirsiniz.`, true); return; }
-            line = { catalogId, name: item.name, category: item.category || 'Diğer', icon: item.icon || '🛎️',
+            if (cart.length >= MAX_DISTINCT) { toast(t('guest.item.maxDistinct', { n: MAX_DISTINCT }), true); return; }
+            line = { catalogId, name: item.name, category: item.category || t('common.other'), icon: item.icon || '🛎️',
                 department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '',
                 transferFrom: '', transferTo: '', transferDate: '', transferTime: '' };
             cart.push(line);
@@ -1127,7 +1142,7 @@
         refreshItemRow(catalogId);
         renderCartUI();
         if (currentTab === 'cart') renderCart();
-        if (delta > 0) { buzz(10); if (cartCount() === 1) toast('Sepete eklendi'); }
+        if (delta > 0) { buzz(10); if (cartCount() === 1) toast(t('guest.item.addedShort')); }
     }
 
     // Sepet satırındaki fiyat dökümü (taban + seçenek farkı + özelleştirme
@@ -1166,7 +1181,7 @@
         $('goCartClear').hidden = !cart.length;
         if (!cart.length) {
             foot.hidden = true;
-            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">🛒</div><h3>Sepetiniz boş</h3><p>Hizmetler sekmesinden talep ekleyin.</p><button class="go-cta" data-go="services">Hizmetlere Göz At</button></div>`;
+            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">🛒</div><h3>${esc(t('guest.cart.empty'))}</h3><p>${esc(t('guest.cart.emptyHint'))}</p><button class="go-cta" data-go="services">${esc(t('guest.cart.browse'))}</button></div>`;
             wrap.querySelector('[data-go]').onclick = () => showTab('services');
             return;
         }
@@ -1247,8 +1262,8 @@
     function submitOrder() {
         if (!cart.length || !sessionUid) return;
         const cd = cooldownLeft();
-        if (cd > 0) { toast(`Çok hızlı! Lütfen ${Math.ceil(cd / 1000)} sn sonra deneyin.`, true); return; }
-        if (hasPending()) { toast('Zaten onay bekleyen bir talebiniz var. Önce o sonuçlansın 🙏', true); showTab('orders'); return; }
+        if (cd > 0) { toast(t('guest.cart.tooFast', { n: Math.ceil(cd / 1000) }), true); return; }
+        if (hasPending()) { toast(t('guest.cart.pendingExists'), true); showTab('orders'); return; }
         if (!isVerified()) { openGate(); return; }
         if (!ROOM) { openGate(); return; }
 
@@ -1261,13 +1276,13 @@
             if (!l.transferDate || !l.transferTime) continue;
             const picked = new Date(l.transferDate + 'T' + l.transferTime + ':00');
             if (isNaN(picked.getTime()) || picked.getTime() < tb.ms) {
-                toast(`"${l.name}" için seçilen transfer saati geçti, lütfen güncelleyin.`, true);
+                toast(t('guest.transfer.stale', { name: l.name }), true);
                 openItemSheet(l.catalogId);
                 return;
             }
         }
 
-        const btn = $('goSubmit'); btn.disabled = true; $('goSubmitLabel').textContent = 'Gönderiliyor…';
+        const btn = $('goSubmit'); btn.disabled = true; $('goSubmitLabel').textContent = t('common.sending');
         const items = cart.map((l, idx) => ({
             id: 'i' + idx + '_' + Date.now().toString(36),
             catalogId: l.catalogId || '', name: String(l.name || '').slice(0, 120), category: String(l.category || '').slice(0, 60),
@@ -1285,11 +1300,11 @@
         const done = (id) => {
             try { localStorage.setItem(COOLDOWN_KEY, String(Date.now() + COOLDOWN_MS)); } catch (e) {}
             cart = []; saveCart(); renderCartUI();
-            btn.disabled = false; $('goSubmitLabel').textContent = 'Talebi Gönder';
-            toast('Talebiniz alındı! 🎉' + (DEMO ? ' (demo)' : '')); buzz([40, 30, 40]);
+            btn.disabled = false; $('goSubmitLabel').textContent = t('guest.cart.submit');
+            toast((DEMO ? t('guest.cart.submittedDemo') : t('guest.cart.submitted'))); buzz([40, 30, 40]);
             trackingId = id; showTab('orders'); openTracking(id);
         };
-        const fail = (err) => { console.error('submit failed', err); btn.disabled = false; $('goSubmitLabel').textContent = 'Talebi Gönder'; toast('Gönderilemedi. Tekrar deneyin.', true); };
+        const fail = (err) => { console.error('submit failed', err); btn.disabled = false; $('goSubmitLabel').textContent = t('guest.cart.submit'); toast(t('guest.cart.failed'), true); };
 
         if (DEMO) { const id = 'demo' + Date.now().toString(36); saveDemoOrder({ id, room: ROOM, guestName, items, itemCount: items.length, total, currency: config.currency, showPrices: pricesOn(), createdAtMs: Date.now() }); loadDemoOrders(); done(id); return; }
 
@@ -1420,7 +1435,7 @@
                     </span>
                     <span class="go-live-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 16)}</span>
                 </button>`;
-            }).join('') + `<button class="go-live-all" id="goLiveAll">Tüm taleplerimi gör</button>`;
+            }).join('') + `<button class="go-live-all" id="goLiveAll">${esc(t('guest.home.seeAllOrders'))}</button>`;
             body.querySelectorAll('[data-track]').forEach(b => b.onclick = () => { liveExpanded = false; openTracking(b.dataset.track); });
             const all = $('goLiveAll'); if (all) all.onclick = () => { liveExpanded = false; showTab('orders'); };
         }
@@ -1475,7 +1490,7 @@
         $('goOrdersTitle').textContent = 'Taleplerim';
         const wrap = $('goOrders');
         if (!myOrders.length) {
-            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>Henüz talep yok</h3><p>Oluşturduğunuz talepleri buradan canlı takip edebilirsiniz.</p><button class="go-cta" data-go="services">Talep Oluştur</button></div>`;
+            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>${esc(t('guest.track.none'))}</h3><p>${esc(t('guest.track.noneHint'))}</p><button class="go-cta" data-go="services">${esc(t('guest.track.create'))}</button></div>`;
             wrap.querySelector('[data-go]').onclick = () => showTab('services');
             return;
         }
@@ -1494,7 +1509,7 @@
                 <button class="go-otab ${ordersTab === 'con' ? 'active' : ''}" data-otab="con">🛎️ Concierge<i>${nCon}</i></button>
             </div>`;
             if (!list.length) {
-                wrap.innerHTML = tabsHtml + `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>Bu sekmede talep yok</h3></div>`;
+                wrap.innerHTML = tabsHtml + `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>${esc(t('guest.track.noneInTab'))}</h3></div>`;
                 wrap.querySelectorAll('[data-otab]').forEach(b => b.onclick = () => { ordersTab = b.dataset.otab; showOrderList(); });
                 return;
             }
@@ -1577,7 +1592,7 @@
                         </div>
                         <div class="go-fld" style="margin-top:8px;"><label>Not</label><input type="text" id="goTENote" maxlength="160" value="${esc(it.note || '')}"></div>
                         <div class="go-track-btns" style="margin-top:10px;">
-                            <button class="go-btn-ghost" id="goTECancel">Vazgeç</button>
+                            <button class="go-btn-ghost" id="goTECancel">${esc(t('common.cancel'))}</button>
                             <button class="go-cta" id="goTESave">Kaydet</button>
                         </div>
                     </div>
@@ -1586,7 +1601,7 @@
             return `<div class="go-titem"><div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>
                 <div class="go-titem-main"><div class="go-titem-name">${esc(it.name)}</div>${meta ? `<div class="go-titem-meta">${esc(meta)}</div>` : ''}
                 ${it.status === 'cancelled' && it.cancelReason ? `<div class="go-titem-cancel-reason">${esc(it.cancelReason)}</div>` : ''}
-                ${canAct ? `<div class="go-titem-acts"><button class="go-titem-act" data-item-edit="${esc(it.id)}">Düzenle</button><button class="go-titem-act danger" data-item-cancel="${esc(it.id)}">İptal Et</button></div>` : ''}</div>
+                ${canAct ? `<div class="go-titem-acts"><button class="go-titem-act" data-item-edit="${esc(it.id)}">${esc(t('common.edit'))}</button><button class="go-titem-act danger" data-item-cancel="${esc(it.id)}">${esc(t('guest.track.cancelItem'))}</button></div>` : ''}</div>
                 <span class="go-statepill go-st-${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>`;
         }).join('');
         wrap.innerHTML = `
@@ -1608,8 +1623,8 @@
             <div class="go-track-sec">Talepleriniz</div>
             ${items}
             <div class="go-track-btns">
-                ${o.status === 'pending' ? `<button class="go-btn-ghost go-btn-danger" id="goCancelBtn">Talebi İptal Et</button>` : ''}
-                <button class="go-btn-ghost" id="goNewBtn">Yeni Talep Oluştur</button>
+                ${o.status === 'pending' ? `<button class="go-btn-ghost go-btn-danger" id="goCancelBtn">${esc(t('guest.track.cancelOrder'))}</button>` : ''}
+                <button class="go-btn-ghost" id="goNewBtn">${esc(t('guest.track.createNew'))}</button>
             </div>`;
         const cb = $('goCancelBtn'); if (cb) cb.onclick = () => cancelOrder(o.id);
         $('goNewBtn').onclick = () => showTab('services');
@@ -1626,43 +1641,43 @@
         const teSave = $('goTESave'); if (teSave) teSave.onclick = () => saveTrackItemEdit(o.id, trackEditItemId);
     }
     async function saveTrackItemEdit(orderId, itemId) {
-        if (!fns) { toast('Bağlantı kurulamadı.', true); return; }
+        if (!fns) { toast(t('common.noConnection'), true); return; }
         const note = ($('goTENote') && $('goTENote').value || '').slice(0, 160);
         const btn = $('goTESave'); if (btn) { btn.disabled = true; btn.textContent = 'Kaydediliyor…'; }
         try {
             const res = await fns.httpsCallable('updateGuestOrderItem')({ orderId, itemId, patch: { qty: trackEditQty, note } });
             if (!res || !res.data || !res.data.ok) throw new Error('fail');
-            trackEditItemId = null; toast('Kalem güncellendi ✓'); renderTracking();
+            trackEditItemId = null; toast(t('guest.track.itemUpdated')); renderTracking();
         } catch (e) {
             console.error('update item failed', e);
-            toast('Güncellenemedi. Personel muhtemelen zaten üstlendi.', true);
+            toast(t('guest.track.updateFailedTaken'), true);
             if (btn) { btn.disabled = false; btn.textContent = 'Kaydet'; }
         }
     }
     async function cancelOrderItem(orderId, itemId) {
-        if (!confirm('Bu kalemi iptal etmek istediğinize emin misiniz?')) return;
-        if (!fns) { toast('Bağlantı kurulamadı.', true); return; }
+        if (!confirm(t('guest.track.confirmCancelItem'))) return;
+        if (!fns) { toast(t('common.noConnection'), true); return; }
         try {
             const res = await fns.httpsCallable('cancelGuestOrderItem')({ orderId, itemId });
             if (!res || !res.data || !res.data.ok) throw new Error('fail');
-            toast('Kalem iptal edildi.');
+            toast(t('guest.track.itemCancelled'));
         } catch (e) {
             console.error('cancel item failed', e);
-            toast('İptal edilemedi. Personel muhtemelen zaten üstlendi.', true);
+            toast(t('guest.track.cancelFailedTaken'), true);
         }
     }
     function cancelOrder(id) {
-        if (!confirm('Talebinizi iptal etmek istediğinize emin misiniz?')) return;
+        if (!confirm(t('guest.track.confirmCancelOrder'))) return;
         if (DEMO) { const o = loadDemoOrder(id); if (o) { o.cancelled = true; saveDemoOrder(o); } if (demoTimer) { clearInterval(demoTimer); } loadDemoOrders(); return; }
-        if (!fns) { toast('Bağlantı kurulamadı.', true); return; }
+        if (!fns) { toast(t('common.noConnection'), true); return; }
         // Eskiden çıplak bir client .update({status:'cancelled'}) idi — hiçbir
         // bağlı guestLogs/reservations dokümanına dokunmuyordu (misafir
         // iptal etti gibi görünüyordu ama personel Concierge panelinde
         // hiç haberdar olmuyordu). Artık tek transaction'da bağlı tüm
         // dokümanları senkronize eden Cloud Function'ı çağırıyor.
         fns.httpsCallable('cancelGuestOrder')({ orderId: id })
-            .then(res => { if (!res || !res.data || !res.data.ok) throw new Error('fail'); toast('Talebiniz iptal edildi.'); })
-            .catch(err => { console.error(err); toast('İptal edilemedi.', true); });
+            .then(res => { if (!res || !res.data || !res.data.ok) throw new Error('fail'); toast(t('guest.track.orderCancelled')); })
+            .catch(err => { console.error(err); toast(t('guest.track.cancelFailed'), true); });
     }
 
     // ── Hizmet değerlendirme (tamamlanan kalem sonrası, geçilebilir) ───
@@ -1675,12 +1690,12 @@
         const dept = esc(entry.department || entry.category || '');
         $('goRatingBody').innerHTML = `
             <div class="go-rating-emoji">🎉</div>
-            <h2 class="go-rating-title">Nasıldı?</h2>
+            <h2 class="go-rating-title">${esc(t('guest.rating.title'))}</h2>
             <p class="go-rating-sub">${esc(entry.name || 'Talebiniz')}${dept ? ' · ' + dept : ''}</p>
             <div class="go-rating-stars" id="goRatingStars">${[1, 2, 3, 4, 5].map(n =>
-                `<button class="go-rstar" data-star="${n}" aria-label="${n} yıldız">★</button>`).join('')}</div>
-            <button class="go-cta go-cta-block" id="goRatingSubmit" disabled>Gönder</button>
-            <button class="go-btn-ghost" id="goRatingSkipBtn">Geç</button>`;
+                `<button class="go-rstar" data-star="${n}" aria-label="${esc(t('guest.rating.stars', { n: n }))}">★</button>`).join('')}</div>
+            <button class="go-cta go-cta-block" id="goRatingSubmit" disabled>${esc(t('common.send'))}</button>
+            <button class="go-btn-ghost" id="goRatingSkipBtn">${esc(t('guest.rating.skip'))}</button>`;
         $('goRatingStars').onclick = e => {
             const b = e.target.closest('[data-star]'); if (!b) return;
             ratingStars = Number(b.dataset.star);
@@ -1709,18 +1724,18 @@
             // yazılan ham sipariş nesnesine damgalanır (bkz. demoView).
             const o = loadDemoOrder(entry.orderId);
             if (o) { o.ratedItems = Object.assign({}, o.ratedItems, { [entry.itemId]: true }); saveDemoOrder(o); }
-            toast('Teşekkürler! ⭐ (demo)'); closeRatingSheet(); return;
+            toast(t('guest.rating.thanksDemo')); closeRatingSheet(); return;
         }
         if (!fns) { closeRatingSheet(); return; }
-        const btn = $('goRatingSubmit'); btn.disabled = true; btn.textContent = 'Gönderiliyor…';
+        const btn = $('goRatingSubmit'); btn.disabled = true; btn.textContent = t('common.sending');
         try {
             const res = await fns.httpsCallable('submitItemRating')({ orderId: entry.orderId, itemId: entry.itemId, stars: ratingStars });
             if (!res || !res.data || !res.data.ok) throw new Error('fail');
-            toast('Teşekkürler! Değerlendirmeniz alındı. ⭐');
+            toast(t('guest.rating.thanks'));
             closeRatingSheet();
         } catch (e) {
             console.error('submitRating failed', e);
-            toast('Gönderilemedi.', true);
+            toast(t('guest.rating.failed'), true);
             btn.disabled = false; btn.textContent = 'Gönder';
         }
     }
@@ -1730,10 +1745,11 @@
     function relTime(ms) {
         if (!ms) return '';
         const diff = Date.now() - ms;
-        if (diff < 60000) return 'az önce';
-        if (diff < 3600000) return Math.floor(diff / 60000) + ' dk önce';
-        if (diff < 86400000) return Math.floor(diff / 3600000) + ' sa önce';
-        try { return new Date(ms).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }); } catch (e) { return ''; }
+        if (diff < 60000) return t('common.justNow');
+        if (diff < 3600000) return t('common.minAgo', { n: Math.floor(diff / 60000) });
+        if (diff < 86400000) return t('common.hourAgo', { n: Math.floor(diff / 3600000) });
+        // Tarih biçimi aktif dile göre (bkz. I18n.locale()).
+        try { return new Date(ms).toLocaleDateString(I18n.locale(), { day: 'numeric', month: 'short' }); } catch (e) { return ''; }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -1756,13 +1772,13 @@
         const byRaw = ($('goGateBirthYear').value || '').trim();
         const birthYear = parseInt(byRaw, 10);
         const err = $('goGateErr'); const setErr = m => err.textContent = m || '';
-        if (surname.length < 2) { setErr('Lütfen soyadınızı girin.'); return; }
+        if (surname.length < 2) { setErr(t('guest.gate.needSurname')); return; }
         const thisYear = new Date().getFullYear();
-        if (!byRaw || !isFinite(birthYear) || birthYear < 1900 || birthYear > thisYear) { setErr('Lütfen geçerli bir doğum yılı girin.'); return; }
+        if (!byRaw || !isFinite(birthYear) || birthYear < 1900 || birthYear > thisYear) { setErr(t('guest.gate.needBirthYear')); return; }
         setErr('');
         const btn = $('goGateBtn'), lbl = $('goGateBtnLabel');
         btn.disabled = true; lbl.textContent = 'Kontrol ediliyor…';
-        const fail = m => { btn.disabled = false; lbl.textContent = 'Doğrula ve Devam Et'; setErr(m); buzz(70); };
+        const fail = m => { btn.disabled = false; lbl.textContent = t('guest.gate.submit'); setErr(m); buzz(70); };
         // room ARTIK istemciden gelmiyor — sunucu (verifyGuestIdentity),
         // soyad+doğum yılını guestDirectory ile eşleştirip misafirin GERÇEK
         // odasını döner. QR'ın URL'sindeki eski room= değeri (varsa) yalnızca
@@ -1782,17 +1798,17 @@
             else { loadCart(); }
             setVerified(); setSurname(surname);
             if (name) setGuestName(name);
-            btn.disabled = false; lbl.textContent = 'Doğrula ve Devam Et';
+            btn.disabled = false; lbl.textContent = t('guest.gate.submit');
             closeGate(); applyConfig(); renderAll();
-            toast(guestName ? ('Hoş geldiniz, ' + guestName.split(' ')[0] + ' 👋') : 'Doğrulandı 👋');
+            toast(guestName ? (t('guest.home.welcome') + ' ' + guestName.split(' ')[0] + ' 👋') : t('guest.gate.verified'));
         };
         try {
             if (DEMO) { await new Promise(r => setTimeout(r, 500)); ok(ROOM || '101', titleCase(surname)); return; }
-            if (!fns) { fail('Bağlantı kurulamadı. Lütfen tekrar deneyin.'); return; }
+            if (!fns) { fail(t('guest.gate.noConnectionRetry')); return; }
             const res = await fns.httpsCallable('verifyGuestIdentity')({ tenant: TENANT, surname, birthYear });
-            if (!res || !res.data || !res.data.ok) { fail('Soyadı ve doğum yılı eşleşmedi. Lütfen resepsiyona başvurun.'); return; }
+            if (!res || !res.data || !res.data.ok) { fail(t('guest.gate.mismatch')); return; }
             ok(res.data.room, res.data.guestName || '');
-        } catch (e) { console.error('verify failed', e); fail('Doğrulama yapılamadı. Lütfen tekrar deneyin.'); }
+        } catch (e) { console.error('verify failed', e); fail(t('guest.gate.failed')); }
     }
     function titleCase(s) { return String(s || '').toLocaleLowerCase('tr-TR').replace(/(^|\s)\S/g, c => c.toLocaleUpperCase('tr-TR')); }
 
@@ -1802,7 +1818,7 @@
         let act = '';
         if (opts.tel) act = `<a class="go-inforow-act" href="tel:${esc(opts.tel)}">Ara</a>`;
         else if (opts.map) act = `<a class="go-inforow-act" href="https://maps.google.com/?q=${encodeURIComponent(opts.map)}" target="_blank" rel="noopener">Harita</a>`;
-        else if (opts.copy) act = `<button class="go-inforow-act" data-copy="${esc(opts.copy)}">Kopyala</button>`;
+        else if (opts.copy) act = `<button class="go-inforow-act" data-copy="${esc(opts.copy)}">${esc(t('guest.info.copy'))}</button>`;
         return `<div class="go-inforow"><span class="go-inforow-ic">${svg(INFO_ICONS[ic] || INFO_ICONS.pin, 22)}</span>
             <div class="go-inforow-tx"><div class="go-inforow-lbl">${esc(label)}</div><div class="go-inforow-val">${esc(val)}</div></div>${act}</div>`;
     }
@@ -1810,15 +1826,15 @@
         const body = $('goInfoBody');
         const hname = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
         const rows = [
-            infoRow('phone', 'Resepsiyon', config.phone, { tel: (config.phone || '').replace(/[^0-9+]/g, '') }),
-            infoRow('wifi', 'Wi-Fi ağı', config.wifiName, { copy: config.wifiName }),
-            infoRow('wifi', 'Wi-Fi şifresi', config.wifiPass, { copy: config.wifiPass }),
-            infoRow('clock', 'Check-out', config.checkoutTime),
-            infoRow('coffee', 'Kahvaltı', config.breakfast),
-            infoRow('pin', 'Adres', config.address, { map: config.address })
+            infoRow('phone', t('guest.info.reception'), config.phone, { tel: (config.phone || '').replace(/[^0-9+]/g, '') }),
+            infoRow('wifi', t('guest.info.wifiName'), config.wifiName, { copy: config.wifiName }),
+            infoRow('wifi', t('guest.info.wifiPass'), config.wifiPass, { copy: config.wifiPass }),
+            infoRow('clock', t('guest.info.checkout'), config.checkoutTime),
+            infoRow('coffee', t('guest.info.breakfast'), config.breakfast),
+            infoRow('pin', t('guest.info.address'), config.address, { map: config.address })
         ].filter(Boolean).join('');
-        body.innerHTML = `<div class="go-info-hero"><h3>${esc(hname)}</h3>${config.welcome && config.welcome.trim() ? `<p>${esc(config.welcome.trim())}</p>` : ''}</div>${rows || '<div class="go-empty"><div class="go-empty-ic">ℹ️</div><h3>Bilgi yok</h3><p>Henüz otel bilgisi eklenmemiş.</p></div>'}`;
-        body.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast('Kopyalandı'); } catch (e) {} });
+        body.innerHTML = `<div class="go-info-hero"><h3>${esc(hname)}</h3>${config.welcome && config.welcome.trim() ? `<p>${esc(config.welcome.trim())}</p>` : ''}</div>${rows || `<div class="go-empty"><div class="go-empty-ic">ℹ️</div><h3>${esc(t('guest.info.none'))}</h3><p>${esc(t('guest.info.noneHint'))}</p></div>`}`;
+        body.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast(t('common.copied')); } catch (e) {} });
         $('goInfoBackdrop').classList.add('show');
         $('goInfoSheet').classList.add('show');
         $('goInfoSheet').setAttribute('aria-hidden', 'false');
@@ -1889,9 +1905,24 @@
         const s = $('goSearch');
         if (s) s.addEventListener('input', () => { searchTerm = s.value; $('goSearchX').hidden = !s.value; renderItems(); });
         $('goSearchX').onclick = () => { searchTerm = ''; $('goSearch').value = ''; $('goSearchX').hidden = true; renderItems(); $('goSearch').focus(); };
-        // Soyadı büyük harf (TR)
+        // Soyadı otomatik büyük harfe çevrilir.
+        //
+        // DÜZELTME: filtre eskiden `[^A-ZÇĞİÖŞÜ \-']` idi — yani YALNIZCA
+        // Türkçe harfler. Yabancı misafirlerin soyadındaki Ø/Ñ/Å/Æ gibi
+        // harfler ve Kiril/Yunan alfabesi tamamen SİLİNİYOR, misafir adını
+        // yazamadığı için kimlik doğrulamasını hiç geçemiyordu. Artık her
+        // Unicode HARF kabul edilir (rakam/simge hâlâ engellenir). Sunucu
+        // zaten diyakritikleri katlayarak karşılaştırıyor
+        // (functions/index.js:_normTr), bu yüzden eşleşme bozulmaz.
         const su = $('goGateSurname');
-        if (su) su.addEventListener('input', () => { const p = su.selectionStart; su.value = su.value.toLocaleUpperCase('tr-TR').replace(/[^A-ZÇĞİÖŞÜ \-']/g, ''); try { su.setSelectionRange(p, p); } catch (e) {} });
+        if (su) su.addEventListener('input', () => {
+            const p = su.selectionStart;
+            var v = su.value.toLocaleUpperCase('tr-TR');
+            try { v = v.replace(/[^\p{L} \-']/gu, ''); }
+            catch (e) { v = v.replace(/[^A-ZÇĞİÖŞÜ \-']/g, ''); } // \p{L} desteklemeyen eski tarayıcı
+            su.value = v;
+            try { su.setSelectionRange(p, p); } catch (e) {}
+        });
         ['goGateSurname', 'goGateBirthYear'].forEach(id => { const el = $(id); if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doVerify(); }); });
     }
 
@@ -1902,7 +1933,7 @@
     // "Yapılandırma hatası" gösterip hiç boot olmuyordu.
     if (!DEMO && (typeof db === 'undefined' || typeof auth === 'undefined' || !db || !auth)) {
         const el = document.getElementById('goCats');
-        if (el) el.innerHTML = '<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>Yapılandırma hatası</h3><p>Bağlantı kurulamadı.</p></div>';
+        if (el) el.innerHTML = `<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>${esc(t('guest.stay.configError'))}</h3><p>${esc(t('common.noConnection'))}</p></div>`;
         return;
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

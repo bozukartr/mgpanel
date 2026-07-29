@@ -552,3 +552,9 @@ body.go-has-live .go-cartbar { bottom: calc(var(--nav-h) + var(--safe-bottom) + 
     max-width: calc(100% - 40px); text-align: center; opacity: 0; visibility: hidden; transition: all .25s; }
 .go-toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
 .go-toast.error { background: var(--danger); }
+
+/* ════ Dil seçici (Profil sekmesi) ════ */
+.go-langbar { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.go-lang { flex: 1; padding: var(--sp-3) var(--sp-2); border-radius: var(--r-md); background: var(--surface);
+    border: 1px solid var(--line-strong); font-size: var(--fs-body); font-weight: 600; color: var(--ink); }
+.go-lang.active { background: var(--navy); border-color: var(--navy); color: #fff; }
