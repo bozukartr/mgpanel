@@ -558,3 +558,8 @@ body.go-has-live .go-cartbar { bottom: calc(var(--nav-h) + var(--safe-bottom) + 
 .go-lang { flex: 1; padding: var(--sp-3) var(--sp-2); border-radius: var(--r-md); background: var(--surface);
     border: 1px solid var(--line-strong); font-size: var(--fs-body); font-weight: 600; color: var(--ink); }
 .go-lang.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+/* Ana ekran üst çubuğundaki dil düğmesi — zil/avatar ile aynı ölçekte. */
+.go-h2-lang { width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; background: var(--bg-2);
+    border: 1px solid var(--line); color: var(--ink-soft); font-size: 12.5px; font-weight: 800;
+    letter-spacing: .3px; display: flex; align-items: center; justify-content: center; transition: transform .12s; }
+.go-h2-lang:active { transform: scale(.92); }

@@ -18,7 +18,11 @@
         <!-- ══ ANA SAYFA ══ -->
         <section class="go-screen" id="scHome" data-screen="home">
             <div class="go-h2-top">
-                <span class="go-h2-spacer"></span>
+                <!-- Dil düğmesi: misafirin ARAMASINA gerek kalmadan görünür
+                     olması gerekiyor (telefon dili yanlış algılanmış olabilir
+                     veya misafir başka bir dil isteyebilir). Etiket aktif dili
+                     DEĞİL, geçilecek dili gösterir. -->
+                <button class="go-h2-lang" id="goLangBtn" aria-label="Dil / Language" data-i18n-aria="guest.lang.switch"></button>
                 <button class="go-h2-bell" id="goBell" aria-label="Taleplerim" data-i18n-aria="guest.nav.orders">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.95 1.95 0 0 0 3.4 0"/></svg>
                     <span class="go-bell-dot" id="goBellDot" hidden></span>
