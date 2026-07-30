@@ -728,7 +728,12 @@
         const resHtml = resList.length
             ? `<div class="go-prof-sec">${esc(t('guest.stay.reservations'))}</div>${resList.map(reservationRow).join('')}`
             : `<div class="go-prof-sec">${esc(t('guest.stay.reservations'))}</div><div class="go-empty" style="padding:24px 10px;"><p>${esc(t('guest.stay.noReservations'))}</p></div>`;
-        body.innerHTML = `${dateRow}${folioRowsHtml}${resHtml}`;
+        const langHtml = `<div class="go-prof-sec">${esc(t('guest.lang.switch'))}</div>
+            <div class="go-langbar" id="goStayLangBar">${I18n.supported().map(l =>
+                `<button class="go-lang${l === I18n.lang() ? ' active' : ''}" data-lang="${esc(l)}">${l === 'tr' ? '🇹🇷 Türkçe' : '🇬🇧 English'}</button>`).join('')}</div>`;
+        body.innerHTML = `${dateRow}${folioRowsHtml}${resHtml}${langHtml}`;
+        const slb = $('goStayLangBar');
+        if (slb) slb.onclick = e => { const b = e.target.closest('[data-lang]'); if (b) I18n.setLang(b.dataset.lang); };
         body.querySelectorAll('[data-folio-i]').forEach(btn => btn.onclick = () => { closeStay(); openFolio(folioGroups[+btn.dataset.folioI]); });
         body.querySelectorAll('.go-stay-res-row').forEach(row => row.onclick = () => row.classList.toggle('open'));
     }
@@ -1880,6 +1885,15 @@
         // "Profil" (alt nav + üst avatar) artık ayrı bir sekme değil — Konaklama
         // sheet'ini açar (giriş/çıkış, Oda Hesabım, rezervasyonlar zaten orada).
         document.querySelectorAll('.go-nav-b').forEach(b => b.onclick = () => { if (b.dataset.go === 'profile') openStay(); else showTab(b.dataset.go); });
+        // Dil düğmesi (ana ekran üst çubuğu). İki dil olduğu için tek dokunuş
+        // diğerine geçirir; etiket HEDEF dili gösterir ki misafir ne olacağını
+        // önceden bilsin.
+        const lgb = $('goLangBtn');
+        if (lgb) {
+            const other = I18n.lang() === 'tr' ? 'en' : 'tr';
+            lgb.textContent = other === 'en' ? 'EN' : 'TR';
+            lgb.onclick = () => I18n.setLang(other);
+        }
         document.querySelectorAll('[data-go]').forEach(el => { if (!el.classList.contains('go-nav-b')) el.addEventListener('click', () => showTab(el.dataset.go)); });
         $('goCartPill').onclick = () => showTab('cart');
         const lb = $('goLiveBar'); if (lb) lb.onclick = toggleLive;
