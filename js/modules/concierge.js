@@ -781,7 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!box) return;
         const nowHM = new Date().toTimeString().slice(0, 5);
         const ups = reservations
-            .filter(r => r.status !== 'Cancelled' && r.date && (r.date > todayStr || (r.date === todayStr && (r.time || '23:59') >= nowHM)))
+            .filter(r => r.status !== 'Cancelled' && r.status !== 'Done' && r.date && (r.date > todayStr || (r.date === todayStr && (r.time || '23:59') >= nowHM)))
             .sort((a, b) => a.date !== b.date ? a.date.localeCompare(b.date) : (a.time || '00:00').localeCompare(b.time || '00:00'))
             .slice(0, 3);
         if (!ups.length) { box.innerHTML = '<div class="cz-up-empty">Yaklaşan rezervasyon yok.</div>'; return; }
@@ -790,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="cz-up-time">${esc(r.time || '—')}${r.date !== todayStr ? ' · ' + fmtDate(isoToDate(r.date)) : ''}</div>
                 <b>${esc(r.guestName)}</b>
                 <div class="cz-up-meta"><span>Oda ${esc(r.room)}</span>
-                    <span class="cz-up-badge ${esc(r.status)}">${({ Pending: 'Bekleyen', Confirmed: 'Onaylı' })[r.status] || esc(r.status)}</span></div>
+                    <span class="cz-up-badge ${esc(r.status)}">${({ Pending: 'Bekleyen', Confirmed: 'Onaylı', Done: 'Tamamlandı' })[r.status] || esc(r.status)}</span></div>
             </div>`).join('');
     }
 
@@ -980,18 +980,34 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCalendar();
         feed.classList.remove('cz-month-wrap');
 
-        let todayCount = 0, pending = 0, confirmed = 0;
+        let todayCount = 0, pending = 0, confirmed = 0, overdue = 0;
         reservations.forEach(r => {
             if (r.date === today) todayCount++;
-            
+
             // Pending is GLOBAL (show all outstanding tasks)
             if (r.status === 'Pending') pending++;
-            
+            // Bunların kaçı GECİKMİŞ? Eskiden ayrım yoktu: 3 ay önce
+            // onaylanmamış bir talep, yarınki taleple aynı sayıda görünüyordu.
+            if (isOverdueRes(r)) overdue++;
+
             // Confirmed is DAILY (show today's operations)
             if (r.date === dateVal && r.status === 'Confirmed') confirmed++;
         });
         if (document.getElementById('c-statToday')) document.getElementById('c-statToday').textContent = todayCount;
-        if (document.getElementById('c-statPending')) document.getElementById('c-statPending').textContent = pending;
+        const pEl = document.getElementById('c-statPending');
+        if (pEl) {
+            pEl.textContent = pending;
+            // Gecikmişler ayrıca vurgulanır — sayının yanında küçük bir uyarı.
+            const host = pEl.parentElement;
+            if (host) {
+                let warn = host.querySelector('.c-stat-overdue');
+                if (overdue > 0) {
+                    if (!warn) { warn = document.createElement('span'); warn.className = 'c-stat-overdue'; host.appendChild(warn); }
+                    warn.textContent = '⚠️ ' + overdue + ' gecikti';
+                    warn.title = 'Planlanan saati/tarihi geçmiş, hâlâ bekleyen kayıtlar';
+                } else if (warn) { warn.remove(); }
+            }
+        }
         if (document.getElementById('c-statConfirmed')) document.getElementById('c-statConfirmed').textContent = confirmed;
 
         feed.innerHTML = '';
@@ -1145,6 +1161,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Gecikmiş rezervasyon: hâlâ "Bekleyen" ama planlanan an geçmiş.
+    // Yalnızca Pending sayılır — Onaylı bir kayıt zaten ele alınmıştır,
+    // Tamamlandı/İptal ise terminaldir.
+    function isOverdueRes(r) {
+        if (!r || (r.status || 'Pending') !== 'Pending' || !r.date) return false;
+        const now = new Date();
+        const p = n => String(n).padStart(2, '0');
+        // Yerel gün (toISOString UTC'ye kayar; gece yarısı civarı yanlış güne düşerdi)
+        const today = now.getFullYear() + '-' + p(now.getMonth() + 1) + '-' + p(now.getDate());
+        if (r.date < today) return true;
+        if (r.date > today) return false;
+        // Bugünse saat karşılaştırılır; saati olmayan kayıt gün boyu geçerlidir.
+        if (!r.time) return false;
+        return r.time < now.toTimeString().slice(0, 5);
+    }
+
     function createResCard(r) {
         const card = document.createElement('div');
         card.className = 'res-card';
@@ -1160,18 +1192,26 @@ document.addEventListener('DOMContentLoaded', () => {
         // var olan kayıt sayısını canlı olarak sayar.
         const seriesCount = r.seriesId ? reservations.filter(x => x.seriesId === r.seriesId).length : 0;
         const seriesBadge = (r.seriesId && seriesCount > 1) ? ` <span class="series-badge" title="Tekrarlayan rezervasyon serisi">🔁 Seri (${seriesCount})</span>` : '';
+        // Gecikmiş: saati/tarihi geçmiş ama hâlâ Bekleyen. Bu kayıt "Yaklaşan"
+        // kutusundan da düştüğü için (renderUpcoming yalnızca geleceğe bakar)
+        // eskiden personelin baktığı HİÇBİR yerde işaretlenmiyordu.
+        const overdue = isOverdueRes(r);
+        if (overdue) card.classList.add('res-overdue');
+        const overdueBadge = overdue ? ' <span class="res-overdue-badge">GECİKTİ</span>' : '';
+        // Kaydın QR'dan mı yoksa personelden mi geldiği listede belli değildi.
+        const srcBadge = r.source === 'guest-order' ? ' <span class="res-src-badge" title="Misafirin QR ekranından geldi">QR</span>' : '';
 
         card.innerHTML = `
             <div class="res-card-icon">${SERVICE_ICONS[r.type] || '✨'}</div>
             <div class="res-card-info">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="res-card-guest">${esc(r.guestName)}${nextDayBadge}${seriesBadge}</span>
+                    <span class="res-card-guest">${esc(r.guestName)}${nextDayBadge}${seriesBadge}${srcBadge}${overdueBadge}</span>
                     <span style="font-size:9px; color:var(--text-muted);">${fmtDate(r.date)}</span>
                 </div>
                 <span class="res-card-room">Room ${esc(r.room)} ${r.time ? '• ' + esc(r.time) : ''}</span>
             </div>
             <div class="res-card-status">
-                <span class="status-badge ${esc((r.status || 'Pending').toLowerCase())}">${esc(({Pending:'Bekliyor',Confirmed:'Onaylı',Cancelled:'İptal'})[r.status] || r.status || 'Pending')}</span>
+                <span class="status-badge ${esc((r.status || 'Pending').toLowerCase())}">${esc(({Pending:'Bekliyor',Confirmed:'Onaylı',Done:'Tamamlandı',Cancelled:'İptal'})[r.status] || r.status || 'Pending')}</span>
             </div>
         `;
         return card;
@@ -1496,6 +1536,34 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('d-voucher').textContent = r.voucherNo || '—';
         document.getElementById('d-notes').textContent = r.notes || 'No notes.';
 
+        // ── İptal nedeni / kim iptal etti ────────────────────────────────
+        // Personelden ZORUNLU olarak istenen iptal nedeni (ve misafirin kendi
+        // iptali) kaydediliyordu ama panelde HİÇBİR YERDE gösterilmiyordu:
+        // iptal edilmiş bir QR kaydı ile personel kaydı birbirinden ayırt
+        // edilemiyordu. Detay sayfasının başına bir uyarı şeridi eklenir.
+        const host = document.querySelector('#detailSheet .sheet-body');
+        if (host) {
+            let banner = host.querySelector('.d-state-banner');
+            const guestCancelled = r.status === 'Cancelled' && r.cancelledBy === 'guest';
+            let html = '';
+            if (r.status === 'Cancelled') {
+                const who = guestCancelled ? 'Misafir iptal etti' : ('İptal eden: ' + esc(r.cancelledBy || '—'));
+                html = `<div class="d-banner cancel"><b>${who}</b>${r.cancelReason ? '<span>' + esc(r.cancelReason) + '</span>' : ''}</div>`;
+            } else if (r.status === 'Done') {
+                html = `<div class="d-banner done"><b>Tamamlandı</b>${r.completedBy ? '<span>' + esc(r.completedBy) + '</span>' : ''}</div>`;
+            } else if (isOverdueRes(r)) {
+                html = `<div class="d-banner overdue"><b>⚠️ Gecikti</b><span>Planlanan an geçti, kayıt hâlâ bekliyor.</span></div>`;
+            }
+            if (html) {
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.className = 'd-state-banner';
+                    host.insertBefore(banner, host.firstChild);
+                }
+                banner.innerHTML = html;
+            } else if (banner) { banner.remove(); }
+        }
+
         document.querySelectorAll('.status-toggle-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.status === r.status);
         });
@@ -1553,10 +1621,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const applyFolioBtn = document.getElementById('d-applyFolioBtn');
     if (applyFolioBtn) applyFolioBtn.onclick = () => applyToFolio(window.selectedReservation);
 
-    ['Pending', 'Confirmed', 'Cancelled'].forEach(st => {
+    const RES_STATUS_TR = { Pending: 'Bekleyen', Confirmed: 'Onaylı', Done: 'Tamamlandı', Cancelled: 'İptal' };
+    // 'Done' YENİ: eskiden yalnızca Bekleyen/Onaylı/İptal vardı, dolayısıyla
+    // gerçekleşmiş bir transfer sonsuza dek "Onaylı" kalıyor, misafirin
+    // ekranı hiç "Tamamlandı" göstermiyor ve misafir hizmeti
+    // DEĞERLENDİREMİYORDU (puanlama 'completed' gerektiriyor). Sunucudaki
+    // MAP'te karşılığı zaten hazırdı (functions/index.js onReservationUpdate).
+    ['Pending', 'Confirmed', 'Done', 'Cancelled'].forEach(st => {
         document.getElementById('d-set' + st).onclick = async () => {
             if (!window.selectedReservation) return;
             const r = window.selectedReservation;
+
+            // TERMİNAL DURUM KORUMASI: iptal edilmiş (özellikle MİSAFİRİN
+            // iptal ettiği) ya da tamamlanmış bir kayıt geri çevrilemez.
+            // Eskiden koruma yoktu: misafir talebini iptal ettikten sonra
+            // personel yanlışlıkla "Onaylı"ya basabiliyor, panel "Onaylı"
+            // derken misafir "İptal" görüyordu — iptal etmiş misafir için
+            // araç gönderiliyordu.
+            if ((r.status === 'Cancelled' || r.status === 'Done') && st !== r.status) {
+                const who = r.cancelledBy === 'guest' ? 'Misafir' : (r.cancelledBy || 'Personel');
+                showToast(r.status === 'Cancelled'
+                    ? ('Bu kayıt iptal edilmiş (' + who + '). Geri alınamaz — gerekiyorsa yeni kayıt oluşturun.')
+                    : 'Bu kayıt tamamlanmış. Geri alınamaz.', true);
+                return;
+            }
 
             // Security check for 'Confirmed'
             if (st === 'Confirmed') {
@@ -1582,10 +1670,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 upd.cancelReason = reason.slice(0, 300);
                 upd.cancelledBy = loggedUsername;
             }
+            if (st === 'Done') {
+                upd.completedBy = loggedUsername;
+                upd.completedAt = firebase.firestore.FieldValue.serverTimestamp();
+            }
 
             try {
                 await db.collection('reservations').doc(r.id).update(upd);
-                showToast('Durum: ' + ({ Pending: 'Bekleyen', Confirmed: 'Onaylı', Cancelled: 'İptal' }[st] || st));
+                showToast('Durum: ' + (RES_STATUS_TR[st] || st));
             } catch (e) { showToast('Hata', true); }
         };
     });
@@ -1726,7 +1818,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = itiGuestSearch.value.trim();
         const box = document.getElementById('iti-guest-info');
         if (guestMap[val]) {
-            const guestItems = reservations.filter(r => r.guestName === val && r.status !== 'Cancelled');
+            const guestItems = reservations.filter(r => r.guestName === val && r.status !== 'Cancelled' && r.status !== 'Done');
             document.getElementById('iti-sel-guest').textContent = val;
             document.getElementById('iti-sel-room').textContent = 'Room ' + guestMap[val];
             document.getElementById('iti-sel-count').textContent = `${guestItems.length} active reservation(s)`;
@@ -1739,7 +1831,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('iti-gen-btn').onclick = () => {
         const guestName = itiGuestSearch.value.trim();
         if (!guestName) return;
-        const guestItems = reservations.filter(r => r.guestName === guestName && r.status !== 'Cancelled');
+        const guestItems = reservations.filter(r => r.guestName === guestName && r.status !== 'Cancelled' && r.status !== 'Done');
         if (guestItems.length === 0) { showToast('Aktif rezervasyon bulunamadı', true); return; }
 
         selOptions.innerHTML = guestItems.map(item => `

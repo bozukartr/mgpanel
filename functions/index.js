@@ -689,17 +689,34 @@ exports.onReservationUpdate = onDocumentUpdated(
     const after = event.data && event.data.after ? event.data.after.data() : null;
     if (!before || !after) return;
     if (after.source !== 'guest-order' || !after.orderId || !after.itemId) return;
-    if (before.status === after.status) return;
-    // GÜVENLİK/OPERASYONEL DÜZELTME: 'Pending' MAP'te YOKTU — personel
-    // yanlışlıkla Onayladığı bir rezervasyonu Pending'e geri alırsa, misafir
-    // ekranı eskiden 'confirmed'de donup kalıyordu (MAP[after.status]
-    // undefined → aşağıdaki `if (!next) return;` ile sessizce no-op) —
-    // misafir hâlâ onaylı sanıp gelebilirdi (bkz. çift-yönlü senkron
-    // denetimi). 'Done' kasıtlı olarak ölü kalır — concierge.js hiçbir
-    // yerde bu durumu set etmiyor.
+
+    // 'Pending' MAP'te YOKTU — personel yanlışlıkla Onayladığı bir
+    // rezervasyonu Pending'e geri alırsa misafir ekranı 'confirmed'de donup
+    // kalıyordu. 'Done' artık CANLI: concierge.js'e "Tamamlandı" aksiyonu
+    // eklendi (transfer gerçekleştikten sonra kayıt kapanabilsin ve misafir
+    // değerlendirme yapabilsin).
     const MAP = { Pending: 'pending', Confirmed: 'confirmed', Cancelled: 'cancelled', Done: 'completed' };
     const next = MAP[after.status];
-    if (!next) return;
+
+    // DENETİM DÜZELTMESİ — DETAY SENKRONU:
+    // Eskiden burada `if (before.status === after.status) return;` vardı, yani
+    // personel panelde transferin SAATİNİ/YERİNİ/ARACINI değiştirdiğinde
+    // misafire HİÇBİR ŞEY ulaşmıyordu; misafirin ekranı gönderim anında
+    // donmuş eski değeri göstermeye devam ediyor, misafir yanlış saatte
+    // lobide bekliyordu. Artık durum DEĞİŞMESE DE ilgili alanlar kaleme
+    // yansıtılır.
+    const DETAIL = [
+      ['date', 'transferDate', 10],
+      ['time', 'transferTime', 5],
+      ['from', 'transferFrom', 80],
+      ['to', 'transferTo', 80],
+      ['vehicle', 'option', 60]
+    ];
+    const detailChanged = DETAIL.some(([f]) => String(before[f] || '') !== String(after[f] || ''));
+    const statusChanged = before.status !== after.status;
+    if (!statusChanged && !detailChanged) return;
+    if (statusChanged && !next) return; // tanınmayan durum — dokunma
+
     const oRef = db.collection('guestOrders').doc(after.orderId);
     try {
       await db.runTransaction(async (tx) => {
@@ -709,20 +726,42 @@ exports.onReservationUpdate = onDocumentUpdated(
         if (o.status === 'cancelled') return;
         const items = (Array.isArray(o.items) ? o.items : []).map((it) => {
           if (!it || it.id !== after.itemId) return it;
-          if (it.status === 'completed' || it.status === 'cancelled') return it; // final durumdan geri dönülmez
-          const patched = Object.assign({}, it, { status: next });
-          // Personel iptal nedeni girdiyse (bkz. concierge.js zorunlu-neden
-          // promptu) bunu KALEM-seviyesinde taşı — mevcut sipariş-seviyesi
-          // o.cancelReason, guest-orders.js'in AYRI/ilgisiz toplu-iptal
-          // akışından gelir, burada KARIŞTIRILMAZ.
-          if (next === 'cancelled' && after.cancelReason) patched.cancelReason = String(after.cancelReason).slice(0, 300);
+          const patched = Object.assign({}, it);
+          // Durum: final durumdan geri dönülmez.
+          if (statusChanged && next && it.status !== 'completed' && it.status !== 'cancelled') {
+            patched.status = next;
+            // Personel iptal nedeni girdiyse (concierge.js zorunlu-neden
+            // promptu) KALEM-seviyesinde taşı — sipariş-seviyesi
+            // o.cancelReason guest-orders.js'in AYRI toplu-iptal akışından
+            // gelir, karıştırılmaz.
+            if (next === 'cancelled' && after.cancelReason) {
+              patched.cancelReason = String(after.cancelReason).slice(0, 300);
+            }
+          }
+          // Detaylar: personel panelde değiştirdiyse misafirin gördüğü
+          // alanlara yansıt. İptal/tamamlanmış kalemde artık anlamsız.
+          if (detailChanged && it.status !== 'cancelled') {
+            DETAIL.forEach(([resField, itemField, max]) => {
+              const v = after[resField];
+              if (v !== undefined && v !== null) patched[itemField] = String(v).slice(0, max);
+            });
+            patched.staffUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+          }
           return patched;
         });
-        const done = (s) => s === 'completed' || s === 'cancelled';
-        const settled = (s) => done(s) || s === 'confirmed' || s === 'in_progress';
-        let status = o.status || 'pending';
-        if (items.length && items.every((it) => done(it.status))) status = 'completed';
-        else if (items.length && items.every((it) => settled(it.status)) && status === 'pending') status = 'confirmed';
+        // Sipariş-seviyesi rollup: PAYLAŞILAN yardımcı kullanılır.
+        // Eskiden burada yerel bir kopya vardı ve `allCancelled` dalı YOKTU —
+        // tek kalemli bir Concierge talebi personel tarafından iptal edilince
+        // `items.every(done)` true oluyor ve sipariş 'completed' damgalanıyordu:
+        // misafir 🎉 "Talebiniz tamamlandı. Teşekkürler!" görüyordu. Artık
+        // rollupOrderStatus (allCancelled → 'cancelled') kullanılıyor.
+        const rolled = rollupOrderStatus(items, o.status || 'pending');
+        // rollupOrderStatus yalnızca "hepsi bitti/iptal" durumlarını çevirir;
+        // "hepsi ele alındı ama henüz bitmedi" (pending → confirmed) yükselişi
+        // burada korunur.
+        const settled = (s) => s === 'completed' || s === 'cancelled' || s === 'confirmed' || s === 'in_progress';
+        let status = rolled;
+        if (status === 'pending' && items.length && items.every((it) => settled(it.status))) status = 'confirmed';
         tx.update(oRef, { items, status, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       });
     } catch (e) { console.error('reservation→order sync failed', e); }
@@ -1838,11 +1877,12 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
           throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
         }
       }
-      let resRef = null, resExists = false;
+      let resRef = null, resExists = false, resSnapData = null;
       if (cur.resId) {
         resRef = db.collection('reservations').doc(cur.resId);
         const resSnap = await tx.get(resRef);
         resExists = resSnap.exists;
+        resSnapData = resExists ? resSnap.data() : null;
         if (!canCancelItem(cur, resExists ? resSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
         }
@@ -1874,7 +1914,13 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
       // Concierge panelindeki notes alanına da yansıtılmazsa misafir
       // "başarıyla düzenledim" görür ama personel eski notu görmeye devam
       // ederdi (bkz. çift-yönlü senkron denetimi).
-      if (resRef && resExists) tx.update(resRef, { notes: orderBridge.reservationNotesText(updated) });
+      // mergeGuestNote: personelin `notes` alanına yazdığı satırları KORUR.
+      // Eskiden reservationNotesText'in çıktısı alanın TAMAMINI eziyordu —
+      // misafir adet/not düzenlediğinde personelin yazdığı (ör. "Sürücü
+      // Ahmet atandı") bilgi sessizce siliniyordu.
+      if (resRef && resExists) {
+        tx.update(resRef, { notes: orderBridge.mergeGuestNote(resSnapData && resSnapData.notes, updated) });
+      }
     });
   } catch (e) {
     if (e instanceof HttpsError) throw e;
@@ -2051,7 +2097,12 @@ exports.submitItemRating = onCall({ region: REGION }, async (request) => {
       if (idx === -1) throw new HttpsError('not-found', 'Kalem bulunamadı.');
       const cur = items[idx];
       if ((cur.status || 'pending') !== 'completed') throw new HttpsError('failed-precondition', 'Bu kalem henüz tamamlanmadı.');
-      if (cur.resId) throw new HttpsError('failed-precondition', 'Bu kalem değerlendirilemez.');
+      // (Eskiden burada Concierge/Transfer kalemleri REDDEDİLİYORDU: o zaman
+      //  panelde "Tamamlandı" aksiyonu yoktu, dolayısıyla bu kalemler hiç
+      //  'completed' olamıyor ve puanlama anlamsız kalıyordu. Artık
+      //  concierge.js'te Tamamlandı var, Concierge hizmetleri de
+      //  değerlendirilebilir — yukarıdaki 'completed' ön koşulu zaten
+      //  hizmetin fiilen verildiğini garanti ediyor.)
       if (cur.ratedAt) throw new HttpsError('failed-precondition', 'Bu kalem zaten değerlendirildi.');
 
       items[idx] = Object.assign({}, cur, { rating: stars, ratedAt: admin.firestore.FieldValue.serverTimestamp() });

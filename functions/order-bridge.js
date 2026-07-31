@@ -75,8 +75,13 @@ function sameDept(a, b) {
   return !!(ca && cb && ca === cb);
 }
 
+// Cloud Function sunucusunun yerel saati UTC'dir; otel operasyonu ise
+// İstanbul saatine göre çalışır. Eskiden sunucu yerel günü kullanılıyordu ve
+// gece yarısı civarı kayıt YANLIŞ güne düşüyordu (functions/index.js'teki
+// _istanbulToday/hhmmIstanbul zaten bu düzeltmeyi yapıyor, bu dosya geride
+// kalmıştı).
 function todayYmd(d) {
-  const x = d || new Date();
+  const x = d || new Date(Date.now() + 3 * 3600 * 1000); // UTC+3
   const p = (n) => (n < 10 ? '0' + n : '' + n);
   return x.getFullYear() + '-' + p(x.getMonth() + 1) + '-' + p(x.getDate());
 }
@@ -135,13 +140,29 @@ function isFnbItem(it) {
 // updateGuestOrderItem callable'ı (misafir daha sonra not/adet düzenlerse,
 // bkz. functions/index.js) AYNI biçimlendirmeyi paylaşsın diye tek yerde
 // toplanır — itemComplaintText'in (guestLogs için) AYNI gerekçesi.
+// Misafir bölümünün başlangıç işareti. `notes` alanı personelin de
+// yazabildiği ORTAK bir alan: eskiden misafirin her düzenlemesi personelin
+// yazdığı notu tamamen SİLİYORDU (ve tersi). Artık misafir metni bu işaretle
+// başlayan tek bir satırda tutulur; mergeGuestNote personelin satırlarına
+// dokunmadan yalnızca o satırı tazeler.
+const GUEST_NOTE_PREFIX = 'QR misafir talebi';
+
+// Mevcut `notes` içinde misafir satırını günceller, personel satırlarını
+// KORUR. Personel notu yoksa davranış eskisiyle aynıdır.
+function mergeGuestNote(existingNotes, it) {
+  const guestLine = reservationNotesText(it);
+  const lines = String(existingNotes || '').split('\n');
+  const kept = lines.filter((l) => l.trim() && l.indexOf(GUEST_NOTE_PREFIX) !== 0);
+  return [guestLine].concat(kept).join('\n').slice(0, 1000);
+}
+
 function reservationNotesText(it) {
   const qty = Number(it && it.qty) || 1;
   const name = String((it && it.name) || '').trim();
   const option = String((it && it.option) || '').trim().slice(0, 60);
   const isTransfer = /transfer/.test(name.toLocaleLowerCase('tr-TR'));
   return [
-    'QR misafir talebi', qty > 1 ? qty + ' adet' : '',
+    GUEST_NOTE_PREFIX, qty > 1 ? qty + ' adet' : '',
     (option && !isTransfer) ? 'Seçenek: ' + option : '',
     (it && it.note) ? String(it.note).slice(0, 200) : ''
   ].filter(Boolean).join(' · ');
@@ -184,8 +205,12 @@ function buildOrderReservationDocs(order, orderId, extra) {
       type: isTransfer ? 'Transfer' : 'Other',
       otherType: isTransfer ? '' : displayName,
       resName: displayName,
-      date: (isTransfer && it && it.transferDate) ? String(it.transferDate).slice(0, 10) : todayYmd(),
-      time: (isTransfer && it && it.transferTime) ? String(it.transferTime).slice(0, 5) : String((it && it.preferredTime) || '').slice(0, 5),
+      // Misafirin seçtiği tarih HER Concierge kalemi için geçerlidir
+      // (yalnızca transfer değil): guest-order.js artık restoran/spa/tur
+      // gibi kalemlerde de tarih soruyor. Eskiden koşul `isTransfer &&`
+      // idi ve diğer tüm Concierge talepleri koşulsuz BUGÜNE düşüyordu.
+      date: (it && it.transferDate) ? String(it.transferDate).slice(0, 10) : todayYmd(),
+      time: (it && it.transferTime) ? String(it.transferTime).slice(0, 5) : String((it && it.preferredTime) || '').slice(0, 5),
       guestName: guestName,
       room: String(order.room || '').trim(),
       status: 'Pending',
@@ -257,4 +282,4 @@ function buildOrderLogDocs(order, orderId, extra) {
   return { docs, items: outItems };
 }
 
-module.exports = { buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT, safeId, sameDept, deptByCat, DEPT_SYNONYMS };
+module.exports = { mergeGuestNote, buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT, safeId, sameDept, deptByCat, DEPT_SYNONYMS };
