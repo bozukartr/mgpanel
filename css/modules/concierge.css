@@ -181,6 +181,32 @@
     border-left: 4px solid #9e9e9e;
 }
 
+/* Tamamlandı — hizmet fiilen verildi. Onaylı'nın canlı yeşilinden ayrışsın
+   diye soluk/koyu yeşil: kart artık "yapılacak iş" değil, arşiv. */
+.res-card[data-status="Done"] {
+    background: linear-gradient(to left, rgba(21, 128, 61, 0.10), #ffffff 50%);
+    border-left: 4px solid #15803d;
+    opacity: .82;
+}
+
+/* GECİKMİŞ: tarihi/saati geçmiş ama hâlâ Bekleyen kayıt. Eskiden yarınki
+   talepten görsel olarak AYIRT EDİLEMİYORDU ve "Yaklaşan" kutusundan da
+   düştüğü için personelin baktığı hiçbir yerde görünmüyordu. */
+.res-card.res-overdue {
+    background: linear-gradient(to left, rgba(211, 47, 47, 0.16), #ffffff 50%);
+    border-left: 4px solid #d32f2f;
+}
+.res-overdue-badge {
+    display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 5px;
+    background: #d32f2f; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .2px;
+}
+/* Kaynak rozeti: kaydın QR'dan mı yoksa personelden mi geldiği liste
+   görünümünde hiç belli değildi. */
+.res-src-badge {
+    display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 5px;
+    background: #eef2ff; color: #4f46e5; font-size: 9px; font-weight: 800;
+}
+
 .res-card:active { transform: scale(0.97); background: #f9f9f9; }
 
 .res-card-icon {
@@ -279,6 +305,15 @@
     box-shadow: 0 4px 12px rgba(211, 47, 47, 0.15);
 }
 .status-toggle-btn.active[data-status="Cancelled"] .stb-dot { background: var(--overdue); }
+
+/* "Tamamlandı" — hizmet fiilen verildikten sonraki terminal durum. Onaylı
+   (mavi/yeşil) ile karışmasın diye ayrı, koyu yeşil bir kimlik. */
+.status-toggle-btn.active[data-status="Done"] {
+    background: #fff;
+    color: #15803d;
+    box-shadow: 0 4px 12px rgba(21, 128, 61, 0.15);
+}
+.status-toggle-btn.active[data-status="Done"] .stb-dot { background: #15803d; }
 
 /* â”€â”€ DETAIL EXTRAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .res-detail-main {
@@ -1111,3 +1146,19 @@
 .rs-sum-pill.confirmed { background: #f0fdf4; color: #16a34a; }
 .rs-sum-pill.cancelled { background: #fef2f2; color: #dc2626; }
 .rs-sum-more { font-size: 11px; color: #94a3b8; text-align: center; padding-top: 10px; }
+
+/* "Bekleyen" istatistiğinin altındaki gecikmiş uyarısı. */
+.c-stat-overdue {
+    display: block; margin-top: 2px; font-size: 9.5px; font-weight: 800;
+    color: #d32f2f; letter-spacing: .1px; white-space: nowrap;
+}
+
+/* Detay sayfası durum şeridi — iptal nedeni / tamamlanma / gecikme.
+   Bu bilgiler kaydediliyordu ama panelde hiç gösterilmiyordu. */
+.d-state-banner { margin-bottom: 12px; }
+.d-banner { border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; }
+.d-banner b { display: block; font-weight: 800; font-size: 12px; letter-spacing: .2px; }
+.d-banner span { display: block; margin-top: 3px; }
+.d-banner.cancel  { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+.d-banner.done    { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+.d-banner.overdue { background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; }

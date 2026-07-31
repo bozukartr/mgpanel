@@ -136,6 +136,12 @@
         .gos-item .gos-ibody { flex: 1; min-width: 0; }
         .gos-item .gos-iname { font-size: 13.5px; font-weight: 600; color: #1e293b; }
         .gos-item .gos-imeta { font-size: 11.5px; color: #94a3b8; }
+        /* Concierge kalemi: bu çekmece onu YÖNETMEZ, yalnızca gösterir ve
+           asıl kaydına (Concierge paneli) yönlendirir. */
+        .gos-item.gos-item-res { background: #f8fafc; border-left: 3px solid #6366f1; }
+        .gos-item .gos-resbadge { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 5px;
+            background: #eef2ff; color: #4f46e5; font-size: 9px; font-weight: 800; vertical-align: middle; }
+        .gos-item .gos-reshint { color: #6366f1; font-style: italic; }
         .gos-item .gos-istat { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
         .gos-item .gos-istat.pending { background: #fff7ed; color: #c2680c; }
         .gos-item .gos-istat.confirmed { background: #eff6ff; color: #2563eb; }
@@ -319,19 +325,31 @@
         const created = ms(o.createdAt);
         const items = (o.items || []).map((it, idx) => {
             const sIdx = FLOW.indexOf(it.status);
+            // CONCIERGE KALEMİ (resId): bu çekmece onu YÖNETMEZ. Kaydın tek
+            // sahibi Concierge panelindeki `reservations` dokümanıdır.
+            // Eskiden bu ayrım YOKTU ve buradan ilerletilen bir Concierge
+            // kalemi, logId'si olmadığı için commit()'te YENİ bir guestLogs
+            // kaydı yaratıyordu: transfer aynı anda hem Concierge ajandasında
+            // "Bekliyor" hem oda kayıtlarında ayrı bir talep olarak duruyordu.
+            // Toplu "Tamamla"/"İptal" ise siparişi kapatıp rezervasyonu canlı
+            // bırakıyordu (bkz. QR↔Concierge operasyon denetimi).
+            const isRes = !!it.resId;
             // İptal edilmiş sipariş terminaldir: misafir iptal etmişse personel
             // bir öğeyi ilerletip siparişi yeniden "onaylandı"ya çeviremez.
-            const canAdv = o.status !== 'cancelled' && it.status !== 'cancelled' && sIdx >= 0 && sIdx < FLOW.length - 1;
+            const canAdv = !isRes && o.status !== 'cancelled' && it.status !== 'cancelled' && sIdx >= 0 && sIdx < FLOW.length - 1;
             const meta = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note]
                 .filter(Boolean).join(' · ');
-            return `<div class="gos-item">
+            return `<div class="gos-item${isRes ? ' gos-item-res' : ''}">
                 <div class="gos-ico">${esc(it.icon || '🛎️')}</div>
                 <div class="gos-ibody">
-                    <div class="gos-iname">${esc(it.name)}</div>
+                    <div class="gos-iname">${esc(it.name)}${isRes ? ' <span class="gos-resbadge">CONCIERGE</span>' : ''}</div>
                     ${meta ? `<div class="gos-imeta">${esc(meta)}</div>` : ''}
+                    ${isRes ? '<div class="gos-imeta gos-reshint">Bu kayıt Concierge panelinden yönetilir.</div>' : ''}
                 </div>
                 <span class="gos-istat ${esc(it.status)}">${esc(LABEL[it.status] || it.status)}</span>
-                <button class="gos-iadv" data-adv="${esc(o.id)}|${esc(it.id)}" title="Bir adım ilerlet" ${canAdv ? '' : 'disabled'}>›</button>
+                ${isRes
+                    ? `<button class="gos-iadv" data-res-open="${esc(it.resId)}" title="Concierge panelinde aç">↗</button>`
+                    : `<button class="gos-iadv" data-adv="${esc(o.id)}|${esc(it.id)}" title="Bir adım ilerlet" ${canAdv ? '' : 'disabled'}>›</button>`}
             </div>`;
         }).join('');
 
@@ -400,6 +418,18 @@
             const sel = root.querySelector(`[data-assignsel="${CSS.escape(id)}"]`);
             if (sel && sel.value) { const [uid, uname] = sel.value.split('|'); assignOrder(id, uid, uname); }
         });
+        // Concierge kalemi → asıl kaydına götür. Bu çekmece concierge.html'de
+        // de yükleniyor; oradaysak doğrudan detay sayfasını açarız, panel.html
+        // gibi başka bir sayfadaysak Concierge rotasına yönlendiririz.
+        root.querySelectorAll('[data-res-open]').forEach(b => b.onclick = () => {
+            const rid = b.dataset.resOpen;
+            if (typeof window.openDetailById === 'function') { window.openDetailById(rid); return; }
+            try {
+                const target = 'app#concierge?res=' + encodeURIComponent(rid);
+                if (window.top && window.top !== window) window.top.location.href = target;
+                else location.href = target;
+            } catch (e) { location.href = 'concierge'; }
+        });
     }
 
     // ── Mutations ──────────────────────────────────────────────
@@ -413,6 +443,13 @@
             // İptal terminaldir: zaten iptal edilmiş bir siparişi başka bir duruma çekme.
             if (freshOrder.status === 'cancelled' && status !== 'cancelled') return null;
             const items = (freshOrder.items || []).map(it => {
+                // Concierge kalemi (resId): toplu işlem ona DOKUNMAZ. Aksi
+                // halde sipariş "tamamlandı"/"iptal" damgalanırken bağlı
+                // rezervasyon Concierge panelinde canlı kalıyordu — misafir
+                // talebin kapandığını görürken personel hâlâ bekleyen bir
+                // transfer görüyordu (denetimde tespit edilen çelişki).
+                // Bu kalemler yalnızca Concierge panelinden yönetilir.
+                if (it.resId) return it;
                 if (status === 'cancelled') return Object.assign({}, it, { status: 'cancelled' });
                 if (it.status === 'cancelled') return it;
                 return Object.assign({}, it, { status });
@@ -464,6 +501,13 @@
             const oldById = {};
             (freshOrder.items || []).forEach(it => { if (it && it.id) oldById[it.id] = it.status; });
             items.forEach(it => {
+                // Concierge kalemi (resId) bu çekmeceye AİT DEĞİL: aynası
+                // `reservations` dokümanıdır ve yalnızca Concierge paneli ile
+                // sunucu callable'ları onu değiştirir. Buradan geçerse
+                // aşağıdaki `if (!it.logId)` dalı ona İKİNCİ bir guestLogs
+                // kaydı açardı (aynı transfer iki yerde birden) — denetimde
+                // tespit edilen mükerrer-kayıt hatasının kaynağı buydu.
+                if (it.resId) return;
                 // İptal edilen kalemin kaydı AÇIK bırakılmaz — aksi halde SLA
                 // eskalasyonu süresiz tetiklenirdi. Çözüldü olarak kapatılır,
                 // çözüm notu iptali belirtir.

@@ -896,7 +896,7 @@
     function itemAction(item, av, line) {
         if (!av.available) return `<span class="go-unavail">${esc(t('guest.services.offHours'))}</span>`;
         if (line && line.qty > 0) return stepHtml(item.id, line.qty);
-        if (hasOptions(item) || hasModifiers(item) || isTransferItem(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">${esc(t('common.select'))}</button>`;
+        if (hasOptions(item) || hasModifiers(item) || isTransferItem(item) || isConciergeItem(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">${esc(t('common.select'))}</button>`;
         return `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
     }
     function itemHtml(item) {
@@ -961,7 +961,13 @@
         const withMods = hasModifiers(item);
         const maxq = lineMax(item);
         const isTransfer = isTransferItem(item);
-        const tmb = isTransfer ? transferMinBound() : null;
+        // Concierge (transfer OLMAYAN: restoran rezervasyonu, spa, tur…)
+        // kalemleri de TARİH ister. Eskiden yalnızca transfer'e tarih alanı
+        // vardı; diğerleri order-bridge'de koşulsuz BUGÜNE sabitleniyordu —
+        // "Cuma akşamı için masa" isteyen misafirin talebi bugünün
+        // ajandasına düşüyordu (bkz. QR↔Concierge operasyon denetimi).
+        const isConcierge = !isTransfer && isConciergeItem(item);
+        const tmb = (isTransfer || isConcierge) ? transferMinBound() : null;
         const tags = [];
         if (item.eta && item.eta !== '—') tags.push(`<span class="go-tag">${svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', 13)}${esc(item.eta)}</span>`);
         if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">🕒 ${esc(av.window)}</span>`);
@@ -995,9 +1001,14 @@
                 <div class="go-fld"><label>${esc(t('guest.transfer.time'))}</label><input type="time" id="goShTime" min="${tmb.timeHHMM}" value="${esc(line && line.transferTime || tmb.timeHHMM)}"></div>
             </div>
             ${!withOpts ? `<div class="go-fld"><label>${esc(t('guest.transfer.vehicle'))}</label><input type="text" id="goShVehicle" maxlength="80" placeholder="${esc(t('guest.transfer.vehiclePlaceholder'))}" value="${esc(line ? line.option || '' : '')}"></div>` : ''}
+            ` : (isConcierge ? `
+            <div class="go-fld-2">
+                <div class="go-fld"><label>${esc(t('guest.transfer.date'))}</label><input type="date" id="goShDate" min="${tmb.dateIso}" value="${esc(line && line.transferDate || tmb.dateIso)}"></div>
+                <div class="go-fld"><label>${esc(t('guest.transfer.time'))}</label><input type="time" id="goShTime" value="${esc(line && line.transferTime || '')}"></div>
+            </div>
             ` : `
             <div class="go-fld"><label>${esc(t('guest.item.preferredTime'))}</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
-            `}
+            `)}
             <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;" ${addDisabled ? 'disabled' : ''}>
                 <span id="goShAddLbl">${addDisabled ? t('guest.item.pickOption') : (line ? t('guest.item.updateCart') : t('guest.item.addToCart'))}</span>
                 ${(!addDisabled && pricesOn() && sheetUnitPrice()) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(sheetUnitPrice() * sheetQty))}</span>` : ''}
@@ -1072,9 +1083,16 @@
             const picked = new Date(transferDate + 'T' + transferTime + ':00');
             const b = transferMinBound();
             if (isNaN(picked.getTime()) || picked.getTime() < b.ms) {
-                toast(`Transfer saati en erken ${b.timeHHMM} (${b.dateIso.split('-').reverse().join('.')}) olabilir.`, true);
+                toast(t('guest.transfer.tooEarly', { time: b.timeHHMM, date: b.dateIso.split('-').reverse().join('.') }), true);
                 return;
             }
+        } else if (isConciergeItem(item)) {
+            // Transfer olmayan Concierge kalemi: TARİH zorunlu (hangi gün için
+            // istendiği bilinmezse kayıt bugüne düşer), saat opsiyoneldir
+            // (ör. "yarın için spa" — saat personel ile netleşebilir).
+            transferDate = ($('goShDate') && $('goShDate').value || '').slice(0, 10);
+            transferTime = ($('goShTime') && $('goShTime').value || '').slice(0, 5);
+            if (!transferDate) { toast(t('guest.transfer.needDate'), true); return; }
         }
         const note = ($('goShNote') && $('goShNote').value || '').slice(0, 160);
         // Transfer kalemlerinde preferredTime kullanılmaz (mutually exclusive
@@ -1131,7 +1149,7 @@
         // seçenek/modifier'ı olmasa bile HER ZAMAN sheet'ten geçer — aksi
         // halde "Hızlı İşlemler" kısayolu bu zorunlu alanları hiç sormadan
         // sepete ekleyebilirdi.
-        if (!line && delta > 0 && (hasOptions(item) || hasModifiers(item) || isTransferItem(item))) { openItemSheet(catalogId); return; }
+        if (!line && delta > 0 && (hasOptions(item) || hasModifiers(item) || isTransferItem(item) || isConciergeItem(item))) { openItemSheet(catalogId); return; }
         if (!line && delta > 0) {
             if (cart.length >= MAX_DISTINCT) { toast(t('guest.item.maxDistinct', { n: MAX_DISTINCT }), true); return; }
             line = { catalogId, name: item.name, category: item.category || t('common.other'), icon: item.icon || '🛎️',
@@ -1352,15 +1370,16 @@
             lastStatusMap[o.id] = o.status;
         });
         // Kalem-seviyesi tamamlanma tespiti → değerlendirme kuyruğu. !it.resId
-        // Concierge/Transfer kalemlerini dışlar (bkz. kapsam kararı — bugün
-        // zaten 'completed'e hiç ulaşmıyorlar, bu savunma amaçlı bir kontrol).
+        // Concierge/Transfer kalemleri ARTIK DAHİL: panele "Tamamlandı"
+        // aksiyonu eklendiği için bu kalemler de 'completed'e ulaşabiliyor,
+        // dolayısıyla misafir transferini/rezervasyonunu da puanlayabilir.
         // !it.ratedAt, sayfa yenilemesi sonrası zaten değerlendirilmiş bir
         // kalemin tekrar sorulmasını engeller (ratedAt sunucuda kalıcı).
         myOrders.forEach(o => {
             (o.items || []).forEach(it => {
                 const key = o.id + '_' + it.id;
                 const prevIt = lastItemStatusMap[key];
-                if (prevIt !== 'completed' && it.status === 'completed' && !it.resId && !it.ratedAt) {
+                if (prevIt !== 'completed' && it.status === 'completed' && !it.ratedAt) {
                     ratingQueue.push({ orderId: o.id, itemId: it.id, name: it.name, department: it.department, category: it.category });
                 }
                 lastItemStatusMap[key] = it.status;
