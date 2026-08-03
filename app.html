@@ -13,6 +13,11 @@
 <body>
     <div class="sh-app">
         <header class="sh-header">
+            <!-- Mobil modül düğmesi: alt nav bar kaldırıldı, tüm rotalar bu
+                 çekmeceden açılır (yalnızca ≤880px'te görünür). -->
+            <button class="sh-menu" id="shMenuBtn" aria-label="Modüller" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+            </button>
             <div class="sh-logo"><img src="logo.png" alt="Hotizy"><span>Hotizy</span></div>
             <nav class="sh-nav">
                 <button class="sh-tab active" data-route="dashboard" data-ctx="hotel">Panel</button>
@@ -39,35 +44,44 @@
             <div class="sh-loading" id="shLoading"><div class="sh-spin"></div></div>
         </div>
 
-        <nav class="sh-bnav">
-        <button class="sh-bn active" data-route="dashboard" data-ctx="hotel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-            <span>Panel</span>
-        </button>
-        <button class="sh-bn" data-route="concierge" data-module="concierge" data-ctx="hotel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 20a6 6 0 0 1 12 0"/><path d="M12 4v3"/><path d="M10 4h4"/></svg>
-            <span>Concierge</span>
-        </button>
-        <button class="sh-bn" data-route="kayitlar" data-module="guestIssues" data-ctx="hotel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <span>Kayıtlar</span>
-        </button>
-        <button class="sh-bn" data-route="raporlar" data-module="reports">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>
-            <span>Raporlar</span>
-        </button>
-        <button class="sh-bn" data-route="crm" data-module="crm" data-ctx="hotel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span>CRM</span>
-        </button>
-        <button class="sh-bn" data-route="restoran" data-module="restaurant" data-ctx="fnb">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a3 3 0 0 0 6 0V2"/><path d="M6 2v20"/><path d="M16 2v20"/><path d="M16 11h4a2 2 0 0 0-2-9"/></svg>
-            <span>Restoran</span>
-        </button>
-        <button class="sh-bn sh-orders" data-action="orders" data-ctx="hotel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-            <span>Talepler</span>
-        </button>
+        <!-- Mobil modül çekmecesi (alt nav bar'ın yerine).
+             Satırlar kabuk sekmeleriyle AYNI data-route/data-module/data-ctx
+             niteliklerini taşır; app-shell.js tek delegasyon döngüsüyle
+             hepsini yönetir. -->
+        <div class="sh-scrim" id="shScrim"></div>
+        <nav class="sh-drawer" id="shDrawer" aria-label="Modüller">
+            <button class="sh-dr" data-route="dashboard" data-ctx="hotel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+                <span>Panel</span>
+            </button>
+            <button class="sh-dr" data-route="concierge" data-module="concierge" data-ctx="hotel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 20a6 6 0 0 1 12 0"/><path d="M12 4v3"/><path d="M10 4h4"/></svg>
+                <span>Concierge</span>
+            </button>
+            <button class="sh-dr" data-route="kayitlar" data-module="guestIssues" data-ctx="hotel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Misafir Kayıtları</span>
+            </button>
+            <button class="sh-dr" data-route="raporlar" data-module="reports">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>
+                <span>Raporlar</span>
+            </button>
+            <button class="sh-dr" data-route="crm" data-module="crm" data-ctx="hotel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>CRM</span>
+            </button>
+            <button class="sh-dr" data-route="restoran" data-module="restaurant" data-ctx="fnb">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a3 3 0 0 0 6 0V2"/><path d="M6 2v20"/><path d="M16 2v20"/><path d="M16 11h4a2 2 0 0 0-2-9"/></svg>
+                <span>Restoran</span>
+            </button>
+            <button class="sh-dr sh-orders" data-action="orders" data-ctx="hotel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                <span>QR Talepleri</span>
+            </button>
+            <a class="sh-dr admin-only" id="shAdminMob" href="admin" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.36.4.66.73.86.3.19.65.29 1 .29H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Ayarlar</span>
+            </a>
         </nav>
     </div>
 

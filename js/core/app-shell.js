@@ -33,7 +33,18 @@
         if (CTX === 'fnb') return (route === 'restoran' || route === 'raporlar');
         return route !== 'restoran';   // hotel: Restoran F&B'ye özel
     }
-    function defaultRoute() { return CTX === 'fnb' ? 'restoran' : 'dashboard'; }
+    // Mobil kırılım noktası: kabuk 880px'te mobile geçer (panel sayfaları 768px —
+    // fark bilinçlidir, kabuk kromu daha erken sıkışır).
+    var MOB = window.matchMedia ? window.matchMedia('(max-width: 880px)') : null;
+    function isMobileShell() { return !!(MOB && MOB.matches); }
+    // Mobilde açılış "Misafir Kayıtları"dır: panel orada saha personeline
+    // büyük butonlu ana menüyü gösterir (bkz. js/modules/panel.js mobView).
+    // Masaüstünde ve F&B bağlamında davranış değişmez.
+    function defaultRoute() {
+        if (CTX === 'fnb') return 'restoran';
+        if (isMobileShell() && moduleOn('guestIssues')) return 'kayitlar';
+        return 'dashboard';
+    }
     function applyContext() {
         document.querySelectorAll('[data-ctx]').forEach(function (el) {
             var c = el.getAttribute('data-ctx');
@@ -54,7 +65,7 @@
     var SHELL_V = Date.now().toString(36);
 
     function setActive(route) {
-        document.querySelectorAll('.sh-tab[data-route], .sh-bn[data-route]').forEach(function (el) {
+        document.querySelectorAll('.sh-tab[data-route], .sh-dr[data-route]').forEach(function (el) {
             el.classList.toggle('active', el.getAttribute('data-route') === route);
         });
     }
@@ -85,7 +96,7 @@
     window.addEventListener('hashchange', fromHash);
 
     // Nav tıklamaları → hash güncelle
-    document.querySelectorAll('.sh-tab[data-route], .sh-bn[data-route]').forEach(function (el) {
+    document.querySelectorAll('.sh-tab[data-route], .sh-dr[data-route]').forEach(function (el) {
         el.addEventListener('click', function () {
             var r = el.getAttribute('data-route');
             if (('#' + r) === location.hash) loadRoute(r); else location.hash = '#' + r;
@@ -105,6 +116,27 @@
     document.querySelectorAll('[data-action="orders"]').forEach(function (el) {
         el.addEventListener('click', openOrders);
     });
+
+    // ── Mobil modül çekmecesi ──────────────────────────────────────
+    // Alt nav bar kaldırıldığı için tüm rotalar buradan açılır. Satırlar
+    // sekmelerle aynı data-route/data-action niteliklerini taşıdığından
+    // yönlendirme mantığı yukarıdaki tek delegasyonla paylaşılır; burada
+    // yalnızca çekmecenin açılıp kapanması yönetilir.
+    var drawer = $('shDrawer'), scrim = $('shScrim'), menuBtn = $('shMenuBtn');
+    function setDrawer(open) {
+        if (!drawer) return;
+        drawer.classList.toggle('show', open);
+        if (scrim) scrim.classList.toggle('show', open);
+        if (menuBtn) menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    if (menuBtn) menuBtn.addEventListener('click', function () { setDrawer(!drawer.classList.contains('show')); });
+    if (scrim) scrim.addEventListener('click', function () { setDrawer(false); });
+    if (drawer) drawer.addEventListener('click', function (e) {
+        if (e.target.closest('.sh-dr')) setDrawer(false);   // seçim yapıldı → kapat
+    });
+    window.addEventListener('keydown', function (e) { if (e.key === 'Escape') setDrawer(false); });
+    // Rota değişince (bildirim/derin bağlantı dâhil) çekmece açık kalmasın.
+    window.addEventListener('hashchange', function () { setDrawer(false); });
 
     // iframe kendi içinde başka panele giderse (ör. hızlı aksiyon) → aktif sekmeyi senkronla
     window.addEventListener('message', function (e) {
@@ -137,7 +169,10 @@
         $('shUser').textContent = name;
         $('shRole').textContent = ROLE ? (ROLE.charAt(0).toUpperCase() + ROLE.slice(1)) : 'Personel';
         $('shAvatar').textContent = (USERNAME.slice(0, 2) || '··').toUpperCase();
-        if (ROLE === 'admin' || USERNAME.toLowerCase() === 'admin') { var a = $('shAdmin'); if (a) a.style.display = ''; }
+        if (ROLE === 'admin' || USERNAME.toLowerCase() === 'admin') {
+            var a = $('shAdmin'); if (a) a.style.display = '';
+            var am = $('shAdminMob'); if (am) am.style.display = '';   // mobil çekmecedeki karşılığı
+        }
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) {
             document.querySelectorAll('.sh-orders').forEach(function (el) { el.style.display = 'none'; });
         }

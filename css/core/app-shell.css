@@ -55,23 +55,56 @@ a { text-decoration: none; color: inherit; }
 .sh-spin { width: 30px; height: 30px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: shspin .8s linear infinite; }
 @keyframes shspin { to { transform: rotate(360deg); } }
 
-/* ── Mobile bottom nav ────────────────────────────────── */
-.sh-bnav { display: none; }
+/* ── Mobil modül çekmecesi ────────────────────────────────
+   Alt nav bar kaldırıldı (saha personeli mobil yeniden tasarımı): ekranın
+   alt şeridi tamamen içeriğe kaldı, tüm rotalar başlıktaki ☰ düğmesinin
+   açtığı çekmeceden erişiliyor. Masaüstünde ne düğme ne çekmece görünür. */
+.sh-menu { display: none; }
+.sh-scrim { display: none; }
+.sh-drawer { display: none; }
 @media (max-width: 880px) {
     .sh-header { gap: 12px; padding: 0 14px; }
     .sh-nav { display: none; }
     .sh-chip .meta { display: none; }
-    .sh-bnav {
-        display: flex; flex: 0 0 auto; z-index: 20;
-        height: calc(60px + var(--safe-bottom)); padding-bottom: var(--safe-bottom);
-        background: rgba(255,255,255,.96); border-top: 1px solid var(--border);
-        justify-content: space-around; align-items: center;
+
+    .sh-menu {
+        display: flex; align-items: center; justify-content: center;
+        width: 40px; height: 40px; flex: 0 0 40px; margin-left: -6px;
+        border: none; background: none; border-radius: 12px; color: var(--text);
+        -webkit-tap-highlight-color: transparent;
     }
-    .sh-bn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
-        background: none; border: none; color: var(--faint); padding: 7px 0; }
-    .sh-bn svg { width: 21px; height: 21px; }
-    .sh-bn span { font-size: 10.5px; font-weight: 600; }
-    .sh-bn.active { color: var(--primary); }
+    .sh-menu svg { width: 22px; height: 22px; }
+    .sh-menu:active { background: #f1f5f9; }
+
+    .sh-scrim {
+        display: block; position: fixed; inset: 0; z-index: 30;
+        background: rgba(15, 23, 42, .42); opacity: 0; pointer-events: none;
+        transition: opacity .22s;
+    }
+    .sh-scrim.show { opacity: 1; pointer-events: auto; }
+
+    .sh-drawer {
+        display: flex; flex-direction: column; gap: 4px;
+        position: fixed; top: 0; left: 0; z-index: 31;
+        width: min(82vw, 300px); height: 100%;
+        padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(16px + var(--safe-bottom));
+        background: var(--surface); border-right: 1px solid var(--border);
+        box-shadow: 0 20px 60px rgba(15, 23, 42, .18);
+        transform: translateX(-102%); transition: transform .24s cubic-bezier(.32, .72, 0, 1);
+        overflow-y: auto;
+    }
+    .sh-drawer.show { transform: none; }
+    .sh-dr {
+        display: flex; align-items: center; gap: 12px;
+        min-height: 52px; padding: 0 14px; border-radius: 13px;
+        border: none; background: none; color: var(--text);
+        font-family: inherit; font-size: 15px; font-weight: 600; text-align: left;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .sh-dr svg { width: 20px; height: 20px; flex: 0 0 20px; color: var(--muted); }
+    .sh-dr:active { background: #f1f5f9; }
+    .sh-dr.active { background: var(--primary-soft); color: var(--primary-dark); }
+    .sh-dr.active svg { color: var(--primary-dark); }
 }
 
 .sh-hidden { display: none !important; }

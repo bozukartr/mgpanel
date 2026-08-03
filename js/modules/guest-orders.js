@@ -282,6 +282,13 @@
     // ── Render ─────────────────────────────────────────────────
     function renderBadge() {
         const pending = orders.filter(o => o.status === 'pending').length;
+        // Panelin mobil ana menüsündeki "QR Talepleri" kartı da aynı sayıyı gösterir
+        // (panel.html:#mhCountQr). Yoksa (masaüstü/başka sayfa) sessizce atlanır.
+        const card = document.getElementById('mhCountQr');
+        if (card) {
+            card.textContent = pending > 9 ? '9+' : pending;
+            card.style.display = pending > 0 ? '' : 'none';
+        }
         if (!badgeEl) return;
         badgeEl.textContent = pending > 9 ? '9+' : pending;
         badgeEl.classList.toggle('show', pending > 0);
@@ -670,6 +677,10 @@
         // plan includes "Misafir Talepleri" (toggled per-tenant in superadmin).
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) return;
         buildUI();
+        // Panelin mobil ana menüsü (panel.js) çekmeceyi buradan açar — çekmece
+        // bugüne dek yalnızca kendi düğmesi, kabuk postMessage'ı ve ?orders=1
+        // üzerinden erişilebiliyordu.
+        window.GuestOrders = { open: openDrawer, focus: focusOrder };
         if (window.RT && RT.registerOpener) RT.registerOpener('guestOrder', focusOrder);
         // App Shell'deki "Talepler" sekmesi (postMessage) veya ?orders=1 ile çekmeceyi aç.
         window.addEventListener('message', function (e) {

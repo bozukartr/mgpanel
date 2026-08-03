@@ -2022,3 +2022,144 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
 .perf-breach { color:#dc2626; font-weight:800; }
 .perf-empty { color:#94a3b8; font-size:13px; padding:14px; text-align:center; }
 @media (max-width:560px){ .perf-label{width:96px;flex-basis:96px} .perf-meta{margin-left:0} }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SAHA PERSONELİ MOBİL DÜZENİ (yalnızca ≤768px)
+   Masaüstünde hiçbir şey değişmez: aşağıdaki iki blok dışındaki tüm
+   kurallar @media içinde; bu iki blok da mobil-özel elemanları
+   masaüstünde tamamen gizler.
+   ═══════════════════════════════════════════════════════════════════ */
+.mob-home { display: none; }
+.mob-listbar { display: none; }
+
+@media (max-width: 768px) {
+    /* ── Ekran anahtarı: menü ↔ liste ──────────────────────────
+       body üzerindeki mv-home / mv-list sınıfı hangi ekranın açık
+       olduğunu söyler (panel.js:mobView). Masaüstünde bu sınıflar
+       hiçbir kurala bağlı olmadığı için etkisizdir. */
+    /* .panel-main bir flex satırıdır — genişlik açıkça verilmezse menü
+       içeriğine göre daralır ve kartlar yarım ekranda sıkışır. */
+    body.mv-home .mob-home {
+        display: flex; flex-direction: column; gap: 14px;
+        flex: 1 1 auto; width: 100%; min-width: 0;
+        padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+        overflow-y: auto; -webkit-overflow-scrolling: touch;
+    }
+    /* Kayıt konsolu .panel-main flex satırında bir kardeş — yalnızca içini
+       gizlemek yetmez, kendisi de gizlenmeli; aksi halde width:100% ile
+       satırı doldurur ve menü kartları yarım ekrana sıkışır. */
+    body.mv-home #guest-log,
+    body.mv-home .gi-fab { display: none !important; }
+    body.mv-list .mob-home { display: none; }
+    body.mv-list .mob-listbar { display: block; }
+
+    /* ── Ana menü: selamlama ── */
+    .mh-greet { display: flex; flex-direction: column; gap: 2px; padding: 2px 2px 0; }
+    .mh-greet b { font-size: 20px; font-weight: 800; letter-spacing: -.2px; color: #0f172a; }
+    .mh-greet span { font-size: 12.5px; font-weight: 600; color: #94a3b8; }
+
+    /* ── Ana menü: 6 büyük kart (2×3) ── */
+    .mh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mh-card {
+        position: relative; min-height: 104px;
+        display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 6px;
+        padding: 14px; border-radius: 18px; border: 1px solid var(--border);
+        background: #fff; box-shadow: 0 2px 10px rgba(15, 23, 42, .05);
+        font-family: inherit; text-align: left; cursor: pointer;
+        transition: transform .12s, box-shadow .12s;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .mh-card:active { transform: scale(.97); box-shadow: 0 1px 4px rgba(15, 23, 42, .06); }
+    .mh-ico { font-size: 26px; line-height: 1; }
+    .mh-label { font-size: 14.5px; font-weight: 700; color: #0f172a; letter-spacing: -.1px; }
+    .mh-count {
+        position: absolute; top: 12px; right: 12px; min-width: 26px; height: 24px; padding: 0 8px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 999px; background: #eef2ff; color: #4338ca;
+        font-size: 13px; font-weight: 800;
+    }
+    /* Aksiyon kartları dolgulu — listeleme kartlarından ayrışır */
+    .mh-card.mh-act { background: var(--primary); border-color: transparent; box-shadow: 0 8px 20px rgba(99, 102, 241, .26); }
+    .mh-card.mh-act .mh-label { color: #fff; }
+    .mh-card.mh-act.warn { background: #f59e0b; box-shadow: 0 8px 20px rgba(245, 158, 11, .26); }
+
+    /* ── Ana menü: gecikme uyarı şeridi (yalnız gecikme varken) ── */
+    .mh-alert {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        width: 100%; padding: 14px 16px; border-radius: 14px;
+        border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c;
+        font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+    }
+    .mh-alert:active { transform: scale(.99); }
+    .mh-alert-go { font-size: 20px; line-height: 1; opacity: .7; }
+
+    /* ── Liste ekranı: yapışkan başlık + segment ── */
+    .mob-listbar {
+        position: sticky; top: 0; z-index: 40;
+        background: rgba(255, 255, 255, .97); backdrop-filter: saturate(180%) blur(10px);
+        border-bottom: 1px solid var(--border);
+        padding: 6px 10px 8px;
+    }
+    .mlb-top { display: flex; align-items: center; gap: 6px; }
+    .mlb-top b { flex: 1; font-size: 16.5px; font-weight: 800; letter-spacing: -.2px; color: #0f172a; }
+    .mlb-back, .mlb-ico {
+        width: 44px; height: 44px; flex: 0 0 44px; border: none; background: none;
+        border-radius: 12px; color: #475569; font-size: 17px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .mlb-back { font-size: 27px; line-height: 1; color: #0f172a; }
+    .mlb-back:active, .mlb-ico:active { background: #f1f5f9; }
+    .mlb-ico.on { background: var(--primary-soft, #eef2ff); }
+    .mlb-seg { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-top: 4px; }
+    .mlb-seg::-webkit-scrollbar { display: none; }
+    .mlb-sg {
+        flex: 0 0 auto; height: 40px; padding: 0 15px; border-radius: 999px;
+        border: 1px solid var(--border); background: #fff; color: #64748b;
+        font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .mlb-sg.active { background: #0f172a; border-color: #0f172a; color: #fff; }
+
+    /* ── Sol sütun sadeleşir: hapları ve büyük butonları segment/menü devraldı ── */
+    #guest-log .gi-pills,
+    #guest-log .cz-side .cz-new { display: none !important; }
+    .cz-side.gi-side { padding: 0 !important; border-bottom: none !important; gap: 0 !important; }
+    /* Arama + tarih kalıcı değil: başlıktaki 🔍 ile açılır (ilk ekranda 2 kart daha görünür) */
+    #guest-log .gi-filters { display: none; }
+    body.mob-filters #guest-log .gi-filters { display: flex; padding: 10px 16px 4px; }
+
+    /* ── Kart tipografisi bir kademe büyür (saha okunabilirliği) ── */
+    #recordsTable .guest-cell strong { font-size: 14.5px; }
+    #recordsTable .date-cell,
+    #recordsTable .staff-cell { font-size: 11px; }
+    #recordsTable td:nth-child(4) .dept-badge { font-size: 11px; }
+    #recordsTable tbody tr { padding: 12px 13px 12px 11px; }
+
+    /* ── Dokunma hedefleri ≥44px ── */
+    .qa-btn { min-height: 46px; font-size: 14px; }
+    .gi-loadolder { min-height: 44px; }
+}
+
+/* ── Mobil Ayarlar sheet'i (#mobSettingsModal) ──────────────────────
+   Yalnız mobil menüden açılır; .modal kalıbını kullandığı için
+   mobile-sheet.css onu alttan açılan panele çevirir. */
+.ms-block { margin-bottom: 18px; }
+.ms-title { display: block; font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; }
+.ms-langs { display: flex; gap: 8px; }
+.ms-lang {
+    flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid var(--border);
+    background: #fff; color: #334155; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.ms-lang.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ms-row {
+    width: 100%; min-height: 50px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 0 14px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--border);
+    background: #fff; color: #0f172a; font-family: inherit; font-size: 14px; font-weight: 600;
+    text-align: left; cursor: pointer;
+}
+.ms-row b { color: #64748b; font-size: 13px; font-weight: 700; }
+.ms-row.static { cursor: default; background: #f8fafc; }
+.ms-row.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+.ms-row.danger b { color: #b91c1c; }
+.ms-note { display: block; margin-top: 8px; font-size: 11.5px; line-height: 1.45; color: #94a3b8; }
