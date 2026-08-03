@@ -18,17 +18,71 @@
 
     const TENANT = (typeof TENANT_ID !== 'undefined' && TENANT_ID) || localStorage.getItem('hotelTenantId') || 'mgallery';
     const USERNAME = localStorage.getItem('hotelUsername') || 'Personel';
+    const MY_DEPT = (localStorage.getItem('hotelDept') || '').trim();
+    const MY_ROLE = (localStorage.getItem('hotelRole') || '').toLowerCase();
+    // Yönetici/admin her departmanın talebini yönetebilir — panel.js'in
+    // takeBlockReason/completeBlockReason kuralıyla AYNI muafiyet.
+    function isManager() {
+        return MY_ROLE === 'admin' || MY_ROLE === 'manager' || USERNAME.toLowerCase() === 'admin';
+    }
 
     // Order status flow + labels (mirrors the guest page).
     const FLOW = ['pending', 'confirmed', 'in_progress', 'completed'];
     const LABEL = { pending: 'Bekliyor', confirmed: 'Onaylandı', in_progress: 'İşlemde', completed: 'Tamamlandı', cancelled: 'İptal' };
     // Map an item status to the guestLog status used by Misafir Kayıtları.
     const LOG_STATUS = { confirmed: 'Following', in_progress: 'InProgress', completed: 'Solved' };
-    const DEPT_BY_CAT = {
-        'Temizlik': 'Housekeeping', 'Konfor': 'Housekeeping',
-        'Yiyecek & İçecek': 'Yiyecek & İçecek', 'Yiyecek-İçecek': 'Yiyecek & İçecek',
-        'Teknik Servis': 'Engineering', 'Resepsiyon': 'Front Desk'
-    };
+    // Kategori → departman yedeği. Kanonik değerler TÜRKÇE (otel personelinin
+    // gerçek departman adları) — functions/order-bridge.js:DEPT_BY_CAT ile aynı
+    // sözlük. Eskiden burada İngilizce ('Housekeeping'/'Engineering'/'Front
+    // Desk') duruyordu; sameDept eşanlamlıları kapsasa da guestLogs kaydına
+    // yazılan departman adı otelin kendi listesiyle uyuşmuyordu.
+    // Anahtarlar tablodan TÜRETİLİR — elle küçük harfle yazılmaz. 'İ'nin
+    // Unicode varsayılan küçük harfi 'i'+U+0307 iken toLocaleLowerCase('tr-TR')
+    // düz 'i' üretir; elle yazılan anahtar sessizce hiç eşleşmez.
+    // functions/order-bridge.js:CAT_TO_DEPT ile aynı sözlük.
+    const CAT_TO_DEPT = [
+        ['Kat Hizmetleri', ['Temizlik', 'Konfor', 'Kat Hizmetleri']],
+        ['Yiyecek & İçecek', ['Yiyecek & İçecek', 'Yiyecek-İçecek', 'Oda Servisi', 'Mutfak']],
+        ['Teknik', ['Teknik', 'Teknik Servis']],
+        ['Ön Büro', ['Resepsiyon', 'Ön Büro', 'Front Office', 'Front Desk']]
+    ];
+    const DEPT_BY_CAT = (function () {
+        const m = {};
+        CAT_TO_DEPT.forEach(p => p[1].forEach(c => { m[String(c).trim().toLocaleLowerCase('tr-TR')] = p[0]; }));
+        return m;
+    })();
+    function deptByCat(cat) {
+        return DEPT_BY_CAT[String(cat == null ? '' : cat).trim().toLocaleLowerCase('tr-TR')] || '';
+    }
+    // Kalemin sorumlu departmanı: siparişte taşınan değer, yoksa kategoriden.
+    function itemDept(it) { return String((it && it.department) || '').trim() || deptByCat(it && it.category); }
+
+    // ── Departman yetkisi ──────────────────────────────────────
+    // OPERASYONEL HATA: bu çekmece departman kuralını HİÇ uygulamıyordu —
+    // Teknik personeli Kat Hizmetleri'ne düşen bir QR talebini onaylayıp
+    // tamamlayabiliyordu (panel.js aynı kaydı `guestLogs` üzerinden katı
+    // biçimde kısıtlarken). Kural panel.js:takeBlockReason ile birebir aynı:
+    // yönetici/admin serbest; departmanı BOŞ olan kalemi herkes üstlenebilir
+    // (yanlış departmana kilitlemektense sahipsiz bırakmak güvenli);
+    // aksi halde yalnızca o departmanın personeli.
+    // sameDept (js/core/firebase-config.js) eşanlamlıları da çözer
+    // ("Kat Hizmetleri" ↔ "Housekeeping" gibi geçiş dönemi verisi).
+    function itemBlockReason(it) {
+        if (isManager()) return null;
+        const dept = itemDept(it);
+        if (!dept) return null;
+        const same = (typeof sameDept === 'function') ? sameDept(MY_DEPT, dept) : (MY_DEPT === dept);
+        if (MY_DEPT && same) return null;
+        return '"' + dept + '" departmanına ait — yalnızca o departman personeli veya yönetici işleyebilir.';
+    }
+    function canActOnItem(it) { return itemBlockReason(it) == null; }
+    // Toplu işlem yalnızca personelin YETKİLİ OLDUĞU kalemlere dokunur.
+    function actionableItems(o) {
+        return (o.items || []).filter(it => !it.resId && it.status !== 'cancelled' && canActOnItem(it));
+    }
+    function blockedItems(o) {
+        return (o.items || []).filter(it => !it.resId && it.status !== 'cancelled' && !canActOnItem(it));
+    }
 
     let orders = [];
     let firstLoad = true;
@@ -142,6 +196,13 @@
         .gos-item .gos-resbadge { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 5px;
             background: #eef2ff; color: #4f46e5; font-size: 9px; font-weight: 800; vertical-align: middle; }
         .gos-item .gos-reshint { color: #6366f1; font-style: italic; }
+        /* Başka departmanın kalemi: görünür ama işlenemez. */
+        .gos-item.gos-item-locked { background: #fcfcfd; }
+        .gos-item .gos-deptbadge { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 5px;
+            background: #f1f5f9; color: #64748b; font-size: 9px; font-weight: 800; vertical-align: middle; }
+        .gos-item .gos-blockhint { color: #b45309; }
+        .gos-scopehint { flex: 1 0 100%; margin-top: 6px; font-size: 11.5px; line-height: 1.45; color: #b45309; }
+        .gos-act[disabled] { opacity: .45; cursor: not-allowed; }
         .gos-item .gos-istat { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
         .gos-item .gos-istat.pending { background: #fff7ed; color: #c2680c; }
         .gos-item .gos-istat.confirmed { background: #eff6ff; color: #2563eb; }
@@ -343,34 +404,50 @@
             const isRes = !!it.resId;
             // İptal edilmiş sipariş terminaldir: misafir iptal etmişse personel
             // bir öğeyi ilerletip siparişi yeniden "onaylandı"ya çeviremez.
-            const canAdv = !isRes && o.status !== 'cancelled' && it.status !== 'cancelled' && sIdx >= 0 && sIdx < FLOW.length - 1;
+            // Departman kuralı: kalemi yalnızca sorumlu departmanın personeli
+            // (veya yönetici) ilerletebilir. Buton gizlenmez, DEVRE DIŞI +
+            // nedeni açıklanmış gösterilir — panel.js'in aynı deseni.
+            const block = isRes ? null : itemBlockReason(it);
+            const canAdv = !isRes && !block && o.status !== 'cancelled' && it.status !== 'cancelled' && sIdx >= 0 && sIdx < FLOW.length - 1;
+            const dept = isRes ? '' : itemDept(it);
             const meta = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note]
                 .filter(Boolean).join(' · ');
-            return `<div class="gos-item${isRes ? ' gos-item-res' : ''}">
+            return `<div class="gos-item${isRes ? ' gos-item-res' : ''}${block ? ' gos-item-locked' : ''}">
                 <div class="gos-ico">${esc(it.icon || '🛎️')}</div>
                 <div class="gos-ibody">
-                    <div class="gos-iname">${esc(it.name)}${isRes ? ' <span class="gos-resbadge">CONCIERGE</span>' : ''}</div>
+                    <div class="gos-iname">${esc(it.name)}${isRes ? ' <span class="gos-resbadge">CONCIERGE</span>' : ''}${dept ? ` <span class="gos-deptbadge">${esc(dept)}</span>` : ''}</div>
                     ${meta ? `<div class="gos-imeta">${esc(meta)}</div>` : ''}
                     ${isRes ? '<div class="gos-imeta gos-reshint">Bu kayıt Concierge panelinden yönetilir.</div>' : ''}
+                    ${block ? `<div class="gos-imeta gos-blockhint">🔒 ${esc(block)}</div>` : ''}
                 </div>
                 <span class="gos-istat ${esc(it.status)}">${esc(LABEL[it.status] || it.status)}</span>
                 ${isRes
                     ? `<button class="gos-iadv" data-res-open="${esc(it.resId)}" title="Concierge panelinde aç">↗</button>`
-                    : `<button class="gos-iadv" data-adv="${esc(o.id)}|${esc(it.id)}" title="Bir adım ilerlet" ${canAdv ? '' : 'disabled'}>›</button>`}
+                    : `<button class="gos-iadv" data-adv="${esc(o.id)}|${esc(it.id)}" title="${esc(block || 'Bir adım ilerlet')}" ${canAdv ? '' : 'disabled'}>›</button>`}
             </div>`;
         }).join('');
 
         const usersOpts = activeUsers.map(u => `<option value="${esc(u.uid)}|${esc(u.username)}">${esc(u.username)}${u.dept ? ' · ' + esc(u.dept) : ''}</option>`).join('');
 
+        // Toplu işlemler yalnızca personelin YETKİLİ olduğu kalemlere dokunur.
+        // Hiç yetkili kalem yoksa buton devre dışı; bir kısmı yetkiliyse
+        // işlemin kapsamı açıkça yazılır (sessizce kısmi işlem yapmak
+        // personeli "tamamladım" sanısına düşürürdü).
+        const mine = actionableItems(o), locked = blockedItems(o);
+        const noneMine = mine.length === 0;
+        const dis = noneMine ? ' disabled title="Bu talebin kalemleri sizin departmanınıza ait değil."' : '';
         let actions = '';
         if (o.status === 'pending') {
-            actions = `<button class="gos-act primary" data-bulk="${esc(o.id)}|confirmed">✓ Onayla</button>
-                       <button class="gos-act ghost" data-cancel="${esc(o.id)}">İptal</button>`;
+            actions = `<button class="gos-act primary" data-bulk="${esc(o.id)}|confirmed"${dis}>✓ Onayla</button>
+                       <button class="gos-act ghost" data-cancel="${esc(o.id)}"${locked.length ? ' disabled title="Başka departmanın kalemleri var — iptali yalnızca yönetici yapabilir."' : ''}>İptal</button>`;
         } else if (o.status === 'confirmed') {
-            actions = `<button class="gos-act step" data-bulk="${esc(o.id)}|in_progress">İşleme Al</button>
-                       <button class="gos-act ok" data-bulk="${esc(o.id)}|completed">Tamamla</button>`;
+            actions = `<button class="gos-act step" data-bulk="${esc(o.id)}|in_progress"${dis}>İşleme Al</button>
+                       <button class="gos-act ok" data-bulk="${esc(o.id)}|completed"${dis}>Tamamla</button>`;
         } else if (o.status === 'in_progress') {
-            actions = `<button class="gos-act ok" data-bulk="${esc(o.id)}|completed">✓ Tümünü Tamamla</button>`;
+            actions = `<button class="gos-act ok" data-bulk="${esc(o.id)}|completed"${dis}>✓ Tümünü Tamamla</button>`;
+        }
+        if (actions && locked.length && !noneMine) {
+            actions += `<div class="gos-scopehint">Yalnızca departmanınıza ait ${mine.length} kalem işlenecek; ${locked.length} kalem diğer departmanlarda kalacak.</div>`;
         }
 
         return `<div class="gos-mhead"><span class="gos-mtitle">Talep Detayı</span><button class="gos-mclose" id="gos-mclose">✕</button></div>
@@ -457,6 +534,11 @@
                 // transfer görüyordu (denetimde tespit edilen çelişki).
                 // Bu kalemler yalnızca Concierge panelinden yönetilir.
                 if (it.resId) return it;
+                // Departman kuralı YAZIM ANINDA da uygulanır (yalnızca butonu
+                // devre dışı bırakmak yetmez — panel.js:transitionRecordImpl
+                // ile aynı "arayüzde engelle + yazımdan önce tekrar doğrula"
+                // deseni). Başka departmanın kalemi olduğu gibi bırakılır.
+                if (!canActOnItem(it)) return it;
                 if (status === 'cancelled') return Object.assign({}, it, { status: 'cancelled' });
                 if (it.status === 'cancelled') return it;
                 return Object.assign({}, it, { status });
@@ -468,17 +550,23 @@
     // Advance a single item by one step.
     function advanceItem(orderId, itemId) {
         if (!findOrder(orderId)) return;
+        let blocked = null;
         commit(orderId, (freshOrder) => {
             // İptal edilmiş sipariş terminaldir — ilerletme siparişi yeniden açmamalı.
             if (freshOrder.status === 'cancelled') return null;
             const items = (freshOrder.items || []).map(it => {
                 if (it.id !== itemId || it.status === 'cancelled') return it;
+                // Departman kuralı yazımdan hemen önce TAZE veriyle tekrar
+                // doğrulanır (buton devre dışıydı ama sipariş bu arada başka
+                // bir departmana atanmış olabilir).
+                if (!canActOnItem(it)) { blocked = itemBlockReason(it); return it; }
                 const idx = FLOW.indexOf(it.status);
                 if (idx < 0 || idx >= FLOW.length - 1) return it;
                 return Object.assign({}, it, { status: FLOW[idx + 1] });
             });
+            if (blocked) return null;
             return { items };
-        });
+        }, () => { if (blocked) alert(blocked); });
     }
 
     // Persist new item statuses: writes/updates a guestLog per item so each lands
@@ -494,7 +582,9 @@
     // artık transaction İÇİNDE tx.get() ile okunan TAZE sunucu verisine
     // uygulanır; panel.js:syncOrderItem ve functions/index.js'teki diğer tüm
     // guestOrders.items yazımlarıyla AYNI transaction deseni.
-    function commit(orderId, mutate) {
+    // `after` opsiyonel: transaction tamamlandıktan sonra çalışır (ör. mutate
+    // içinde tespit edilen bir engelin kullanıcıya bildirilmesi).
+    function commit(orderId, mutate, after) {
         const orderRef = db.collection('guestOrders').doc(orderId);
         db.runTransaction(async (tx) => {
             const snap = await tx.get(orderRef);
@@ -587,7 +677,8 @@
                 statusLog,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, extra || {}));
-        }).catch(err => { console.error('guest order commit failed', err); alert('İşlem kaydedilemedi.'); });
+        }).then(() => { if (typeof after === 'function') after(); })
+          .catch(err => { console.error('guest order commit failed', err); alert('İşlem kaydedilemedi.'); });
     }
 
     function assignOrder(orderId, uid, uname) {

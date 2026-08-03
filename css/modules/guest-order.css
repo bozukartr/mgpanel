@@ -535,17 +535,6 @@ body.go-has-live .go-cartbar { bottom: calc(var(--nav-h) + var(--safe-bottom) + 
 .go-folio-total b { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-mute); }
 .go-folio-total span { font-size: 19px; font-weight: 800; color: var(--navy); }
 
-/* ════ Hizmet değerlendirme (tamamlanan kalem sonrası) sheet ════ */
-.go-rating { text-align: center; }
-.go-rating-skip { position: absolute; top: 14px; right: 14px; }
-.go-rating-emoji { font-size: 42px; }
-.go-rating-title { font-family: 'Playfair Display', Georgia, serif; font-size: var(--fs-title-serif); font-weight: 600; margin-top: var(--sp-2); }
-.go-rating-sub { font-size: var(--fs-body); color: var(--ink-soft); margin-top: var(--sp-1); }
-.go-rating-stars { display: flex; justify-content: center; gap: var(--sp-2); margin: var(--sp-6) 0; }
-.go-rstar { font-size: 36px; line-height: 1; color: var(--line-strong); transition: color .15s, transform .1s; }
-.go-rstar.on { color: var(--gold); transform: scale(1.08); }
-#goRatingBody .go-btn-ghost { margin-top: var(--sp-2); }
-
 /* ════ Toast ════ */
 .go-toast { position: fixed; left: 50%; transform: translate(-50%, 24px); z-index: 120; bottom: calc(var(--nav-h) + var(--safe-bottom) + 18px);
     background: var(--ink); color: #fff; font-size: 14px; font-weight: 600; padding: 13px 20px; border-radius: 14px; box-shadow: var(--shadow-lg);
