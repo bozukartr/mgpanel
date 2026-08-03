@@ -138,7 +138,6 @@
     let myOrders = [], ordersUnsub = null, lastStatusMap = {};
     // Kalem-seviyesi tamamlanma tespiti (değerlendirme modalı tetikleyicisi)
     // — lastStatusMap sipariş-seviyesindeydi, kalem geçişlerini hiç izlemiyordu.
-    let lastItemStatusMap = {}, ratingQueue = [], ratingOpen = false, ratingStars = 0;
     let activeCat = 'all', activeDept = '', searchTerm = '', currentTab = 'home';
     let trackingId = null, guestName = '';
     let demoTimer = null;
@@ -261,11 +260,46 @@
     const cartCount = () => cart.reduce((n, l) => n + (l.qty || 0), 0);
 
     // ── Verification / guest name ──────────────────────────────
+    // Doğrulamanın SUNUCUDAKİ kanıtı `verifiedGuestSessions/{uid}` dokümanıdır
+    // (bkz. functions/index.js:verifyGuestIdentity) — yani anonim oturumun
+    // UID'sine bağlıdır. Buradaki yerel bayrak ise yalnızca "kapıyı tekrar
+    // açma" kararı için tutulur; eskiden SADECE bir son-kullanma zamanıydı ve
+    // UID ile hiç bağlanmamıştı. Anonim UID döndüğünde (iOS Safari/ITP depolama
+    // tahliyesi, QR'ın uygulama-içi tarayıcıda açılması, oturumun düşmesi)
+    // istemci hâlâ "doğrulandım" sanıyor, ama sunucudaki oturum dokümanı yeni
+    // UID için YOK — sipariş yazımı firestore.rules tarafından reddediliyor ve
+    // misafir "Gönderilemedi" döngüsünde kilitleniyordu. Bayrak artık UID ile
+    // birlikte saklanır; UID değişmişse doğrulama geçersiz sayılır.
+    function currentUid() {
+        if (DEMO) return sessionUid || '';
+        try { return (auth.currentUser && auth.currentUser.uid) || sessionUid || ''; } catch (e) { return sessionUid || ''; }
+    }
+    function readVerify() {
+        let raw = '';
+        try { raw = localStorage.getItem(VERIFY_KEY) || ''; } catch (e) { return null; }
+        if (!raw) return null;
+        if (raw.charAt(0) === '{') { try { return JSON.parse(raw); } catch (e) { return null; } }
+        // Eski biçim (düz zaman damgası): UID bilgisi yok. Geçerliyse mevcut
+        // UID'ye damgalanır — bu dağıtımda hâlâ doğrulanmış olan misafirler
+        // gereksiz yere tekrar sorgulanmasın. UID gerçekten döndüyse sipariş
+        // yazımı reddedilir ve aşağıdaki kurtarma yolu kapıyı yeniden açar.
+        const exp = parseInt(raw, 10) || 0;
+        return exp > Date.now() ? { u: currentUid(), e: exp } : null;
+    }
     function isVerified() {
         if (!ROOM) return false;
-        try { return (parseInt(localStorage.getItem(VERIFY_KEY) || '0', 10)) > Date.now(); } catch (e) { return false; }
+        const v = readVerify();
+        if (!v || !(v.e > Date.now())) return false;
+        const uid = currentUid();
+        // UID henüz bilinmiyorsa (anonim giriş tamamlanmadı) engelleme —
+        // submitOrder zaten sessionUid olmadan çalışmaz.
+        if (!uid || !v.u) return true;
+        return v.u === uid;
     }
-    function setVerified() { try { localStorage.setItem(VERIFY_KEY, String(Date.now() + 12 * 3600 * 1000)); } catch (e) {} }
+    function setVerified() {
+        try { localStorage.setItem(VERIFY_KEY, JSON.stringify({ u: currentUid(), e: Date.now() + 12 * 3600 * 1000 })); } catch (e) {}
+    }
+    function clearVerified() { try { localStorage.removeItem(VERIFY_KEY); } catch (e) {} }
     function loadGuestName() { try { guestName = localStorage.getItem(GUEST_KEY) || ''; } catch (e) { guestName = ''; } }
     function setGuestName(n) {
         guestName = String(n || '').trim();
@@ -361,10 +395,33 @@
         applyConfig();
         let started = false;
         auth.onAuthStateChanged(u => {
-            if (u && !started) {
-                started = true; sessionUid = u.uid;
+            // UID DEĞİŞİMİ İZLENİR: eskiden sessionUid yalnızca ilk oturumda
+            // atanıyordu (`started` bayrağı ikinci çağrıyı tamamen yutuyordu).
+            // Anonim oturum yenilenip UID değiştiğinde sipariş, ARTIK GEÇERSİZ
+            // olan eski UID ile yazılıyor, firestore.rules'un
+            // `sessionUid == request.auth.uid` koşulu düşüyor ve misafir
+            // "Gönderilemedi" hatasından çıkamıyordu (özellikle mobilde).
+            if (!u) {
+                // Oturum düştü — anonim girişi tekrar dene; UID muhtemelen değişecek.
+                auth.signInAnonymously().catch(() => {});
+                return;
+            }
+            const changed = sessionUid && sessionUid !== u.uid;
+            sessionUid = u.uid;
+            if (!started) {
+                started = true;
                 mintTenantClaim(); // best-effort, arka planda — sonucu beklenmez
                 loadData(); listenOrders();
+                return;
+            }
+            if (changed) {
+                // Yeni UID = sunucudaki doğrulanmış oturum dokümanı YOK →
+                // yerel doğrulama bayrağı geçersiz; kapı tekrar açılır ve
+                // dinleyici yeni UID'ye bağlanır.
+                mintTenantClaim();
+                clearVerified();
+                listenOrders();
+                maybeGate();
             }
         });
         auth.signInAnonymously().catch(err => {
@@ -1327,12 +1384,31 @@
             toast((DEMO ? t('guest.cart.submittedDemo') : t('guest.cart.submitted'))); buzz([40, 30, 40]);
             trackingId = id; showTab('orders'); openTracking(id);
         };
-        const fail = (err) => { console.error('submit failed', err); btn.disabled = false; $('goSubmitLabel').textContent = t('guest.cart.submit'); toast(t('guest.cart.failed'), true); };
+        const fail = (err) => {
+            const code = (err && err.code) || '';
+            console.error('submit failed', code, err);
+            btn.disabled = false; $('goSubmitLabel').textContent = t('guest.cart.submit');
+            // permission-denied = sunucudaki doğrulanmış oturum artık bu anonim
+            // UID'ye ait değil (UID döndü ya da misafir çıkış yaptı). Genel
+            // "tekrar deneyin" mesajı burada ÇIKMAZ SOKAK: tekrar denemek asla
+            // çalışmaz. Doğrulamayı sıfırlayıp kapıyı açarız — sepet korunur.
+            if (code === 'permission-denied') {
+                clearVerified();
+                toast(t('guest.gate.expired'), true);
+                openGate();
+                return;
+            }
+            toast(t('guest.cart.failed'), true);
+        };
 
         if (DEMO) { const id = 'demo' + Date.now().toString(36); saveDemoOrder({ id, room: ROOM, guestName, items, itemCount: items.length, total, currency: config.currency, showPrices: pricesOn(), createdAtMs: Date.now() }); loadDemoOrders(); done(id); return; }
 
         db.collection('guestOrders').add({
-            tenantId: TENANT, room: ROOM, guestName: guestName || '', sessionUid,
+            // sessionUid CANLI oturumdan okunur (önbelleğe alınmış değişkenden
+            // değil): firestore.rules `sessionUid == request.auth.uid` şartını
+            // koşuyor, dolayısıyla yazımın tam o andaki UID ile eşleşmesi
+            // gerekir — arada anonim oturum yenilenmiş olabilir.
+            tenantId: TENANT, room: ROOM, guestName: guestName || '', sessionUid: currentUid(),
             status: 'pending', items, itemCount: items.length, total, currency: config.currency || '₺', showPrices: pricesOn(),
             statusLog: [{ status: 'pending', at: Date.now(), by: 'guest' }],
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1369,23 +1445,6 @@
             if (prev && prev !== o.status && STATUS[o.status]) toast(STATUS[o.status].sub);
             lastStatusMap[o.id] = o.status;
         });
-        // Kalem-seviyesi tamamlanma tespiti → değerlendirme kuyruğu. !it.resId
-        // Concierge/Transfer kalemleri ARTIK DAHİL: panele "Tamamlandı"
-        // aksiyonu eklendiği için bu kalemler de 'completed'e ulaşabiliyor,
-        // dolayısıyla misafir transferini/rezervasyonunu da puanlayabilir.
-        // !it.ratedAt, sayfa yenilemesi sonrası zaten değerlendirilmiş bir
-        // kalemin tekrar sorulmasını engeller (ratedAt sunucuda kalıcı).
-        myOrders.forEach(o => {
-            (o.items || []).forEach(it => {
-                const key = o.id + '_' + it.id;
-                const prevIt = lastItemStatusMap[key];
-                if (prevIt !== 'completed' && it.status === 'completed' && !it.ratedAt) {
-                    ratingQueue.push({ orderId: o.id, itemId: it.id, name: it.name, department: it.department, category: it.category });
-                }
-                lastItemStatusMap[key] = it.status;
-            });
-        });
-        maybeShowNextRating();
         const active = myOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled').length;
         const bell = $('goBellDot'); if (bell) bell.hidden = active === 0;
         const nb = $('goNavBadge'); if (nb) { nb.hidden = active === 0; nb.textContent = active; }
@@ -1704,66 +1763,6 @@
             .catch(err => { console.error(err); toast(t('guest.track.cancelFailed'), true); });
     }
 
-    // ── Hizmet değerlendirme (tamamlanan kalem sonrası, geçilebilir) ───
-    function maybeShowNextRating() {
-        if (ratingOpen || !ratingQueue.length) return;
-        openRatingSheet(ratingQueue.shift());
-    }
-    function openRatingSheet(entry) {
-        ratingOpen = true; ratingStars = 0;
-        const dept = esc(entry.department || entry.category || '');
-        $('goRatingBody').innerHTML = `
-            <div class="go-rating-emoji">🎉</div>
-            <h2 class="go-rating-title">${esc(t('guest.rating.title'))}</h2>
-            <p class="go-rating-sub">${esc(entry.name || 'Talebiniz')}${dept ? ' · ' + dept : ''}</p>
-            <div class="go-rating-stars" id="goRatingStars">${[1, 2, 3, 4, 5].map(n =>
-                `<button class="go-rstar" data-star="${n}" aria-label="${esc(t('guest.rating.stars', { n: n }))}">★</button>`).join('')}</div>
-            <button class="go-cta go-cta-block" id="goRatingSubmit" disabled>${esc(t('common.send'))}</button>
-            <button class="go-btn-ghost" id="goRatingSkipBtn">${esc(t('guest.rating.skip'))}</button>`;
-        $('goRatingStars').onclick = e => {
-            const b = e.target.closest('[data-star]'); if (!b) return;
-            ratingStars = Number(b.dataset.star);
-            $('goRatingStars').querySelectorAll('[data-star]').forEach(s => s.classList.toggle('on', Number(s.dataset.star) <= ratingStars));
-            $('goRatingSubmit').disabled = false;
-        };
-        $('goRatingSubmit').onclick = () => submitRating(entry);
-        $('goRatingSkip').onclick = $('goRatingSkipBtn').onclick = closeRatingSheet;
-        $('goRatingBackdrop').classList.add('show');
-        $('goRatingSheet').classList.add('show'); $('goRatingSheet').setAttribute('aria-hidden', 'false');
-        buzz(20);
-    }
-    function closeRatingSheet() {
-        $('goRatingBackdrop').classList.remove('show');
-        $('goRatingSheet').classList.remove('show'); $('goRatingSheet').setAttribute('aria-hidden', 'true');
-        ratingOpen = false;
-        // Kapanış geçişi bitsin, sıradaki (varsa) üst üste binmesin.
-        setTimeout(maybeShowNextRating, 350);
-    }
-    async function submitRating(entry) {
-        if (!ratingStars) return;
-        if (DEMO) {
-            // demoView() kalemleri her çağrıda taze hesaplar (kalıcı bir
-            // "değerlendirildi" bayrağı taşımaz) — sayfa yenilemesi sonrası
-            // modalın tekrar çıkmaması için bayrak doğrudan localStorage'a
-            // yazılan ham sipariş nesnesine damgalanır (bkz. demoView).
-            const o = loadDemoOrder(entry.orderId);
-            if (o) { o.ratedItems = Object.assign({}, o.ratedItems, { [entry.itemId]: true }); saveDemoOrder(o); }
-            toast(t('guest.rating.thanksDemo')); closeRatingSheet(); return;
-        }
-        if (!fns) { closeRatingSheet(); return; }
-        const btn = $('goRatingSubmit'); btn.disabled = true; btn.textContent = t('common.sending');
-        try {
-            const res = await fns.httpsCallable('submitItemRating')({ orderId: entry.orderId, itemId: entry.itemId, stars: ratingStars });
-            if (!res || !res.data || !res.data.ok) throw new Error('fail');
-            toast(t('guest.rating.thanks'));
-            closeRatingSheet();
-        } catch (e) {
-            console.error('submitRating failed', e);
-            toast(t('guest.rating.failed'), true);
-            btn.disabled = false; btn.textContent = 'Gönder';
-        }
-    }
-
     // ── Zaman ──────────────────────────────────────────────────
     function clock(ms) { if (!ms) return ''; try { return new Date(ms).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
     function relTime(ms) {
@@ -1881,13 +1880,9 @@
         const e = Date.now() - (o.createdAtMs || Date.now());
         let status = 'pending'; const log = [];
         DEMO_STEPS.forEach(([t, s]) => { if (e >= t) { status = s; log.push({ status: s, at: (o.createdAtMs || 0) + t, by: t === 0 ? 'guest' : 'Personel' }); } });
-        // ratedItems: submitRating()'in DEMO dalının localStorage'a yazdığı
-        // kalıcı bayrak — demoView() kalemleri her çağrıda taze hesapladığı
-        // için bu olmadan sayfa yenilemesi sonrası değerlendirme modalı
-        // tekrar çıkardı (gerçek/sunucu akışında ratedAt zaten kalıcı).
         return Object.assign({}, o, {
             status, statusLog: log,
-            items: (o.items || []).map(it => Object.assign({}, it, { status, ratedAt: (o.ratedItems && o.ratedItems[it.id]) ? true : it.ratedAt }))
+            items: (o.items || []).map(it => Object.assign({}, it, { status }))
         });
     }
     function loadDemoOrders() {

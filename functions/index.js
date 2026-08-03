@@ -2067,6 +2067,11 @@ exports.cancelGuestOrder = onCall({ region: REGION }, async (request) => {
 });
 
 // ── QR talep değerlendirmesi (1-5 yıldız) ──────────────────────────────
+// ŞU AN ÇAĞRILMIYOR: misafire tamamlanan talep sonrası çıkan değerlendirme
+// modalı kullanıcı isteğiyle kaldırıldı (bkz. js/modules/guest-order.js).
+// Callable ve serviceRatings koleksiyonu BİLİNÇLİ olarak yerinde bırakıldı —
+// halihazırda toplanmış puanlar Raporlar'da okunabilir kalsın ve özellik
+// istenirse istemci tarafı tek dosyayla geri açılabilsin diye.
 // Misafir, tamamlanmış bir sipariş kalemini değerlendirir — yalnızca
 // guestLogs-bağlı (F&B/Housekeeping/Teknik Servis) kalemler için: Concierge/
 // Transfer (resId) kalemleri bugün hiç 'completed'e ulaşamıyor (bkz.

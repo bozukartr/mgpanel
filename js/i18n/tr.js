@@ -160,6 +160,7 @@ window.I18N_TR = {
     'guest.gate.needBirthYear': 'Lütfen geçerli bir doğum yılı girin.',
     'guest.gate.mismatch': 'Soyadı ve doğum yılı eşleşmedi. Lütfen resepsiyona başvurun.',
     'guest.gate.failed': 'Doğrulama yapılamadı. Lütfen tekrar deneyin.',
+    'guest.gate.expired': 'Oturumunuzun süresi doldu. Lütfen soyadınız ve doğum yılınızla tekrar doğrulayın — sepetiniz korundu.',
     'guest.gate.verified': 'Doğrulandı 👋',
     'guest.gate.required': 'Doğrulama gerekli',
     'guest.gate.requiredHint': 'Konaklama bilgilerinizi görmek için önce soyadı ve doğum yılınızla doğrulanmanız gerekir.',
@@ -197,12 +198,6 @@ window.I18N_TR = {
     'guest.stay.configError': 'Yapılandırma hatası',
 
     // ── Misafir · değerlendirme ──────────────────────────────────────────
-    'guest.rating.title': 'Nasıldı?',
-    'guest.rating.skip': 'Geç',
-    'guest.rating.stars': '{n} yıldız',
-    'guest.rating.thanks': 'Teşekkürler! Değerlendirmeniz alındı. ⭐',
-    'guest.rating.thanksDemo': 'Teşekkürler! ⭐ (demo)',
-    'guest.rating.failed': 'Gönderilemedi.',
 
     // ── Misafir · departman kartları ─────────────────────────────────────
     'guest.dept.housekeeping': 'Temizlik, havlu, buklet ve daha fazlası.',

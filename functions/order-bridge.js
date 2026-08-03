@@ -33,13 +33,26 @@
 // ve 'Front Office' eskiden haritada YOKTU — bu kategorilerdeki departmansız
 // kalemler aşağıdaki eski 'Concierge' sabitine düşüyordu (ör. klima arızası
 // → Concierge). Eşleme büyük/küçük harf duyarsız yapılır.
-const DEPT_BY_CAT = {
-  'temizlik': 'Kat Hizmetleri', 'konfor': 'Kat Hizmetleri', 'kat hizmetleri': 'Kat Hizmetleri',
-  'yiyecek & i̇çecek': 'Yiyecek & İçecek', 'yiyecek-i̇çecek': 'Yiyecek & İçecek',
-  'oda servisi': 'Yiyecek & İçecek', 'mutfak': 'Yiyecek & İçecek',
-  'teknik': 'Teknik', 'teknik servis': 'Teknik',
-  'resepsiyon': 'Ön Büro', 'ön büro': 'Ön Büro', 'front office': 'Ön Büro', 'front desk': 'Ön Büro'
-};
+// Kategori → departman. Anahtarlar TABLODAN TÜRETİLİR (elle küçük harfle
+// yazılmaz): 'İ' harfinin Unicode varsayılan küçük harfi 'i'+U+0307 (birleşen
+// nokta) iken toLocaleLowerCase('tr-TR') düz 'i' üretir. Elle yazılan
+// "yiyecek & i̇çecek" anahtarı bu yüzden HİÇBİR ZAMAN eşleşmiyordu ve
+// departmansız gelen Yiyecek & İçecek kalemleri sahipsiz kalıyordu.
+// Türetme, anahtar biçiminin arama biçiminden ayrışmasını yapısal olarak
+// imkânsız kılar (bkz. tests/dept-routing.test.js).
+const CAT_TO_DEPT = [
+  ['Kat Hizmetleri', ['Temizlik', 'Konfor', 'Kat Hizmetleri']],
+  ['Yiyecek & İçecek', ['Yiyecek & İçecek', 'Yiyecek-İçecek', 'Oda Servisi', 'Mutfak']],
+  ['Teknik', ['Teknik', 'Teknik Servis']],
+  ['Ön Büro', ['Resepsiyon', 'Ön Büro', 'Front Office', 'Front Desk']]
+];
+const DEPT_BY_CAT = (function () {
+  const m = {};
+  CAT_TO_DEPT.forEach(function (pair) {
+    pair[1].forEach(function (cat) { m[String(cat).trim().toLocaleLowerCase('tr-TR')] = pair[0]; });
+  });
+  return m;
+})();
 function deptByCat(category) {
   return DEPT_BY_CAT[String(category || '').trim().toLocaleLowerCase('tr-TR')] || '';
 }
@@ -282,4 +295,4 @@ function buildOrderLogDocs(order, orderId, extra) {
   return { docs, items: outItems };
 }
 
-module.exports = { mergeGuestNote, buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT, safeId, sameDept, deptByCat, DEPT_SYNONYMS };
+module.exports = { mergeGuestNote, buildOrderLogDocs, buildOrderReservationDocs, isConciergeItem, isFnbItem, itemComplaintText, reservationNotesText, DEPT_BY_CAT, CAT_TO_DEPT, safeId, sameDept, deptByCat, DEPT_SYNONYMS };

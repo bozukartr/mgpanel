@@ -150,3 +150,38 @@ test('sunucu tarafı sameDept istemciyle aynı sonucu verir', () => {
     assert.equal(orderBridge.sameDept(a, b), sameDept(a, b), `sameDept("${a}","${b}") sunucu/istemci farklı`);
   }
 });
+
+// ── Türkçe 'İ' tuzağı: kategori anahtarları elle küçük harfle yazılmamalı ──
+// GERÇEK HATA: DEPT_BY_CAT anahtarları elle yazılmıştı ve 'Yiyecek & İçecek'
+// için Unicode VARSAYILAN küçük harf ('i' + U+0307 birleşen nokta) kullanılmıştı;
+// arama ise toLocaleLowerCase('tr-TR') ile düz 'i' üretiyor. Anahtar hiçbir
+// zaman eşleşmiyor, departmanı boş gelen tüm Yiyecek & İçecek kalemleri
+// sahipsiz kalıyordu. Anahtarlar artık tablodan TÜRETİLİR.
+test("'İ' içeren kategoriler doğru departmana çözümlenir (Unicode tuzağı)", () => {
+  assert.equal(orderBridge.deptByCat('Yiyecek & İçecek'), 'Yiyecek & İçecek');
+  assert.equal(orderBridge.deptByCat('Yiyecek-İçecek'), 'Yiyecek & İçecek');
+  assert.equal(deptOfBridged('Yiyecek & İçecek', ''), 'Yiyecek & İçecek');
+  assert.equal(orderBridge.deptByCat('Oda Servisi'), 'Yiyecek & İçecek');
+});
+
+test('kategori→departman anahtarlarının HEPSİ arama biçimiyle aynı', () => {
+  // Anahtar üretimi ile arama aynı normalizasyonu kullanmalı; aksi halde
+  // sessizce hiç eşleşmeyen ölü anahtarlar oluşur.
+  for (const key of Object.keys(orderBridge.DEPT_BY_CAT)) {
+    assert.equal(key, key.trim().toLocaleLowerCase('tr-TR'),
+      `"${key}" anahtarı arama biçiminde değil — hiçbir zaman eşleşmez`);
+    assert.ok(orderBridge.deptByCat(key), `"${key}" anahtarı çözümlenmiyor`);
+  }
+});
+
+// ── QR çekmecesindeki kategori tablosu sunucununkiyle aynı kalmalı ──
+// guest-orders.js panel/concierge sayfalarında çalışan bir tarayıcı script'i;
+// tablo zorunlu olarak çoğaltılmış durumda (DEPT_SYNONYMS ile aynı gerekçe).
+test('QR çekmecesi ve sunucu kategori→departman tabloları BİREBİR aynı', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'modules', 'guest-orders.js'), 'utf8');
+  const m = src.match(/const CAT_TO_DEPT = (\[[\s\S]*?\]);/);
+  assert.ok(m, 'guest-orders.js içinde CAT_TO_DEPT bulunamadı');
+  const clientTable = new Function('return ' + m[1] + ';')();
+  assert.deepEqual(clientTable, orderBridge.CAT_TO_DEPT,
+    'js/modules/guest-orders.js ve functions/order-bridge.js kategori tabloları ayrışmış — ikisini de güncelleyin');
+});

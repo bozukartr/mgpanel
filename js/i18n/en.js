@@ -160,6 +160,7 @@ window.I18N_EN = {
     'guest.gate.needBirthYear': 'Please enter a valid year of birth.',
     'guest.gate.mismatch': 'Surname and year of birth did not match. Please contact reception.',
     'guest.gate.failed': 'Verification failed. Please try again.',
+    'guest.gate.expired': 'Your session has expired. Please verify again with your surname and year of birth — your cart is safe.',
     'guest.gate.verified': 'Verified 👋',
     'guest.gate.required': 'Verification required',
     'guest.gate.requiredHint': 'To see your stay details, please first verify with your surname and year of birth.',
@@ -197,12 +198,6 @@ window.I18N_EN = {
     'guest.stay.configError': 'Configuration error',
 
     // ── Guest · rating ───────────────────────────────────────────────────
-    'guest.rating.title': 'How was it?',
-    'guest.rating.skip': 'Skip',
-    'guest.rating.stars': '{n} stars',
-    'guest.rating.thanks': 'Thank you! Your rating has been received. ⭐',
-    'guest.rating.thanksDemo': 'Thank you! ⭐ (demo)',
-    'guest.rating.failed': 'Could not send.',
 
     // ── Guest · department cards ─────────────────────────────────────────
     'guest.dept.housekeeping': 'Cleaning, towels, amenities and more.',
