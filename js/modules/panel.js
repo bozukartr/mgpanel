@@ -38,10 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Show Admin Link if user is admin
     const adminNavLink = document.getElementById('adminNavLink');
-    const mobAdminBtn = document.getElementById('mobAdminBtn');
     if (isAdminUser) {
         if (adminNavLink) adminNavLink.style.display = 'inline-block';
-        if (mobAdminBtn) mobAdminBtn.style.display = 'flex';
     }
 
     function showToast(message, isError = false) {
@@ -351,10 +349,9 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     });
 
-    // Tab switching — works for both desktop nav and mobile bottom nav
+    // Tab switching (masaüstü üst navigasyonu)
     const switchTab = (tabId) => {
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.mob-nav-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
         const targetTab = document.getElementById(tabId);
@@ -363,87 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll(`[data-tab="${tabId}"]`).forEach(b => b.classList.add('active'));
     };
 
-    document.querySelectorAll('.nav-btn[data-tab], .mob-nav-btn[data-tab]').forEach(btn => {
+    document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
         btn.addEventListener('click', () => {
             const tabId = btn.getAttribute('data-tab');
             if (tabId) switchTab(tabId);
         });
-    });
-
-    // ── MOBILE FAB & BOTTOM SHEET ──────────────────────────────
-    const mobFab = document.getElementById('mobFab');
-    const mobSheet = document.getElementById('mobSheet');
-    const mobSheetClose = document.getElementById('mobSheetClose');
-    const mobBackdrop = document.getElementById('mobSheetBackdrop');
-    const mobSubmitBtn = document.getElementById('mobSubmitBtn');
-
-    const openMobSheet = () => {
-        // Pre-fill today's date
-        const todayInput = document.getElementById('mob-date');
-        if (todayInput && !todayInput.value) {
-            todayInput.valueAsDate = new Date();
-        }
-        mobSheet?.classList.add('open');
-        mobBackdrop?.classList.add('active');
-        document.body.style.overflow = 'hidden';
-    };
-
-    const closeMobSheet = () => {
-        mobSheet?.classList.remove('open');
-        mobBackdrop?.classList.remove('active');
-        document.body.style.overflow = '';
-    };
-
-    mobFab?.addEventListener('click', openMobSheet);
-    mobSheetClose?.addEventListener('click', closeMobSheet);
-    mobBackdrop?.addEventListener('click', closeMobSheet);
-
-    // Mobile form submit — mirrors the desktop guestIssueForm
-    mobSubmitBtn?.addEventListener('click', async () => {
-        if (mobSubmitBtn.disabled) return; // çift tıklamada mükerrer kayıt önlenir
-        const date = document.getElementById('mob-date')?.value;
-        const room = document.getElementById('mob-room')?.value?.trim();
-        const guestName = document.getElementById('mob-guestName')?.value?.trim();
-        const department = document.getElementById('mob-department')?.value;
-        const complaint = document.getElementById('mob-complaint')?.value?.trim();
-        const solution = document.getElementById('mob-solution')?.value?.trim();
-
-        if (!date || !room || !guestName) {
-            showToast('Tarih, Oda ve Misafir Adı zorunludur.', true);
-            return;
-        }
-
-        mobSubmitBtn.disabled = true;
-        try {
-            const guest = await syncGuestStatus(guestName, room);
-            const payload = {
-                date, room, guestName, department,
-                complaint: complaint || '',
-                solution: solution || '',
-                staffInitial: loggedUsername,
-                type: 'complaint', // mobil form şikayet formudur — tip damgası eksikti
-                tenantId: TENANT_ID,
-                status: 'Following',
-                updates: [],
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            // Kimlik: guestName/room gösterim snapshot'ı; ilişki guestId/stayId ile.
-            if (guest) { payload.guestId = guest.id; if (guest.stayId) payload.stayId = guest.stayId; }
-            const mobRef = await db.collection('guestLogs').add(payload);
-            // Mobil yol da departmana bildirir (masaüstüyle aynı davranış).
-            notifyRequestTeam(payload, mobRef.id, null);
-            // Reset & close
-            ['mob-date', 'mob-room', 'mob-guestName', 'mob-complaint', 'mob-solution'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
-            });
-            closeMobSheet();
-            showToast('Kayıt başarıyla oluşturuldu.');
-        } catch (err) {
-            showToast('Error: ' + err.message, true);
-        } finally {
-            mobSubmitBtn.disabled = false;
-        }
     });
 
     // ── PASSIVE INLINE ROOM CONFLICT DETECTOR ──
@@ -888,19 +809,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── New Issue modal (Concierge-style creation flow) ────────
     const newIssueModal = document.getElementById('newIssueModal');
-    // Mobil FAB → aynı "yeni kayıt" akışı
-    document.getElementById('giFabNew')?.addEventListener('click', () => {
-        document.getElementById('newIssueBtn')?.click();
-    });
-    document.getElementById('newIssueBtn')?.addEventListener('click', () => {
+    // Kayıt oluşturma akışı tek yerde: masaüstü "Ekle", mobil FAB ve mobil
+    // menüdeki "Talep Gir"/"Şikayet Gir" kartları aynı fonksiyonu çağırır —
+    // tek fark açılış tipi. (Eskiden bu blok koşulsuz 'complaint' zorluyordu,
+    // dolayısıyla tipe göre derin bağlantı mümkün değildi.)
+    function openNewIssue(type) {
+        if (!newIssueModal) return;
         const dateInput = document.getElementById('date');
         if (dateInput && !dateInput.value) dateInput.valueAsDate = new Date();
         if (staffInitialInput && !staffInitialInput.value) staffInitialInput.value = loggedUsername;
         selectedAssignee = null;
-        setRecordType('complaint');
+        setRecordType(type === 'request' ? 'request' : 'complaint');
         newIssueModal.style.display = 'flex';
         document.getElementById('guestName')?.focus();
-    });
+    }
+    document.getElementById('giFabNew')?.addEventListener('click', () => openNewIssue('complaint'));
+    document.getElementById('newIssueBtn')?.addEventListener('click', () => openNewIssue('complaint'));
 
     // Open a record straight from a notification (bell/toast click).
     if (window.RT) {
@@ -1779,6 +1703,164 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filterOverdue').addEventListener('click', () => { activeStatusFilter = 'Overdue'; setActivePill('filterOverdue'); triggerSearch(); });
     document.getElementById('filterMine')?.addEventListener('click', () => { activeStatusFilter = 'Mine'; setActivePill('filterMine'); triggerSearch(); });
 
+    /* ══════════════════════════════════════════════════════════════════
+       SAHA PERSONELİ MOBİL DENEYİMİ (yalnızca ≤768px)
+       Telefonda açılış ekranı büyük butonlu bir menüdür; kayıt listesi
+       oradan tek dokunuşla açılır. Masaüstünde bu bloğun HİÇBİR görünür
+       etkisi yoktur: eklenen body sınıflarına yalnızca @media (max-width:768px)
+       içindeki kurallar bağlıdır ve mobil elemanlar masaüstünde gizlidir.
+       Filtreleme için yeni bir mantık YAZILMAZ — mevcut durum hapları
+       programatik olarak tıklanır, böylece tek bir doğruluk kaynağı kalır.
+       ══════════════════════════════════════════════════════════════════ */
+    const MOB_MQ = window.matchMedia('(max-width: 768px)');
+    const SEG_PILL = {
+        all: 'filterTotal', Following: 'filterFollowing', InProgress: 'filterInProgress',
+        Solved: 'filterSolved', Mine: 'filterMine', Overdue: 'filterOverdue'
+    };
+
+    function mobView(v) {
+        document.body.classList.toggle('mv-home', v === 'home');
+        document.body.classList.toggle('mv-list', v === 'list');
+        if (v === 'home') {
+            document.body.classList.remove('mob-filters');
+            document.getElementById('mobSearchToggle')?.classList.remove('on');
+            syncMobHome();
+        } else {
+            // Liste ekranına her girişte tepeden başla — kalıntı kaydırma konumu
+            // "liste boş" izlenimi verir.
+            const gl = document.getElementById('guest-log');
+            if (gl) gl.scrollTop = 0;
+        }
+    }
+    function mobSetSeg(seg) {
+        document.querySelectorAll('.mlb-sg').forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
+    }
+    function mobOpenList(seg, title) {
+        document.getElementById(SEG_PILL[seg])?.click();   // mevcut filtre mantığını yeniden kullan
+        mobSetSeg(seg);
+        const t = document.getElementById('mobListTitle');
+        if (t) t.textContent = title;
+        mobView('list');
+    }
+
+    // Menü kartlarının canlı sayaçları: updateView'in HESAPLADIĞI istatistik
+    // elemanlarından okunur — yeni Firestore sorgusu yok.
+    function syncMobHome() {
+        const txt = (id) => (document.getElementById(id) || {}).textContent || '0';
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        const mine = parseInt(txt('statMine'), 10) || 0;
+        set('mhCountAll', txt('statTotal'));
+        set('mhCountMine', mine);
+        const od = parseInt(txt('statOverdue'), 10) || 0;
+        set('mhCountOverdue', od);
+        const alertEl = document.getElementById('mhOverdue');
+        if (alertEl) alertEl.style.display = od ? 'flex' : 'none';
+        const sub = document.getElementById('mhSub');
+        if (sub) {
+            const dept = localStorage.getItem('hotelDept') || '';
+            sub.textContent = (dept ? dept + ' · ' : '') +
+                (mine ? mine + ' açık işin var' : 'Açık işin yok');
+        }
+    }
+
+    (function initMobHome() {
+        const h = new Date().getHours();
+        const greet = h < 6 ? 'İyi geceler' : (h < 12 ? 'Günaydın' : (h < 18 ? 'İyi günler' : 'İyi akşamlar'));
+        const hello = document.getElementById('mhHello');
+        if (hello) hello.textContent = greet + ', ' + (loggedUsername.charAt(0).toUpperCase() + loggedUsername.slice(1));
+
+        document.querySelectorAll('#mobHome [data-mob]').forEach(card => {
+            card.addEventListener('click', () => {
+                switch (card.dataset.mob) {
+                    case 'requests': mobOpenList('all', 'Talepler'); break;
+                    case 'mine': mobOpenList('Mine', 'İşlerim'); break;
+                    case 'new-request': openNewIssue('request'); break;
+                    case 'new-complaint': openNewIssue('complaint'); break;
+                    case 'qr':
+                        if (window.GuestOrders) GuestOrders.open();
+                        else showToast('QR talepleri henüz yüklenmedi, birazdan tekrar deneyin.', true);
+                        break;
+                    case 'settings': openMobSettings(); break;
+                }
+            });
+        });
+        document.getElementById('mhOverdue')?.addEventListener('click', () => mobOpenList('Overdue', 'Geciken İşler'));
+        document.getElementById('mobBack')?.addEventListener('click', () => mobView('home'));
+        document.querySelectorAll('.mlb-sg').forEach(b => {
+            b.addEventListener('click', () => {
+                document.getElementById(SEG_PILL[b.dataset.seg])?.click();
+                mobSetSeg(b.dataset.seg);
+            });
+        });
+        document.getElementById('mobSearchToggle')?.addEventListener('click', function () {
+            const on = document.body.classList.toggle('mob-filters');
+            this.classList.toggle('on', on);
+            if (on) document.getElementById('globalSearch')?.focus();
+        });
+
+        // Açılış ekranı: mobilde menü, masaüstünde hiçbir şey.
+        if (MOB_MQ.matches) mobView('home');
+        // Döndürme / pencere boyutu değişimi: masaüstüne geçişte sınıfları
+        // temizle ki masaüstü düzeni hiçbir kalıntı taşımasın.
+        const onMQ = (e) => {
+            if (e.matches) { if (!document.body.classList.contains('mv-list')) mobView('home'); }
+            else document.body.classList.remove('mv-home', 'mv-list', 'mob-filters');
+        };
+        if (MOB_MQ.addEventListener) MOB_MQ.addEventListener('change', onMQ);
+        else if (MOB_MQ.addListener) MOB_MQ.addListener(onMQ);
+    })();
+
+    // ── Mobil Ayarlar sheet'i ──────────────────────────────────────
+    const mobSettingsModal = document.getElementById('mobSettingsModal');
+    function openMobSettings() {
+        if (!mobSettingsModal) return;
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        set('msUser', loggedUsername);
+        set('msRole', loggedRole === 'admin' ? 'Yönetici' : (loggedRole === 'manager' ? 'Müdür' : 'Personel'));
+        set('msDept', localStorage.getItem('hotelDept') || '—');
+
+        const cur = (window.I18n && I18n.lang) ? I18n.lang() : (localStorage.getItem('hotelLang') || 'tr');
+        document.querySelectorAll('.ms-lang').forEach(b => b.classList.toggle('active', b.dataset.lang === cur));
+
+        const perm = ('Notification' in window) ? Notification.permission : '';
+        set('msNotifState', perm === 'granted' ? 'Açık' : (perm === 'denied' ? 'Engelli' : (perm ? 'Kapalı' : 'Desteklenmiyor')));
+
+        // Performans paneli yalnızca yönetici/admin'e açık — wirePerf() ile aynı kural.
+        const perfBtn = document.getElementById('msPerf');
+        if (perfBtn) perfBtn.style.display = (isAdminUser || loggedRole === 'manager') ? 'flex' : 'none';
+        const adminBtn = document.getElementById('msAdmin');
+        if (adminBtn) adminBtn.style.display = isAdminUser ? 'flex' : 'none';
+
+        mobSettingsModal.style.display = 'flex';
+    }
+    function closeMobSettings() { if (mobSettingsModal) mobSettingsModal.style.display = 'none'; }
+    document.getElementById('mobSettingsClose')?.addEventListener('click', closeMobSettings);
+    mobSettingsModal?.addEventListener('click', (e) => { if (e.target === mobSettingsModal) closeMobSettings(); });
+    document.querySelectorAll('.ms-lang').forEach(b => {
+        b.addEventListener('click', () => {
+            if (window.I18n) I18n.setLang(b.dataset.lang);   // tercihi yazar + üst pencereyi yeniler
+        });
+    });
+    document.getElementById('msNotif')?.addEventListener('click', async () => {
+        if (!window.Push || !Push.supported) { showToast('Bu cihaz bildirimleri desteklemiyor.', true); return; }
+        const st = await Push.repair();
+        showToast(st && st.permission === 'granted' ? 'Bildirimler açık.' : 'Bildirim izni verilmedi.', st && st.permission !== 'granted');
+        openMobSettings();   // durum satırını tazele
+    });
+    document.getElementById('msPerf')?.addEventListener('click', () => {
+        closeMobSettings();
+        document.getElementById('openPerfBtn')?.click();
+    });
+    document.getElementById('msAdmin')?.addEventListener('click', () => {
+        // Yönetim paneli kabuğun DIŞINDA çalışır (bkz. js/core/app-shell.js).
+        try { (window.top || window).location.href = 'admin'; }
+        catch (e) { window.location.href = 'admin'; }
+    });
+    document.getElementById('msLogout')?.addEventListener('click', () => {
+        closeMobSettings();
+        document.getElementById('logoutBtn')?.click();
+    });
+
     // Refresh elapsed-time chips and overdue states every minute while visible;
     // ayrıca SLA aşan kayıtları otomatik eskale et.
     setInterval(() => { if (!document.hidden) { triggerSearch(); autoEscalateSweep(); } }, 60000);
@@ -2190,6 +2272,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.getElementById('statSolved')) document.getElementById('statSolved').textContent = stats.solved;
         if (document.getElementById('statOverdue')) document.getElementById('statOverdue').textContent = stats.overdue;
         if (document.getElementById('statMine')) document.getElementById('statMine').textContent = stats.mine;
+        // Mobil ana menü kartlarının rozetleri aynı istatistikten beslenir.
+        syncMobHome();
 
         recordCountElement.textContent = finalFiltered.length;
 

@@ -63,8 +63,65 @@
 
         <!-- Main Content Area -->
         <main class="panel-main">
+            <!-- ── MOBİL ANA MENÜ (yalnızca ≤768px; masaüstünde tamamen gizli) ──
+                 Saha personelinin açılış ekranı: büyük dokunma hedefli 6 kart.
+                 Sayaçlar mevcut istatistik hesabından beslenir (yeni sorgu yok). -->
+            <section id="mobHome" class="mob-home" aria-label="Ana menü">
+                <div class="mh-greet">
+                    <b id="mhHello">Merhaba</b>
+                    <span id="mhSub">—</span>
+                </div>
+                <div class="mh-grid">
+                    <button class="mh-card" data-mob="requests">
+                        <span class="mh-ico">📋</span>
+                        <span class="mh-label">Talepler</span>
+                        <span class="mh-count" id="mhCountAll">0</span>
+                    </button>
+                    <button class="mh-card" data-mob="mine">
+                        <span class="mh-ico">🔧</span>
+                        <span class="mh-label">İşlerim</span>
+                        <span class="mh-count" id="mhCountMine">0</span>
+                    </button>
+                    <button class="mh-card mh-act" data-mob="new-request">
+                        <span class="mh-ico">➕</span>
+                        <span class="mh-label">Talep Gir</span>
+                    </button>
+                    <button class="mh-card mh-act warn" data-mob="new-complaint">
+                        <span class="mh-ico">⚠️</span>
+                        <span class="mh-label">Şikayet Gir</span>
+                    </button>
+                    <button class="mh-card" data-mob="qr">
+                        <span class="mh-ico">🛎️</span>
+                        <span class="mh-label">QR Talepleri</span>
+                        <span class="mh-count" id="mhCountQr" style="display:none;">0</span>
+                    </button>
+                    <button class="mh-card" data-mob="settings">
+                        <span class="mh-ico">⚙️</span>
+                        <span class="mh-label">Ayarlar</span>
+                    </button>
+                </div>
+                <button class="mh-alert" id="mhOverdue" style="display:none;">
+                    <span>⚠️ Geciken <b id="mhCountOverdue">0</b> iş</span>
+                    <span class="mh-alert-go">›</span>
+                </button>
+            </section>
+
             <!-- GUEST ISSUES LOG -->
             <section id="guest-log" class="tab-content active">
+                <!-- Mobil liste başlığı (yapışkan) — masaüstünde gizli -->
+                <div class="mob-listbar">
+                    <div class="mlb-top">
+                        <button class="mlb-back" id="mobBack" aria-label="Menüye dön">‹</button>
+                        <b id="mobListTitle">Talepler</b>
+                        <button class="mlb-ico" id="mobSearchToggle" aria-label="Ara ve filtrele">🔍</button>
+                    </div>
+                    <div class="mlb-seg" id="mobSeg">
+                        <button class="mlb-sg active" data-seg="all">Tümü</button>
+                        <button class="mlb-sg" data-seg="Following">Bekliyor</button>
+                        <button class="mlb-sg" data-seg="InProgress">İşlemde</button>
+                        <button class="mlb-sg" data-seg="Solved">Bitti</button>
+                    </div>
+                </div>
                 <div class="gi-console">
                     <!-- LEFT SIDEBAR: actions, filters, calendar, tiles -->
                     <aside class="cz-side gi-side">
@@ -417,6 +474,12 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js" crossorigin="anonymous"></script>
     <script src="js/core/firebase-config.js"></script>
+    <!-- i18n: personel dil tercihini (localStorage.hotelLang) okur/yazar.
+         Panel metinlerinin çevirisi Aşama 2'de gelecek; bu dosyalar şimdilik
+         yalnızca Ayarlar'daki dil seçicisini ve <html lang> değerini besler. -->
+    <script src="js/i18n/tr.js"></script>
+    <script src="js/i18n/en.js"></script>
+    <script src="js/core/i18n.js"></script>
     <script src="js/core/guest-directory.js"></script>
     <script src="js/core/monitor.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
@@ -441,6 +504,41 @@
     <button class="gi-fab" id="giFabNew" aria-label="Yeni kayıt ekle">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
+
+    <!-- Mobil Ayarlar sheet'i (.modal kalıbı → mobile-sheet.css alttan açar) -->
+    <div id="mobSettingsModal" class="modal">
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header compact">
+                <div class="header-main"><h3>Ayarlar</h3></div>
+                <div class="header-actions">
+                    <button class="close-modal" id="mobSettingsClose">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="ms-block">
+                    <span class="ms-title">Dil</span>
+                    <div class="ms-langs" id="msLangs">
+                        <button type="button" class="ms-lang" data-lang="tr">🇹🇷 Türkçe</button>
+                        <button type="button" class="ms-lang" data-lang="en">🇬🇧 English</button>
+                    </div>
+                    <span class="ms-note">Tercih cihazınıza kaydedilir. Personel ekranlarının İngilizce çevirisi aşamalı olarak devreye alınıyor.</span>
+                </div>
+                <div class="ms-block">
+                    <span class="ms-title">Hesap</span>
+                    <div class="ms-row static"><span>Kullanıcı</span><b id="msUser">—</b></div>
+                    <div class="ms-row static"><span>Rol</span><b id="msRole">—</b></div>
+                    <div class="ms-row static"><span>Departman</span><b id="msDept">—</b></div>
+                </div>
+                <div class="ms-block">
+                    <span class="ms-title">Uygulama</span>
+                    <button type="button" class="ms-row" id="msNotif"><span>🔔 Bildirimler</span><b id="msNotifState">—</b></button>
+                    <button type="button" class="ms-row" id="msPerf" style="display:none;"><span>📊 Performans</span><b>›</b></button>
+                    <button type="button" class="ms-row" id="msAdmin" style="display:none;"><span>⚙️ Yönetim Paneli</span><b>›</b></button>
+                    <button type="button" class="ms-row danger" id="msLogout"><span>⎋ Çıkış Yap</span><b>›</b></button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast Notification -->
     <div id="toast" class="toast-notification"></div>
