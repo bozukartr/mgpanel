@@ -1,0 +1,438 @@
+/* Hotizy — modal.css · TÜM personel sayfalarının ortak modal sistemi.
+ *
+ * NEDEN VAR: modallar beş ayrı sistemde yazılmıştı (panel.css, admin.css,
+ * superadmin.css, crm-theme.css, restaurant.css) ve ikisi AYNI sınıf adlarını
+ * çakışan değerlerle tanımlıyordu. admin.html her iki dosyayı da yüklediği
+ * için admin'deki (en doğru) görünüm ancak `!important` ile elde edilebiliyordu.
+ * Bu dosya tek kaynak; sayfa stillerinden SONRA yüklenir ve `!important`
+ * KULLANMAZ — ezme savaşının geri dönmediği tests/modal-system.test.js ile
+ * mekanik olarak kilitlenir.
+ *
+ * SÖZLEŞMELER (bozulmamalı):
+ *  · Dört açma mekanizması JS'e dokunulmadan çalışmalı:
+ *      style.display='flex' (panel/admin/crm) · .show (superadmin/crm) · .open (restoran)
+ *    Satır içi stil stil sayfasını her zaman ezdiği için taban `display:none`
+ *    olarak yazılır; .show/.open ise burada açıkça `display:flex` yapar.
+ *  · css/core/mobile-sheet.css (≤768px) modalları alttan açılan sheet'e
+ *    çevirir ve tamamı !important'tır — buradaki hiçbir kural onunla
+ *    yarışmaz, mobil davranış aynen korunur.
+ *  · js/utils/modal-guard.js `.modal/.modal-backdrop/.sheet` seçicilerine,
+ *    js/utils/app-dialog.js ise `.modal > .modal-content.small-modal >
+ *    .modal-header/.modal-body/.modal-actions` iskeletine bağlı — sınıf
+ *    adlarının hiçbiri değişmedi, yalnızca görünümleri tek çatıya indi.
+ *
+ * DİKKAT — `.modal` iki farklı rolde kullanılıyor:
+ *   panel/admin/crm : .modal          = ÖRTÜ (overlay), .modal-content = KART
+ *   superadmin      : .modal-backdrop = ÖRTÜ,          .modal          = KART
+ * Bu yüzden kart kuralları `.modal-backdrop > .modal` ile daha yüksek
+ * özgüllükte yazılıp örtü kurallarını geri alır. Sıralama önemlidir:
+ * önce örtü, sonra kart.
+ */
+
+:root {
+    /* Sıkı/kompakt ölçek — 560px'lik bir modalda eski 40px yan dolgu
+       genişliğin %14'ünü yiyordu. */
+    --mdl-w: 560px;
+    --mdl-w-sm: 420px;
+    --mdl-w-lg: 760px;
+    --mdl-r: 16px;
+    --mdl-pad-x: 20px;
+    --mdl-head-y: 16px;
+    --mdl-body-y: 18px;
+    --mdl-foot-y: 14px;
+    --mdl-gap: 11px;          /* alan grupları arası */
+    /* Girdi yüksekliği bağlama göre: farenin olduğu yerde sıkı, parmağın
+       olduğu yerde dokunma hedefi eşiğinde (aşağıdaki ≤768px kuralı). */
+    --mdl-field-h: 38px;
+    --mdl-ink: #0f172a;
+    --mdl-ink-soft: #475569;  /* etiketler — eski #bbb/#ccc beyaz üstünde
+                                 ~1.5:1 idi, WCAG AA (4.5:1) çok altında */
+    /* #94a3b8 beyaz üstünde 2.56:1 — WCAG AA (4.5:1) ALTINDA. İkincil metin
+       için en açık güvenli ton #64748b (4.76:1); yalnızca yer tutucu ve
+       süsleme için kullanılır, içerik etiketleri --mdl-ink-soft alır. */
+    --mdl-ink-faint: #64748b;
+    --mdl-line: #e8edf2;
+    --mdl-surface: #fff;
+    --mdl-field-bg: #fbfcfe;
+    --mdl-accent: var(--primary, #6366f1);
+}
+
+/* Mobilde dokunma hedefi: WCAG/HIG eşiği 44px. Masaüstünde bu kadar yüksek
+   girdi gereksiz dikey alan yiyor — bu yüzden ölçek bağlama göre değişir.
+   (css/core/mobile-sheet.css ayrıca iOS otomatik yakınlaştırmasını önlemek
+   için font-size'ı 16px'e sabitler; ikisi çakışmaz.) */
+@media (max-width: 768px) {
+    :root { --mdl-field-h: 44px; }
+}
+
+/* ── Örtü (overlay) ────────────────────────────────────────────── */
+.modal,
+.modal-backdrop,
+.rst-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, .45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+/* Sınıf tabanlı açılış. Satır içi display:flex zaten stil sayfasını ezer. */
+.modal.show,
+.modal-backdrop.show,
+.rst-modal.open,
+.modal.open {
+    display: flex;
+}
+
+/* ── Kart (panel) ──────────────────────────────────────────────── */
+.modal-content,
+.modal-backdrop > .modal,
+.rst-modal-card {
+    position: static;
+    inset: auto;
+    padding: 0;
+    z-index: auto;
+    background: var(--mdl-surface);
+    border-radius: var(--mdl-r);
+    width: 100%;
+    max-width: var(--mdl-w);
+    max-height: 92vh;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, .22);
+    /* Tek kaydırma alanı gövdedir: başlık ve alt çubuk her zaman görünür
+       kalır. Eskiden yalnızca admin'de böyleydi; panel'de uzun formlarda
+       butonlar yukarı kayıp kayboluyordu. */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    animation: mdlPop .18s cubic-bezier(.32, .72, 0, 1);
+}
+.modal-content.small-modal,
+.modal-backdrop > .modal.modal-sm { max-width: var(--mdl-w-sm); }
+.modal-content.wide-modal { max-width: var(--mdl-w-lg); }
+@keyframes mdlPop {
+    from { opacity: 0; transform: translateY(8px) scale(.985); }
+    to   { opacity: 1; transform: none; }
+}
+/* Form doğrudan kartın çocuğuysa (admin katalog modalı) esneme zincirini sürdür. */
+.modal-content > form,
+.modal-backdrop > .modal > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* ── Başlık ────────────────────────────────────────────────────── */
+.modal-header,
+.modal-head,
+.rst-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+    margin: 0;
+    padding: var(--mdl-head-y) var(--mdl-pad-x);
+    border-bottom: 1px solid var(--mdl-line);
+}
+/* Başlık, pencerenin EN görünür öğesi olmalı. Eski panel başlığı 13px/500
+   büyük harf #bbb idi — gövde metninden hem küçük hem soluk, yani hiyerarşi
+   tersti. */
+.modal-header h3,
+.modal-head h3,
+.rst-modal-head h3,
+.modal-header h2,
+.modal-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -.1px;
+    text-transform: none;
+    color: var(--mdl-ink);
+}
+/* Başlık altı tek satır açıklama (superadmin'in .modal-head p deseni). */
+.modal-header p,
+.modal-head p,
+.modal-header .modal-sub {
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--mdl-ink-soft);
+}
+.modal-header .modal-title-wrap { display: block; min-width: 0; }
+
+/* Kapat düğmesi — tek biçim (bugün üç farklı görünüm vardı). */
+.close-modal,
+.rst-modal-x,
+.modal-x {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 9px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 19px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.close-modal:hover,
+.rst-modal-x:hover,
+.modal-x:hover { background: #e2e8f0; color: var(--mdl-ink); }
+
+/* ── Gövde ─────────────────────────────────────────────────────── */
+.modal-body,
+.rst-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--mdl-body-y) var(--mdl-pad-x);
+}
+
+/* Alan grubu */
+.modal-body .form-group,
+.rst-modal-body .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: var(--mdl-gap);
+}
+.modal-body .form-group:last-child,
+.rst-modal-body .form-group:last-child { margin-bottom: 0; }
+.modal-body .form-group > label,
+.modal-body > label,
+.rst-modal-body .form-group > label {
+    display: block;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--mdl-ink-soft);
+}
+.modal-body .form-group > label small,
+.modal-body .hint {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--mdl-ink-faint);
+}
+
+/* Girdiler — kutulu ve tek ölçü. Panel'in alt-çizgili, ~37px'lik saydam
+   girdisi hem dokunma hedefi eşiğinin altındaydı hem tıklanabilir alanı
+   belirsizdi. */
+.modal-body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.modal-body select,
+.modal-body textarea,
+.rst-modal-body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.rst-modal-body select,
+.rst-modal-body textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: var(--mdl-field-h);
+    padding: 10px 12px;
+    border: 1px solid var(--mdl-line);
+    border-radius: 10px;
+    background: var(--mdl-field-bg);
+    color: var(--mdl-ink);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.4;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.modal-body textarea,
+.rst-modal-body textarea { min-height: 76px; resize: vertical; }
+.modal-body input:focus,
+.modal-body select:focus,
+.modal-body textarea:focus,
+.rst-modal-body input:focus,
+.rst-modal-body select:focus,
+.rst-modal-body textarea:focus {
+    outline: none;
+    border-color: var(--mdl-accent);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .12);
+}
+.modal-body input::placeholder,
+.modal-body textarea::placeholder { color: var(--mdl-ink-faint); }
+
+/* İki sütunlu ızgara — kısa alanlar yan yana, uzun olanlar .span2 ile tam
+   genişlik. Dikey uzunluğu belirgin biçimde düşürür. */
+.modal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--mdl-gap) 16px;
+    align-content: start;
+}
+.modal-grid .form-group { margin-bottom: 0; }
+.modal-grid .span2 { grid-column: 1 / -1; }
+.form-row { display: flex; gap: 12px; }
+.form-row > .form-group { flex: 1; min-width: 0; }
+@media (max-width: 560px) {
+    .modal-grid { grid-template-columns: 1fr; }
+    .form-row { flex-direction: column; gap: 0; }
+}
+
+/* Bölüm başlığı — uzun formları mantıksal parçalara ayırır. */
+.modal-section-h {
+    grid-column: 1 / -1;
+    margin: 4px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--mdl-line);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: var(--mdl-ink-faint);
+}
+.modal-section-h.first { margin-top: 0; padding-top: 0; border-top: none; }
+
+/* Onay kutusu satırı — tıklanabilir alanı belli, tek biçim. */
+.modal-body .switch-row,
+.modal-body .mod-check,
+.modal-body .check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 var(--mdl-gap);
+    padding: 10px 12px;
+    border: 1px solid var(--mdl-line);
+    border-radius: 10px;
+    background: var(--mdl-field-bg);
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+}
+.modal-body .switch-row:hover,
+.modal-body .mod-check:hover,
+.modal-body .check-row:hover { border-color: #cbd5e1; }
+.modal-body .switch-row input,
+.modal-body .mod-check input,
+.modal-body .check-row input {
+    width: 17px;
+    height: 17px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    flex-shrink: 0;
+    accent-color: var(--mdl-accent);
+    cursor: pointer;
+}
+
+/* Hata satırı */
+.modal-err {
+    margin-top: 10px;
+    min-height: 16px;
+    font-size: 12.5px;
+    color: var(--red, #dc2626);
+}
+
+/* ── Alt çubuk (yapışkan) ──────────────────────────────────────── */
+.modal-actions,
+.modal-foot,
+.rst-modal-actions,
+.crm-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    margin: 0;
+    padding: var(--mdl-foot-y) var(--mdl-pad-x);
+    border-top: 1px solid var(--mdl-line);
+    background: var(--mdl-surface);
+}
+/* Birincil eylem SAĞDA sabit; tehlikeli eylem en solda ayrık durur. */
+.modal-actions > .mdl-spacer,
+.modal-foot > .mdl-spacer { flex: 1 1 auto; }
+.modal-actions:not(.vertical),
+.modal-foot,
+.rst-modal-actions,
+.crm-modal-actions { justify-content: flex-end; }
+/* `.vertical` gerçekten dikey yığın demektir (silme onayı, e-posta taslağı
+   gibi 2-4 tam genişlikte seçenek sunan modallar). admin.css'te bu sınıf
+   `flex-direction: row`a zorlanıyordu — yani işaretleme "vertical" derken
+   görünüm satırdı; o çelişki işaretlemeden çözüldü. */
+.modal-actions.vertical {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+.modal-actions.vertical .action-btn,
+.modal-actions.vertical .btn { width: 100%; }
+
+.modal-actions .action-btn,
+.modal-actions .btn,
+.modal-foot .btn,
+.rst-modal-actions .rst-btn,
+.crm-modal-actions .crm-btn {
+    width: auto;
+    min-height: 40px;
+    margin: 0;
+}
+/* Tek başına duran kaydet düğmesi tam genişliğe yayılmasın — eski
+   `.modal-actions .save-btn { flex: 1 }` kuralı iki butonlu alt çubukta
+   dengesiz bir görünüm üretiyordu. */
+.modal-actions .save-btn { flex: 0 0 auto; }
+
+/* Alt çubuk düğmeleri — modal sisteminin parçası. Eskiden yalnızca
+   admin.css'te tanımlıydı; panel.html o dosyayı yüklemediği için oradaki
+   kaydet düğmesi arka planı olmayan düz metin gibi görünüyordu. */
+.modal-actions .action-btn,
+.modal-foot .action-btn {
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    padding: 10px 18px;
+    border-radius: 10px;
+    transition: background .15s, color .15s;
+}
+.modal-actions .action-btn.save-btn,
+.modal-foot .action-btn.save-btn { background: var(--mdl-accent); color: #fff; }
+.modal-actions .action-btn.save-btn:hover,
+.modal-foot .action-btn.save-btn:hover { background: var(--primary-dark, #4f46e5); }
+.modal-actions .action-btn.secondary,
+.modal-foot .action-btn.secondary { background: #f1f5f9; color: #334155; }
+.modal-actions .action-btn.secondary:hover,
+.modal-foot .action-btn.secondary:hover { background: #e2e8f0; }
+.modal-actions .action-btn.danger,
+.modal-foot .action-btn.danger { background: #fef2f2; color: #b91c1c; }
+.modal-actions .action-btn.danger:hover,
+.modal-foot .action-btn.danger:hover { background: #fee2e2; }
+.modal-actions .action-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ── Salt-okunur alan gösterimi (kayıt detayı) ─────────────────── */
+.field-view { margin-bottom: var(--mdl-gap); }
+.field-view label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    color: var(--mdl-ink-soft);
+}
+.field-view p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--mdl-ink);
+}

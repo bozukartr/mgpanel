@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Misafir Kayıtları · Hotizy</title>
     <link rel="stylesheet" href="css/modules/panel.css">
+    <link rel="stylesheet" href="css/core/modal.css">
     <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -245,15 +246,16 @@
     <div id="newIssueModal" class="modal">
         <div class="modal-content">
             <div class="modal-header compact">
-                <div class="header-main">
+                <div class="header-main modal-title-wrap">
                     <h3 id="newIssueTitle">Yeni Şikayet</h3>
+                    <p id="newIssueSub">Misafir kaydı oluşturun; ilgili departmana anında iletilir.</p>
                 </div>
                 <div class="header-actions">
                     <button class="close-modal" id="closeNewIssue">&times;</button>
                 </div>
             </div>
+            <form id="guestIssueForm">
             <div class="modal-body">
-                <form id="guestIssueForm">
                     <div class="type-toggle" id="reqTypeToggle">
                         <button type="button" class="type-opt active" data-type="complaint">
                             <span class="t-emoji">⚠️</span> Şikayet
@@ -309,9 +311,12 @@
                         <input type="text" id="staffInitial" placeholder="örn. JD" required>
                     </div>
                     <div id="gi-conflict-alert" style="display:none; margin-bottom:15px; padding:12px; border-radius:8px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
-                    <button type="submit" class="submit-btn" id="submitBtn">Talebi Departmana İlet</button>
-                </form>
             </div>
+            <div class="modal-actions">
+                <span class="mdl-spacer"></span>
+                <button type="submit" class="action-btn save-btn" id="submitBtn">Talebi Departmana İlet</button>
+            </div>
+            </form>
         </div>
     </div>
 
@@ -546,27 +551,33 @@
 
     <!-- Guest Profiles Modal -->
     <div id="guestProfileModal" class="modal">
-        <div class="modal-content profile-modal" style="max-width: 550px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white;">
-                <div>
-                    <h2 style="color: white; margin: 0; font-size: 18px;">👥 Misafir Kayıt Defteri</h2>
-                    <p style="color: rgba(255,255,255,0.7); margin: 4px 0 0; font-size: 12px;">Otelde / Çıkış Yaptı durumlarını yönetin</p>
+        <div class="modal-content profile-modal">
+            <!-- Bu modal tamamen satır içi stille yazılmıştı (mor degrade başlık,
+                 elle ölçülmüş girdi/pill'ler) — yani tasarım sisteminin tümüyle
+                 dışındaydı. Ortak sınıflara alındı; ölçü/kontrast tek yerden gelir. -->
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <h3>👥 Misafir Kayıt Defteri</h3>
+                    <p>Otelde / Çıkış Yaptı durumlarını yönetin</p>
                 </div>
-                <span class="close-modal" id="closeProfileModal" style="color: white;">&times;</span>
+                <button type="button" class="close-modal" id="closeProfileModal">&times;</button>
             </div>
-            <div class="modal-body" style="padding: 20px;">
-                <div class="profile-search-wrap" style="margin-bottom: 20px;">
-                    <input type="text" id="profileSearchInput" placeholder="Misafir veya oda numarası ara..."
-                           style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 12px; font-family: 'Outfit', sans-serif;">
-                    <div class="filter-pills" style="display: flex; gap: 8px;">
-                        <button class="status-pill active" data-filter="all" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600;">TÜMÜ</button>
-                        <button class="status-pill" data-filter="in_house" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #27ae60;">OTELDE</button>
-                        <button class="status-pill" data-filter="checked_out" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; font-weight: 600; color: #7f8c8d;">ÇIKIŞ YAPTI</button>
+            <div class="modal-body">
+                <div class="profile-search-wrap">
+                    <input type="text" id="profileSearchInput" placeholder="Misafir veya oda numarası ara…">
+                    <div class="filter-pills">
+                        <button class="status-pill active" data-filter="all">TÜMÜ</button>
+                        <button class="status-pill in-house" data-filter="in_house">OTELDE</button>
+                        <button class="status-pill checked-out" data-filter="checked_out">ÇIKIŞ YAPTI</button>
                     </div>
                 </div>
-                <div class="guest-profile-list" id="guestProfileList" style="max-height: 400px; overflow-y: auto; border: 1px solid #f0f0f0; border-radius: 8px;">
+                <div class="guest-profile-list" id="guestProfileList">
                     <!-- List items injected here -->
                 </div>
+            </div>
+            <div class="modal-actions">
+                <span class="mdl-spacer"></span>
+                <button type="button" class="action-btn secondary" id="closeProfileFooterBtn">Kapat</button>
             </div>
         </div>
     </div>

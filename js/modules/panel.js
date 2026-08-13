@@ -1987,9 +1987,12 @@ document.addEventListener('DOMContentLoaded', () => {
         guestProfileModal.style.display = 'flex';
     });
 
-    closeProfileModal?.addEventListener('click', () => {
-        guestProfileModal.style.display = 'none';
-    });
+    // Başlıktaki × ve alt çubuktaki "Kapat" aynı işi yapar (alt çubuk, ortak
+    // modal sistemine geçerken eklendi — uzun listede kapatmak için yukarı
+    // kaydırmak gerekmiyor).
+    const closeGuestProfile = () => { guestProfileModal.style.display = 'none'; };
+    closeProfileModal?.addEventListener('click', closeGuestProfile);
+    document.getElementById('closeProfileFooterBtn')?.addEventListener('click', closeGuestProfile);
 
     statusPills.forEach(pill => {
         pill.addEventListener('click', () => {
