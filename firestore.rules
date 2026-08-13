@@ -398,9 +398,29 @@ service cloud.firestore {
 
     // --- Payments. Written only by Cloud Functions (Admin SDK bypasses rules);
     //     a hotel admin may read their own hotel's payment history. ---
+    // Online ödeme (PayTR / Lemon Squeezy) üründen kaldırıldığından bu
+    // koleksiyona artık hiçbir webhook yazmıyor. Tahsilat çevrim dışı
+    // (havale/EFT) yapılıp platform operatörü tarafından ELLE kaydediliyor —
+    // bu yüzden create/update yalnızca superadmin'e açıldı. Otel yöneticisi
+    // kendi otelinin kayıtlarını okumaya devam eder, hiçbir şey yazamaz.
+    // Alan sınırları, diğer istemci-yazımlı koleksiyonlarla aynı desende:
+    // yalnızca tip/aralık kontrolü (doküman şişirme ve bozuk ciro önlenir).
+    function validManualPayment() {
+      return request.resource.data.tenantId is string
+        && request.resource.data.tenantId.size() > 0 && request.resource.data.tenantId.size() <= 40
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000
+        && request.resource.data.status == 'success'
+        && request.resource.data.get('currency', 'EUR') is string && request.resource.data.get('currency', 'EUR').size() <= 8
+        && request.resource.data.get('plan', '') is string && request.resource.data.get('plan', '').size() <= 40
+        && request.resource.data.get('method', '') is string && request.resource.data.get('method', '').size() <= 40
+        && request.resource.data.get('note', '') is string && request.resource.data.get('note', '').size() <= 300;
+    }
     match /payments/{oid} {
-      allow read:  if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', '') == callerTenant());
-      allow write: if false;
+      allow read:   if isSuperAdmin() || (isAdmin() && resource.data.get('tenantId', '') == callerTenant());
+      allow create: if isSuperAdmin() && validManualPayment();
+      allow update: if isSuperAdmin() && validManualPayment();
+      allow delete: if isSuperAdmin();
     }
 
     // --- Public checkout orders (from the marketing site). Created only by the

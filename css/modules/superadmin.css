@@ -667,3 +667,9 @@ a.btn-ghost, a.btn-primary { text-decoration: none; }
     .st-cap-row { grid-template-columns: 60px 1fr; }
     .st-cap-row .st-result-num { grid-column: 1 / -1; text-align: left; }
 }
+
+/* Elle ödeme kaydı (online ödeme kaldırıldı — tahsilat çevrim dışı) */
+#finManualCard { margin-bottom: 16px; }
+#finManualCard .mp-check { display: flex; align-items: center; gap: 8px; margin-top: 12px;
+    font-size: 13px; color: #475569; cursor: pointer; }
+#finManualCard .mp-check input { width: auto; margin: 0; }

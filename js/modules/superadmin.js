@@ -444,7 +444,7 @@
     async function deleteOrder() {
         const o = orders.find(x => x.id === drawerOrderId); if (!o) return;
         const label = (o.buyer && o.buyer.hotel) || o.id;
-        if (!confirm(`"${label}" siparişi kalıcı olarak silinsin mi?\n\nPayTR/muhasebe kaydı kaybolur. Geri alınamaz. Gereksiz değilse "Arşivle" tercih edin.`)) return;
+        if (!confirm(`"${label}" siparişi kalıcı olarak silinsin mi?\n\nMuhasebe kaydı kaybolur. Geri alınamaz. Gereksiz değilse "Arşivle" tercih edin.`)) return;
         try {
             await db.collection('checkoutOrders').doc(o.id).delete();
             closeOrderDrawer();
@@ -1282,8 +1282,7 @@
         name: 'Burak Göl Şahıs Şirketi', addr: '', taxOffice: 'Arda Vergi Dairesi',
         taxNo: '1234567890', mersis: '000000000', iban: '', phone: '+90 (542) 307 4620',
         email: 'bu.gol@outlook.com', kdvRate: 20, series: 'SOS', nextNo: 1, notes: '',
-        planStarter: 49, planPro: 99, planEnterprise: 199, fxRate: 0,
-        lemonStoreId: '', lemonVariantStarter: '', lemonVariantPro: '', lemonVariantEnterprise: ''
+        planStarter: 49, planPro: 99, planEnterprise: 199, fxRate: 0
     };
     function B(k) { return (billing && billing[k] != null && billing[k] !== '') ? billing[k] : BILLING_DEFAULTS[k]; }
     function currentKdvRate() { const r = Number(B('kdvRate')); return isFinite(r) ? r : 20; }
@@ -1391,6 +1390,7 @@
     // ── Master render (called on data/range changes) ───────────
     function renderFinance() {
         if (!document.getElementById('view-finance')) return;
+        fillManualTenants();
         const lbl = $('finRangeLabel'); if (lbl) lbl.textContent = rangeLabelText();
         const banner = $('finRateBanner');
         if (banner) {
@@ -1606,7 +1606,7 @@
 
     // ── Settings (siteConfig/billing) ──────────────────────────
     function fillSettingsForm() {
-        const map = { setName: 'name', setAddr: 'addr', setTaxOffice: 'taxOffice', setTaxNo: 'taxNo', setMersis: 'mersis', setIban: 'iban', setPhone: 'phone', setEmail: 'email', setKdv: 'kdvRate', setSeries: 'series', setNextNo: 'nextNo', setNotes: 'notes', setPlanStarter: 'planStarter', setPlanPro: 'planPro', setPlanEnterprise: 'planEnterprise', setLemonStore: 'lemonStoreId', setLemonStarter: 'lemonVariantStarter', setLemonPro: 'lemonVariantPro', setLemonEnt: 'lemonVariantEnterprise' };
+        const map = { setName: 'name', setAddr: 'addr', setTaxOffice: 'taxOffice', setTaxNo: 'taxNo', setMersis: 'mersis', setIban: 'iban', setPhone: 'phone', setEmail: 'email', setKdv: 'kdvRate', setSeries: 'series', setNextNo: 'nextNo', setNotes: 'notes', setPlanStarter: 'planStarter', setPlanPro: 'planPro', setPlanEnterprise: 'planEnterprise' };
         Object.keys(map).forEach(id => { const el = $(id); if (el) el.value = B(map[id]); });
         const fxEl = $('setFxRate'); if (fxEl) fxEl.value = fxRate() || '';
         // Invoice defaults
@@ -1616,6 +1616,77 @@
         if ($('invNo')) $('invNo').value = B('nextNo');
         if ($('invDate') && !$('invDate').value) $('invDate').value = new Date().toISOString().slice(0, 10);
     }
+    // ── Elle ödeme kaydı (çevrim dışı tahsilat) ────────────────
+    // Online ödeme (PayTR / Lemon Squeezy) üründen kaldırıldı: `payments`
+    // koleksiyonuna artık hiçbir webhook yazmıyor. Operatör havale/EFT ile
+    // aldığı tahsilatı buradan kaydediyor; doküman ESKİ webhook kayıtlarıyla
+    // AYNI şekilde (tenantId/plan/amount/currency/status/paidAt) yazıldığı için
+    // ciro grafiği, işlem listesi ve fatura üreticisi hiç değişmeden çalışıyor.
+    function fillManualTenants() {
+        const sel = $('mpTenant'); if (!sel) return;
+        const cur = sel.value;
+        const list = tenants.slice().sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id), 'tr'));
+        sel.innerHTML = '<option value="">Seçin…</option>' +
+            list.map(t => `<option value="${esc(t.id)}">${esc(t.name || t.id)} · ${esc(t.id)}</option>`).join('');
+        if (cur) sel.value = cur;
+        const d = $('mpDate'); if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+    }
+    async function saveManualPayment() {
+        const err = $('mpErr'); if (err) err.textContent = '';
+        const tenantId = ($('mpTenant') || {}).value || '';
+        const amount = Number(($('mpAmount') || {}).value);
+        const dateStr = ($('mpDate') || {}).value || '';
+        if (!tenantId) return err && (err.textContent = 'Otel seçin.');
+        if (!isFinite(amount) || amount <= 0) return err && (err.textContent = 'Geçerli bir tutar girin.');
+        if (!dateStr) return err && (err.textContent = 'Tarih seçin.');
+        const paidAt = new Date(dateStr + 'T12:00:00');
+        if (isNaN(paidAt.getTime())) return err && (err.textContent = 'Tarih geçersiz.');
+
+        const t = tenants.find(x => x.id === tenantId);
+        const btn = $('mpSave'); if (btn) { btn.disabled = true; btn.textContent = 'Kaydediliyor…'; }
+        try {
+            // Deterministik doküman kimliği: aynı otel + aynı gün + aynı tutar
+            // iki kez kaydedilirse İKİNCİ kayıt yenisini oluşturmaz, mevcut
+            // olanı günceller — çift tıklama ya da tekrar girişte ciro şişmez.
+            const oid = 'MAN-' + tenantId + '-' + dateStr.replace(/-/g, '') + '-' + Math.round(amount * 100);
+            await db.collection('payments').doc(oid).set({
+                oid: oid,
+                tenantId: tenantId,
+                plan: (t && planKey(t)) || 'custom',
+                amount: Math.round(amount * 100) / 100,
+                currency: 'EUR',
+                status: 'success',
+                method: ($('mpMethod') || {}).value || 'transfer',
+                note: (($('mpNote') || {}).value || '').trim().slice(0, 300),
+                source: 'manual',
+                recordedBy: (auth.currentUser && auth.currentUser.email) || '',
+                paidAt: firebase.firestore.Timestamp.fromDate(paidAt),
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            // Aboneliği 1 ay uzat — kaldırılan paytrCallback'in yaptığı işin
+            // AYNISI: bitiş tarihi gelecekteyse onun üstüne, geçmişse bugünden.
+            if (($('mpExtend') || {}).checked) {
+                const now = new Date();
+                let base = now;
+                const cur = t && t.subscriptionEnd && t.subscriptionEnd.toDate ? t.subscriptionEnd.toDate() : null;
+                if (cur && cur > now) base = cur;
+                const end = new Date(base);
+                end.setMonth(end.getMonth() + 1);
+                await db.collection('tenants').doc(tenantId).set({
+                    subscriptionEnd: firebase.firestore.Timestamp.fromDate(end),
+                    suspended: false
+                }, { merge: true });
+            }
+            ['mpAmount', 'mpNote'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+            toast('Ödeme kaydedildi');
+        } catch (e) {
+            if (err) err.textContent = 'Hata: ' + e.message;
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Kaydet'; }
+        }
+    }
+
     function loadFinSettings() {
         db.collection('siteConfig').doc('billing').get().then(s => {
             billing = s.exists ? s.data() : {};
@@ -1630,11 +1701,7 @@
             kdvRate: Number($('setKdv').value) || 0,
             series: $('setSeries').value.trim(), nextNo: Number($('setNextNo').value) || 1, notes: $('setNotes').value.trim(),
             planStarter: Number($('setPlanStarter').value) || 0, planPro: Number($('setPlanPro').value) || 0,
-            planEnterprise: Number($('setPlanEnterprise').value) || 0, fxRate: Number($('setFxRate').value) || 0,
-            lemonStoreId: (($('setLemonStore') || {}).value || '').trim(),
-            lemonVariantStarter: (($('setLemonStarter') || {}).value || '').trim(),
-            lemonVariantPro: (($('setLemonPro') || {}).value || '').trim(),
-            lemonVariantEnterprise: (($('setLemonEnt') || {}).value || '').trim()
+            planEnterprise: Number($('setPlanEnterprise').value) || 0, fxRate: Number($('setFxRate').value) || 0
         };
         const btn = $('setSave'); btn.disabled = true; btn.textContent = 'Kaydediliyor...';
         try {
@@ -2188,6 +2255,7 @@
         .forEach(id => { const el = $(id); if (el) el.addEventListener('input', renderInvoicePreview); });
     $('invPrint').addEventListener('click', printInvoice);
     $('setSave').addEventListener('click', saveFinSettings);
+    $('mpSave') && $('mpSave').addEventListener('click', saveManualPayment);
 
     // ── Apex tanıtım sayfası görünümü (Açık / Yakında / Bakımda) ──
     (function () {

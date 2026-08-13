@@ -4,7 +4,7 @@
   // (panel-d25c9.web.app) yönlendiren saf bir reverse-proxy'dir — statik
   // dosya sunmaz (bkz. cloudflare/hotizy-subdomain-proxy.js). Böylece
   // Firebase Hosting tek doğruluk kaynağı olarak kalır: hem statik
-  // dosyalar hem de /api/lemon-checkout, /api/lemon-webhook gibi Cloud
+  // dosyalar hem de /api/mint-guest-claim gibi Cloud
   // Functions rewrite'ları buradan geçmeye devam eder. Ayrıntılar:
   // docs/cloudflare-hotizy-kurulum.md
   "$schema": "node_modules/wrangler/config-schema.json",

@@ -672,109 +672,32 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) { console.error(err); showToast('Hata: ' + err.message, true); }
     });
 
-    // ── SUBSCRIPTION PAYMENT (PayTR) ───────────────────────────
-    const payBtn = document.getElementById('payBtn');
-    const payModal = document.getElementById('payModal');
-    const paytriframe = document.getElementById('paytriframe');
-    const payLoading = document.getElementById('payLoading');
-    const closePay = () => {
-        if (payModal) payModal.style.display = 'none';
-        if (paytriframe) paytriframe.src = '';
-    };
-    document.getElementById('payClose')?.addEventListener('click', closePay);
-    payModal?.addEventListener('click', (e) => { if (e.target === payModal) closePay(); });
-
-    // Show the plan price on the renewal button.
-    if (payBtn) {
-        const price = (typeof PLAN_PRICES !== 'undefined') ? PLAN_PRICES[localStorage.getItem('hotelPlan')] : 0;
-        if (price) payBtn.textContent = 'Aboneliği Yenile · ' + price.toLocaleString('tr-TR') + ' ₺';
-    }
-
-    // The result page (inside the iframe) posts back when payment finishes.
-    window.addEventListener('message', (e) => {
-        if (e.data && e.data.source === 'hotizy-payment') {
-            closePay();
-            showToast(e.data.status === 'ok' ? 'Ödeme alındı, aboneliğiniz güncellendi.' : 'Ödeme tamamlanamadı.', e.data.status !== 'ok');
-        }
-    });
-
-    if (payBtn) {
-        payBtn.addEventListener('click', async () => {
-            // Senkron disable — çift tıklamanın iki ayrı payments dokümanı/
-            // PayTR token'ı oluşturmasını engeller (bkz. idempotency denetimi;
-            // payLemonBtn'de zaten bu koruma vardı, buraya da eklendi).
-            if (payBtn.disabled) return;
-            payBtn.disabled = true;
-            payModal.style.display = 'flex';
-            payLoading.style.display = 'block';
-            payLoading.textContent = 'PayTR güvenli ödeme hazırlanıyor…';
-            paytriframe.style.display = 'none';
-            try {
-                const createPayment = firebase.app().functions('us-central1').httpsCallable('createPayment');
-                const res = await createPayment({});
-                paytriframe.onload = () => {
-                    payLoading.style.display = 'none';
-                    paytriframe.style.display = 'block';
-                    if (window.iFrameResize) { try { iFrameResize({}, '#paytriframe'); } catch (e) {} }
-                };
-                paytriframe.src = res.data.iframeUrl;
-            } catch (err) {
-                payLoading.textContent = 'Ödeme başlatılamadı: ' + (err.message || 'bilinmeyen hata');
-            } finally {
-                payBtn.disabled = false;
+    // ── ABONELİK YENİLEME (çevrim dışı) ────────────────────────
+    // Online ödeme (PayTR / Lemon Squeezy) üründen kaldırıldı: tahsilat artık
+    // havale/EFT ile yapılıyor, operatör ödemeyi superadmin panelinden elle
+    // kaydediyor ve abonelik bitiş tarihini uzatıyor. Otel yöneticisine burada
+    // yalnızca banka bilgileri gösterilir — siteConfig/billing herkese açık
+    // okunabilir (firestore.rules), ayrı bir yetki gerekmez.
+    const subOffline = document.getElementById('subOffline');
+    if (subOffline) {
+        db.collection('siteConfig').doc('billing').get().then(doc => {
+            const b = (doc.exists && doc.data()) || {};
+            const iban = String(b.iban || '').trim();
+            const name = String(b.name || '').trim();
+            if (!iban) {
+                subOffline.innerHTML = '<span class="sub-offline-note">Abonelik yenileme için lütfen bizimle iletişime geçin.</span>';
+                return;
             }
-        });
-    }
-
-    // ── SUBSCRIPTION PAYMENT (Lemon Squeezy) ───────────────────
-    // Lemon Squeezy harici barındırılan bir ödeme sayfası kullanır; iframe yerine
-    // yönlendiririz. Ödeme sonrası webhook aboneliği uzatır, kullanıcı dönüş
-    // sayfasına gelir.
-    const payLemonBtn = document.getElementById('payLemonBtn');
-    if (payLemonBtn) {
-        let lemonReady = false;
-        const ensureLemon = () => {
-            if (lemonReady) return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
-            if (typeof window.createLemonSqueezy === 'function') {
-                try {
-                    window.createLemonSqueezy();
-                    if (window.LemonSqueezy && window.LemonSqueezy.Setup) {
-                        window.LemonSqueezy.Setup({ eventHandler: (e) => {
-                            const name = e && (e.event || e.type || e.name);
-                            if (name === 'Checkout.Success') {
-                                showToast('Ödeme alındı, aboneliğiniz güncelleniyor…');
-                                setTimeout(() => location.reload(), 2500);
-                            }
-                        } });
-                    }
-                    lemonReady = true;
-                } catch (err) { /* yok say */ }
-            }
-            return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
-        };
-        // Overlay'i tıklamadan ÖNCE init et (yoksa lemon.js yeni sekmeye düşer).
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureLemon);
-        else ensureLemon();
-        window.addEventListener('load', ensureLemon);
-        const openCheckout = (url) => {
-            const u = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'embed=1';
-            if (ensureLemon() && window.LemonSqueezy.Url.Open) { window.LemonSqueezy.Url.Open(u); }
-            else { window.location.href = url; } // fallback
-        };
-        payLemonBtn.addEventListener('click', async () => {
-            const orig = payLemonBtn.textContent;
-            payLemonBtn.disabled = true;
-            payLemonBtn.textContent = 'Hazırlanıyor…';
-            const reset = () => { payLemonBtn.disabled = false; payLemonBtn.textContent = orig; };
-            try {
-                const fn = firebase.app().functions('us-central1').httpsCallable('createLemonCheckout');
-                const res = await fn({});
-                if (res && res.data && res.data.url) { openCheckout(res.data.url); reset(); return; }
-                throw new Error('URL alınamadı');
-            } catch (err) {
-                reset();
-                showToast('Ödeme başlatılamadı: ' + (err.message || 'bilinmeyen hata'), true);
-            }
+            subOffline.innerHTML =
+                '<span class="sub-offline-note">Yenileme havale/EFT ile yapılır:</span>' +
+                (name ? '<b class="sub-offline-name">' + esc(name) + '</b>' : '') +
+                '<button type="button" class="btn btn-ghost sub-offline-iban" id="subIbanBtn">' + esc(iban) + ' <span>Kopyala</span></button>';
+            document.getElementById('subIbanBtn')?.addEventListener('click', () => {
+                try { navigator.clipboard.writeText(iban); showToast('IBAN kopyalandı.'); }
+                catch (e) { showToast('Kopyalanamadı.', true); }
+            });
+        }).catch(() => {
+            subOffline.innerHTML = '<span class="sub-offline-note">Abonelik yenileme için lütfen bizimle iletişime geçin.</span>';
         });
     }
 

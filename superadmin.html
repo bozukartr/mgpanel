@@ -290,6 +290,32 @@
 
                 <!-- İŞLEMLER -->
                 <div class="fin-panel" id="fin-tx">
+                    <!-- Online ödeme kaldırıldığından `payments` koleksiyonuna artık
+                         hiçbir webhook yazmıyor; tahsilat çevrim dışı yapılıp buradan
+                         elle kaydediliyor. Kayıt, ciro grafiğine ve fatura üreticisine
+                         mevcut kayıtlarla AYNI şekilde girer. -->
+                    <div class="card" id="finManualCard">
+                        <div class="card-head"><div><h3>Ödeme Kaydet</h3><div class="sub">Havale/EFT ile alınan tahsilatı kaydedin — ciro ve faturaya yansır</div></div></div>
+                        <div class="fin-form-row">
+                            <div><label>Otel</label><select id="mpTenant"><option value="">Seçin…</option></select></div>
+                            <div><label>Tutar (€)</label><input id="mpAmount" type="number" min="0" step="0.01" placeholder="örn. 99"></div>
+                        </div>
+                        <div class="fin-form-row">
+                            <div><label>Tarih</label><input id="mpDate" type="date"></div>
+                            <div><label>Yöntem</label><select id="mpMethod">
+                                <option value="transfer">Havale / EFT</option>
+                                <option value="cash">Nakit</option>
+                                <option value="other">Diğer</option>
+                            </select></div>
+                        </div>
+                        <label>Not (opsiyonel)</label>
+                        <input id="mpNote" maxlength="300" placeholder="Dekont no, açıklama…">
+                        <label class="mp-check"><input type="checkbox" id="mpExtend" checked> Aboneliği 1 ay uzat</label>
+                        <div style="display:flex; align-items:center; gap:12px; margin-top:14px;">
+                            <button class="btn-primary" id="mpSave">Kaydet</button>
+                            <span id="mpErr" class="sub" style="color:#dc2626;"></span>
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="card-head">
                             <div><h3>İşlemler</h3><div class="sub" id="finTxCount">—</div></div>
@@ -426,17 +452,6 @@
                             </div>
                             <label>Fatura Notu / Dipnot</label>
                             <input id="setNotes" placeholder="Teşekkür ederiz.">
-
-                            <div class="fin-sec-divider">Lemon Squeezy (Online Ödeme)</div>
-                            <div class="fin-note-box">Fiyatlandırma sayfasındaki ve panel içi “Lemon Squeezy ile Öde” butonları için. Lemon Squeezy mağazanızdaki <b>Store ID</b> ve her plan için <b>Variant ID</b> girin. API anahtarı ve webhook gizli anahtarı sunucuda secret olarak tutulur (<code>LEMON_API_KEY</code>, <code>LEMON_WEBHOOK_SECRET</code>). Webhook URL: <code>https://hotizy.com/api/lemon-webhook</code></div>
-                            <div class="fin-form-row">
-                                <div><label>Store ID</label><input id="setLemonStore" placeholder="örn. 12345"></div>
-                                <div><label>Starter Variant ID</label><input id="setLemonStarter" placeholder="variant id"></div>
-                            </div>
-                            <div class="fin-form-row">
-                                <div><label>Pro Variant ID</label><input id="setLemonPro" placeholder="variant id"></div>
-                                <div><label>Enterprise Variant ID</label><input id="setLemonEnt" placeholder="variant id"></div>
-                            </div>
 
                             <div style="display:flex; align-items:center; gap:12px; margin-top:18px;">
                                 <button class="btn-primary" id="setSave">Kaydet</button>
