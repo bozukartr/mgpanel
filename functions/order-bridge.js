@@ -119,9 +119,16 @@ function itemComplaintText(it) {
     // modifiers: {name, type:'remove'|'extra', priceDelta?}[] — düz string
     // DEĞİL, bu yüzden String(m) burada "[object Object]" üretirdi; ad
     // alanı ayrıca okunur, tip işaretiyle (−/+) birlikte gösterilir.
+    // qty: aynı ekstranın kaç kez istendiği (2× Ekstra Peynir). Yoksa 1 —
+    // adetsiz eski kayıtlar aynen görünür.
     const modTxt = it.modifiers
-      .map((m) => (m && m.type === 'extra' ? '+' : '−') + ' ' + String((m && m.name) || '').trim().slice(0, 60))
-      .filter((s) => s.length > 2).join(', ');
+      .map((m) => {
+        const name = String((m && m.name) || '').trim().slice(0, 60);
+        if (!name) return '';
+        const q = Math.max(1, Number(m && m.qty) || 1);
+        return (m && m.type === 'extra' ? '+' : '−') + ' ' + name + (q > 1 ? ' x' + q : '');
+      })
+      .filter(Boolean).join(', ');
     if (modTxt) parts.push('Özelleştirme: ' + modTxt);
   }
   if (it && it.preferredTime) parts.push('Saat: ' + it.preferredTime);

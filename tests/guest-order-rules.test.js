@@ -142,6 +142,44 @@ test('modifiers 10\'dan fazlaysa REDDEDİLİR', async () => {
   })));
 });
 
+// ── Ürün içerikleri (grup + adet) ve tahmini teslim süresi ──
+test('grup ve adet taşıyan içerikler + süre damgası OLUŞTURULABİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertSucceeds(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{
+      id: 'i1', name: 'Cheeseburger', qty: 1, etaMin: 15, etaMax: 25,
+      modifiers: [
+        { name: 'Ekstra Peynir', type: 'extra', priceDelta: 20, qty: 3, group: 'Ekstralar' },
+        { name: 'Soğansız', type: 'remove', priceDelta: 0 }
+      ]
+    }]
+  })));
+});
+
+test('içerik adedi (qty) 10\'u aşarsa REDDEDİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Burger', qty: 1, modifiers: [{ name: 'Peynir', type: 'extra', qty: 99 }] }]
+  })));
+});
+
+test('aşırı uzun grup adı REDDEDİLİR (doküman şişirme)', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Burger', qty: 1, modifiers: [{ name: 'Peynir', type: 'extra', group: 'g'.repeat(41) }] }]
+  })));
+});
+
+test('uydurma süre değeri (24 saatten uzun / sayı olmayan) REDDEDİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Su', qty: 1, etaMin: 5, etaMax: 99999 }]
+  })));
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Su', qty: 1, etaMin: 'çok' }]
+  })));
+});
+
 test('20 kalemin TAMAMI doğrulanır — 20. kalem geçersizse (qty>10) REDDEDİLİR', async () => {
   const db = anonCtx(env, 'guest-1').firestore();
   const items = Array.from({ length: 19 }, (_, i) => ({ id: 'i' + i, name: 'Su', qty: 1 }));

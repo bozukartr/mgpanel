@@ -273,6 +273,35 @@ h1, h2, h3, p { margin: 0; }
     font-size: 13.5px; font-weight: 700; color: var(--ink-soft); transition: all .15s; }
 .go-opt-pill.active { background: var(--ink); border-color: var(--ink); color: #fff; }
 .go-opt-pill-delta { font-weight: 800; opacity: .75; font-size: 12px; }
+
+/* ════ Ürün bileşenleri: başlıklı bölümler (ekstra / çıkart) ════
+   Yemek sipariş uygulamalarındaki gibi — düz bir chip yığını yerine gruplu,
+   satır satır okunabilir bir liste; adetli ekstralar satır içi − / + alır. */
+.go-modsec { display: flex; flex-direction: column; gap: var(--sp-4); margin-top: var(--sp-2); }
+.go-modgrp-h { font-size: 11.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--ink-mute); margin-bottom: var(--sp-2); }
+.go-modrow { width: 100%; display: flex; align-items: center; gap: 8px;
+    min-height: 48px; padding: 4px 10px 4px 12px; margin-bottom: 6px; border-radius: var(--r-md);
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-size: var(--fs-body); }
+/* Satırın dokunma hedefi: adetli ekstralarda − / + ayrı butonlar olduğu için
+   dış kapsayıcı <div>, tıklanan alan ise bu iç buton. */
+.go-modrow-tap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+    text-align: left; padding: 8px 0; background: none; border: none; color: inherit; font-size: inherit; }
+.go-modrow:last-child { margin-bottom: 0; }
+.go-modrow.active { border-color: var(--ink); background: var(--bg-2); }
+.go-modrow-sign { width: 18px; flex-shrink: 0; font-weight: 800; color: var(--ink-mute); }
+.go-modrow.is-extra.active .go-modrow-sign { color: #2f9e5c; }
+.go-modrow.is-remove.active .go-modrow-sign { color: var(--danger); }
+.go-modrow-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go-modrow-delta { flex-shrink: 0; font-size: 12.5px; font-weight: 800; color: var(--ink-mute); }
+.go-modrow-check { width: 22px; flex-shrink: 0; text-align: center; font-weight: 800; color: #2f9e5c; }
+.go-modrow-step { flex-shrink: 0; display: inline-flex; align-items: center; gap: 2px; }
+.go-modrow-step button { width: 30px; height: 30px; border-radius: var(--r-sm); border: 1px solid var(--line-strong);
+    background: var(--surface); font-size: 16px; font-weight: 700; color: var(--ink); line-height: 1; }
+.go-modrow-step button:disabled { opacity: .35; }
+.go-modrow-step b { min-width: 20px; text-align: center; font-size: 14px; font-weight: 800; }
+/* Sepetteki tek-adetlik kalem: liste satırında adet yerine onay rozeti. */
+.go-add.go-add-on { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 800; }
 .go-cline-opt { display: inline-block; font-size: var(--fs-chip); font-weight: 700; color: var(--gold); background: var(--gold-soft);
     padding: 4px 10px; border-radius: var(--r-pill); vertical-align: middle; }
 .go-cline-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
@@ -283,15 +312,12 @@ h1, h2, h3, p { margin: 0; }
 
 /* ════ SEPET ════ */
 #goCartList { padding: 4px 18px calc(120px + var(--safe-bottom)); }
-.go-cart-sum { display: flex; align-items: center; gap: 13px; background: var(--navy); color: #fff;
-    border-radius: var(--r-lg); padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow); animation: go-rise .25s; }
-.go-cart-sum-ic { width: 42px; height: 42px; flex-shrink: 0; border-radius: var(--r-sm); background: rgba(255,255,255,.14);
-    border: 1px solid rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; }
-.go-cart-sum-ic svg { width: 20px; height: 20px; }
-.go-cart-sum-tx { flex: 1; min-width: 0; }
-.go-cart-sum-tx b { display: block; font-size: 15px; font-weight: 700; }
-.go-cart-sum-tx > span { display: block; font-size: 12px; opacity: .78; margin-top: 2px; }
-.go-cart-sum-amt { font-size: var(--fs-price-md); font-weight: 800; flex-shrink: 0; }
+/* Sepet: departman grubu başlığı — birden fazla departmana giden sepette
+   neyin nereye gittiği görünür (tek departmanda hiç çizilmez). */
+.go-cart-grp { font-size: 11.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--ink-mute); margin: var(--sp-4) 0 var(--sp-2); }
+.go-cart-grp:first-child { margin-top: 0; }
+.go-cline-single { font-size: 12px; font-weight: 700; color: var(--ink-mute); }
 .go-cline { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; margin-bottom: var(--sp-3); box-shadow: var(--shadow-sm); animation: go-rise .25s; }
 .go-cline-top { display: flex; align-items: center; gap: 12px; }
 .go-cline-emoji { width: 44px; height: 44px; flex-shrink: 0; border-radius: var(--r-sm); background: var(--bg-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 22px; }
@@ -315,6 +341,7 @@ h1, h2, h3, p { margin: 0; }
     display: flex; align-items: center; gap: 12px; padding: 13px 18px; background: rgba(255,255,255,.97); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
 .go-cartbar-sum { display: flex; flex-direction: column; line-height: 1.15; }
 .go-cartbar-lbl { font-size: 12px; color: var(--ink-mute); font-weight: 600; }
+.go-cartbar-eta { font-size: 11.5px; color: var(--gold); font-weight: 700; margin-top: 2px; }
 .go-cartbar-total { font-size: 19px; font-weight: 800; }
 .go-cta { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 9px;
     background: var(--gold); color: #fff; font-size: 16px; font-weight: 700; padding: 15px 18px; border-radius: var(--r-md);
@@ -387,6 +414,14 @@ h1, h2, h3, p { margin: 0; }
 .go-titem-main { flex: 1; min-width: 0; }
 .go-titem-name { font-size: var(--fs-title); font-weight: 700; }
 .go-titem-meta { font-size: var(--fs-meta); color: var(--ink-mute); margin-top: 1px; }
+/* Tahmini teslim (EDT): kalem satırında ve takip başlığında. */
+.go-titem-eta { font-size: var(--fs-meta); font-weight: 700; color: var(--gold); margin-top: 3px; }
+.go-titem-eta.done { color: #2f9e5c; }
+/* Takip başlığı KOYU zemindedir — metin açık renk olmalı (koyu lacivert
+   yazı orada tamamen görünmez kalıyordu). */
+.go-track-eta { display: flex; align-items: baseline; justify-content: center; gap: 8px; flex-wrap: wrap;
+    margin-top: var(--sp-3); font-size: 14px; font-weight: 700; color: var(--gold); }
+.go-track-eta span { font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,.72); }
 .go-titem-editing { align-items: flex-start; }
 .go-titem-acts { display: flex; gap: 14px; margin-top: 6px; }
 .go-titem-act { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-decoration: underline; padding: 0; }
@@ -431,50 +466,36 @@ h1, h2, h3, p { margin: 0; }
 .go-empty p { font-size: 14px; color: var(--ink-mute); margin-top: 6px; line-height: 1.5; }
 .go-empty .go-cta { display: inline-flex; flex: none; margin-top: 18px; padding: 13px 22px; }
 
-/* ════ Canlı talep durumu (nav üstü belirgin özet kart + genişleyen panel) ════ */
-:root { --live-h: 64px; }
+/* ════ Canlı talep durumu — nav üstü TEK SATIR şerit ════
+   Eski tasarım açılıp kapanan bir paneldi (iki dokunuş + sepet pill'iyle
+   çakışan yükseklik). Artık en yakın teslimli talep tek satırda durur ve
+   dokununca doğrudan takip ekranı açılır. */
+:root { --live-h: 60px; }
 .go-live { position: fixed; left: 50%; transform: translateX(-50%); z-index: 65; width: 100%; max-width: 480px;
     bottom: calc(var(--nav-h) + var(--safe-bottom)); padding: 0 10px 8px; }
-.go-live-bar { width: 100%; display: flex; align-items: center; gap: 13px; background: linear-gradient(135deg, var(--navy), var(--ink)); color: #fff;
+.go-live-bar { width: 100%; display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, var(--navy), var(--ink)); color: #fff;
     border: 1px solid rgba(255,255,255,.08); border-left: 3px solid var(--gold);
-    border-radius: 18px; padding: 12px 15px; min-height: var(--live-h); box-shadow: 0 16px 36px rgba(29,43,58,.4);
+    border-radius: 16px; padding: 10px 14px; min-height: var(--live-h); box-shadow: 0 16px 36px rgba(29,43,58,.4);
     text-align: left; animation: go-rise .25s; }
-.go-live-ic { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; background: rgba(255,255,255,.13);
-    display: flex; align-items: center; justify-content: center; font-size: 21px; }
-.go-live-ic.sm { width: 32px; height: 32px; font-size: 17px; }
-.go-live-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.go-live-bar:active { transform: scale(.995); }
+.go-live-dot { width: 9px; height: 9px; flex-shrink: 0; border-radius: var(--r-pill); background: var(--gold);
+    box-shadow: 0 0 0 4px rgba(198,160,90,.18); }
+.go-live-dot.go-st-completed { background: #2f9e5c; box-shadow: 0 0 0 4px rgba(47,158,92,.18); }
+.go-live-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .go-live-tl { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.go-live-tl b { font-size: 14.5px; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.go-live-tl b { font-size: 14px; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.go-live-sub { font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .go-live-prog { display: flex; gap: 4px; }
-.go-live-prog i { flex: 1; max-width: 44px; height: 3.5px; border-radius: var(--r-pill); background: rgba(255,255,255,.22); transition: background .3s; }
+.go-live-prog i { flex: 1; max-width: 44px; height: 3px; border-radius: var(--r-pill); background: rgba(255,255,255,.22); transition: background .3s; }
 .go-live-prog i.on { background: var(--gold); }
-.go-live-elapsed { font-size: 11.5px; color: rgba(255,255,255,.62); font-weight: 600; }
-.go-live-row .go-live-elapsed { color: var(--ink-mute); }
-.go-live-items { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 1px; }
-.go-live-item { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--ink-soft); }
-.go-live-item-more { color: var(--ink-mute); }
-.go-live-item-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--ink-mute); flex-shrink: 0; }
-.go-live-item-dot.go-st-confirmed, .go-live-item-dot.go-st-in_progress { background: var(--gold); }
-.go-live-item-dot.go-st-completed { background: #2f9e5c; }
-.go-live-chev { flex-shrink: 0; color: rgba(255,255,255,.72); transition: transform .2s; display: inline-flex; }
-.go-live-chev.open { transform: rotate(180deg); }
+.go-live-more { flex-shrink: 0; font-size: 11px; font-weight: 800; color: var(--navy); background: var(--gold);
+    padding: 2px 8px; border-radius: var(--r-pill); }
+.go-live-chev { flex-shrink: 0; color: rgba(255,255,255,.72); display: inline-flex; }
 .go-live-chev svg { display: block; }
-.go-live-body { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-lg);
-    padding: 8px; margin-bottom: 8px; max-height: 46vh; overflow-y: auto; animation: go-rise .2s; }
-.go-live-row { width: 100%; display: flex; align-items: center; gap: 11px; text-align: left; padding: 10px 10px;
-    border-radius: 13px; color: var(--ink); }
-.go-live-row:active { background: var(--bg-2); }
-.go-live-row .go-live-ic { background: var(--bg-2); border: 1px solid var(--line); }
-.go-live-row .go-live-tl b { font-size: 13.5px; }
-.go-live-row .go-live-prog i { background: var(--line-strong); }
-.go-live-row .go-live-prog i.on { background: var(--gold); }
-.go-live-row .go-live-chev { color: var(--ink-mute); }
-.go-live-all { width: 100%; padding: 11px; margin-top: 2px; border-top: 1px solid var(--line); font-size: 13px;
-    font-weight: 700; color: var(--gold); text-align: center; }
 
-/* Canlı bar görünürken pill ve toast bir kat yukarı çıkar */
+/* Canlı şerit görünürken pill ve içerik bir kat yukarı çıkar. Toast ARTIK
+   ETKİLENMEZ — üstte duruyor (bkz. .go-toast). */
 body.go-has-live .go-pill { bottom: calc(var(--nav-h) + var(--safe-bottom) + var(--live-h) + 22px); }
-body.go-has-live .go-toast { bottom: calc(var(--nav-h) + var(--safe-bottom) + var(--live-h) + 26px); }
 body.go-has-live .go-screen { padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + var(--live-h) + 8px); }
 body.go-has-live .go-cartbar { bottom: calc(var(--nav-h) + var(--safe-bottom) + var(--live-h) + 8px); }
 
@@ -536,7 +557,10 @@ body.go-has-live .go-cartbar { bottom: calc(var(--nav-h) + var(--safe-bottom) + 
 .go-folio-total span { font-size: 19px; font-weight: 800; color: var(--navy); }
 
 /* ════ Toast ════ */
-.go-toast { position: fixed; left: 50%; transform: translate(-50%, 24px); z-index: 120; bottom: calc(var(--nav-h) + var(--safe-bottom) + 18px);
+/* Toast ÜSTTE: eskiden alt navigasyonun hemen üzerindeydi ve tam olarak
+   sepet pill'inin/canlı şeridin bulunduğu yeri kapatıyordu. z-index sheet'lerin
+   üstünde ki ürün detayı açıkken de görünsün. */
+.go-toast { position: fixed; left: 50%; transform: translate(-50%, -24px); z-index: 1200; top: calc(env(safe-area-inset-top, 0px) + 12px);
     background: var(--ink); color: #fff; font-size: 14px; font-weight: 600; padding: 13px 20px; border-radius: 14px; box-shadow: var(--shadow-lg);
     max-width: calc(100% - 40px); text-align: center; opacity: 0; visibility: hidden; transition: all .25s; }
 .go-toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
