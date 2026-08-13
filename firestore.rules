@@ -85,7 +85,12 @@ service cloud.firestore {
     function validModifier(m) {
       return m.name is string && m.name.size() > 0 && m.name.size() <= 60
         && m.get('type', 'remove') is string && m.get('type', 'remove').size() <= 20
-        && m.get('priceDelta', 0) is number;
+        && m.get('priceDelta', 0) is number
+        // group: misafir ekranındaki başlık (ör. "Soslar"); qty: aynı
+        // ekstranın kaç kez istendiği (2× Ekstra Peynir). Diğer tüm alanlarla
+        // AYNI desen — yalnızca tip/aralık sınırı, biçim doğrulaması yok.
+        && m.get('group', '') is string && m.get('group', '').size() <= 40
+        && m.get('qty', 1) is number && m.get('qty', 1) >= 1 && m.get('qty', 1) <= 10;
     }
     function validModifiers(mods) {
       return (mods.size() < 1  || validModifier(mods[0]))
@@ -117,7 +122,12 @@ service cloud.firestore {
         && (it.get('transferFrom', '') is string && it.get('transferFrom', '').size() <= 80)
         && (it.get('transferTo', '') is string && it.get('transferTo', '').size() <= 80)
         && (it.get('transferDate', '') is string && it.get('transferDate', '').size() <= 10)
-        && (it.get('transferTime', '') is string && it.get('transferTime', '').size() <= 5);
+        && (it.get('transferTime', '') is string && it.get('transferTime', '').size() <= 5)
+        // Tahmini teslim süresi DAKİKA olarak, gönderim anında katalogdan
+        // damgalanır (bkz. guest-order.js:submitOrder). 24 saatlik üst sınır
+        // diğer alanlardaki boyut sınırlarıyla aynı DoS duruşunu korur.
+        && (it.get('etaMin', 0) is number && it.get('etaMin', 0) >= 0 && it.get('etaMin', 0) <= 1440)
+        && (it.get('etaMax', 0) is number && it.get('etaMax', 0) >= 0 && it.get('etaMax', 0) <= 1440);
     }
     function validGuestOrderItems(items) {
       return (items.size() < 1  || validGuestOrderItem(items[0]))

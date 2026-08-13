@@ -88,6 +88,7 @@
                 <div class="go-cartbar-sum">
                     <span class="go-cartbar-lbl" id="goCartCountLbl">0 talep</span>
                     <span class="go-cartbar-total" id="goCartTotal"></span>
+                    <span class="go-cartbar-eta" id="goCartEta" hidden></span>
                 </div>
                 <button class="go-cta" id="goSubmit">
                     <span id="goSubmitLabel" data-i18n="guest.cart.submit">Talebi Gönder</span>
@@ -121,9 +122,8 @@
         </section>
     </div>
 
-    <!-- ══ Canlı talep durumu — nav üstünde minimize özet, dokununca genişler ══ -->
+    <!-- ══ Canlı talep durumu — nav üstünde TEK SATIR şerit, dokununca takip ══ -->
     <div class="go-live" id="goLive" hidden>
-        <div class="go-live-body" id="goLiveBody" hidden></div>
         <button class="go-live-bar" id="goLiveBar" aria-label="Aktif talepleriniz" data-i18n-aria="guest.track.active"></button>
     </div>
 

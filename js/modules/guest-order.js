@@ -49,7 +49,9 @@
     }
     recomputeKeys();
 
-    const MAX_DISTINCT = 20, MAX_QTY = 10, COOLDOWN_MS = 60 * 1000;
+    // MAX_MOD_QTY: bir ekstranın en fazla kaç kez eklenebileceği. firestore.rules
+    // validModifier'daki qty sınırıyla AYNI olmalı.
+    const MAX_DISTINCT = 20, MAX_QTY = 10, MAX_MOD_QTY = 10, COOLDOWN_MS = 60 * 1000;
 
     // ── Config ─────────────────────────────────────────────────
     const DEFAULT_CONFIG = {
@@ -77,6 +79,23 @@
         { category: 'Oda Servisi', name: 'Çay / Kahve', icon: '☕', eta: '15-20 dk', price: 60, department: 'Yiyecek & İçecek' },
         { category: 'Oda Servisi', name: 'Meyve Tabağı', icon: '🍎', eta: '20-30 dk', price: 120, department: 'Yiyecek & İçecek' },
         { category: 'Oda Servisi', name: 'Atıştırmalık', icon: '🍫', eta: '20 dk', price: 80, department: 'Yiyecek & İçecek' },
+        // Oda servisi akışının tamamını gösteren demo kalemi: seçenek (pişirme
+        // derecesi) + gruplu içerikler (ekstra/çıkart) + adetli ekstra.
+        {
+            category: 'Oda Servisi', name: 'Cheeseburger', icon: '🍔', etaMin: 20, etaMax: 30, eta: '20-30 dk',
+            price: 320, department: 'Yiyecek & İçecek',
+            description: 'Dana köfte, cheddar, marul, domates, soğan · patates kızartması ile',
+            options: [{ name: 'Az pişmiş', priceDelta: 0 }, { name: 'Orta', priceDelta: 0 }, { name: 'İyi pişmiş', priceDelta: 0 }],
+            modifiers: [
+                { name: 'Ekstra Cheddar', type: 'extra', priceDelta: 40, maxQty: 3 },
+                { name: 'Ekstra Köfte', type: 'extra', priceDelta: 120, maxQty: 2 },
+                { name: 'Barbekü Sos', type: 'extra', priceDelta: 25, group: 'Soslar', maxQty: 2 },
+                { name: 'Ranch Sos', type: 'extra', priceDelta: 25, group: 'Soslar', maxQty: 2 },
+                { name: 'Soğansız', type: 'remove', priceDelta: 0 },
+                { name: 'Domatessiz', type: 'remove', priceDelta: 0 },
+                { name: 'Marulsuz', type: 'remove', priceDelta: 0 }
+            ]
+        },
         { category: 'Teknik', name: 'Klima Sorunu', icon: '❄️', eta: '30 dk', department: 'Engineering' },
         { category: 'Teknik', name: 'TV Sorunu', icon: '📺', eta: '30 dk', department: 'Engineering' },
         { category: 'Teknik', name: 'Wi-Fi Sorunu', icon: '📶', eta: '20 dk', department: 'Engineering' },
@@ -340,19 +359,141 @@
     // Çıkarılabilir/ekstra ürün bileşenleri (ör. "Soğansız", "Ekstra Peynir")
     // — options'tan farkı: misafir BİRDEN FAZLASINI seçebilir. request-
     // catalog.js'teki normalizeModifier ile AYNI şema.
+    //   group  : aynı başlık altında toplanan bileşenler (ör. "Soslar").
+    //            Boşsa tipe göre varsayılan başlığa düşer — grupsuz eski
+    //            kayıtlar hiçbir değişiklik olmadan çalışmaya devam eder.
+    //   maxQty : yalnızca 'extra' için anlamlı (2× Ekstra Peynir); yoksa 1,
+    //            yani bugünkü aç/kapa davranışı.
     function normalizeModifier(m) {
+        const type = (m && m.type) === 'extra' ? 'extra' : 'remove';
+        const mx = Math.max(1, Math.min(MAX_MOD_QTY, Number(m && m.maxQty) || 1));
         return {
             name: String((m && m.name) || '').trim(),
-            type: (m && m.type) === 'extra' ? 'extra' : 'remove',
-            priceDelta: Number(m && m.priceDelta) || 0
+            type: type,
+            priceDelta: Number(m && m.priceDelta) || 0,
+            group: String((m && m.group) || '').trim(),
+            maxQty: type === 'extra' ? mx : 1
         };
     }
     function modifiersOf(item) { return Array.isArray(item && item.modifiers) ? item.modifiers.map(normalizeModifier) : []; }
     function hasModifiers(item) { return modifiersOf(item).length > 0; }
-    function modifiersDelta(item, names) {
-        if (!Array.isArray(names) || !names.length) return 0;
+    // Seçim listesi iki biçimde gelebilir: ['Ad'] (eski sepet/sipariş kayıtları)
+    // veya [{name, qty}] (yeni). Tek bir normalize edilmiş biçime indirgenir ki
+    // fiyat hesabı her iki veriyle de doğru çalışsın.
+    function selList(sel) {
+        if (!Array.isArray(sel)) return [];
+        return sel.map(s => (s && typeof s === 'object')
+            ? { name: String(s.name || '').trim(), qty: Math.max(1, Number(s.qty) || 1) }
+            : { name: String(s || '').trim(), qty: 1 }).filter(s => s.name);
+    }
+    function selQty(sel, name) { const f = selList(sel).find(s => s.name === name); return f ? f.qty : 0; }
+    function modifiersDelta(item, sel) {
+        const chosen = selList(sel); if (!chosen.length) return 0;
         const all = modifiersOf(item);
-        return names.reduce((s, n) => { const m = all.find(x => x.name === n); return s + (m ? m.priceDelta : 0); }, 0);
+        return chosen.reduce((s, c) => { const m = all.find(x => x.name === c.name); return s + (m ? m.priceDelta * c.qty : 0); }, 0);
+    }
+    // Başlıklı bölümler: özel grup adı varsa o, yoksa tipe göre varsayılan.
+    // Sıra katalogdaki sırayı korur (admin'in dizdiği gibi görünür).
+    function modifierGroups(item) {
+        const groups = [];
+        modifiersOf(item).forEach(m => {
+            if (!m.name) return;
+            const key = m.group || (m.type === 'extra' ? t('guest.item.groupExtras') : t('guest.item.groupRemovals'));
+            let g = groups.find(x => x.key === key);
+            if (!g) { g = { key: key, items: [] }; groups.push(g); }
+            g.items.push(m);
+        });
+        return groups;
+    }
+    // Kalem metninde ekstra adedi: "+ Ekstra Peynir ×2".
+    function modLabel(m, qty) {
+        return (m.type === 'extra' ? '+ ' : '− ') + m.name + (qty > 1 ? ' ×' + qty : '');
+    }
+
+    // ══ Tahmini teslim (EDT) ══════════════════════════════════════════
+    // Katalogda süre ESKİDEN serbest metindi ('15-30 dk'); artık etaMin/etaMax
+    // DAKİKA olarak tutulur. Eski metin okunurken ayrıştırıldığı için admin
+    // hiçbir kayda dokunmadan da EDT çalışır (bkz. request-catalog.js).
+    // Hesap tamamen istemci tarafında: yeni yazım, yeni koleksiyon, yeni
+    // Cloud Function YOK — pencere siparişin createdAt'ından türetilir.
+    const EDT_SLIDE_GRACE_MS = 2 * 60000;   // pencere sonuna bu kadar kala kayar
+    const EDT_SLIDE_STEP_MS = 5 * 60000;    // kaydığında yeni pencerenin genişliği
+    function parseEtaText(txt) {
+        const nums = String(txt == null ? '' : txt).match(/\d+/g);
+        if (!nums || !nums.length) return null;
+        const a = parseInt(nums[0], 10);
+        const b = nums.length > 1 ? parseInt(nums[1], 10) : a;
+        if (!isFinite(a) || a <= 0) return null;
+        return { min: Math.min(a, b), max: Math.max(a, b) };
+    }
+    // Katalog kalemi ya da (gönderim anında damgalanmış) sipariş kalemi için
+    // dakika cinsinden süre aralığı.
+    function etaMinutes(src) {
+        const lo = Number(src && src.etaMin) || 0, hi = Number(src && src.etaMax) || 0;
+        if (lo > 0) return { min: lo, max: Math.max(lo, hi || lo) };
+        return parseEtaText(src && src.eta);
+    }
+    // Pencerenin SONUNA EDT_SLIDE_GRACE_MS kala bir sonraki kademeye kayar:
+    // 14:00–14:10 penceresinde saat 14:08'i geçince 14:10–14:15 olur. Döngü
+    // tekrarlanabilir (çok geciken talepte kademe kademe ilerler); guard,
+    // bozuk bir base değerinde sonsuz döngüyü engeller.
+    function slideWindow(start, end, now) {
+        let guard = 0;
+        while (now >= end - EDT_SLIDE_GRACE_MS && guard++ < 500) {
+            start = end; end = start + EDT_SLIDE_STEP_MS;
+        }
+        return { start: start, end: end };
+    }
+    function etaWindow(baseMs, src, now) {
+        const m = etaMinutes(src);
+        if (!baseMs || !m) return null;
+        return slideWindow(baseMs + m.min * 60000, baseMs + m.max * 60000, now == null ? Date.now() : now);
+    }
+    function fmtWindow(w) { return w ? clock(w.start) + ' – ' + clock(w.end) : ''; }
+    // Pencerenin bitişine kalan süre ("8 dk"). Pencere içindeyken bile
+    // pozitiftir (slideWindow bitişe 2 dk kala kaydırdığı için 0'a düşmez).
+    function etaRemainText(w, now) {
+        if (!w) return '';
+        const left = Math.round((w.end - (now == null ? Date.now() : now)) / 60000);
+        return left > 0 ? t('guest.eta.remaining', { n: left }) : t('guest.eta.soon');
+    }
+    // Kalemin teslim bilgisi: tamamlandıysa GERÇEK saat, iptalse yok,
+    // aksi halde kayan EDT penceresi.
+    function itemEta(order, it, now) {
+        const st = (it && it.status) || 'pending';
+        if (st === 'cancelled') return null;
+        if (st === 'completed') {
+            const log = (order.statusLog || []).filter(l => l.status === 'completed').pop();
+            return { done: true, at: log ? log.at : 0 };
+        }
+        return etaWindow(tsMs(order), it, now);
+    }
+    // Sipariş penceresi = AÇIK kalemlerin birleşimi (en erken başlangıç,
+    // en geç bitiş). Hepsi kapandıysa null.
+    function orderEta(order, now) {
+        let start = 0, end = 0;
+        (order.items || []).forEach(it => {
+            const s = it.status || 'pending';
+            if (s === 'cancelled' || s === 'completed') return;
+            const w = etaWindow(tsMs(order), it, now);
+            if (!w) return;
+            start = start ? Math.min(start, w.start) : w.start;
+            end = Math.max(end, w.end);
+        });
+        return end ? { start: start, end: end } : null;
+    }
+    // Sepet için göreli aralık ("~20–30 dk") — henüz bir sipariş yok, mutlak
+    // saat gösterilemez.
+    function cartEtaText() {
+        let lo = 0, hi = 0;
+        cart.forEach(l => {
+            const m = etaMinutes(l) || etaMinutes(catalog.find(i => i.id === l.catalogId));
+            if (!m) return;
+            lo = lo ? Math.min(lo, m.min) : m.min;
+            hi = Math.max(hi, m.max);
+        });
+        if (!hi) return '';
+        return lo === hi ? t('guest.eta.approxOne', { n: hi }) : t('guest.eta.approx', { a: lo, b: hi });
     }
 
     function categories() {
@@ -952,7 +1093,14 @@
     const hasOptions = item => Array.isArray(item && item.options) && item.options.length > 0;
     function itemAction(item, av, line) {
         if (!av.available) return `<span class="go-unavail">${esc(t('guest.services.offHours'))}</span>`;
-        if (line && line.qty > 0) return stepHtml(item.id, line.qty);
+        // Tek-adetlik talepler (maxQty=1: oda temizliği, çarşaf değişimi…)
+        // adet kontrolü GÖSTERMEZ — "2 kez oda temizliği" anlamsız. Sepetteyken
+        // aç/kapa bir onay rozetine döner.
+        if (line && line.qty > 0) {
+            return lineMax(item) === 1
+                ? `<button class="go-add go-add-on" data-dec="${esc(item.id)}" aria-label="${esc(t('guest.item.removeFromCart'))}">✓</button>`
+                : stepHtml(item.id, line.qty);
+        }
         if (hasOptions(item) || hasModifiers(item) || isTransferItem(item) || isConciergeItem(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">${esc(t('common.select'))}</button>`;
         return `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
     }
@@ -997,14 +1145,43 @@
                 ${optionsOf(item).map(o => `<button type="button" class="go-opt-pill ${o.name === selected ? 'active' : ''}" data-opt="${esc(o.name)}">${esc(o.name)}${(pricesOn() && o.priceDelta) ? ` <span class="go-opt-pill-delta">${esc(fmtDelta(o.priceDelta))}</span>` : ''}</button>`).join('')}
             </div></div>`;
     }
-    // Çıkarılabilir/ekstra bileşenler — options'tan farklı olarak ÇOKLU seçim
-    // (her chip kendi başına açık/kapalı, "active" olması bir üstekini
-    // dışlamaz).
-    function modChipsHtml(item, selectedNames) {
-        return `<div class="go-fld"><label>${esc(t('guest.item.customize'))} <span class="go-ink-mute" style="font-weight:400;">(opsiyonel, birden fazla seçebilirsiniz)</span></label>
-            <div class="go-opt-pills" id="goShModPills">
-                ${modifiersOf(item).map(m => `<button type="button" class="go-opt-pill go-mod-pill ${selectedNames.indexOf(m.name) !== -1 ? 'active' : ''}" data-mod="${esc(m.name)}">${m.type === 'extra' ? '+' : '−'} ${esc(m.name)}${(pricesOn() && m.priceDelta) ? ` <span class="go-opt-pill-delta">${esc(fmtDelta(m.priceDelta))}</span>` : ''}</button>`).join('')}
-            </div></div>`;
+    // Çıkarılabilir/ekstra bileşenler — options'tan farklı olarak ÇOKLU seçim.
+    // Yemek sipariş uygulamalarındaki gibi BAŞLIKLI bölümler halinde çizilir
+    // (özel grup adı varsa o, yoksa "Ekstralar"/"Çıkarılacaklar"). maxQty > 1
+    // olan ekstralar satır içi adet kontrolü alır (2× Ekstra Peynir).
+    // DİKKAT: dış kapsayıcı <div>'dir, <button> DEĞİL. Adetli ekstralarda
+    // satırın içinde − / + butonları var; HTML'de buton içine buton
+    // yerleştirilemez (tarayıcı ayrıştırıcısı dış butonu erkenden kapatır ve
+    // stepper satırın DIŞINA düşer, tıklama hiç ulaşmaz). Dokunma hedefi
+    // olarak içteki .go-modrow-tap butonu kullanılır.
+    function modRowHtml(m, qty) {
+        const on = qty > 0;
+        const delta = (pricesOn() && m.priceDelta) ? `<span class="go-modrow-delta">${esc(fmtDelta(m.priceDelta))}</span>` : '';
+        const ctrl = (m.maxQty > 1)
+            ? `<span class="go-modrow-step">
+                   <button type="button" data-moddec="${esc(m.name)}" aria-label="Azalt" ${on ? '' : 'disabled'}>−</button>
+                   <b data-modqty="${esc(m.name)}">${qty}</b>
+                   <button type="button" data-modinc="${esc(m.name)}" aria-label="Artır" ${qty >= m.maxQty ? 'disabled' : ''}>+</button>
+               </span>`
+            : `<span class="go-modrow-check" aria-hidden="true">${on ? '✓' : ''}</span>`;
+        return `<div class="go-modrow ${on ? 'active' : ''} ${m.type === 'extra' ? 'is-extra' : 'is-remove'}" data-mod="${esc(m.name)}">
+            <button type="button" class="go-modrow-tap" data-modtoggle="${esc(m.name)}" aria-pressed="${on ? 'true' : 'false'}">
+                <span class="go-modrow-sign">${m.type === 'extra' ? '+' : '−'}</span>
+                <span class="go-modrow-name">${esc(m.name)}</span>
+                ${delta}
+            </button>
+            ${ctrl}
+        </div>`;
+    }
+    function modChipsHtml(item, sel) {
+        const groups = modifierGroups(item);
+        if (!groups.length) return '';
+        return `<div class="go-modsec" id="goShModPills">
+            ${groups.map(g => `<div class="go-modgrp">
+                <div class="go-modgrp-h">${esc(g.key)}</div>
+                ${g.items.map(m => modRowHtml(m, selQty(sel, m.name))).join('')}
+            </div>`).join('')}
+        </div>`;
     }
     function openItemSheet(id) {
         const item = catalog.find(i => i.id === id); if (!item) return;
@@ -1013,7 +1190,9 @@
         sheetItemId = id;
         sheetQty = line && line.qty > 0 ? line.qty : 1;
         sheetOption = line ? (line.option || '') : '';
-        sheetModifiers = line && Array.isArray(line.modifiers) ? line.modifiers.map(m => m.name) : [];
+        // selList: eski sepet satırları modifiers'ı adetsiz tuttuğu için
+        // ikisini de kabul eden normalize edici.
+        sheetModifiers = line ? selList(line.modifiers) : [];
         const withOpts = hasOptions(item);
         const withMods = hasModifiers(item);
         const maxq = lineMax(item);
@@ -1045,10 +1224,11 @@
             ${av.available ? `
             ${withOpts ? optPillsHtml(item, sheetOption) : ''}
             ${withMods ? modChipsHtml(item, sheetModifiers) : ''}
+            ${maxq > 1 ? `
             <div class="go-isheet-qty" style="${(withOpts || withMods) ? 'margin-top:12px;' : ''}">
                 <span>${esc(t('guest.item.quantity'))}</span>
                 <div class="go-step go-step-lg"><button id="goShDec">−</button><b id="goShQty">${sheetQty}</b><button id="goShInc">+</button></div>
-            </div>
+            </div>` : ''}
             <div class="go-fld"><label>${esc(t('guest.item.note'))}</label><input type="text" id="goShNote" maxlength="160" placeholder="${esc(t('guest.item.notePlaceholder'))}" value="${esc(line ? line.note || '' : '')}"></div>
             ${isTransfer ? `
             <div class="go-fld"><label>${esc(t('guest.transfer.from'))}</label><input type="text" id="goShFrom" maxlength="80" placeholder="${esc(t('guest.transfer.fromPlaceholder'))}" value="${esc(line ? line.transferFrom || '' : '')}"></div>
@@ -1068,7 +1248,7 @@
             `)}
             <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;" ${addDisabled ? 'disabled' : ''}>
                 <span id="goShAddLbl">${addDisabled ? t('guest.item.pickOption') : (line ? t('guest.item.updateCart') : t('guest.item.addToCart'))}</span>
-                ${(!addDisabled && pricesOn() && sheetUnitPrice()) ? `<span class="go-isheet-amt" id="goShAmt">${esc(fmtPrice(sheetUnitPrice() * sheetQty))}</span>` : ''}
+                ${pricesOn() ? `<span class="go-isheet-amt" id="goShAmt">${esc(addDisabled ? '' : (sheetUnitPrice() ? fmtPrice(sheetUnitPrice() * sheetQty) : ''))}</span>` : ''}
             </button>
             ${line ? `<button class="go-btn-ghost go-btn-danger" id="goShRemove" style="margin-top:10px;">${esc(t('guest.item.removeFromCart'))}</button>` : ''}`
             : `<div class="go-unavail" style="display:block;text-align:center;padding:14px;margin-top:6px;">${esc(t('guest.services.unavailableWindow', { window: av.window }))}</div>`}
@@ -1076,13 +1256,19 @@
         const addB = $('goShAdd');
         const upd = () => {
             const q = $('goShQty'); if (q) q.textContent = sheetQty;
-            const a = $('goShAmt'); if (a) a.textContent = fmtPrice(sheetUnitPrice() * sheetQty);
+            const a = $('goShAmt');
+            // Seçenek zorunluyken ve henüz seçilmemişken tutar GÖSTERİLMEZ
+            // (seçenek fiyatı değiştirebilir), ama eleman DOM'da durur —
+            // eskiden hiç render edilmediği için seçim yapıldığında fiyat
+            // asla görünmüyordu.
+            if (a) a.textContent = (withOpts && !sheetOption) ? '' : (sheetUnitPrice() ? fmtPrice(sheetUnitPrice() * sheetQty) : '');
         };
         const syncAddState = () => {
             if (!addB || !withOpts) return;
             const disabled = !sheetOption;
             addB.disabled = disabled;
             const lbl = $('goShAddLbl'); if (lbl) lbl.textContent = disabled ? t('guest.item.pickOption') : (line ? t('guest.item.updateCart') : t('guest.item.addToCart'));
+            upd();
         };
         const pills = $('goShOptPills');
         if (pills) pills.onclick = e => {
@@ -1093,11 +1279,24 @@
         };
         const modPills = $('goShModPills');
         if (modPills) modPills.onclick = e => {
-            const b = e.target.closest('[data-mod]'); if (!b) return;
-            const name = b.dataset.mod;
-            const i = sheetModifiers.indexOf(name);
-            if (i === -1) sheetModifiers.push(name); else sheetModifiers.splice(i, 1);
-            b.classList.toggle('active', i === -1);
+            const row = e.target.closest('[data-mod]'); if (!row) return;
+            const name = row.dataset.mod;
+            const def = modifiersOf(item).find(x => x.name === name); if (!def) return;
+            // Adetli ekstralarda − / + satır içi kontrolü; diğerlerinde satırın
+            // tamamı aç/kapa. e.target'a bakılır ki stepper'a basmak kalemi
+            // sıfırlamasın.
+            const dec = e.target.closest('[data-moddec]'), inc = e.target.closest('[data-modinc]');
+            let q = selQty(sheetModifiers, name);
+            if (def.maxQty > 1 && (dec || inc)) {
+                q = inc ? Math.min(def.maxQty, q + 1) : Math.max(0, q - 1);
+            } else {
+                q = q > 0 ? 0 : 1;
+            }
+            sheetModifiers = selList(sheetModifiers).filter(s => s.name !== name);
+            if (q > 0) sheetModifiers.push({ name: name, qty: q });
+            // Sadece dokunulan satırı yeniden çiz — tüm sheet'i yeniden
+            // kurmak açık klavyeyi/kaydırma konumunu bozardı.
+            row.outerHTML = modRowHtml(def, q);
             upd();
         };
         const dec = $('goShDec'); if (dec) dec.onclick = () => { if (sheetQty > 1) { sheetQty--; upd(); } };
@@ -1160,12 +1359,21 @@
             if (cart.length >= MAX_DISTINCT) { toast(t('guest.item.maxDistinct', { n: MAX_DISTINCT }), true); return; }
             line = { catalogId: item.id, name: item.name, category: item.category || t('common.other'), icon: item.icon || '🛎️',
                 department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '',
+                // Süre sepete eklendiği ANDA damgalanır (price ile aynı gerekçe):
+                // katalog sonradan değişse bile misafire verilen söz sabit kalır.
+                etaMin: (etaMinutes(item) || {}).min || 0, etaMax: (etaMinutes(item) || {}).max || 0,
                 transferFrom: '', transferTo: '', transferDate: '', transferTime: '' };
             cart.push(line);
         }
         line.qty = Math.min(lineMax(line), Math.max(1, sheetQty));
         line.note = note; line.preferredTime = time; line.option = sheetOption || '';
-        line.modifiers = modifiersOf(item).filter(m => sheetModifiers.indexOf(m.name) !== -1);
+        // Seçilen bileşenler adetleriyle birlikte saklanır; sıra katalogdaki
+        // sıradır (misafirin dokunma sırası değil) — sepet ve personel metni
+        // her zaman aynı düzende okunur.
+        line.modifiers = modifiersOf(item)
+            .map(m => ({ m: m, q: selQty(sheetModifiers, m.name) }))
+            .filter(x => x.q > 0)
+            .map(x => ({ name: x.m.name, type: x.m.type, priceDelta: x.m.priceDelta, qty: x.q }));
         line.transferFrom = transferFrom; line.transferTo = transferTo; line.transferDate = transferDate; line.transferTime = transferTime;
         // Seçilen seçenek/özelleştirmelerin fiyat farkı BURADA satır fiyatına
         // gömülür (bakılan an itibarıyla) — priceOf(line) her yerde tek bir
@@ -1211,6 +1419,9 @@
             if (cart.length >= MAX_DISTINCT) { toast(t('guest.item.maxDistinct', { n: MAX_DISTINCT }), true); return; }
             line = { catalogId, name: item.name, category: item.category || t('common.other'), icon: item.icon || '🛎️',
                 department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '',
+                // Süre sepete eklendiği ANDA damgalanır (price ile aynı gerekçe):
+                // katalog sonradan değişse bile misafire verilen söz sabit kalır.
+                etaMin: (etaMinutes(item) || {}).min || 0, etaMax: (etaMinutes(item) || {}).max || 0,
                 transferFrom: '', transferTo: '', transferDate: '', transferTime: '' };
             cart.push(line);
         }
@@ -1234,7 +1445,10 @@
         const item = catalog.find(i => i.id === l.catalogId); if (!item) return '';
         const base = priceOf(item);
         const optD = optionDelta(item, l.option);
-        const modD = modifiersDelta(item, (l.modifiers || []).map(m => m.name));
+        // Nesneler doğrudan geçilir: modifiersDelta adetle çarpar (2× ekstra
+        // iki kez sayılır) — eskiden yalnızca adlar geçildiği için adet
+        // dökümde kaybolurdu.
+        const modD = modifiersDelta(item, l.modifiers);
         if (!optD && !modD) return '';
         const parts = [fmtPrice(base)];
         if (optD) parts.push(fmtDelta(optD));
@@ -1267,13 +1481,15 @@
         }
         foot.hidden = false;
         $('goCartCountLbl').textContent = cart.length + ' talep · ' + cartCount() + ' adet';
-        const tt = $('goCartTotal'); const t = cartTotal();
-        tt.style.display = (pricesOn() && t) ? '' : 'none'; tt.textContent = fmtPrice(t);
-        const summary = `<div class="go-cart-sum">
-            <span class="go-cart-sum-ic">${svg('<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>', 20)}</span>
-            <span class="go-cart-sum-tx"><b>${cart.length} talep · ${cartCount()} adet</b><span>Oda ${esc(ROOM || '—')} için hazırlanacak</span></span>
-            ${(pricesOn() && t) ? `<span class="go-cart-sum-amt">${esc(fmtPrice(t))}</span>` : ''}
-        </div>`;
+        // DİKKAT: yerel değişken `t` OLAMAZ — global `t()` çeviri fonksiyonunu
+        // bu fonksiyonun tamamında gölgelerdi (aşağıdaki satır/grup metinleri
+        // onu çağırıyor).
+        const tt = $('goCartTotal'); const total = cartTotal();
+        tt.style.display = (pricesOn() && total) ? '' : 'none'; tt.textContent = fmtPrice(total);
+        // Sepet alt barında göreli teslim tahmini ("~20–30 dk") — sipariş
+        // henüz yok, mutlak saat verilemez.
+        const etaEl = $('goCartEta');
+        if (etaEl) { const txt = cartEtaText(); etaEl.textContent = txt; etaEl.hidden = !txt; }
         // Sepet kartı KOMPAKT tutulur: not/tercih saati için ayrı, her zaman
         // açık giriş alanları yerine (eski tasarım — kart başına 4 dikey blok)
         // hepsi tek bir etiket (chip) satırında özetlenir; kart artık uçtan
@@ -1281,10 +1497,16 @@
         // seçenek/modifier/not/saati önceden dolduruyor ve geri yazıyor —
         // bkz. openItemSheet/confirmItemSheet). "Adet" için ayrıca salt-okunur
         // bir kutu YOKTUR — bir satır üstteki stepper zaten aynı bilgiyi taşır.
-        wrap.innerHTML = summary + cart.map((l, i) => {
+        // Sepet satırı. Tek-adetlik kalemlerde (maxQty=1) adet kontrolü HİÇ
+        // çizilmez — "2 kez çarşaf değişimi" anlamsız; kaldırmak için çöp
+        // kutusu zaten var.
+        const lineHtml = (l, i) => {
             const chips = [];
             if (l.option) chips.push(`<span class="go-cline-opt">${esc(l.option)}</span>`);
-            (l.modifiers || []).forEach(m => chips.push(`<span class="go-cline-mod">${m.type === 'extra' ? '+' : '−'} ${esc(m.name)}</span>`));
+            selList(l.modifiers).forEach(sm => {
+                const def = (l.modifiers || []).find(m => m && m.name === sm.name) || { name: sm.name, type: 'extra' };
+                chips.push(`<span class="go-cline-mod">${esc(modLabel(normalizeModifier(def), sm.qty))}</span>`);
+            });
             if (l.preferredTime) chips.push(`<span class="go-cline-mod">🕒 ${esc(l.preferredTime)}</span>`);
             // Transfer'e özel alanlar — preferredTime bu kalemlerde zaten
             // boş kalır (mutually exclusive), o yüzden çakışma olmaz.
@@ -1292,6 +1514,10 @@
             if (l.transferDate || l.transferTime) chips.push(`<span class="go-cline-mod">🕒 ${esc([l.transferDate ? String(l.transferDate).split('-').reverse().join('.') : '', l.transferTime].filter(Boolean).join(' '))}</span>`);
             if (l.note) chips.push(`<span class="go-cline-mod go-cline-notechip">📝 ${esc(l.note)}</span>`);
             const chipsHtml = chips.length ? `<div class="go-cline-chips">${chips.join('')}</div>` : '';
+            const single = lineMax(l) === 1;
+            const qtyHtml = single
+                ? `<span class="go-cline-single">${esc(t('guest.item.singleOnly'))}</span>`
+                : stepHtml('c' + i, l.qty).replace('data-dec="c' + i + '"', 'data-cdec="' + i + '"').replace('data-inc="c' + i + '"', 'data-cinc="' + i + '"');
             return `
             <div class="go-cline" data-i="${i}">
                 <div class="go-cline-top">
@@ -1305,11 +1531,29 @@
                     <button class="go-cline-del" data-del="${i}" aria-label="Sil">🗑</button>
                 </div>
                 <div class="go-cline-row">
-                    ${stepHtml('c' + i, l.qty).replace('data-dec="c' + i + '"', 'data-cdec="' + i + '"').replace('data-inc="c' + i + '"', 'data-cinc="' + i + '"')}
+                    ${qtyHtml}
                     ${(pricesOn() && priceOf(l)) ? `<span class="go-cline-price">${esc(fmtPrice(priceOf(l) * l.qty))}</span>` : ''}
                 </div>
             </div>`;
-        }).join('');
+        };
+        // Satırlar DEPARTMANA göre gruplanır: birden fazla departmana giden
+        // sepette neyin nereye gittiği görünür olsun (kat hizmetleri ile oda
+        // servisi aynı listede karışmasın). Tek departman varsa başlık
+        // gösterilmez — gereksiz krom.
+        const groups = [];
+        cart.forEach((l, i) => {
+            // canonicalDept (js/core/firebase-config.js): eş adları tek başlığa
+            // indirger — "Housekeeping" ve "Kat Hizmetleri" sepette iki ayrı
+            // grup olarak görünmesin (geçiş dönemi verisi).
+            const raw = String(l.department || l.category || '').trim();
+            const key = (raw && typeof canonicalDept === 'function' ? canonicalDept(raw) : raw) || t('common.other');
+            let g = groups.find(x => x.key === key);
+            if (!g) { g = { key: key, rows: [] }; groups.push(g); }
+            g.rows.push(lineHtml(l, i));
+        });
+        wrap.innerHTML = groups.length === 1
+            ? groups[0].rows.join('')
+            : groups.map(g => `<div class="go-cart-grp">${esc(g.key)}</div>` + g.rows.join('')).join('');
         wrap.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { cart.splice(+b.dataset.del, 1); saveCart(); renderCartUI(); renderCart(); refreshAllItemRows(); });
         wrap.querySelectorAll('[data-cinc]').forEach(b => b.onclick = () => bumpLine(+b.dataset.cinc, +1));
         wrap.querySelectorAll('[data-cdec]').forEach(b => b.onclick = () => bumpLine(+b.dataset.cdec, -1));
@@ -1370,8 +1614,14 @@
             price: priceOf(l), qty: Math.min(lineMax(l), Math.max(1, l.qty || 1)),
             note: String(l.note || '').slice(0, 160), preferredTime: String(l.preferredTime || '').slice(0, 10),
             option: String(l.option || '').slice(0, 60),
+            // Süre ve tek-adet sınırı price ile AYNI gerekçeyle damgalanır:
+            // takip ekranı EDT'yi ve adet kontrolünün görünüp görünmeyeceğini
+            // katalog sonradan değişse (ya da kalem silinse) bile doğru bilir.
+            etaMin: Math.max(0, Math.min(1440, Number(l.etaMin) || 0)),
+            etaMax: Math.max(0, Math.min(1440, Number(l.etaMax) || 0)),
+            maxQty: Math.max(0, Math.min(MAX_QTY, Number(l.maxQty) || 0)),
             modifiers: (Array.isArray(l.modifiers) ? l.modifiers : []).slice(0, 10)
-                .map(m => ({ name: String((m && m.name) || '').slice(0, 60), type: (m && m.type) === 'extra' ? 'extra' : 'remove', priceDelta: Number(m && m.priceDelta) || 0 })),
+                .map(m => ({ name: String((m && m.name) || '').slice(0, 60), type: (m && m.type) === 'extra' ? 'extra' : 'remove', priceDelta: Number(m && m.priceDelta) || 0, qty: Math.max(1, Math.min(MAX_MOD_QTY, Number(m && m.qty) || 1)) })),
             transferFrom: String(l.transferFrom || '').slice(0, 80), transferTo: String(l.transferTo || '').slice(0, 80),
             transferDate: String(l.transferDate || '').slice(0, 10), transferTime: String(l.transferTime || '').slice(0, 5),
             status: 'pending'
@@ -1461,22 +1711,27 @@
     // hariç) talebin anlık durumu görünür ve onSnapshot ile kendiliğinden
     // güncellenir. Bara dokununca yukarı doğru genişleyen float panelde her
     // aktif talep ayrı satırdır; satıra dokunmak takip ekranını açar.
-    let liveExpanded = false;
     const activeOrdersList = () => myOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
     function liveProgress(status) {
         const idx = Math.max(0, FLOW.indexOf(status));
         return `<span class="go-live-prog">${FLOW.map((s, i) => `<i class="${i <= idx ? 'on' : ''}"></i>`).join('')}</span>`;
     }
-    // Kalem bazlı kısa döküm: her kalemin adı + kendi mini durum noktası —
-    // genişletilmiş panelde tek bir birleştirilmiş isim yerine (eskisi gibi)
-    // hangi kalemin nerede olduğu tek bakışta görülsün diye.
-    function liveItemsHtml(ord) {
-        const its = (ord.items || []).filter(it => (it.status || 'pending') !== 'cancelled');
-        if (!its.length) return '';
-        return `<div class="go-live-items">${its.slice(0, 4).map(it => {
-            const s = STATUS[it.status] || STATUS.pending;
-            return `<span class="go-live-item"><i class="go-live-item-dot go-st-${esc(it.status || 'pending')}"></i>${esc(it.name)}${it.qty > 1 ? ' ×' + it.qty : ''}</span>`;
-        }).join('')}${its.length > 4 ? `<span class="go-live-item go-live-item-more">+${its.length - 4}</span>` : ''}</div>`;
+    // Ana sayfadaki canlı takip şeridi — TEK SATIR, katlanmaz.
+    // Eski tasarım açılıp kapanan bir paneldi: ekranın altında yer kaplıyor,
+    // sepet pill'i ile çakışıyor ve iki dokunuş istiyordu (aç → satır seç).
+    // Artık en yakın teslimli aktif talep doğrudan gösterilir ve tek dokunuşla
+    // onun takip ekranı açılır; birden fazla aktif talep varsa sağda sayı
+    // rozeti çıkar.
+    function nearestActive() {
+        const act = activeOrdersList();
+        if (act.length < 2) return act[0] || null;
+        let best = act[0], bestEnd = Infinity;
+        act.forEach(o => {
+            const w = orderEta(o);
+            const e = w ? w.end : Infinity;
+            if (e < bestEnd) { bestEnd = e; best = o; }
+        });
+        return best;
     }
     function renderLive() {
         const wrap = $('goLive'); if (!wrap) return;
@@ -1484,46 +1739,24 @@
         const show = act.length > 0 && currentTab !== 'orders';
         wrap.hidden = !show;
         document.body.classList.toggle('go-has-live', show);
-        if (!show) { liveExpanded = false; return; }
-        const o = act[0];
+        if (!show) return;
+        const o = nearestActive();
         const st = STATUS[o.status] || STATUS.pending;
         const names = (o.items || []).map(it => it.name).join(', ');
-        const elapsed = relTime(tsMs(o));
+        const title = names.length > 30 ? names.slice(0, 29) + '…' : (names || ((o.items || []).length + ' talep'));
+        const w = orderEta(o);
+        const sub = w ? fmtWindow(w) + ' · ' + etaRemainText(w) : relTime(tsMs(o));
+        $('goLiveBar').dataset.track = o.id;
         $('goLiveBar').innerHTML = `
-            <span class="go-live-ic">${esc(st.emoji)}</span>
+            <span class="go-live-dot go-st-${esc(o.status)}"></span>
             <span class="go-live-main">
-                <span class="go-live-tl"><b>${act.length > 1 ? act.length + ' aktif talep' : esc(st.label)}</b>
-                    <span class="go-statepill go-st-${esc(o.status)}">${esc(st.label)}</span></span>
+                <span class="go-live-tl"><b>${esc(title)}</b><span class="go-statepill go-st-${esc(o.status)}">${esc(st.label)}</span></span>
+                <span class="go-live-sub">${esc(sub)}</span>
                 ${liveProgress(o.status)}
-                <span class="go-live-elapsed">${elapsed ? esc(elapsed) : ''}${elapsed && act.length > 1 ? ' · ' : ''}${act.length > 1 ? act.length + ' talep aktif' : ''}</span>
             </span>
-            <span class="go-live-chev ${liveExpanded ? 'open' : ''}">${svg('<polyline points="18 15 12 9 6 15"/>', 18)}</span>`;
-        const barTl = $('goLiveBar').querySelector('.go-live-tl b');
-        if (barTl && act.length === 1 && names) barTl.textContent = names.length > 34 ? names.slice(0, 33) + '…' : names;
-        const body = $('goLiveBody');
-        body.hidden = !liveExpanded;
-        if (liveExpanded) {
-            body.innerHTML = act.map(ord => {
-                const s = STATUS[ord.status] || STATUS.pending;
-                const nm = (ord.items || []).map(it => it.name).join(', ');
-                const el = relTime(tsMs(ord));
-                return `<button class="go-live-row" data-track="${esc(ord.id)}">
-                    <span class="go-live-ic sm">${esc(s.emoji)}</span>
-                    <span class="go-live-main">
-                        <span class="go-live-tl"><b>${esc(nm.length > 30 ? nm.slice(0, 29) + '…' : nm || ((ord.items || []).length + ' talep'))}</b>
-                            <span class="go-statepill go-st-${esc(ord.status)}">${esc(s.label)}</span></span>
-                        ${liveProgress(ord.status)}
-                        ${liveItemsHtml(ord)}
-                        ${el ? `<span class="go-live-elapsed">${esc(el)}</span>` : ''}
-                    </span>
-                    <span class="go-live-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 16)}</span>
-                </button>`;
-            }).join('') + `<button class="go-live-all" id="goLiveAll">${esc(t('guest.home.seeAllOrders'))}</button>`;
-            body.querySelectorAll('[data-track]').forEach(b => b.onclick = () => { liveExpanded = false; openTracking(b.dataset.track); });
-            const all = $('goLiveAll'); if (all) all.onclick = () => { liveExpanded = false; showTab('orders'); };
-        }
+            ${act.length > 1 ? `<span class="go-live-more">+${act.length - 1}</span>` : ''}
+            <span class="go-live-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 17)}</span>`;
     }
-    function toggleLive() { liveExpanded = !liveExpanded; renderLive(); buzz(8); }
     // Geçen süre metni ("5 dk önce") Firestore'dan yeni bir güncelleme
     // gelmeden de eskiyeceğinden, widget aktif talep varken periyodik olarak
     // yeniden çizilir — onSnapshot yalnızca VERİ değiştiğinde tetiklenir,
@@ -1661,18 +1894,30 @@
                 ? [it.transferDate ? String(it.transferDate).split('-').reverse().join('.') : '', it.transferTime].filter(Boolean).join(' ') : '';
             const bits = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', transferMeta, transferWhen,
                 (!transferWhen && it.preferredTime) ? '🕐 ' + it.preferredTime : '', it.note];
-            if (Array.isArray(it.modifiers) && it.modifiers.length) bits.push(it.modifiers.map(m => (m.type === 'extra' ? '+' : '−') + ' ' + m.name).join(', '));
+            if (Array.isArray(it.modifiers) && it.modifiers.length) bits.push(it.modifiers.map(m => modLabel(normalizeModifier(m), Number(m.qty) || 1)).join(', '));
             if (showP && Number(it.price) > 0) bits.push(money(Number(it.price) * (it.qty || 1)));
             const meta = bits.filter(Boolean).join(' · ');
-            const canAct = !DEMO && !cancelled && (it.status || 'pending') === 'pending';
+            // Tahmini teslim: tamamlandıysa gerçek saat, iptalse hiç, aksi
+            // halde kayan EDT penceresi (bkz. etaWindow/slideWindow).
+            const ie = itemEta(o, it);
+            const etaHtml = !ie ? ''
+                : (ie.done
+                    ? `<div class="go-titem-eta done">${esc(ie.at ? t('guest.eta.deliveredAt', { time: clock(ie.at) }) : t('guest.eta.delivered'))}</div>`
+                    : `<div class="go-titem-eta">${esc(t('guest.eta.item', { window: fmtWindow(ie) }))}</div>`);
+            // Düzenleme/iptal, personel işi ÜSTLENENE kadar açık: kalem
+            // 'pending' ya da 'confirmed' iken. Asıl operasyonel güvence
+            // sunucudaki canCancelItem() (bağlı guestLogs hâlâ 'Following' mi)
+            // — burası yalnızca arayüz kapısı, onunla aynı sınırı çizer.
+            const editable = (it.status || 'pending') === 'pending' || it.status === 'confirmed';
+            const canAct = !DEMO && !cancelled && editable;
             if (canAct && trackEditItemId === it.id) {
                 return `<div class="go-titem go-titem-editing">
                     <div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>
                     <div class="go-titem-main" style="width:100%;">
                         <div class="go-titem-name">${esc(it.name)}</div>
-                        <div class="go-fld-2" style="margin-top:8px;">
-                            <div class="go-fld"><label>Adet</label><div class="go-step"><button id="goTEDec">−</button><b id="goTEQty">${trackEditQty}</b><button id="goTEInc">+</button></div></div>
-                        </div>
+                        ${lineMax(it) > 1 ? `<div class="go-fld-2" style="margin-top:8px;">
+                            <div class="go-fld"><label>${esc(t('guest.item.quantity'))}</label><div class="go-step"><button id="goTEDec">−</button><b id="goTEQty">${trackEditQty}</b><button id="goTEInc">+</button></div></div>
+                        </div>` : ''}
                         <div class="go-fld" style="margin-top:8px;"><label>Not</label><input type="text" id="goTENote" maxlength="160" value="${esc(it.note || '')}"></div>
                         <div class="go-track-btns" style="margin-top:10px;">
                             <button class="go-btn-ghost" id="goTECancel">${esc(t('common.cancel'))}</button>
@@ -1683,6 +1928,7 @@
             }
             return `<div class="go-titem"><div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>
                 <div class="go-titem-main"><div class="go-titem-name">${esc(it.name)}</div>${meta ? `<div class="go-titem-meta">${esc(meta)}</div>` : ''}
+                ${etaHtml}
                 ${it.status === 'cancelled' && it.cancelReason ? `<div class="go-titem-cancel-reason">${esc(it.cancelReason)}</div>` : ''}
                 ${canAct ? `<div class="go-titem-acts"><button class="go-titem-act" data-item-edit="${esc(it.id)}">${esc(t('common.edit'))}</button><button class="go-titem-act danger" data-item-cancel="${esc(it.id)}">${esc(t('guest.track.cancelItem'))}</button></div>` : ''}</div>
                 <span class="go-statepill go-st-${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>`;
@@ -1697,6 +1943,7 @@
                     <span class="go-track-tag">${(o.items || []).length} talep</span>
                     ${showP ? `<span class="go-track-tag">Toplam ${esc(money(o.total))}</span>` : ''}
                 </div>
+                ${(() => { const w = orderEta(o); return w ? `<div class="go-track-eta">${esc(t('guest.eta.order', { window: fmtWindow(w) }))}<span>${esc(etaRemainText(w))}</span></div>` : ''; })()}
             </div>
             ${cancelled && o.cancelReason ? `<div class="go-cancel-reason">
                 <div class="go-cancel-reason-h">İptal Nedeni</div>
@@ -1706,7 +1953,7 @@
             <div class="go-track-sec">Talepleriniz</div>
             ${items}
             <div class="go-track-btns">
-                ${o.status === 'pending' ? `<button class="go-btn-ghost go-btn-danger" id="goCancelBtn">${esc(t('guest.track.cancelOrder'))}</button>` : ''}
+                ${(o.status === 'pending' || o.status === 'confirmed') ? `<button class="go-btn-ghost go-btn-danger" id="goCancelBtn">${esc(t('guest.track.cancelOrder'))}</button>` : ''}
                 <button class="go-btn-ghost" id="goNewBtn">${esc(t('guest.track.createNew'))}</button>
             </div>`;
         const cb = $('goCancelBtn'); if (cb) cb.onclick = () => cancelOrder(o.id);
@@ -1910,7 +2157,7 @@
         }
         document.querySelectorAll('[data-go]').forEach(el => { if (!el.classList.contains('go-nav-b')) el.addEventListener('click', () => showTab(el.dataset.go)); });
         $('goCartPill').onclick = () => showTab('cart');
-        const lb = $('goLiveBar'); if (lb) lb.onclick = toggleLive;
+        const lb = $('goLiveBar'); if (lb) lb.onclick = () => { const id = lb.dataset.track; if (id) openTracking(id); };
         const ibk = $('goItemBackdrop'); if (ibk) ibk.onclick = closeItemSheet;
         $('goBell').onclick = () => showTab('orders');
         const av = $('goAvatar'); if (av) av.onclick = openStay;

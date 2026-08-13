@@ -1798,6 +1798,16 @@ function findOrderItemIndex(items, itemId) {
 // reservations'ta normal bir terminal 'Cancelled' durumu VAR (Concierge
 // panelinde her yerde kullanılıyor, silmek denetim izini kaybettirir —
 // yalnızca status çevrilir).
+// Misafirin bir kalemi hâlâ değiştirebileceği DURUMLAR. Personel işi
+// üstlenmediği sürece (guestLogs 'Following' / reservations 'Pending')
+// 'pending' VE 'confirmed' aşamalarında düzenleme/iptal açıktır — otel
+// talebi onaylamış olabilir ama daha hazırlamaya başlamamıştır. 'in_progress'
+// ile birlikte kapanır: mutfak/kat hazırlığa başladıktan sonra sipariş
+// altından değişmemeli.
+const GUEST_EDITABLE_ITEM_STATUSES = ['pending', 'confirmed'];
+function itemStatusEditable(cur) {
+  return GUEST_EDITABLE_ITEM_STATUSES.indexOf((cur && cur.status) || 'pending') !== -1;
+}
 function canCancelItem(cur, linkedData) {
   if (cur.logId) return !linkedData || linkedData.status === 'Following';
   if (cur.resId) return !linkedData || linkedData.status === 'Pending';
@@ -1864,7 +1874,7 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
       const idx = findOrderItemIndex(items, itemId);
       if (idx === -1) throw new HttpsError('not-found', 'Kalem bulunamadı.');
       const cur = items[idx];
-      if ((cur.status || 'pending') !== 'pending') {
+      if (!itemStatusEditable(cur)) {
         throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
       }
 
@@ -1950,7 +1960,7 @@ exports.cancelGuestOrderItem = onCall({ region: REGION }, async (request) => {
       const idx = findOrderItemIndex(items, itemId);
       if (idx === -1) throw new HttpsError('not-found', 'Kalem bulunamadı.');
       const cur = items[idx];
-      if ((cur.status || 'pending') !== 'pending') {
+      if (!itemStatusEditable(cur)) {
         throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
       }
 
@@ -2027,9 +2037,13 @@ exports.cancelGuestOrder = onCall({ region: REGION }, async (request) => {
       const items = Array.isArray(order.items) ? order.items.slice() : [];
       // Firestore transaction kuralı: TÜM okumalar TÜM yazımlardan önce —
       // önce ilgili tüm guestLogs/reservations dokümanlarını oku.
+      // 'confirmed' kalemler de dahil: otel talebi onaylamış olabilir ama
+      // hazırlığa başlamadıysa (bağlı kayıt hâlâ 'Following'/'Pending')
+      // misafir iptal edebilir — canCancelItem asıl kapıyı çizmeye devam
+      // ediyor (bkz. itemStatusEditable).
       const pendingIdx = items
         .map((it, i) => ({ it, i }))
-        .filter(({ it }) => (it.status || 'pending') === 'pending' && (it.logId || it.resId));
+        .filter(({ it }) => itemStatusEditable(it) && (it.logId || it.resId));
       const linkedSnaps = await Promise.all(pendingIdx.map(({ it }) => {
         const ref = it.logId ? db.collection('guestLogs').doc(it.logId) : db.collection('reservations').doc(it.resId);
         return tx.get(ref);

@@ -262,8 +262,14 @@
         $('catDept').value = it ? (it.department || '') : '';
         $('catDesc').value = it ? (it.description || '') : '';
         $('catPrice').value = it && it.price ? it.price : '';
-        $('catEta').value = it ? (it.eta || '') : '';
-        $('catMaxQty').value = it && it.maxQty ? it.maxQty : '';
+        const eta = etaOf(it);
+        $('catEtaMin').value = eta ? minsToHHMM(eta.min) : '';
+        $('catEtaMax').value = eta ? minsToHHMM(eta.max) : '';
+        syncEtaHint();
+        const mq = it && Number(it.maxQty) || 0;
+        $('catSingle').checked = mq === 1;
+        $('catMaxQty').value = mq && mq !== 1 ? mq : '';
+        syncSingleToggle();
         $('catAvailFrom').value = it ? (it.availFrom || '') : '';
         $('catAvailTo').value = it ? (it.availTo || '') : '';
         $('catActive').checked = it ? (it.active !== false) : true;
@@ -275,8 +281,7 @@
         if ($('catOptPriceInput')) $('catOptPriceInput').value = '';
         renderOptChips();
         editingModifiers = (it && Array.isArray(it.modifiers)) ? it.modifiers.map(normalizeModifier) : [];
-        if ($('catModInput')) $('catModInput').value = '';
-        if ($('catModPriceInput')) $('catModPriceInput').value = '';
+        ['catModInput', 'catModPriceInput', 'catModGroupInput', 'catModMaxInput'].forEach(id => { if ($(id)) $(id).value = ''; });
         renderModChips();
         $('catalogDeleteBtn').style.display = it ? 'block' : 'none';
         $('catalogModal').style.display = 'flex';
@@ -292,6 +297,51 @@
     // options: {name, priceDelta}[]. Bu fonksiyon her iki şekli de tek bir
     // nesne biçimine indirger — admin editörü ve guest-order.js AYNI
     // normalizasyonu kullanır (bkz. guest-order.js normalizeOption).
+    // ── Tahmini teslim süresi: DAKİKA olarak saklanır (etaMin/etaMax) ──
+    // Alan eskiden serbest metindi ('15-30 dk'); eski kayıtlar okunurken
+    // ayrıştırılır, böylece admin dokunmadan da misafir tarafındaki EDT
+    // çalışır. guest-order.js:etaMinutes AYNI ayrıştırmayı yapar.
+    function parseEtaText(txt) {
+        const nums = String(txt == null ? '' : txt).match(/\d+/g);
+        if (!nums || !nums.length) return null;
+        const a = parseInt(nums[0], 10);
+        const b = nums.length > 1 ? parseInt(nums[1], 10) : a;
+        if (!isFinite(a) || a <= 0) return null;
+        return { min: Math.min(a, b), max: Math.max(a, b) };
+    }
+    function etaOf(it) {
+        const lo = Number(it && it.etaMin) || 0, hi = Number(it && it.etaMax) || 0;
+        if (lo > 0) return { min: lo, max: Math.max(lo, hi || lo) };
+        return parseEtaText(it && it.eta);
+    }
+    function minsToHHMM(m) {
+        m = Math.max(0, Math.min(1440, Number(m) || 0));
+        if (!m) return '';
+        return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    }
+    function hhmmToMins(v) {
+        const p = String(v || '').split(':');
+        if (p.length !== 2) return 0;
+        const h = parseInt(p[0], 10) || 0, m = parseInt(p[1], 10) || 0;
+        return Math.max(0, Math.min(1440, h * 60 + m));
+    }
+    // Misafir listesinde görünen insan-okur etiket — etaMin/etaMax'tan türetilir
+    // ki iki alan asla ayrışmasın.
+    function etaLabel(lo, hi) {
+        if (!lo) return '';
+        return (lo === hi ? String(lo) : lo + '-' + hi) + ' dk';
+    }
+    // "Tek adet" işaretliyken serbest adet alanı anlamsız — gizlenir.
+    function syncSingleToggle() {
+        const g = $('catMaxQtyGroup'); if (!g) return;
+        g.style.display = $('catSingle') && $('catSingle').checked ? 'none' : '';
+    }
+    function syncEtaHint() {
+        const hint = $('catEtaHint'); if (!hint) return;
+        const lo = hhmmToMins($('catEtaMin').value), hi = hhmmToMins($('catEtaMax').value);
+        hint.textContent = lo ? ('Misafire gösterilecek: ' + etaLabel(lo, Math.max(lo, hi || lo))) : 'Boş bırakılırsa tahmini teslim gösterilmez.';
+    }
+
     function normalizeOption(o) {
         return (o && typeof o === 'object')
             ? { name: String(o.name || '').trim().slice(0, 40), priceDelta: Number(o.priceDelta) || 0 }
@@ -330,17 +380,25 @@
     // options'tan farkı: misafir TEK değil BİRDEN FAZLA seçebilir (bkz.
     // guest-order.js item sheet'indeki çoklu-seçim chip listesi).
     function normalizeModifier(m) {
+        const type = (m && m.type) === 'extra' ? 'extra' : 'remove';
         return {
             name: String((m && m.name) || '').trim().slice(0, 40),
-            type: (m && m.type) === 'extra' ? 'extra' : 'remove',
-            priceDelta: Number(m && m.priceDelta) || 0
+            type: type,
+            priceDelta: Number(m && m.priceDelta) || 0,
+            // group: misafir ekranında hangi başlık altında toplanacağı
+            // (boşsa "Ekstralar"/"Çıkarılacaklar"). maxQty: yalnızca ekstralar
+            // için — aynı bileşenin en fazla kaç kez eklenebileceği.
+            group: String((m && m.group) || '').trim().slice(0, 40),
+            maxQty: type === 'extra' ? Math.max(1, Math.min(10, Number(m && m.maxQty) || 1)) : 1
         };
     }
     function renderModChips() {
         const wrap = $('catModList'); if (!wrap) return;
         if (!editingModifiers.length) { wrap.innerHTML = `<span class="cat-opt-empty">Henüz özelleştirme eklenmedi.</span>`; return; }
         wrap.innerHTML = editingModifiers.map((m, i) => {
-            const label = (m.type === 'extra' ? '+ ' : '− ') + m.name + (m.priceDelta ? ` (${m.priceDelta > 0 ? '+' : ''}${m.priceDelta}₺)` : '');
+            const label = (m.group ? m.group + ' · ' : '') + (m.type === 'extra' ? '+ ' : '− ') + m.name
+                + (m.maxQty > 1 ? ' ×' + m.maxQty : '')
+                + (m.priceDelta ? ` (${m.priceDelta > 0 ? '+' : ''}${m.priceDelta}₺)` : '');
             return `<span class="cat-opt-chip">${esc(label)}<button type="button" data-moddel="${i}" aria-label="Kaldır">✕</button></span>`;
         }).join('');
         wrap.querySelectorAll('[data-moddel]').forEach(b => b.onclick = () => {
@@ -351,15 +409,23 @@
     function addModifier() {
         const inp = $('catModInput'); if (!inp) return;
         const typeSel = $('catModType'), priceInp = $('catModPriceInput');
+        const groupInp = $('catModGroupInput'), maxInp = $('catModMaxInput');
         const val = inp.value.trim().slice(0, 40);
         if (!val) return;
-        if (editingModifiers.some(m => m.name.toLowerCase() === val.toLowerCase())) { toast('Bu özelleştirme zaten ekli.', true); inp.value = ''; return; }
-        if (editingModifiers.length >= 10) { toast('En fazla 10 özelleştirme ekleyebilirsiniz.', true); return; }
+        if (editingModifiers.some(m => m.name.toLowerCase() === val.toLowerCase())) { toast('Bu içerik zaten ekli.', true); inp.value = ''; return; }
+        if (editingModifiers.length >= 10) { toast('En fazla 10 içerik ekleyebilirsiniz.', true); return; }
         const type = typeSel && typeSel.value === 'extra' ? 'extra' : 'remove';
-        const priceDelta = priceInp ? (Number(priceInp.value) || 0) : 0;
-        editingModifiers.push({ name: val, type, priceDelta });
+        editingModifiers.push(normalizeModifier({
+            name: val, type: type,
+            priceDelta: priceInp ? (Number(priceInp.value) || 0) : 0,
+            group: groupInp ? groupInp.value : '',
+            maxQty: maxInp ? (Number(maxInp.value) || 1) : 1
+        }));
         inp.value = '';
         if (priceInp) priceInp.value = '';
+        if (maxInp) maxInp.value = '';
+        // Grup adı BİLİNÇLİ olarak temizlenmez: aynı gruba arka arkaya birkaç
+        // bileşen eklemek en sık akış.
         renderModChips();
         inp.focus();
     }
@@ -372,6 +438,8 @@
         const existing = editingId ? items.find(x => x.id === editingId) : null;
         const maxOrder = items.reduce((m, i) => Math.max(m, i.sortOrder || 0), 0);
         const price = Math.max(0, parseInt($('catPrice').value, 10) || 0);
+        const etaLo = hhmmToMins($('catEtaMin').value);
+        const etaHi = Math.max(etaLo, hhmmToMins($('catEtaMax').value) || etaLo);
         const data = {
             tenantId: TENANT_ID,
             name: name,
@@ -380,9 +448,13 @@
             icon: ($('catIcon').value.trim() || '🛎️').slice(0, 8),
             department: $('catDept').value,
             description: $('catDesc').value.trim(),
-            eta: $('catEta').value.trim().slice(0, 20),
+            // eta insan-okur etiket olarak KORUNUR (hizmet listesindeki rozet)
+            // ama artık etaMin/etaMax'tan TÜRETİLİR — iki alan asla ayrışmaz.
+            etaMin: etaLo,
+            etaMax: etaHi,
+            eta: etaLabel(etaLo, etaHi),
             price: price,
-            maxQty: Math.max(0, parseInt($('catMaxQty').value, 10) || 0),
+            maxQty: $('catSingle').checked ? 1 : Math.max(0, parseInt($('catMaxQty').value, 10) || 0),
             availFrom: $('catAvailFrom').value || '',
             availTo: $('catAvailTo').value || '',
             active: $('catActive').checked,
@@ -587,7 +659,10 @@
                 it.name, it.category, it.subcategory || '', it.icon || '', it.department || '',
                 it.description || '', it.price || 0, it.eta || '', it.maxQty || 0,
                 it.availFrom || '', it.availTo || '', (it.active !== false) ? 'Evet' : 'Hayır',
-                (it.options || []).join(', ')
+                // options artık {name, priceDelta} nesnesi: düz join "[object
+                // Object]" basıyordu (dışa aktarılan şablon kullanılamaz hâle
+                // geliyordu). normalizeOption ikisini de ada indirger.
+                (it.options || []).map(o => normalizeOption(o).name).filter(Boolean).join(', ')
             ].map(csvEscape).join(';'));
         });
         const csv = '\uFEFF' + lines.join('\r\n'); // BOM: Excel'de Türkçe karakterler doğru görünsün
@@ -686,6 +761,10 @@
                     description: get('Açıklama').slice(0, 160),
                     price: Math.max(0, parseInt(get('Fiyat'), 10) || 0),
                     eta: get('Süre').slice(0, 20),
+                    // "15-30 dk" gibi serbest metin dakikaya çevrilir — CSV ile
+                    // yüklenen kalemlerde de EDT çalışsın (bkz. etaOf/parseEtaText).
+                    etaMin: (parseEtaText(get('Süre')) || {}).min || 0,
+                    etaMax: (parseEtaText(get('Süre')) || {}).max || 0,
                     maxQty: Math.max(0, parseInt(get('Maks Adet'), 10) || 0),
                     availFrom: get('Uygun Başlangıç'), availTo: get('Uygun Bitiş'),
                     active, options,
@@ -818,6 +897,14 @@
         $('catOptInput') && $('catOptInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
         $('catOptPriceInput') && $('catOptPriceInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
         $('catModAddBtn') && ($('catModAddBtn').onclick = addModifier);
+        ['catEtaMin', 'catEtaMax'].forEach(id => { const el = $(id); if (el) el.oninput = syncEtaHint; });
+        $('catSingle') && ($('catSingle').onchange = syncSingleToggle);
+        // "Adet" yalnızca ekstralar için anlamlı — çıkarma seçiliyken devre dışı.
+        const modType = $('catModType'), modMax = $('catModMaxInput');
+        if (modType && modMax) {
+            const syncModMax = () => { modMax.disabled = modType.value !== 'extra'; if (modMax.disabled) modMax.value = ''; };
+            modType.onchange = syncModMax; syncModMax();
+        }
         $('catModInput') && $('catModInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addModifier(); } });
         $('catModPriceInput') && $('catModPriceInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addModifier(); } });
         $('closeCatalogModal') && ($('closeCatalogModal').onclick = closeModal);
