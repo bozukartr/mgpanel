@@ -40,6 +40,13 @@
         ]
       },
       {
+        "_comment": "cleanUrls:true olduğundan sayfalar UZANTISIZ adresten servis ediliyor (/admin, /panel, …) ve bu istek yolu '**/*.html' glob'una UYMUYOR — o adresler yukarıdaki no-cache kuralını hiç almıyordu. Sonuç: dağıtım sonrası tarayıcı ESKİ HTML'i, 10 dakikalık JS kuralı yüzünden YENİ JS ile birlikte gösterebiliyor; yeni JS'in aradığı alanlar eski HTML'de olmadığı için sayfa çöküyordu (bkz. request-catalog.js openModal). X-Robots-Tag kuralı zaten her iki biçimi de listeliyor — Cache-Control atlanmış.",
+        "source": "/{,index,login,app,panel,concierge,crm,admin,dashboard,restaurant,reports,superadmin,guest-order,maintenance,apex-bakim,apex-yakinda,fiyatlandirma,hakkimizda}",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
         "source": "**/*.@(png|jpg|jpeg|svg|ico|webp)",
         "headers": [
           { "key": "Cache-Control", "value": "public, max-age=86400" }
