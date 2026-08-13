@@ -6,6 +6,7 @@
     <title>Admin Console | Core System</title>
     <link rel="stylesheet" href="css/modules/panel.css"> <!-- Reusing global tokens -->
     <link rel="stylesheet" href="css/modules/admin.css">
+    <link rel="stylesheet" href="css/core/modal.css">
     <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -588,7 +589,7 @@
                         <p class="mod-hint">İşaretlenmeyen modüller bu kullanıcının menüsünde görünmez. Panel ve (admin ise) Ayarlar her zaman erişilebilir. Değişiklik kullanıcının bir sonraki girişinde etkin olur.</p>
                     </div>
                 </div>
-                <div class="modal-actions vertical">
+                <div class="modal-actions">
                     <button type="submit" class="action-btn save-btn">Kaydet</button>
                 </div>
             </form>
@@ -702,7 +703,7 @@
                         <div id="catModList" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;"></div>
                     </div>
                 </div>
-                <div class="modal-actions vertical">
+                <div class="modal-actions">
                     <button type="submit" class="action-btn save-btn">Kaydet</button>
                     <button type="button" class="action-btn" id="catalogDeleteBtn" style="display:none; background:#fef2f2; color:#dc2626;">Sil</button>
                 </div>
@@ -725,7 +726,7 @@
                 <div id="catBulkRows"></div>
                 <button type="button" class="btn btn-ghost" id="catBulkAddRowBtn" style="margin-top:10px;">+ Satır Ekle</button>
             </div>
-            <div class="modal-actions vertical">
+            <div class="modal-actions">
                 <button type="button" class="action-btn save-btn" id="catBulkSubmitBtn">Tümünü Ekle</button>
             </div>
         </div>
@@ -757,7 +758,7 @@
                         <input type="number" id="issSla" min="1" step="1" placeholder="Boş = varsayılan (15 dk)">
                     </div>
                 </div>
-                <div class="modal-actions vertical">
+                <div class="modal-actions">
                     <button type="submit" class="action-btn save-btn">Kaydet</button>
                     <button type="button" class="action-btn" id="issueDeleteBtn" style="display:none; background:#fef2f2; color:#dc2626;">Sil</button>
                 </div>
@@ -799,7 +800,7 @@
                         <textarea id="ticketMessage" rows="5" required></textarea>
                     </div>
                 </div>
-                <div class="modal-actions vertical">
+                <div class="modal-actions">
                     <button type="submit" class="action-btn save-btn">Gönder</button>
                 </div>
             </form>
@@ -829,7 +830,7 @@
                     </select>
                 </div>
             </div>
-            <div class="modal-actions vertical">
+            <div class="modal-actions">
                 <button class="action-btn save-btn" id="tdSendReply">Yanıt Gönder</button>
                 <button class="action-btn secondary" id="tdUpdateStatus">Durumu Güncelle</button>
             </div>
