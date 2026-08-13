@@ -212,43 +212,15 @@ tbody tr.row-click { cursor: pointer; }
 .empty svg { width: 40px; height: 40px; margin-bottom: 12px; opacity: .5; }
 
 /* Modal */
-.modal-backdrop {
-    position: fixed; inset: 0; background: rgba(15,23,42,.45); backdrop-filter: blur(2px);
-    display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px;
-}
-.modal-backdrop.show { display: flex; }
-.modal {
-    background: #fff; border-radius: 16px; width: 100%; max-width: 560px; box-shadow: 0 30px 80px rgba(0,0,0,.3);
-    animation: pop .2s ease; max-height: 92vh; display: flex; flex-direction: column;
-}
-.modal.modal-sm { max-width: 420px; }
-@keyframes pop { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
-.modal-head { padding: 20px 24px 0; flex-shrink: 0; }
-.modal-head h3 { font-size: 17px; font-weight: 700; }
-.modal-head p { font-size: 13px; color: var(--muted); margin-top: 4px; }
-.modal-body { padding: 16px 24px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
-.modal-body label { display: block; font-size: 12.5px; font-weight: 500; color: #334155; margin: 14px 0 6px; }
-.modal-body label:first-child { margin-top: 0; }
-.modal-body input {
-    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 14px;
-    color: var(--text); background: #fbfcfe;
-}
-.modal-body input:focus { outline: none; border-color: var(--accent); background: #fff; }
+/* Modal kabuğu, başlık, gövde, girdi ve alt çubuk ARTIK css/core/modal.css'te —
+   beş sayfanın ortak sistemi. Burada yalnızca superadmin'e ÖZGÜ parçalar
+   (ipucu satırı, modül seçim ızgarası, hata satırı, alan satırı) kalır. */
 .modal-body .hint { font-size: 11.5px; color: var(--faint); margin-top: 5px; }
-.m-select {
-    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px;
-    font-size: 14px; color: var(--text); background: #fbfcfe; font-family: inherit;
-}
-.m-select:focus { outline: none; border-color: var(--accent); background: #fff; }
+/* .m-select kutu stili → css/core/modal.css (.modal-body select) */
 .mod-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 @media (max-width: 480px) { .mod-checks { grid-template-columns: 1fr; } }
-.mod-check {
-    display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid var(--border);
-    border-radius: 9px; font-size: 14px; font-weight: 500; color: #334155; cursor: pointer; background: #fbfcfe;
-    margin: 0;
-}
-.mod-check:hover { border-color: #cbd5e1; }
-.mod-check input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+/* .mod-check satır stili → css/core/modal.css */
+.mod-checks .mod-check { margin: 0; }
 
 /* Plan badge + module chips + usage in the hotels table */
 .plan-badge {
@@ -264,8 +236,6 @@ tbody tr.row-click { cursor: pointer; }
 }
 .mchip.on { color: var(--green); background: var(--green-bg); }
 .mchip.off { color: var(--faint); background: #f1f5f9; text-decoration: line-through; opacity: .7; }
-.modal-err { color: var(--red); font-size: 12.5px; margin-top: 12px; min-height: 16px; }
-.modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px 22px; flex-shrink: 0; }
 .field-row { display: flex; gap: 12px; }
 .field-row > div { flex: 1; }
 
@@ -577,14 +547,8 @@ a.btn-ghost, a.btn-primary { text-decoration: none; }
     .table-wrap .hotel-cell { width: 100%; }
     .fin-tx-foot td { font-weight: 800; }
 
-    /* ── Modaller → alt sayfa (bottom sheet) ── */
-    .modal-backdrop { padding: 0; align-items: flex-end; }
-    .modal { max-width: none; width: 100%; border-radius: 18px 18px 0 0; max-height: 90vh; }
-    .modal.modal-sm { max-width: none; }
-    .modal-head { padding: 18px 18px 0; }
-    .modal-body { padding: 14px 18px; }
-    .modal-foot { flex-direction: column-reverse; gap: 8px; padding: 14px 18px calc(16px + env(safe-area-inset-bottom, 0px)); }
-    .modal-foot > button, .modal-foot > a { width: 100%; justify-content: center; }
+    /* Modalların mobil bottom-sheet davranışı css/core/mobile-sheet.css'te —
+       burada KENDİ kopyası vardı, tek yere indirildi. */
     .field-row { flex-direction: column; gap: 0; }
 
     /* ── Drawer (otel detayı) tam genişlik ── */

@@ -1,11 +1,18 @@
 /* Hotizy — mobil bottom-sheet modallar (≤768px).
-   .modal / .modal-content kalıbını kullanan personel sayfalarında modallar
-   telefonda alttan açılan sheet olur: tam genişlik, üstten yuvarlatılmış,
-   başparmakla erişilebilir büyük dokunma hedefleri. Masaüstünde hiçbir şey
-   değişmez. */
+   Personel sayfalarındaki modallar telefonda alttan açılan sheet olur: tam
+   genişlik, üstten yuvarlatılmış, başparmakla erişilebilir büyük dokunma
+   hedefleri. Masaüstünde hiçbir şey değişmez.
+
+   Üç örtü/kart kalıbının HEPSİ kapsanır (css/core/modal.css ile aynı liste):
+     .modal > .modal-content            panel · admin · crm
+     .modal-backdrop > .modal           superadmin
+     .rst-modal > .rst-modal-card       restoran
+   superadmin.css bu davranışın KENDİ kopyasını taşıyordu; tek yere indirildi. */
 @media (max-width: 768px) {
-    .modal { align-items: flex-end !important; padding: 0 !important; }
-    .modal .modal-content {
+    .modal, .modal-backdrop, .rst-modal { align-items: flex-end !important; padding: 0 !important; }
+    .modal .modal-content,
+    .modal-backdrop > .modal,
+    .rst-modal > .rst-modal-card {
         width: 100% !important;
         max-width: 100% !important;
         margin: 0 !important;
@@ -14,11 +21,25 @@
         animation: mgSheetUp .28s cubic-bezier(.32, .72, 0, 1) !important;
     }
     /* Modal içi dokunma hedefleri büyür */
-    .modal .wf-btn { flex: 1 1 auto; justify-content: center; padding: 13px 14px; font-size: 14px; }
-    .modal .submit-btn, .modal .action-btn { padding: 14px; font-size: 15px; }
+    .modal .wf-btn, .modal-backdrop .wf-btn { flex: 1 1 auto; justify-content: center; padding: 13px 14px; font-size: 14px; }
+    .modal .submit-btn, .modal .action-btn,
+    .modal-backdrop .btn, .rst-modal .rst-btn { padding: 14px; font-size: 15px; }
     /* iOS: 16px altındaki input fontu otomatik zoom tetikler */
-    .modal input, .modal select, .modal textarea { font-size: 16px !important; }
-    .modal .modal-body { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
+    .modal input, .modal select, .modal textarea,
+    .modal-backdrop input, .modal-backdrop select, .modal-backdrop textarea,
+    .rst-modal input, .rst-modal select, .rst-modal textarea { font-size: 16px !important; }
+    .modal .modal-body, .modal-backdrop .modal-body, .rst-modal .rst-form { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
+    /* Alt çubuk telefonda tam genişlik yığın: birincil eylem EN ALTTA, yani
+       başparmağa en yakın yerde. (superadmin.css bunu kendi kopyasında
+       column-reverse ile primary'yi ÜSTE koyuyordu — tek kurala indirildi.) */
+    .modal .modal-actions, .modal-backdrop .modal-foot, .rst-modal .rst-modal-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    .modal .modal-actions > *, .modal-backdrop .modal-foot > *, .rst-modal .rst-modal-actions > * { width: 100% !important; }
+    .modal .modal-actions .mdl-spacer, .modal-backdrop .modal-foot .mdl-spacer { display: none !important; }
 }
 @keyframes mgSheetUp {
     from { transform: translateY(48px); opacity: .6; }

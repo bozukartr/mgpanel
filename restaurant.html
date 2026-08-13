@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Restoran · Hotizy</title>
     <link rel="stylesheet" href="css/modules/restaurant.css">
+    <link rel="stylesheet" href="css/core/modal.css">
+    <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -316,7 +318,8 @@
                 <h3>Masaya Taşı</h3>
                 <button class="rst-modal-x" id="transferClose">&times;</button>
             </div>
-            <form id="transferForm" class="rst-form">
+            <form id="transferForm" class="rst-form-wrap">
+<div class="rst-form">
                 <div class="rst-frow">
                     <div class="rst-fg">
                         <label>Yeni Masa No</label>
@@ -327,7 +330,8 @@
                         <input type="text" id="transferSection" list="ckSecList" maxlength="30" placeholder="Örn. Teras / Bahçe">
                     </div>
                 </div>
-                <div class="rst-modal-actions">
+                </div>
+<div class="rst-modal-actions">
                     <button type="submit" class="rst-btn primary" id="transferConfirm">Taşı</button>
                 </div>
             </form>
@@ -359,7 +363,8 @@
                 <h3 id="checkModalTitle">Yeni Adisyon</h3>
                 <button class="rst-modal-x" id="checkModalClose">&times;</button>
             </div>
-            <form id="checkForm" class="rst-form">
+            <form id="checkForm" class="rst-form-wrap">
+<div class="rst-form">
                 <div class="rst-frow">
                     <div class="rst-fg">
                         <label>Masa No</label>
@@ -385,7 +390,8 @@
                     <input type="text" id="ckSection" list="ckSecList" maxlength="30" placeholder="Örn. İç Salon / Teras / Bahçe">
                     <datalist id="ckSecList"></datalist>
                 </div>
-                <div class="rst-modal-actions">
+                </div>
+<div class="rst-modal-actions">
                     <button type="submit" class="rst-btn primary" id="ckSubmit">Adisyonu Aç</button>
                 </div>
             </form>
@@ -469,7 +475,8 @@
                 <h3 id="menuModalTitle">Ürün Ekle</h3>
                 <button class="rst-modal-x" id="menuModalClose">&times;</button>
             </div>
-            <form id="menuForm" class="rst-form">
+            <form id="menuForm" class="rst-form-wrap">
+<div class="rst-form">
                 <div class="rst-frow">
                     <div class="rst-fg span2">
                         <label>Ürün Adı</label>
@@ -532,7 +539,8 @@
                     <input type="checkbox" id="miActive" checked>
                     <span>Aktif (menüde görünür)</span>
                 </label>
-                <div class="rst-modal-actions">
+                </div>
+<div class="rst-modal-actions">
                     <button type="submit" class="rst-btn primary">Kaydet</button>
                     <button type="button" class="rst-btn danger" id="menuDeleteBtn" style="display:none;">Sil</button>
                 </div>
