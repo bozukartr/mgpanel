@@ -72,7 +72,7 @@ Bu bağlantının çalışması için repo kökünde iki dosya bulunur:
 > `wrangler.jsonc` **PR'ı** açar ve genelde Worker'ı "statik dosya sunucusu"
 > (`"assets": {"directory": "."}`) olarak yapılandırmayı önerir — bu, tüm
 > repoyu doğrudan Cloudflare'den servis edip **Firebase Hosting'i (ve
-> `/api/lemon-checkout`, `/api/lemon-webhook` rewrite'larını) bypass eder**.
+> `/api/mint-guest-claim` rewrite'ını) bypass eder**.
 > Bu PR'ı **merge etmeyin** — bu repodaki `wrangler.jsonc` zaten doğru
 > (reverse-proxy) yapılandırmayı içeriyor; bot'un önerdiği versiyon yerine
 > bu dosya kullanılmalı.
@@ -104,8 +104,8 @@ doğrudan `fetch()` ile gittiğinden — discard DNS kaydına hiç gidilmediğin
 Hosting Console'da **custom domain olarak eklemeyin** — bu Worker onun
 yerine geçiyor. Firebase yalnızca kendi varsayılan `panel-d25c9.web.app`
 adresini normal şekilde sunmaya devam eder; `firebase.json`'daki
-`/api/lemon-checkout` ve `/api/lemon-webhook` rewrite'ları (Cloud Functions'a
-giden ödeme webhook'ları dahil) bu adres üzerinden değişmeden çalışır.
+`/api/mint-guest-claim` rewrite'ı (misafir QR oturumuna tenant claim'i yazan
+Cloud Function) bu adres üzerinden değişmeden çalışır.
 
 ---
 
@@ -118,8 +118,9 @@ giden ödeme webhook'ları dahil) bu adres üzerinden değişmeden çalışır.
 3. Yeni bir otel oluşturup (`superadmin.js` → Otel Oluştur) üretilen slug'ın
    **hiçbir ek DNS/Firebase adımı olmadan** anında `slug.hotizy.com` üzerinden
    erişilebilir olduğunu doğrulayın.
-4. Fiyatlandırma sayfasındaki ödeme akışının (`/api/lemon-checkout`,
-   `/api/lemon-webhook`) hâlâ çalıştığını doğrulayın.
+4. Misafir QR sayfasında `/api/mint-guest-claim` çağrısının Worker'ın
+   imzaladığı subdomain ile başarılı olduğunu doğrulayın (bkz.
+   `functions/index.js:mintGuestClaim`).
 
 ---
 

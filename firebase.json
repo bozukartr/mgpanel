@@ -11,8 +11,6 @@
     "public": ".",
     "cleanUrls": true,
     "rewrites": [
-      { "source": "/api/lemon-checkout", "function": { "functionId": "lemonCheckout", "region": "us-central1" } },
-      { "source": "/api/lemon-webhook", "function": { "functionId": "lemonWebhook", "region": "us-central1" } },
       { "source": "/api/mint-guest-claim", "function": { "functionId": "mintGuestClaim", "region": "us-central1" } }
     ],
     "ignore": [
@@ -48,13 +46,13 @@
         ]
       },
       {
-        "source": "/{login,app,panel,concierge,crm,admin,dashboard,restaurant,reports,superadmin,guest-order,maintenance,apex-bakim,apex-yakinda,payment-result}",
+        "source": "/{login,app,panel,concierge,crm,admin,dashboard,restaurant,reports,superadmin,guest-order,maintenance,apex-bakim,apex-yakinda}",
         "headers": [
           { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
         ]
       },
       {
-        "source": "/{login,app,panel,concierge,crm,admin,dashboard,restaurant,reports,superadmin,guest-order,maintenance,apex-bakim,apex-yakinda,payment-result}.html",
+        "source": "/{login,app,panel,concierge,crm,admin,dashboard,restaurant,reports,superadmin,guest-order,maintenance,apex-bakim,apex-yakinda}.html",
         "headers": [
           { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
         ]

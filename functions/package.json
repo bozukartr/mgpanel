@@ -1,6 +1,6 @@
 {
   "name": "hotizy-functions",
-  "description": "Hotizy Cloud Functions — PayTR payment integration",
+  "description": "Hotizy Cloud Functions — misafir QR akışı, bildirimler, restoran, PMS ve yönetim",
   "engines": { "node": "20" },
   "main": "index.js",
   "dependencies": {

@@ -116,70 +116,9 @@
         });
     });
 
-    // ── Hemen Öde (Lemon Squeezy) ──────────────────────────────
-    // Seçili paket/oda/modülleri sunucuya gönderir; sunucu tutarı YENİDEN
-    // hesaplar (istemciye güvenmez), Lemon Squeezy ödeme sayfasını açar.
-    function quotePayload() {
-        var p = PLANS[curPlan]; var r = clampRooms(); var isBiz = !!p.allMods;
-        var mods = []; modChecks().forEach(function (c) { if (c.checked) mods.push(c.value); });
-        if (isBiz) mods = ['concierge', 'crm', 'guestOrders', 'guestIssues'];
-        return {
-            plan: curPlan === 'business' ? 'enterprise' : curPlan,
-            cycle: billing, rooms: r, mods: mods,
-            pms: isBiz ? true : !!(pms && pms.checked)
-        };
-    }
-    // Lemon.js overlay (modal). ÖNEMLİ: overlay'in tıklama anında değil, sayfa
-    // yüklenince ÖNCEDEN init edilmesi gerekir; yoksa lemon.js yeni sekmeye düşer.
-    var lemonInited = false;
-    function initLemon() {
-        if (lemonInited) return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
-        if (typeof window.createLemonSqueezy === 'function') {
-            try {
-                window.createLemonSqueezy();
-                if (window.LemonSqueezy && window.LemonSqueezy.Setup) {
-                    window.LemonSqueezy.Setup({ eventHandler: function (e) {
-                        var name = e && (e.event || e.type || e.name);
-                        if (name === 'Checkout.Success') {
-                            window.location.href = '/payment-result?status=ok&provider=lemon';
-                        }
-                    } });
-                }
-                lemonInited = true;
-            } catch (err) { /* yok say */ }
-        }
-        return !!(window.LemonSqueezy && window.LemonSqueezy.Url);
-    }
-    // lemon.js `defer` ile yüklenir; bu script önce çalışır → init'i DOMContentLoaded'a bırak.
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initLemon);
-    else initLemon();
-    window.addEventListener('load', initLemon);  // ekstra güvence
-
-    function openCheckout(url) {
-        var u = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'embed=1';
-        if (initLemon() && window.LemonSqueezy.Url.Open) { window.LemonSqueezy.Url.Open(u); }
-        else { window.location.href = url; }   // lemon.js yoksa tam-sayfa fallback
-    }
-    qa('[data-pay]').forEach(function (b) {
-        b.addEventListener('click', function () {
-            var btn = this, label = btn.querySelector('#prPayLabel') || btn;
-            var orig = label.textContent;
-            btn.disabled = true; label.textContent = 'Hazırlanıyor…';
-            var reset = function () { btn.disabled = false; label.textContent = orig; };
-            fetch('/api/lemon-checkout', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(quotePayload())
-            }).then(function (res) { return res.json().then(function (d) { return { ok: res.ok, d: d }; }); })
-              .then(function (out) {
-                  if (out.ok && out.d && out.d.url) { openCheckout(out.d.url); reset(); return; }
-                  throw new Error((out.d && out.d.error) || 'Ödeme başlatılamadı.');
-              })
-              .catch(function (e) {
-                  reset();
-                  alert(e.message || 'Ödeme şu an başlatılamadı. Lütfen daha sonra tekrar deneyin veya “Teklif Al” ile iletişime geçin.');
-              });
-        });
-    });
+    // Online ödeme (Lemon Squeezy) üründen kaldırıldı: satış artık teklif
+    // üzerinden yürüyor. Hesaplayıcı olduğu gibi kalıyor — misafir tutarını
+    // görüp "Teklif Al" ile iletişime geçiyor (bkz. quoteRequests akışı).
 
     setPlan('pro'); updatePlanCards(); paintRange(); calc();
 })();

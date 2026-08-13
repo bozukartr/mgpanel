@@ -97,10 +97,10 @@
                             <span class="stat-label">Abonelik</span>
                             <span class="sub-status" id="subStatus">—</span>
                             <span class="sub-expiry" id="subExpiry"></span>
-                            <div class="sub-actions">
-                                <button id="payBtn" class="btn btn-brand" style="background:#4f46e5;">Kart ile Yenile (PayTR)</button>
-                                <button id="payLemonBtn" class="btn btn-brand" style="background:#0aa05a;">Lemon Squeezy ile Öde</button>
-                            </div>
+                            <!-- Online ödeme kaldırıldı: tahsilat çevrim dışı (havale/EFT).
+                                 Banka bilgileri siteConfig/billing'den okunur; operatör
+                                 ödemeyi superadmin panelinden elle kaydeder. -->
+                            <div class="sub-actions sub-offline" id="subOffline"></div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -839,16 +839,6 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast-notification"></div>
 
-    <!-- Payment (PayTR iframe) modal -->
-    <div id="payModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:16px;">
-        <div style="background:#fff;border-radius:16px;width:100%;max-width:520px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.4);">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #eceff3;">
-                <b style="font-size:15px;color:#0f172a;">Abonelik Ödemesi</b>
-                <button id="payClose" style="background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:#64748b;">×</button>
-            </div>
-            <div id="payLoading" style="padding:40px;text-align:center;color:#64748b;font-size:14px;">PayTR güvenli ödeme hazırlanıyor…</div>
-            <iframe id="paytriframe" src="" frameborder="0" scrolling="no" style="width:100%;display:none;"></iframe>
-        </div>
     </div>
 
     <!-- Firebase -->
@@ -856,8 +846,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js" crossorigin="anonymous"></script>
-    <script src="https://www.paytr.com/js/iframeResizer.min.js"></script>
-    <script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
     <script src="js/core/firebase-config.js"></script>
     <script src="js/core/monitor.js"></script>
     <script src="js/core/modules.js"></script>
