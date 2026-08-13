@@ -31,9 +31,11 @@ service cloud.firestore {
     // A guest opens the QR self-service page (guest-order.html) signed in with
     // Anonymous Auth. Staff sign in with username/password. Distinguishing the
     // two lets us give guests a tightly-scoped, session-bound surface.
-    function isAnon() {
-      return signedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous';
-    }
+    // NOT: yalnızca isStaff() tanımlı — simetrik bir isAnon() de vardı ama
+    // hiçbir kural onu ÇAĞIRMIYORDU. Çağrılmayan bir fonksiyonda `request`
+    // bağlı olmadığından derleyici her deploy'da iki uyarı basıyordu
+    // ("Unused function: isAnon" + "Invalid variable name: request").
+    // Misafir dalı gerekirse `!isStaff()` zaten aynı ayrımı veriyor.
     function isStaff() {
       return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
