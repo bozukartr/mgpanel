@@ -26,8 +26,9 @@ const OWNED = [
     '.modal-head', '.modal-foot', '.modal-grid', '.modal-section-h',
     '.close-modal', '.rst-modal-card', '.rst-modal-head'
 ];
-// Aşama 2'de devralınacak dosyalar; şimdilik kendi sistemlerini koruyorlar.
-const PENDING = new Set(['superadmin.css', 'crm-theme.css', 'restaurant.css']);
+// Aşama 2 tamamlandı: beş sayfanın hepsi ortak sistemde.
+const PENDING = new Set([]);
+const PAGES_HTML = ['panel.html', 'admin.html', 'superadmin.html', 'crm.html', 'restaurant.html'];
 const PAGE_CSS = ['panel.css', 'admin.css', 'superadmin.css', 'crm-theme.css', 'restaurant.css'];
 
 // Bir seçicinin KURAL BAŞI olarak geçtiği satırları bulur (yorum/başka
@@ -65,7 +66,7 @@ test('ortak modal dosyası !important KULLANMIYOR', () => {
 test('kapsam-içi sayfalar modal.css\'i YÜKLÜYOR ve sayfa stilinden SONRA', () => {
     // Sıra kritik: modal.css sonra gelmezse sayfa stilleri onu ezer ve
     // düzeltmek için yine `!important` gerekir.
-    for (const page of ['panel.html', 'admin.html']) {
+    for (const page of PAGES_HTML) {
         const html = fs.readFileSync(R(page), 'utf8');
         const core_i = html.indexOf('css/core/modal.css');
         assert.ok(core_i > -1, page + ' css/core/modal.css yüklemiyor');
@@ -82,7 +83,7 @@ test('mobil sheet sözleşmesi (≤768px) bozulmadı', () => {
     const sheet = fs.readFileSync(R('css', 'core', 'mobile-sheet.css'), 'utf8');
     assert.match(sheet, /@media \(max-width: 768px\)/);
     assert.match(sheet, /\.modal \.modal-content[\s\S]*border-radius: 22px 22px 0 0 !important/);
-    for (const page of ['panel.html', 'admin.html']) {
+    for (const page of PAGES_HTML) {
         assert.ok(fs.readFileSync(R(page), 'utf8').indexOf('css/core/mobile-sheet.css') > -1,
             page + ' mobile-sheet.css yüklemiyor');
     }

@@ -146,24 +146,15 @@
     padding: 12px 20px; font-weight: 600;
 }
 
-/* ── Modals (cleaned, class-based) ────────────────────── */
-.modal-backdrop { background: rgba(15, 23, 42, .5) !important; backdrop-filter: blur(3px); align-items: flex-start; justify-content: center; }
-.modal-content {
-    background: #fff; border-radius: 18px !important; box-shadow: var(--shadow-lg) !important; padding: 24px !important;
-    max-width: 540px !important; width: 92%; margin: 9vh auto 0; border: 1px solid var(--border);
-    max-height: 86vh; overflow-y: auto;
-}
+/* ── Modallar ──────────────────────────────────────────
+   Kabuk/başlık/gövde/alt çubuk css/core/modal.css'te (ortak sistem).
+   Burada yalnızca CRM'e özgü alan bileşenleri kalır. */
 @media (max-width: 560px) { .crm-row2 { flex-direction: column; gap: 0; } }
 .crm-modal-title { margin: 0 0 4px; font-size: 18px; font-weight: 800; color: var(--text-main); }
 .crm-modal-sub { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; line-height: 1.45; }
 .crm-field { margin-bottom: 12px; }
-.crm-field > label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; }
-.crm-field input, .crm-field select {
-    width: 100%; padding: 11px 13px; border: 1px solid var(--border); border-radius: 11px;
-    font-family: inherit; font-size: 14px; box-sizing: border-box; background: #fbfcfe; color: var(--text-main);
-    transition: border-color .18s;
-}
-.crm-field input:focus, .crm-field select:focus { outline: none; border-color: var(--primary); background: #fff; }
+.crm-field > label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; }
+/* Girdi kutusu ölçüsü ortak sistemden gelir (.modal-body input/select). */
 .crm-row2 { display: flex; gap: 10px; }
 .crm-row2 > .crm-field { flex: 1; }
 .crm-check {

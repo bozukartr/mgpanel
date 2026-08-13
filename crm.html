@@ -6,6 +6,7 @@
     <title>CRM Merkezi · Hotizy</title>
     <link rel="stylesheet" href="css/modules/crm.css">
     <link rel="stylesheet" href="css/modules/crm-theme.css">
+    <link rel="stylesheet" href="css/core/modal.css">
     <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -68,8 +69,13 @@
     <!-- Edit Stay Details Modal -->
     <div id="roomChangeModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
         <div class="modal-content">
-            <h3 class="crm-modal-title">Konaklama Bilgilerini Düzenle</h3>
-            <p class="crm-modal-sub"><strong id="rcGuestName"></strong> için güncelleme</p>
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <h3>Konaklama Bilgilerini Düzenle</h3>
+                    <p><strong id="rcGuestName"></strong> için güncelleme</p>
+                </div>
+            </div>
+            <div class="modal-body">
             <div class="crm-field">
                 <label>Misafir Adı</label>
                 <input type="text" id="rcGuestNameInput">
@@ -90,6 +96,8 @@
                 <label>Doğum Yılı <span style="font-weight:400;color:#94a3b8;">— misafirin QR ile kendi kimliğiyle giriş yapabilmesi için gerekli</span></label>
                 <input type="number" id="rcBirthYear" min="1900" max="2100" step="1" placeholder="Örn. 1990">
             </div>
+            </div>
+
             <div class="crm-modal-actions">
                 <button class="crm-btn crm-btn-ghost" onclick="closeRoomChangeModal()">Vazgeç</button>
                 <button class="crm-btn crm-btn-primary" onclick="submitRoomChange()">Kaydet</button>
@@ -100,8 +108,13 @@
     <!-- Add Guest Modal (manual entry into the directory) -->
     <div id="addGuestModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
         <div class="modal-content">
-            <h3 class="crm-modal-title">Misafir Ekle</h3>
-            <p class="crm-modal-sub">Rezervasyon sistemi (PMS) kullanmıyorsanız misafiri buradan elle ekleyin.</p>
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <h3>Misafir Ekle</h3>
+                    <p>Rezervasyon sistemi (PMS) kullanmıyorsanız misafiri buradan elle ekleyin.</p>
+                </div>
+            </div>
+            <div class="modal-body">
             <div class="crm-row2">
                 <div class="crm-field"><label>Ad Soyad</label><input type="text" id="agName" placeholder="Örn. Ahmet Yılmaz"></div>
                 <div class="crm-field"><label>Oda No</label><input type="text" id="agRoom" placeholder="Örn. 101"></div>
@@ -121,6 +134,8 @@
                     <option value="pre_arrival">Bekleyen (arrival)</option>
                 </select>
             </div>
+            </div>
+
             <div class="crm-modal-actions">
                 <button id="agCancel" type="button" class="crm-btn crm-btn-ghost">Vazgeç</button>
                 <button id="agSave" type="button" class="crm-btn crm-btn-primary">Kaydet</button>
@@ -131,13 +146,20 @@
     <!-- Merge Guests Modal -->
     <div id="mergeModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 1000;">
         <div class="modal-content">
-            <h3 class="crm-modal-title">Yinelenen Misafiri Birleştir</h3>
-            <p class="crm-modal-sub"><strong id="mergePrimaryName"></strong> ana misafir olarak kalır. Aşağıdan seçtiğiniz kopya bununla birleştirilir (rezervasyonları, kayıtları ve notları aktarılır) ve silinir.</p>
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <h3>Yinelenen Misafiri Birleştir</h3>
+                    <p><strong id="mergePrimaryName"></strong> ana misafir olarak kalır. Aşağıdan seçtiğiniz kopya bununla birleştirilir (rezervasyonları, kayıtları ve notları aktarılır) ve silinir.</p>
+                </div>
+            </div>
+            <div class="modal-body">
             <div class="crm-field">
                 <label>Birleştirilecek kopya misafir</label>
                 <input type="text" id="mergeSearch" placeholder="İsim veya odaya göre ara..." style="margin-bottom:8px;">
                 <select id="mergeSelect" size="6"></select>
             </div>
+            </div>
+
             <div class="crm-modal-actions">
                 <button class="crm-btn crm-btn-ghost" onclick="closeMergeModal()">Vazgeç</button>
                 <button class="crm-btn crm-btn-purple" onclick="submitMerge()">Birleştir</button>
