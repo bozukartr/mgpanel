@@ -250,29 +250,38 @@
     }
 
     // ── Modal ──────────────────────────────────────────────────
+    // Eksik bir alan TÜM modalı öldürmemeli. Dağıtımlarda HTML ve JS aynı anda
+    // tazelenmeyebilir (JS 10 dk önbellekli — bkz. firebase.json); yeni JS'in
+    // aradığı bir alan henüz gelmemiş eski HTML'de yoksa, korumasız bir
+    // `$(id).value = …` ReferenceError'la modalı hiç açtırmıyordu ("Talep Ekle"
+    // butonu tamamen ölüyordu). Artık o alan sessizce atlanır, form açılır.
+    function setVal(id, v) { const el = $(id); if (el) el.value = v; }
+    function setChk(id, v) { const el = $(id); if (el) el.checked = !!v; }
+    function setTxt(id, v) { const el = $(id); if (el) el.textContent = v; }
+
     function openModal(id) {
         editingId = id || null;
         const it = id ? items.find(x => x.id === id) : null;
         fillDeptSelect($('catDept'), it ? (it.department || '') : '');
-        $('catalogModalTitle').textContent = it ? 'Talep Düzenle' : 'Talep Ekle';
-        $('catName').value = it ? (it.name || '') : '';
-        $('catCategory').value = it ? (it.category || '') : '';
-        $('catSubcategory').value = it ? (it.subcategory || '') : '';
-        $('catIcon').value = it ? (it.icon || '') : '';
-        $('catDept').value = it ? (it.department || '') : '';
-        $('catDesc').value = it ? (it.description || '') : '';
-        $('catPrice').value = it && it.price ? it.price : '';
+        setTxt('catalogModalTitle', it ? 'Talep Düzenle' : 'Talep Ekle');
+        setVal('catName', it ? (it.name || '') : '');
+        setVal('catCategory', it ? (it.category || '') : '');
+        setVal('catSubcategory', it ? (it.subcategory || '') : '');
+        setVal('catIcon', it ? (it.icon || '') : '');
+        setVal('catDept', it ? (it.department || '') : '');
+        setVal('catDesc', it ? (it.description || '') : '');
+        setVal('catPrice', it && it.price ? it.price : '');
         const eta = etaOf(it);
-        $('catEtaMin').value = eta ? minsToHHMM(eta.min) : '';
-        $('catEtaMax').value = eta ? minsToHHMM(eta.max) : '';
+        setVal('catEtaMin', eta ? minsToHHMM(eta.min) : '');
+        setVal('catEtaMax', eta ? minsToHHMM(eta.max) : '');
         syncEtaHint();
         const mq = it && Number(it.maxQty) || 0;
-        $('catSingle').checked = mq === 1;
-        $('catMaxQty').value = mq && mq !== 1 ? mq : '';
+        setChk('catSingle', mq === 1);
+        setVal('catMaxQty', mq && mq !== 1 ? mq : '');
         syncSingleToggle();
-        $('catAvailFrom').value = it ? (it.availFrom || '') : '';
-        $('catAvailTo').value = it ? (it.availTo || '') : '';
-        $('catActive').checked = it ? (it.active !== false) : true;
+        setVal('catAvailFrom', it ? (it.availFrom || '') : '');
+        setVal('catAvailTo', it ? (it.availTo || '') : '');
+        setChk('catActive', it ? (it.active !== false) : true);
         // Geriye dönük uyumluluk: eski kayıtlarda options düz string dizisiydi
         // (priceDelta yoktu) — normalizeOption() ikisini de {name,priceDelta}
         // biçimine indirger, save() her zaman nesne yazar.
