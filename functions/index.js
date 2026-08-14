@@ -1217,8 +1217,13 @@ function hhmmIstanbul() {
 //    Firestore transaction ile atomik; `_rateLimits` yalnızca Admin SDK'dan
 //    yazıldığından ayrı bir kural gerekmez (client'a hiç açık değil).
 const RATE_WINDOW_MS = 10 * 60 * 1000; // 10 dakikalık kayan pencere
-const RATE_MAX_IP = 20;                // bir IP, pencere başına iki fonksiyon toplamı en fazla 20 deneme
-const RATE_MAX_TARGET = 8;             // aynı (tenant+oda) hedefi, pencere başına en fazla 8 deneme
+// IP başına bütçe: OTELİN TAMAMI tek bir çıkış IP'sinin arkasında olabilir
+// (misafir Wi-Fi'ı NAT'lı). 20'lik eski sınır yoğun bir otelde normal
+// kullanımla doluyor ve DOĞRU bilgiyi giren misafirler "doğrulanamadı"
+// alıyordu. Asıl kaba-kuvvet savunması hedef (tenant+soyad) sayacıdır —
+// o dar kalır; IP sayacı yalnızca uçtaki suistimali keser.
+const RATE_MAX_IP = 120;
+const RATE_MAX_TARGET = 8;             // aynı (tenant+soyad) hedefi, pencere başına en fazla 8 deneme
 
 function callerIp(request) {
   const req = request.rawRequest;
@@ -1247,6 +1252,14 @@ async function checkGuestLookupRateLimit(request, tenant, room) {
   const ipOk = await withinRateLimit('glookup_ip_' + ip, RATE_MAX_IP);
   if (!ipOk) return false;
   return withinRateLimit('glookup_target_' + tenant + '_' + room, RATE_MAX_TARGET);
+}
+// Doğrulama BAŞARILI olduğunda o hedefin sayacı sıfırlanır: sayaç kaba-kuvvet
+// denemelerini saymak için var, meşru misafirin kendi soyadını cezalandırmak
+// için değil. (Aynı soyadı taşıyan birden fazla misafir tek anahtarı
+// paylaştığından bu, "doğru bilgiyle reddedilme" durumunu belirgin azaltır.)
+async function clearGuestLookupTarget(tenant, key) {
+  try { await db.collection('_rateLimits').doc('glookup_target_' + tenant + '_' + key).delete(); }
+  catch (e) { /* sayaç temizliği best-effort */ }
 }
 
 // ── F&B girişi hız sınırlama ─────────────────────────────────────────
@@ -1392,7 +1405,7 @@ exports.verifyGuestIdentity = onCall({ region: REGION }, async (request) => {
   const surname = String(d.surname || '').trim().slice(0, 60);
   const birthYear = parseInt(d.birthYear, 10);
   const thisYear = new Date().getFullYear();
-  if (!surname || !isFinite(birthYear) || birthYear < 1900 || birthYear > thisYear) return { ok: false };
+  if (!surname || !isFinite(birthYear) || birthYear < 1900 || birthYear > thisYear) return { ok: false, reason: 'bad_input' };
 
   // Tenant, istemcinin iddiasından değil, ZATEN doğrulanmış tenantId claim'inden
   // (mintGuestClaim) türetilir — getGuestName/getGuestStay'in "istemcinin tenant
@@ -1401,25 +1414,46 @@ exports.verifyGuestIdentity = onCall({ region: REGION }, async (request) => {
   // firestore.rules'daki guestClaimTenant() deseninde olduğu gibi.
   const claimTenant = request.auth.token && request.auth.token.tenantId;
   const tenant = String(claimTenant || d.tenant || '').trim().toLowerCase().slice(0, 40);
-  if (!tenant) return { ok: false };
+  if (!tenant) return { ok: false, reason: 'bad_input' };
 
   // Aynı paylaşılan hız sınırlama bütçesi (getGuestName/getGuestStay ile) —
   // hedef anahtar burada "oda" değil, normalize edilmiş soyad.
-  if (!(await checkGuestLookupRateLimit(request, tenant, _normTr(surname)))) return { ok: false };
+  if (!(await checkGuestLookupRateLimit(request, tenant, _normTr(surname)))) {
+    // Ayırt edilebilir sebep: eskiden hız sınırı da "bilgiler eşleşmedi" ile
+    // AYNI yanıtı veriyordu; doğru bilgiyi giren misafir neden reddedildiğini
+    // anlayamıyor, tekrar deneyerek durumu daha da kötüleştiriyordu.
+    console.warn('verifyGuestIdentity rate limited', { tenant });
+    return { ok: false, reason: 'rate_limited' };
+  }
 
+  // Süzme, kardeş fonksiyonlarla (getGuestName/getGuestStay) AYNI toleransta
+  // yapılır. Eskiden burada `.where('status','==','in_house')` ve tenantId için
+  // TAM eşleşme sorgusu vardı; ikisi de sessizce eleyip "doğrulanamadı"
+  // üretiyordu:
+  //   · status alanı hiç yazılmamış (eski/PMS kaynaklı) bir misafir kaydı
+  //     sorgudan tamamen düşüyordu — CRM listesinde "Konaklıyor" görünse bile.
+  //   · tenantId büyük/küçük harf farkıyla yazılmışsa sorgu hiçbir şey
+  //     döndürmüyordu (kardeş fonksiyonlar bu karşılaştırmayı JS'te
+  //     harf duyarsız yapıyor).
   let snap;
   try {
-    snap = await db.collection('guestDirectory')
-      .where('tenantId', '==', tenant).where('status', '==', 'in_house').get();
+    snap = await db.collection('guestDirectory').where('tenantId', '==', tenant).get();
+    if (snap.empty) snap = await db.collection('guestDirectory').get();  // harf farkı olasılığı
   } catch (e) {
-    return { ok: false };
+    console.error('verifyGuestIdentity directory read failed', { tenant, message: e && e.message });
+    return { ok: false, reason: 'unavailable' };
   }
   const today = _istanbulToday();
   const sTokens = _nameTokens(surname);
   const matches = [];
   snap.forEach((doc) => {
     const g = doc.data() || {};
-    if (g.checkOut && String(g.checkOut) < today) return; // çıkış yapmış
+    if (String(g.tenantId || '').trim().toLowerCase() !== tenant) return;
+    if (g.status && g.status !== 'in_house') return;
+    // checkOut YALNIZCA gerçekten ISO bir tarihse değerlendirilir. Düz string
+    // karşılaştırması '14/08/2026' gibi bir değerde her zaman "geçmiş" sonucu
+    // verir ('/' < rakam) ve misafiri sessizce çıkış yapmış sayardı.
+    if (g.checkOut && /^\d{4}-\d{2}-\d{2}$/.test(String(g.checkOut)) && String(g.checkOut) < today) return;
     // Doğum yılı hiç kayıtlı değilse (özellik öncesi check-in) BİLİNÇLİ
     // OLARAK eşleştirilmez — sessiz bir zayıf soyad-only fallback bırakmak
     // kalıcı bir güvenlik açığına dönüşebilir (bkz. plan notu). Resepsiyon
@@ -1429,13 +1463,27 @@ exports.verifyGuestIdentity = onCall({ region: REGION }, async (request) => {
     if (sTokens.some((t) => gTokens.indexOf(t) !== -1)) matches.push({ id: doc.id, data: g });
   });
 
-  // Tam olarak BİR eşleşme gerekir — sıfır (yanlış bilgi ya da doğum yılı
-  // eksik) veya birden fazla (son derece nadir bir soyad+doğum yılı
-  // çakışması) durumunda fail-closed: "resepsiyona danışın".
-  if (matches.length !== 1) return { ok: false };
+  // AYNI kişinin birden fazla dizin kaydı olması (ör. kapatılmamış eski bir
+  // konaklama) OLAĞAN bir durumdur ve reddedilmemeli — getGuestName bunu
+  // zaten isim üzerinden tekilleştiriyordu, burada atlanmıştı: dokümanlar
+  // sayıldığı için mükerrer kayıt taşıyan misafir HİÇ doğrulanamıyordu.
+  // Belirsizlik yalnızca FARKLI kişi/oda çıktığında vardır; orada fail-closed.
+  const distinct = new Set(matches.map((m) =>
+    _normTr(m.data.name) + '|' + String(m.data.room || '').trim()));
+  if (!matches.length) {
+    console.info('verifyGuestIdentity no match', { tenant, scanned: snap.size });
+    return { ok: false, reason: 'no_match' };
+  }
+  if (distinct.size !== 1) {
+    console.warn('verifyGuestIdentity ambiguous', { tenant, candidates: distinct.size });
+    return { ok: false, reason: 'ambiguous' };
+  }
+  // Aynı kişinin birden çok kaydı varsa en güncel olanı (checkIn'i en yeni)
+  // seçilir — oda bilgisi ondan alınmalı.
+  matches.sort((a, b) => String(b.data.checkIn || '').localeCompare(String(a.data.checkIn || '')));
   const guest = matches[0];
   const room = String(guest.data.room || '').trim();
-  if (!room) return { ok: false }; // ör. pre-arrival — henüz oda atanmamış
+  if (!room) return { ok: false, reason: 'no_room' }; // ör. pre-arrival — henüz oda atanmamış
 
   try {
     await db.collection('verifiedGuestSessions').doc(request.auth.uid).set({
@@ -1449,6 +1497,7 @@ exports.verifyGuestIdentity = onCall({ region: REGION }, async (request) => {
     return { ok: false };
   }
 
+  await clearGuestLookupTarget(tenant, _normTr(surname));
   return { ok: true, room: room, guestName: String(guest.data.name || '').trim() };
 });
 

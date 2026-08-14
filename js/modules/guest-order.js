@@ -2076,7 +2076,20 @@
             if (DEMO) { await new Promise(r => setTimeout(r, 500)); ok(ROOM || '101', titleCase(surname)); return; }
             if (!fns) { fail(t('guest.gate.noConnectionRetry')); return; }
             const res = await fns.httpsCallable('verifyGuestIdentity')({ tenant: TENANT, surname, birthYear });
-            if (!res || !res.data || !res.data.ok) { fail(t('guest.gate.mismatch')); return; }
+            if (!res || !res.data || !res.data.ok) {
+                // Sunucu artık RED NEDENİNİ dönüyor. Eskiden hepsi tek mesaja
+                // ("bilgiler eşleşmedi") iniyordu: hız sınırına takılan ya da
+                // kaydında belirsizlik olan misafir, doğru bilgiyi girmiş
+                // olmasına rağmen ne yapacağını bilemiyordu.
+                const REASON = {
+                    rate_limited: 'guest.gate.tooMany',
+                    ambiguous: 'guest.gate.ambiguous',
+                    no_room: 'guest.gate.noRoom',
+                    unavailable: 'guest.gate.failed'
+                };
+                fail(t(REASON[(res && res.data && res.data.reason) || ''] || 'guest.gate.mismatch'));
+                return;
+            }
             ok(res.data.room, res.data.guestName || '');
         } catch (e) { console.error('verify failed', e); fail(t('guest.gate.failed')); }
     }
