@@ -494,10 +494,8 @@
     <script src="js/core/push.js"></script>
     <script src="js/core/issue-config.js"></script>
 
-    <!-- Scripts for Export -->
-    <!-- jspdf/autotable/xlsx artık eager YÜKLENMİYOR — rapor indirme anında
-         tembel yüklenir (js/core/lazy-load.js + panel.js ensureExportLibs). -->
-    <script src="js/core/lazy-load.js"></script>
+    <!-- Rapor dışa aktarımı (Excel/PDF) bu sayfadan kaldırıldı — hiçbir
+         butonla açılamayan bir modaldı; kayıt raporları Raporlar sayfasında. -->
 
     <script src="js/modules/pms.js"></script>
     <script src="js/modules/panel.js"></script>
@@ -548,139 +546,6 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast-notification"></div>
 
-
-    <!-- Guest Profiles Modal -->
-    <div id="guestProfileModal" class="modal">
-        <div class="modal-content profile-modal">
-            <!-- Bu modal tamamen satır içi stille yazılmıştı (mor degrade başlık,
-                 elle ölçülmüş girdi/pill'ler) — yani tasarım sisteminin tümüyle
-                 dışındaydı. Ortak sınıflara alındı; ölçü/kontrast tek yerden gelir. -->
-            <div class="modal-header">
-                <div class="modal-title-wrap">
-                    <h3>👥 Misafir Kayıt Defteri</h3>
-                    <p>Otelde / Çıkış Yaptı durumlarını yönetin</p>
-                </div>
-                <button type="button" class="close-modal" id="closeProfileModal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="profile-search-wrap">
-                    <input type="text" id="profileSearchInput" placeholder="Misafir veya oda numarası ara…">
-                    <div class="filter-pills">
-                        <button class="status-pill active" data-filter="all">TÜMÜ</button>
-                        <button class="status-pill in-house" data-filter="in_house">OTELDE</button>
-                        <button class="status-pill checked-out" data-filter="checked_out">ÇIKIŞ YAPTI</button>
-                    </div>
-                </div>
-                <div class="guest-profile-list" id="guestProfileList">
-                    <!-- List items injected here -->
-                </div>
-            </div>
-            <div class="modal-actions">
-                <span class="mdl-spacer"></span>
-                <button type="button" class="action-btn secondary" id="closeProfileFooterBtn">Kapat</button>
-            </div>
-        </div>
-    </div>
-    <!-- ══════════════════════════════════════════════════════════
-         REPORTS MODAL
-    ══════════════════════════════════════════════════════════ -->
-    <div id="reportsModal" class="modal">
-        <div class="modal-content" style="max-width: 500px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border-radius: 12px 12px 0 0; padding: 20px 24px;">
-                <div>
-                    <h2 style="color: white; margin: 0; font-size: 20px;">📊 Rapor Merkezi</h2>
-                    <p style="color: rgba(255,255,255,0.75); margin: 4px 0 0; font-size: 13px;">Excel veya PDF formatında profesyonel raporlar oluşturun</p>
-                </div>
-                <span class="close-modal" id="closeReportsModal" style="color: white; font-size: 28px;">&times;</span>
-            </div>
-            <div class="modal-body" style="padding: 24px;">
-                
-                <!-- Report Type Selection -->
-                <div style="margin-bottom: 20px;">
-                    <label style="font-size: 13px; color: #666; display: block; margin-bottom: 8px; font-weight: 600;">RAPOR TÜRÜ</label>
-                    <select id="reportTypeSelect" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif; font-size: 14px; background-color: #fff;">
-                        <option value="summary">Genel Özet (Günlük)</option>
-                        <option value="inHouseIssues">Oteldeki Misafir Kayıtları</option>
-                        <option value="department">Departmana Göre</option>
-                        <option value="topic">Konu Bazlı (Şikayet)</option>
-                        <option value="byDate">Belirli Tarihe Göre</option>
-                        <option value="dateRange">Tarih Aralığı Raporu</option>
-                        <option value="guest">Misafir Profiline Göre</option>
-                        <option value="status">Durum Dağılımı</option>
-                        <option value="deptPerformance">Departman Performansı (Süreler)</option>
-                        <option value="taskDurations">Görev Süreleri Dökümü</option>
-                        <option value="historicalStatus">Geçmiş + Durum Trendi</option>
-                        <option value="deptHistorical">Departman × Geçmiş Matrisi</option>
-                        <option value="currentView">Mevcut Filtrelenmiş Görünüm</option>
-                        <option value="fullArchive">Tüm Arşiv (Bütün Kayıtlar)</option>
-                    </select>
-                </div>
-
-                <!-- Dynamic Input Section -->
-                <div id="rpt-dynamicInputs" style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 24px; border: 1px solid #e0e0e0;">
-                    
-                    <!-- Date Group (Shared) -->
-                    <div id="rpt-dateGroup" style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <div id="rpt-specificDateContainer" style="flex: 1; min-width: 140px;">
-                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">TARİH</label>
-                            <input type="date" id="rpt-specificDate" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                        </div>
-                        <div id="rpt-rangeGroup" style="display: none; gap: 15px; flex: 2; min-width: 300px;">
-                            <div style="flex: 1;">
-                                <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">BAŞLANGIÇ</label>
-                                <input type="date" id="rpt-dateFrom" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                            </div>
-                            <div style="flex: 1;">
-                                <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">BİTİŞ</label>
-                                <input type="date" id="rpt-dateTo" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Department Selector (Dynamic) -->
-                    <div id="rpt-deptContainer" style="display: none; margin-top: 15px;">
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">DEPARTMAN SEÇİN</label>
-                        <select id="rpt-departmentSelect" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                            <option value="All">Tüm Departmanlar</option>
-                            <option value="Housekeeping">Housekeeping</option>
-                            <option value="Front Desk">Front Desk</option>
-                            <option value="Engineering">Engineering</option>
-                            <option value="Food & Beverage">Food & Beverage</option>
-                            <option value="Security">Security</option>
-                            <option value="Noise">Noise</option>
-                            <option value="Transfer">Transfer</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-
-                    <!-- Topic Selector (Dynamic) -->
-                    <div id="rpt-topicContainer" style="display: none; margin-top: 15px;">
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">KONU</label>
-                        <select id="rpt-topicSelect" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                            <option value="All">Tüm Konular</option>
-                        </select>
-                    </div>
-
-                    <!-- Guest Search (Dynamic) -->
-                    <div id="rpt-guestContainer" style="display: none; margin-top: 15px;">
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">MİSAFİR ADI</label>
-                        <input type="text" id="rpt-guestSearch" list="guestNamesList" placeholder="Misafir adı yazmaya başlayın..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                        <datalist id="guestNamesList"></datalist>
-                    </div>
-                </div>
-
-                <!-- Export Buttons -->
-                <div style="display: flex; gap: 15px;">
-                    <button class="action-btn" onclick="generateReportFromUI('excel')" style="flex: 1; background: #2e7d32; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px;">
-                        <span style="font-size: 18px;">📄</span> Excel'e Aktar
-                    </button>
-                    <button class="action-btn" onclick="generateReportFromUI('pdf')" style="flex: 1; background: #c62828; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px;">
-                        <span style="font-size: 18px;">📕</span> PDF'e Aktar
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Performans Modal -->
     <div id="perfModal" class="modal">

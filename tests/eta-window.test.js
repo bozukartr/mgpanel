@@ -28,7 +28,7 @@ const block = src.slice(start, end);
 const api = new Function('clock', `
     ${block}
     return { parseEtaText: parseEtaText, etaMinutes: etaMinutes, slideWindow: slideWindow,
-             etaWindow: etaWindow, fmtWindow: fmtWindow };
+             etaWindow: etaWindow, fmtWindow: fmtWindow, scheduledAt: scheduledAt, itemWindow: itemWindow };
 `)((ms) => {
     const d = new Date(ms);
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
@@ -97,4 +97,47 @@ test('slideWindow bozuk girdide sonsuz döngüye girmez', () => {
     // guard olmadan base=1970 gibi bir değer tarayıcıyı kilitlerdi.
     const w = api.slideWindow(0, 60000, Date.now());
     assert.ok(isFinite(w.start) && isFinite(w.end));
+});
+
+// ── Planlı kalemler (tercih edilen saat / transfer tarihi) ──
+// Önceden EDT her zaman siparişin verildiği andan hesaplanıyordu: yarın
+// 10:00'a istenen transfer bugün "14:15 – 14:30" gösteriyor ve 5'er dk
+// kayarak sürekli gecikiyormuş gibi görünüyordu.
+test('tercih edilen saat hazırlık süresinden sonraysa pencere O SAATTEN başlar', () => {
+    const it = { etaMin: 30, etaMax: 45, preferredTime: '15:00' };
+    const w = api.itemWindow(at(11, 0), it, at(11, 1));
+    assert.equal(w.scheduled, true);
+    assert.equal(api.fmtWindow(w), '15:00 – 15:15');
+    // Saatler geçse de planlı saate kadar KAYMAZ.
+    assert.equal(api.fmtWindow(api.itemWindow(at(11, 0), it, at(14, 50))), '15:00 – 15:15');
+});
+
+test('tercih edilen saat hazırlıktan önceyse normal EDT geçerli', () => {
+    const it = { etaMin: 30, etaMax: 45, preferredTime: '11:10' };
+    const w = api.itemWindow(at(11, 0), it, at(11, 1));
+    assert.ok(!w.scheduled);
+    assert.equal(api.fmtWindow(w), '11:30 – 11:45');
+});
+
+test('gece verilen "09:00" ertesi sabahı kasteder (tarihli gösterilir)', () => {
+    const it = { etaMin: 15, etaMax: 20, preferredTime: '09:00' };
+    const base = at(23, 0);
+    assert.equal(api.scheduledAt(base, it), new Date(2026, 0, 16, 9, 0, 0, 0).getTime());
+    assert.equal(api.fmtWindow(api.itemWindow(base, it, at(23, 1))), '16.01 09:00 – 09:05');
+});
+
+test('transfer tarih+saatinden başlar; süre tanımsız olsa da pencere üretilir', () => {
+    const it = { transferDate: '2026-01-16', transferTime: '10:00' };
+    const w = api.itemWindow(at(14, 0), it, at(14, 1));
+    assert.equal(w.scheduled, true);
+    assert.equal(api.fmtWindow(w), '16.01 10:00 – 10:05');
+    // Ertesi gün görüntülenince tarih öneki düşer.
+    const next = api.itemWindow(at(14, 0), it, new Date(2026, 0, 16, 8, 0).getTime());
+    assert.equal(api.fmtWindow(next), '10:00 – 10:05');
+});
+
+test('planı olmayan kalem eski davranışla aynı', () => {
+    const it = { etaMin: 15, etaMax: 25 };
+    assert.equal(api.scheduledAt(at(13, 45), it), 0);
+    assert.equal(api.fmtWindow(api.itemWindow(at(13, 45), it, at(13, 46))), '14:00 – 14:10');
 });

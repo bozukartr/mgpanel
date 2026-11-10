@@ -668,10 +668,10 @@
                 it.name, it.category, it.subcategory || '', it.icon || '', it.department || '',
                 it.description || '', it.price || 0, it.eta || '', it.maxQty || 0,
                 it.availFrom || '', it.availTo || '', (it.active !== false) ? 'Evet' : 'Hayır',
-                // options artık {name, priceDelta} nesnesi: düz join "[object
-                // Object]" basıyordu (dışa aktarılan şablon kullanılamaz hâle
-                // geliyordu). normalizeOption ikisini de ada indirger.
-                (it.options || []).map(o => normalizeOption(o).name).filter(Boolean).join(', ')
+                // options {name, priceDelta} nesnesi. Ek ücret "Ad (+20)"
+                // biçiminde YAZILIR — önceden yalnızca ad yazılıyor, dosya geri
+                // yüklenince tüm seçenek ek ücretleri sıfırlanıyordu.
+                (it.options || []).map(optionCsv).filter(Boolean).join(', ')
             ].map(csvEscape).join(';'));
         });
         const csv = '\uFEFF' + lines.join('\r\n'); // BOM: Excel'de Türkçe karakterler doğru görünsün
@@ -700,6 +700,32 @@
         }
         if (field.length || row.length) { row.push(field); rows.push(row); }
         return rows.filter(r => r.some(c => c.trim() !== ''));
+    }
+    // Seçenek ↔ CSV hücresi: "Büyük (+20)", "Küçük (-5)", "Normal".
+    function optionCsv(o) {
+        const n = normalizeOption(o);
+        if (!n.name) return '';
+        return n.priceDelta ? n.name + ' (' + (n.priceDelta > 0 ? '+' : '') + n.priceDelta + ')' : n.name;
+    }
+    // Ek ücret yazılmamış bir seçenek, kalemin MEVCUT kaydında aynı adla bir
+    // ek ücrete sahipse o korunur — eski (ücretsiz biçimde) dışa aktarılmış
+    // dosyalar da fiyatları silmez. Açıkça "(0)" yazmak ücreti kaldırır.
+    function parseCsvOptions(cell, existing) {
+        const prev = new Map(((existing && existing.options) || []).map(normalizeOption)
+            .map(o => [o.name.toLocaleLowerCase('tr-TR'), o.priceDelta]));
+        const out = [], seen = new Set();
+        String(cell || '').split(',').map(x => x.trim()).filter(Boolean).forEach(raw => {
+            if (out.length >= 10) return;
+            const m = raw.match(/^(.*?)\s*\(\s*([+-]?\d+(?:[.,]\d+)?)\s*\)$/);
+            const name = (m ? m[1] : raw).trim().slice(0, 40);
+            if (!name) return;
+            const key = name.toLocaleLowerCase('tr-TR');
+            if (seen.has(key)) return;
+            seen.add(key);
+            const priceDelta = m ? (Number(m[2].replace(',', '.')) || 0) : (prev.get(key) || 0);
+            out.push({ name, priceDelta });
+        });
+        return out;
     }
     function itemKey(name, category) {
         return (String(name || '').trim() + '␟' + String(category || '').trim()).toLocaleLowerCase('tr-TR');
@@ -761,7 +787,7 @@
                 const department = deptRaw ? knownDepts.get(deptRaw.toLocaleLowerCase('tr-TR')) : '';
                 const activeRaw = get('Aktif').toLocaleLowerCase('tr-TR');
                 const active = activeRaw === '' || ['evet', 'true', '1', 'x', 'aktif'].indexOf(activeRaw) !== -1;
-                const options = get('Seçenekler').split(',').map(s => s.trim()).filter(Boolean).slice(0, 10).map(s => s.slice(0, 40));
+                const options = parseCsvOptions(get('Seçenekler'), existingMap.get(itemKey(name, category)));
                 const data = {
                     tenantId: TENANT_ID, name, category,
                     subcategory: get('Alt Kategori').slice(0, 60),

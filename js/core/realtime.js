@@ -328,6 +328,14 @@
             window.location.href = 'app#concierge' + (recordId ? '?order=' + encodeURIComponent(recordId) : '');
             return;
         }
+        // Şifre sıfırlama isteğinde recordId bir KULLANICI kimliğidir, misafir
+        // kaydı değil — kayıt olarak açılmaya çalışılıp "Kayıt bulunamadı"
+        // veriyordu. Admin paneli shell dışında: üst pencereyi oraya götür.
+        if (type === 'passwordReset') {
+            try { (window.top || window).location.href = 'admin#users'; }
+            catch (e) { window.location.href = 'admin#users'; }
+            return;
+        }
         if (typeof RT.onOpen === 'function') { RT.onOpen(recordId); return; }
         window.location.href = 'app#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
     };

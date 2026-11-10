@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const role = doc.exists ? (doc.data().role || '').toLowerCase() : '';
             const uname = doc.exists ? (doc.data().username || '').toLowerCase() : '';
             if (role !== 'admin' && uname !== 'admin') {
-                showToast('Unauthorized Access. Redirecting...', true);
+                showToast('Bu sayfaya erişim yetkiniz yok. Yönlendiriliyorsunuz…', true);
                 setTimeout(() => window.location.href = 'app', 1500);
             }
         } catch (e) {
@@ -44,6 +44,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const openUserModalBtn = document.getElementById('openUserModal');
     const closeUserModalBtn = document.getElementById('closeUserModal');
     const userForm = document.getElementById('userForm');
+
+    // Superadmin (superadmin.js createDrawerUser) ile AYNI kullanıcı adı kuralı.
+    const USERNAME_RE = /^[a-z0-9._-]{2,}$/;
+    // Giriş ekranı (app.js lowerUsername) ile AYNI küçültme: 'İ'→'i', sonra
+    // locale'siz toLowerCase ('I'→'i'; tr-TR'nin I→ı eşlemesi girişi bozardı).
+    function normalizeUsername(s) { return String(s || '').trim().replace(/İ/g, 'i').toLowerCase(); }
 
     let currentEditingUserId = null;
     let currentEditingUserRole = null; // role değişip değişmediğini tespit etmek için (bkz. revokeUserSessions çağrısı)
@@ -66,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><span class="role-badge">${esc(user.role)}</span></td>
                     <td>${esc(user.department)}</td>
                     <td>
-                        <button class="reset-pw-btn">Reset Password</button>
-                        <button class="delete-user-btn">Remove Access</button>
+                        <button class="reset-pw-btn">Şifre Sıfırla</button>
+                        <button class="delete-user-btn">Erişimi Kaldır</button>
                     </td>
                 `;
                 // Tıklama işleyicileri gerçek JS closure'ları ile bağlanır, bir
@@ -102,13 +108,46 @@ document.addEventListener('DOMContentLoaded', () => {
         return m;
     }
 
+    // Rol seçicisini kayıttaki role BÜYÜK/KÜÇÜK HARF DUYARSIZ eşler.
+    // Superadmin kullanıcıları küçük harfli rolle ('admin', 'staff') açar,
+    // bu seçicinin değerleri ise 'Admin'/'Staff'/'Manager'. `select.value =
+    // 'admin'` eşleşmeyince seçici BOŞ kalıyor, kaydet `role: ''` yazıyordu —
+    // otel admini kendi satırını açıp bir modül işaretleyip kaydettiğinde
+    // admin yetkisini kaybedip panelden atılıyordu. Bilinmeyen bir rol
+    // kaybolmasın diye seçiciye ayrıca eklenir.
+    function setRoleSelect(role) {
+        const sel = document.getElementById('adminUserRole');
+        const want = String(role || '').trim();
+        const key = want.toLowerCase();
+        sel.querySelectorAll('option[data-extra]').forEach(o => o.remove());
+        if (!want) { sel.value = 'Staff'; return; }
+        const hit = Array.prototype.find.call(sel.options, o => o.value.toLowerCase() === key);
+        if (hit) { sel.value = hit.value; return; }
+        const o = document.createElement('option');
+        o.value = want; o.textContent = want; o.dataset.extra = '1';
+        sel.appendChild(o);
+        sel.value = want;
+    }
+
+    // Kullanıcı adı giriş kimliğidir (e-posta ondan türetilir — bkz.
+    // userEmail/app.js). Yalnızca Firestore'daki adı değiştirmek Auth
+    // e-postasını değiştirmiyor, kişi yeni adıyla GİREMİYORDU. Bu yüzden
+    // düzenlemede salt-okunur.
+    function setUsernameLocked(locked) {
+        const u = document.getElementById('adminNewUsername');
+        u.readOnly = !!locked;
+        const hint = document.getElementById('adminUserHint');
+        if (hint) hint.style.display = locked ? '' : 'none';
+    }
+
     const openEditUser = (id, data) => {
         currentEditingUserId = id;
         currentEditingUserRole = (data.role || '').toLowerCase();
-        document.getElementById('adminNewUsername').value = data.username;
+        document.getElementById('adminNewUsername').value = data.username || '';
+        setUsernameLocked(true);
         document.getElementById('adminNewPassword').value = "********";
         document.getElementById('adminNewPassword').disabled = true;
-        document.getElementById('adminUserRole').value = data.role;
+        setRoleSelect(data.role);
         deptOptions(data.department);
         setUserModuleSel(data.modules);
         applyDeptPwUI();
@@ -117,22 +156,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     userForm.onsubmit = async (e) => {
         e.preventDefault();
-        const username = document.getElementById('adminNewUsername').value.trim();
+        const usernameRaw = document.getElementById('adminNewUsername').value.trim();
         const role = document.getElementById('adminUserRole').value;
         const department = document.getElementById('adminUserDept').value;
         const passwordInput = document.getElementById('adminNewPassword');
 
         try {
             if (currentEditingUserId) {
-                // UPDATE MODE
-                const roleChanged = (role || '').toLowerCase() !== currentEditingUserRole;
-                await db.collection('systemUsers').doc(currentEditingUserId).update({
-                    username: username,
-                    role: role,
+                // UPDATE MODE — kullanıcı adı YAZILMAZ (giriş kimliği; bkz.
+                // setUsernameLocked). Rol boş gelirse (beklenmedik bir seçici
+                // durumu) mevcut rol korunur — asla `role: ''` yazılmaz.
+                const newRole = role || currentEditingUserRole;
+                const roleChanged = (newRole || '').toLowerCase() !== currentEditingUserRole;
+                const me = auth.currentUser && auth.currentUser.uid;
+                if (roleChanged && currentEditingUserId === me && currentEditingUserRole === 'admin') {
+                    showToast('Kendi admin rolünüzü değiştiremezsiniz — panele erişiminizi kaybedersiniz.', true);
+                    return;
+                }
+                const upd = {
                     department: department,
                     modules: getUserModuleSel(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                };
+                // Yalnızca harf büyüklüğü farkı rol değişikliği sayılmaz;
+                // kayıttaki yazım korunur.
+                if (roleChanged) upd.role = newRole;
+                await db.collection('systemUsers').doc(currentEditingUserId).update(upd);
                 // Rol fiilen değiştiyse aktif oturum token'larını iptal et —
                 // aksi halde eski (daha yetkili) rol, mevcut ID token'ın süresi
                 // dolana kadar (~1 saate kadar) geçerli kalabilirdi; bkz. auth
@@ -144,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         await revoke({ uid: currentEditingUserId });
                     } catch (e) { console.error('revokeUserSessions failed', e); }
                 }
-                showToast('Permissions updated for ' + username);
+                showToast(usernameRaw + ' için yetkiler güncellendi.');
             } else {
                 // CREATE MODE
                 const lim = maxUsers();
@@ -153,6 +202,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 const isFnb = isFnbDept(department);
+                // Kullanıcı adından giriş e-postası türetilir → giriş ekranının
+                // yaptığı gibi küçük harfe (İ→i) indirilir ve superadmin ile
+                // AYNI kuralla doğrulanır. Önceden "Ayşe" / "ali veli" gibi
+                // adlar ya İngilizce "badly formatted" hatası veriyor ya da
+                // giriş ekranındaki İ→i dönüşümü yüzünden hesaba girilemiyordu.
+                // F&B personeli koduyla girer — adı yalnızca görünen addır.
+                const username = isFnb ? usernameRaw.slice(0, 40) : normalizeUsername(usernameRaw);
+                if (!isFnb && !USERNAME_RE.test(username)) {
+                    showToast('Kullanıcı adı yalnızca küçük harf (a-z), rakam ve . _ - içerebilir (en az 2 karakter, Türkçe karakter ve boşluk olmadan).', true);
+                    return;
+                }
+                if (isFnb && !username) { showToast('Kullanıcı adı gerekli.', true); return; }
                 const fnbCode = (passwordInput.value || '').trim();
                 let password = passwordInput.value;
                 if (isFnb) {
@@ -190,14 +251,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 if (isFnb) newUser.fnbCode = fnbCode;
                 await db.collection('systemUsers').doc(uid).set(newUser);
-                showToast('New Account Created: ' + username);
+                showToast('Yeni hesap oluşturuldu: ' + username);
             }
             userModal.style.display = 'none';
             userForm.reset();
         } catch (err) {
             console.error(err);
             if (err && err.code === 'auth/email-already-in-use') showToast('Bu kullanıcı adı / F&B kodu zaten kullanımda.', true);
-            else showToast('Error: ' + err.message, true);
+            else if (err && err.code === 'auth/invalid-email') showToast('Kullanıcı adı geçersiz (küçük harf, rakam ve . _ - kullanın).', true);
+            else if (err && err.code === 'auth/weak-password') showToast('Şifre en az 6 karakter olmalı.', true);
+            else showToast('Hata: ' + (err && err.message || 'bilinmeyen hata'), true);
         }
     };
 
@@ -246,7 +309,10 @@ document.addEventListener('DOMContentLoaded', () => {
     openUserModalBtn.onclick = () => {
         userModal.style.display = 'flex';
         currentEditingUserId = null;
+        currentEditingUserRole = null;
         userForm.reset();
+        setUsernameLocked(false);
+        setRoleSelect('Staff');
         setUserModuleSel(null); // new users default to full access (all checked)
         document.getElementById('adminNewPassword').disabled = false;
         deptOptions('');
@@ -255,14 +321,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     closeUserModalBtn.onclick = () => userModal.style.display = 'none';
 
+    // Erişimi kaldır = Auth hesabı + systemUsers + push kayıtları (sunucuda,
+    // deleteUser callable). Önceden yalnızca systemUsers dokümanı siliniyor
+    // (üstelik beklenmeden "kaldırıldı" deniyordu) — Auth hesabı yetim
+    // kalıyor, aynı kullanıcı adı / F&B kodu bir daha verilemiyordu.
+    // Callable henüz yayınlanmamış/eski sürümse (yetki hatası) eski davranışa
+    // düşülür ve bu açıkça söylenir.
     window.deleteUser = async (id) => {
+        const me = auth.currentUser && auth.currentUser.uid;
+        if (id === me) { showToast('Kendi hesabınızı kaldıramazsınız.', true); return; }
         const ok = await AppDialog.confirm({
             title: 'Kullanıcıyı kaldır', danger: true, confirmText: 'Kaldır',
-            message: 'Bu kullanıcının erişimini kaldırmak istediğinize emin misiniz?'
+            message: 'Bu kullanıcının erişimi ve giriş hesabı kaldırılacak. Emin misiniz?'
         });
         if (!ok) return;
-        db.collection('systemUsers').doc(id).delete();
-        showToast('User removed from system.');
+        try {
+            const call = firebase.app().functions('us-central1').httpsCallable('deleteUser');
+            await call({ uid: id });
+            showToast('Kullanıcı kaldırıldı.');
+            return;
+        } catch (err) {
+            console.warn('deleteUser callable failed, falling back', err);
+            if (err && err.code === 'failed-precondition') { showToast(err.message, true); return; }
+        }
+        try {
+            await db.collection('systemUsers').doc(id).delete();
+            showToast('Erişim kaldırıldı; giriş hesabı sunucuda silinemedi — aynı kullanıcı adı yeniden verilemeyebilir.', true);
+        } catch (err) {
+            console.error(err);
+            showToast('Kullanıcı kaldırılamadı: ' + (err && err.message || 'hata'), true);
+        }
     };
 
     // Şifreyi GERÇEKTEN geçersiz kılar (yeni rastgele bir geçici şifre +
@@ -284,10 +372,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     message: `${username} için geçici şifre — bu kişiye iletin, bir daha gösterilmeyecek:`
                 });
             }
-            showToast(`${username} will be asked to set a new password on next login.`);
+            showToast(`${username} bir sonraki girişte yeni şifre belirleyecek.`);
         } catch (err) {
             console.error(err);
-            showToast('Error: ' + (err.message || 'hata'), true);
+            showToast('Hata: ' + (err.message || 'hata'), true);
         }
     };
 
@@ -399,7 +487,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Subscription Management
     const subStatus = document.getElementById('subStatus');
     const subExpiry = document.getElementById('subExpiry');
-    const subDateInput = document.getElementById('subDateInput');
 
     const renderSubscription = (end) => {
         const now = new Date();
@@ -413,11 +500,10 @@ document.addEventListener('DOMContentLoaded', () => {
             subStatus.className = 'sub-status expired';
             subExpiry.textContent = `Bitti: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
         } else {
-            subStatus.textContent = 'Not Set';
+            subStatus.textContent = 'Tanımsız';
             subStatus.className = 'sub-status expired';
             subExpiry.textContent = 'Abonelik tanımsız';
         }
-        if (end && subDateInput) subDateInput.value = end.toISOString().slice(0, 10);
     };
 
     const loadSubscription = () => {
@@ -441,6 +527,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const ticketDetailModal = document.getElementById('ticketDetailModal');
     let currentTicketId = null;
 
+    // Durum/öncelik VERİDE İngilizce saklanır (superadmin paneli de aynı
+    // değerleri okur) — yalnızca görüntü Türkçeleştirilir.
+    const TK_STATUS = { 'Open': 'Açık', 'In Progress': 'İşlemde', 'Closed': 'Kapalı' };
+    const TK_PRIO = { 'Low': 'Düşük', 'Medium': 'Orta', 'High': 'Yüksek' };
+    const tkStatus = (s) => TK_STATUS[s || 'Open'] || s;
+    const tkPrio = (p) => TK_PRIO[p || 'Medium'] || p;
+
     const fetchTickets = () => {
         db.collection('tickets').where('tenantId', '==', TENANT_ID).orderBy('createdAt', 'desc').onSnapshot(snap => {
             ticketList.innerHTML = '';
@@ -450,7 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (statTickets) statTickets.textContent = openCount;
             if (snap.empty) {
-                ticketList.innerHTML = '<p style="color:#94a3b8; font-size:13px; padding:10px;">No tickets yet.</p>';
+                ticketList.innerHTML = '<p style="color:#64748b; font-size:13px; padding:10px;">Henüz destek talebi yok.</p>';
                 return;
             }
             snap.forEach(doc => {
@@ -464,12 +557,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.innerHTML = `
                     <div class="ticket-item-top">
                         <span class="ticket-subject">${esc(t.subject)}</span>
-                        <span class="ticket-status ${statusClass}">${esc(t.status || 'Open')}</span>
+                        <span class="ticket-status ${statusClass}">${esc(tkStatus(t.status))}</span>
                     </div>
                     <div class="ticket-meta">
                         ${t.type ? `<span class="ticket-priority" style="background:#eef2ff;color:#4f46e5;">${esc(t.type)}</span>` : ''}
-                        <span class="ticket-priority ${prioClass}">${esc(t.priority || 'Medium')}</span>
-                        ${esc(t.createdBy || 'Unknown')} • ${when}${replyCount ? ` • ${replyCount} yanıt` : ''}
+                        <span class="ticket-priority ${prioClass}">${esc(tkPrio(t.priority))}</span>
+                        ${esc(t.createdBy || 'Bilinmiyor')} • ${when}${replyCount ? ` • ${replyCount} yanıt` : ''}
                     </div>
                 `;
                 item.onclick = () => openTicketDetail(doc.id, t);
@@ -480,13 +573,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openTicketDetail(id, t) {
         currentTicketId = id;
-        document.getElementById('tdSubject').textContent = t.subject || 'Ticket';
+        document.getElementById('tdSubject').textContent = t.subject || 'Destek talebi';
         const when = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString('tr-TR') : '';
-        document.getElementById('tdMeta').textContent = `${t.priority || 'Medium'} • Opened by ${t.createdBy || 'Unknown'} • ${when}`;
+        document.getElementById('tdMeta').textContent = `${tkPrio(t.priority)} öncelik • Açan: ${t.createdBy || 'Bilinmiyor'} • ${when}`;
         document.getElementById('tdStatus').value = t.status || 'Open';
         document.getElementById('tdReply').value = '';
 
-        let html = `<div class="td-msg"><div class="who">${esc(t.createdBy || 'Unknown')}</div><div class="text">${esc(t.message || '')}</div></div>`;
+        let html = `<div class="td-msg"><div class="who">${esc(t.createdBy || 'Bilinmiyor')}</div><div class="text">${esc(t.message || '')}</div></div>`;
         (t.replies || []).forEach(r => {
             const rwhen = r.at ? new Date(r.at).toLocaleString('tr-TR') : '';
             html += `<div class="td-msg"><div class="who">${esc(r.by || '')} <span class="when">${rwhen}</span></div><div class="text">${esc(r.text || '')}</div></div>`;
@@ -521,10 +614,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             ticketModal.style.display = 'none';
-            showToast('Ticket created.');
+            showToast('Destek talebi oluşturuldu.');
         } catch (err) {
             console.error(err);
-            showToast('Error: ' + err.message, true);
+            showToast('Hata: ' + err.message, true);
         }
     };
 
@@ -541,12 +634,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-            showToast('Reply sent.');
+            showToast('Yanıt gönderildi.');
             const fresh = await db.collection('tickets').doc(currentTicketId).get();
             if (fresh.exists) openTicketDetail(currentTicketId, fresh.data());
         } catch (err) {
             console.error(err);
-            showToast('Error: ' + err.message, true);
+            showToast('Hata: ' + err.message, true);
         }
     };
 
@@ -558,10 +651,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 status,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-            showToast('Status updated.');
+            showToast('Durum güncellendi.');
         } catch (err) {
             console.error(err);
-            showToast('Error: ' + err.message, true);
+            showToast('Hata: ' + err.message, true);
         }
     };
 
@@ -582,7 +675,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (doc.exists) {
                 const d = doc.data();
                 mtEnabled.checked = !!d.enabled;
-                if (d.endsAt && d.endsAt.toDate) mtEndsAt.value = toLocalInput(d.endsAt.toDate());
+                // Bitiş kaldırıldıysa alan da temizlenir (önceden eski değer kalıyordu).
+                mtEndsAt.value = (d.endsAt && d.endsAt.toDate) ? toLocalInput(d.endsAt.toDate()) : '';
                 mtMessage.value = d.message || '';
                 const ends = d.endsAt && d.endsAt.toDate ? d.endsAt.toDate() : null;
                 const active = d.enabled && ends && ends > new Date();
@@ -591,9 +685,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 mtStatus.title = active && ends ? `${ends.toLocaleString('tr-TR')} tarihine kadar aktif` : '';
                 if (statMaintenance) statMaintenance.textContent = active ? 'Açık' : 'Kapalı';
             } else {
-                mtStatus.textContent = 'Inactive';
+                mtStatus.textContent = 'Pasif';
                 mtStatus.classList.remove('active');
-                if (statMaintenance) statMaintenance.textContent = 'Off';
+                if (statMaintenance) statMaintenance.textContent = 'Kapalı';
             }
         });
     };
@@ -601,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('mtSave').onclick = async () => {
         const enabled = mtEnabled.checked;
         const endsVal = mtEndsAt.value;
-        if (enabled && !endsVal) return showToast('Please set an end time.', true);
+        if (enabled && !endsVal) return showToast('Lütfen bir bitiş zamanı girin.', true);
         try {
             await db.collection('maintenance').doc(TENANT_ID).set({
                 enabled,
@@ -609,10 +703,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 message: mtMessage.value.trim(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
-            showToast('Maintenance settings saved.');
+            showToast('Bakım ayarları kaydedildi.');
         } catch (err) {
             console.error(err);
-            showToast('Error: ' + err.message, true);
+            showToast('Hata: ' + err.message, true);
         }
     };
 
@@ -732,7 +826,14 @@ document.addEventListener('DOMContentLoaded', () => {
             { key: 'Other', label: 'Diğer' }
         ];
         const labelOf = (k) => (CATS.find(c => c.key === k) || { label: k }).label;
-        const money = (n) => '€' + Math.round(n || 0).toLocaleString('tr-TR');
+        // Rezervasyonlar EUR/TRY/USD olabilir (concierge.js `currency`; eski
+        // kayıtlarda alan yok = EUR). Önceden hepsi toplanıp '€' ile
+        // gösteriliyordu — 5.000 ₺'lik bir transfer €5.000 sayılıyordu.
+        // Artık her para birimi AYRI raporlanır (finCur seçicisi).
+        const CUR_SYM = { EUR: '€', TRY: '₺', USD: '$' };
+        const curOf = (r) => String((r && r.currency) || 'EUR').toUpperCase();
+        let curSel = 'EUR';
+        const money = (n) => (CUR_SYM[curSel] || (curSel + ' ')) + Math.round(n || 0).toLocaleString('tr-TR');
         const num = (v) => parseFloat(v) || 0;
 
         let finReservations = [];
@@ -741,9 +842,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const finRange = document.getElementById('finRange');
         const finFrom = document.getElementById('finFrom');
         const finTo = document.getElementById('finTo');
+        const finCur = document.getElementById('finCur');
         if (!finRange) return; // finance UI not present
 
-        const iso = (d) => d.toISOString().slice(0, 10);
+        // YEREL takvim günü (YYYY-MM-DD). toISOString() UTC'ye çevirdiği için
+        // Türkiye'de (UTC+3) "Bu Ay" 31 Ekim → 29 Kasım çıkıyor, 00:00–03:00
+        // arası "Bugün" dünü gösteriyordu. Rezervasyon `date` alanı da yerel.
+        const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         function rangeBounds() {
             const v = finRange.value, today = new Date();
             if (v === 'all') return [null, null];
@@ -757,7 +862,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function render() {
             const [from, to] = rangeBounds();
-            const inRange = finReservations.filter(r => r.date && (!from || r.date >= from) && (!to || r.date <= to));
+            const inRange = finReservations.filter(r => r.date && curOf(r) === curSel && (!from || r.date >= from) && (!to || r.date <= to));
             const active = inRange.filter(r => (r.status || '') !== 'Cancelled');
 
             let gross = 0, collected = 0, commission = 0;
@@ -844,9 +949,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         finFrom.addEventListener('change', render);
         finTo.addEventListener('change', render);
+        if (finCur) finCur.addEventListener('change', () => { curSel = finCur.value || 'EUR'; render(); });
+
+        // Verideki para birimleri (en sık kullanılan önce). Tek birim varsa
+        // seçici gizlenir; seçili birim veride kalmadıysa en sık olana geçer.
+        function syncCurrencies() {
+            const count = {};
+            finReservations.forEach(r => { const c = curOf(r); count[c] = (count[c] || 0) + 1; });
+            const list = Object.keys(count).sort((a, b) => count[b] - count[a]);
+            if (!list.length) list.push('EUR');
+            if (list.indexOf(curSel) === -1) curSel = list[0];
+            if (!finCur) return;
+            finCur.innerHTML = list.map(c => `<option value="${esc(c)}">${esc(c)}${CUR_SYM[c] ? ' (' + CUR_SYM[c] + ')' : ''}</option>`).join('');
+            finCur.value = curSel;
+            finCur.style.display = list.length > 1 ? '' : 'none';
+        }
 
         db.collection('reservations').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
             finReservations = snap.docs.map(d => d.data());
+            syncCurrencies();
             render();
         }, () => {});
         db.collection('financeConfig').doc(TENANT_ID).onSnapshot(doc => {

@@ -130,6 +130,9 @@
                             <p class="card-sub">Gelir, tahsilat, komisyon ve finansal kontroller.</p>
                         </div>
                         <div class="fin-range">
+                            <select id="finCur" aria-label="Para birimi" title="Para birimi" style="display:none">
+                                <option value="EUR">EUR (€)</option>
+                            </select>
                             <select id="finRange">
                                 <option value="today">Bugün</option>
                                 <option value="week">Son 7 Gün</option>
@@ -552,7 +555,8 @@
                 <div class="modal-body modal-grid">
                     <div class="form-group">
                         <label>Kullanıcı Adı</label>
-                        <input type="text" id="adminNewUsername" required>
+                        <input type="text" id="adminNewUsername" required autocapitalize="none" autocomplete="off" spellcheck="false">
+                        <p class="mod-hint" id="adminUserHint" style="display:none;">Kullanıcı adı giriş kimliğidir, değiştirilemez. Farklı bir ad gerekiyorsa kullanıcıyı kaldırıp yeniden oluşturun.</p>
                     </div>
                     <div class="form-group">
                         <label id="adminPwLabel">Şifre</label>
