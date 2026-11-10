@@ -210,20 +210,19 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
 .go-empty .go-cta { margin-top: 20px; height: 46px; }
 
 /* ════ ANA SAYFA ════ */
-.go-hhead { display: flex; align-items: center; gap: 6px; padding: calc(10px + var(--safe-top)) 14px 0 var(--gutter); flex-shrink: 0; }
-.go-hhead-brand { flex: 1; min-width: 0; }
-.go-hhead-hotel { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.01em;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.go-hhead-room { display: block; font-size: 13px; color: var(--ink-3); font-weight: 500; margin-top: 1px; }
+.go-hhead { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-height: 52px;
+    padding: calc(8px + var(--safe-top)) 12px 0 var(--gutter); flex-shrink: 0; }
 .go-langbtn { height: 32px; padding: 0 12px; margin-right: 2px; border-radius: var(--r-pill); border: 1px solid var(--line-2);
     font-size: 12.5px; font-weight: 600; letter-spacing: .03em; color: var(--ink-2); }
 .go-langbtn:active { background: var(--bg-2); }
 .go-bell-dot { position: absolute; top: 8px; right: 9px; width: 9px; height: 9px; border-radius: 50%;
     background: var(--danger); box-shadow: 0 0 0 2px var(--bg); }
 
-.go-greet { padding: 16px var(--gutter) 16px; flex-shrink: 0; }
+.go-greet { padding: 2px var(--gutter) 18px; flex-shrink: 0; }
 .go-greet-line { font-size: 26px; font-weight: 700; letter-spacing: -.026em; line-height: 1.2; overflow-wrap: anywhere; }
 .go-greet-hi { color: var(--ink-3); font-weight: 600; }
+.go-greet-sub { font-size: 14.5px; font-weight: 500; color: var(--ink-3); margin-top: 4px; }
+.go-greet-sub:empty { display: none; }
 
 .go-searchbtn { display: flex; align-items: center; gap: 10px; width: calc(100% - 2 * var(--gutter)); height: 50px;
     margin: 0 var(--gutter); padding: 0 16px; border-radius: var(--r-pill); background: var(--bg-2); color: var(--ink-3);
