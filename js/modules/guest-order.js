@@ -736,9 +736,9 @@
     }
     // Üst çubuk + doğrulama kapısı: otel adı, oda, resepsiyon telefonu.
     function renderHeader() {
-        const hn = $('goHotelName'); if (hn) hn.textContent = hotelName();
-        const rl = $('goRoomLabel');
-        if (rl) { rl.hidden = !ROOM; rl.textContent = ROOM ? t('guest.home.room', { room: ROOM }) : ''; }
+        // Otel adı + oda selamlamanın altında tek satır ("Grand Otel · Oda 101").
+        const gs = $('goGreetSub');
+        if (gs) gs.textContent = [hotelName(), ROOM ? t('guest.home.room', { room: ROOM }) : ''].filter(Boolean).join(' · ');
         const gh = $('goGateHotel'); if (gh) gh.textContent = hotelName();
         const gc = $('goGateCall'), ph = phoneDigits();
         if (gc) { gc.hidden = !ph; if (ph) gc.href = 'tel:' + ph; }
