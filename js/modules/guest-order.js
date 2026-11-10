@@ -151,6 +151,9 @@
         cancelled:   statusEntry('guest.status.cancelled', '✖️')
     };
     const FLOW = ['pending', 'confirmed', 'in_progress', 'completed'];
+    // Durum ikonları (emoji yerine çizgi ikon; renk .go-st-* sınıfından gelir).
+    const STATUS_IC = { pending: 'clock', confirmed: 'check', in_progress: 'spark', completed: 'check', cancelled: 'x' };
+    const statusIcon = (st, size) => icon(STATUS_IC[st] || 'clock', size || 20, 2);
 
     // ── State ──────────────────────────────────────────────────
     let catalog = [], cart = [], sessionUid = null;
@@ -168,17 +171,76 @@
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
     function svg(inner, size) {
-        return `<svg viewBox="0 0 24 24" width="${size || 22}" height="${size || 22}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+        return `<svg viewBox="0 0 24 24" width="${size || 22}" height="${size || 22}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+    }
+    // Arayüz ikonları — emoji yerine tutarlı çizgi ikonlar (minimal tasarım).
+    // Katalog kalemlerinin emojileri OTELE ait içeriktir, onlar olduğu gibi kalır.
+    const IC = {
+        plus: '<path d="M12 5v14M5 12h14"/>',
+        minus: '<path d="M5 12h14"/>',
+        check: '<path d="M20 6 9 17l-5-5"/>',
+        x: '<path d="M18 6 6 18M6 6l12 12"/>',
+        trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+        chev: '<polyline points="9 18 15 12 9 6"/>',
+        clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
+        search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+        info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+        doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h5"/>',
+        bed: '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>',
+        receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/>',
+        shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+        alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/>',
+        bag: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+        list: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>',
+        lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+        spark: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/>',
+        bell: '<path d="M3 18h18"/><path d="M5 18a7 7 0 0 1 14 0"/><path d="M12 11V8.5"/><path d="M10 8.5h4"/><path d="M2 21h20"/>',
+        compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.1 4.9-4.9 2.1 2.1-4.9z"/>',
+        wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-7.9 7.9l-6.3 6.3a2.1 2.1 0 0 1-3-3l6.3-6.3a6 6 0 0 1 7.9-7.9z"/>',
+        utensils: '<path d="M3 2v7c0 1.1.9 2 2 2a2 2 0 0 0 2-2V2"/><path d="M5 11v11"/><path d="M19 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>',
+        grid: '<rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/>'
+    };
+    function icon(k, size, sw) {
+        return `<svg viewBox="0 0 24 24" width="${size || 20}" height="${size || 20}" fill="none" stroke="currentColor" stroke-width="${sw || 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k] || ''}</svg>`;
+    }
+    // Boş/hata durumu: emoji yerine ikonlu tek tip blok.
+    function emptyHtml(ic, title, text, cta) {
+        return `<div class="go-empty"><div class="go-empty-ic">${icon(ic, 28, 1.8)}</div><h3>${esc(title)}</h3>${text ? `<p>${esc(text)}</p>` : ''}${cta || ''}</div>`;
     }
     let toastTimer = null;
     function toast(msg, isError) {
-        const t = $('goToast');
-        t.textContent = msg;
-        t.className = 'go-toast show' + (isError ? ' error' : '');
+        const el = $('goToast');
+        el.innerHTML = icon(isError ? 'alert' : 'check', 18, 2.2) + `<span>${esc(msg)}</span>`;
+        el.className = 'go-toast show' + (isError ? ' error' : '');
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => { t.className = 'go-toast'; }, 2800);
+        toastTimer = setTimeout(() => { el.className = 'go-toast'; }, 2800);
         try { if (isError) navigator.vibrate && navigator.vibrate(70); } catch (e) {}
     }
+    // Uygulama içi onay (tarayıcının confirm() penceresi yerine — o pencere
+    // sayfanın adresini gösteriyor, karanlık temaya uymuyor ve mobilde
+    // uygulama hissini bozuyordu). Promise<boolean> döner.
+    function confirmSheet(opts) {
+        return new Promise(resolve => {
+            const sh = $('goConfirm'), bd = $('goConfirmBackdrop'), yes = $('goConfirmYes'), no = $('goConfirmNo');
+            if (!sh) { resolve(window.confirm(opts.message || '')); return; }
+            $('goConfirmTitle').textContent = opts.title || '';
+            $('goConfirmMsg').textContent = opts.message || '';
+            yes.textContent = opts.confirmText || t('common.ok');
+            no.textContent = opts.cancelText || t('common.dismiss');
+            yes.className = 'go-btn ' + (opts.danger ? 'go-btn-danger' : 'go-btn-primary');
+            const done = v => {
+                sh.classList.remove('show'); bd.classList.remove('show'); sh.setAttribute('aria-hidden', 'true');
+                yes.onclick = null; no.onclick = null; bd.onclick = null;
+                resolve(v);
+            };
+            yes.onclick = () => done(true); no.onclick = () => done(false); bd.onclick = () => done(false);
+            bd.classList.add('show'); sh.classList.add('show'); sh.setAttribute('aria-hidden', 'false');
+            setTimeout(() => { try { no.focus(); } catch (e) {} }, 60);
+        });
+    }
+    // Ortak sheet aç/kapa.
+    function openSheet(id, bdId) { $(bdId).classList.add('show'); $(id).classList.add('show'); $(id).setAttribute('aria-hidden', 'false'); }
+    function closeSheet(id, bdId) { $(bdId).classList.remove('show'); $(id).classList.remove('show'); $(id).setAttribute('aria-hidden', 'true'); }
     function buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} }
 
     // Ad normalizasyonu — arama (renderItems) için kullanılır.
@@ -189,57 +251,23 @@
             .normalize('NFD').replace(/[̀-ͯ]/g, '');
     }
 
-    // ── Kategori → ikon / renk ─────────────────────────────────
-    function catKind(cat) {
-        const c = String(cat || '').toLowerCase();
-        if (/temiz|housekeep|clean|kat hizmet|oda temiz/.test(c)) return 'temiz';
-        if (/konfor|comfort|amenit|buklet/.test(c)) return 'konfor';
-        if (/yiyecek|içecek|icecek|food|beverage|restoran|minibar|mini bar|oda servis|room service|kahvalt|bar/.test(c)) return 'food';
-        if (/teknik|tech|engineer|ariza|arıza|maintenance|tamir/.test(c)) return 'teknik';
-        if (/resepsiyon|front|concierge|konsiyerj|karşılama|danışma/.test(c)) return 'bell';
-        return 'other';
-    }
-    const CAT_ICON = {
-        temiz: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/>',
-        konfor: '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>',
-        food: '<path d="M3 2v7c0 1.1.9 2 2 2a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
-        teknik: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
-        bell: '<path d="M3 20h18"/><path d="M6 20a6 6 0 0 1 12 0"/><path d="M12 4v3"/><path d="M10 4h4"/>',
-        other: '<rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/>'
-    };
-    const catIcon = (cat, size) => svg(CAT_ICON[catKind(cat)] || CAT_ICON.other, size);
-    const CARD_PALETTE = [
-        'linear-gradient(150deg,#33574a,#244236)',
-        'linear-gradient(150deg,#8a7d63,#6f6450)',
-        'linear-gradient(150deg,#33485c,#283848)',
-        'linear-gradient(150deg,#7a5a44,#5b4332)',
-        'linear-gradient(150deg,#4d6155,#3a4940)',
-        'linear-gradient(150deg,#5c5470,#433f57)'
-    ];
-    const CAT_BLURB = {
-        bell: 'İhtiyacınız olan her konuda yanınızdayız.',
-        temiz: t('guest.dept.housekeeping'),
-        konfor: t('guest.dept.concierge'),
-        food: 'Yiyecek ve içecek siparişleriniz.',
-        teknik: t('guest.dept.engineering')
-    };
-    const catBlurb = cat => CAT_BLURB[catKind(cat)] || '';
-
-    // ── Departman → görsel/ad (ana ekran kartları) ───────────────
-    // BİLİNÇLİ OLARAK catKind()'dan AYRI: services sekmesindeki kategori
-    // serbest metindir (admin istediğini yazabilir — ör. "Transfer"), bu
-    // yüzden ana ekranın 3 büyük kartı için görsel eşlemesini kategoriye göre
-    // yapmak hep eksik/yanlış kalıyordu (regex hiçbirine uymayan bir kategori
-    // görselsiz düz renkte kalıyordu). Departman SABİT bir kümedir
-    // (Housekeeping/Front Desk/Engineering/Yiyecek & İçecek/Concierge) —
-    // ana ekran kartları bu yüzden kategori değil DEPARTMAN'a göre gruplanır.
+    // ── Departman → ad/ikon (ana ekran kutucukları + hizmet başlığı) ─────
+    // BİLİNÇLİ OLARAK kategoriye göre DEĞİL departmana göre: kategori serbest
+    // metindir (admin istediğini yazabilir), departman ise sabit bir kümedir
+    // (Housekeeping/Front Desk/Engineering/Yiyecek & İçecek/Concierge). Bu
+    // kümeye uymayan departmanlar (ör. otelin eklediği "Spa") 'other'
+    // kutucuğunda toplanır — eskiden ana ekranda hiç görünmüyorlardı.
+    // Etiketler GETTER: okunduğu an aktif dilden çözülür.
+    function deptDef(key, icn) { return { icon: icn, get label() { return t('guest.dept.name.' + key); } }; }
     const DEPT_KIND_DEFS = {
-        housekeeping: { label: 'Kat Hizmetleri', img: 'housekeeping_button.webp', color: '#33574a' },
-        frontdesk: { label: 'Ön Büro', img: 'frontoffice_button.webp', color: '#1f3a5c' },
-        concierge: { label: 'Concierge', img: 'vip_transfer_button.webp', color: '#5c5470' },
-        engineering: { label: 'Teknik Servis', img: '', color: '#33485c' },
-        fnb: { label: 'Yiyecek & İçecek', img: 'fnb_button.webp', color: '#7a5a44' }
+        housekeeping: deptDef('housekeeping', 'spark'),
+        fnb: deptDef('fnb', 'utensils'),
+        engineering: deptDef('engineering', 'wrench'),
+        frontdesk: deptDef('frontdesk', 'bell'),
+        concierge: deptDef('concierge', 'compass'),
+        other: deptDef('other', 'grid')
     };
+    const DEPT_ORDER = ['housekeeping', 'fnb', 'engineering', 'frontdesk', 'concierge', 'other'];
     // Kalemin departmanını çözer: açık `department` alanı varsa o, yoksa
     // (admin panelinde "Otomatik") kategoriden tahmin — order-bridge.js'teki
     // DEPT_BY_CAT ile aynı ruhta, sunucu tarafıyla tutarlı.
@@ -554,7 +582,7 @@
             hi = Math.max(hi, m.max);
         });
         if (!hi) return '';
-        return lo === hi ? t('guest.eta.approxOne', { n: hi }) : t('guest.eta.approx', { a: lo, b: hi });
+        return lo === hi ? t('guest.eta.cartOne', { n: hi }) : t('guest.eta.cartRange', { a: lo, b: hi });
     }
 
     function categories() {
@@ -682,19 +710,19 @@
     }
 
     // ── Config → görünüm ───────────────────────────────────────
-    function prettyTenant(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Hotizy'; }
+    function prettyTenant(tn) { return tn ? tn.charAt(0).toUpperCase() + tn.slice(1) : 'Hotizy'; }
+    function hotelName() { return (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT); }
+    const phoneDigits = () => (config.phone || '').replace(/[^0-9+]/g, '');
     function applyConfig() {
         $('goApp').setAttribute('aria-busy', 'false');
-        renderGreeting();
         renderHome();
         renderProfile();
-        renderChat();
     }
     function timeGreeting() {
         const h = new Date().getHours();
-        if (h < 6) return 'İyi geceler,';
+        if (h < 5) return t('guest.home.greetNight');
         if (h < 12) return t('guest.home.greetMorning');
-        if (h < 18) return 'İyi günler,';
+        if (h < 18) return t('guest.home.greetDay');
         return t('guest.home.greetEvening');
     }
     function firstName() {
@@ -702,165 +730,179 @@
         return n ? n.split(/\s+/)[0] : t('guest.home.guestShort');
     }
     function renderGreeting() {
-        const t = $('goGreetTime'); if (t) t.textContent = timeGreeting();
+        const g = $('goGreetTime'); if (g) g.textContent = timeGreeting();
         const gn = $('goGuestName'); if (gn) gn.textContent = firstName();
+    }
+    // Üst çubuk + doğrulama kapısı: otel adı, oda, resepsiyon telefonu.
+    function renderHeader() {
+        const hn = $('goHotelName'); if (hn) hn.textContent = hotelName();
+        const rl = $('goRoomLabel');
+        if (rl) { rl.hidden = !ROOM; rl.textContent = ROOM ? t('guest.home.room', { room: ROOM }) : ''; }
+        const gh = $('goGateHotel'); if (gh) gh.textContent = hotelName();
+        const gc = $('goGateCall'), ph = phoneDigits();
+        if (gc) { gc.hidden = !ph; if (ph) gc.href = 'tel:' + ph; }
     }
 
     // ════════════════════════════════════════════════════════════
     //  TAB NAV
     // ════════════════════════════════════════════════════════════
-    const SCREENS = { home: 'scHome', services: 'scServices', cart: 'scCart', orders: 'scOrders', chat: 'scChat', profile: 'scProfile' };
+    // Sohbet sekmesi kaldırıldı (gerçek bir sohbet değildi): resepsiyonu
+    // arama ana sayfadaki "Oteliniz" kartına ve Profil'e taşındı.
+    const SCREENS = { home: 'scHome', services: 'scServices', cart: 'scCart', orders: 'scOrders', profile: 'scProfile' };
     function showTab(name, opts) {
         opts = opts || {};
+        if (!SCREENS[name]) name = 'home';
         currentTab = name;
         Object.keys(SCREENS).forEach(k => { const el = $(SCREENS[k]); if (el) el.classList.toggle('go-hidden', k !== name); });
         // services/cart alt akışları "home" sekmesini vurgular.
         const navName = (name === 'services' || name === 'cart') ? 'home' : name;
-        document.querySelectorAll('.go-nav-b').forEach(b => b.classList.toggle('active', b.dataset.go === navName));
+        document.querySelectorAll('.go-nav-b').forEach(b => {
+            const on = b.dataset.go === navName;
+            b.classList.toggle('active', on);
+            if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+        });
+        // Sepet bir akış ekranı: alt menü gizlenir, alan gönder çubuğuna kalır.
+        document.body.classList.toggle('go-flow', name === 'cart');
         if (name === 'home') renderHome();
         if (name === 'services') renderServices();
         if (name === 'cart') renderCart();
         if (name === 'orders' && !opts.keepTrack) showOrderList();
-        if (name === 'chat') renderChat();
-        if (name === 'profile') renderProfile();
+        if (name === 'profile') { renderProfile(); loadStay(); }
         updateCartPill();
         renderLive();
         const sc = $(SCREENS[name]);
         if (sc && !opts.keepScroll) { sc.scrollTop = 0; const inner = sc.querySelector('.go-scroll'); if (inner) inner.scrollTop = 0; }
     }
+    function openServices(dept, focusSearch) {
+        activeDept = dept || ''; activeCat = 'all'; searchTerm = '';
+        const sx = $('goSearch'); if (sx) sx.value = '';
+        const xx = $('goSearchX'); if (xx) xx.hidden = true;
+        showTab('services');
+        if (focusSearch && sx) setTimeout(() => { try { sx.focus(); } catch (e) {} }, 80);
+    }
 
     // ════════════════════════════════════════════════════════════
     //  ANA SAYFA
     // ════════════════════════════════════════════════════════════
-    function renderAll() { renderHome(); renderProfile(); renderChat(); renderCartUI(); }
+    function renderAll() { renderHome(); renderProfile(); renderCartUI(); if (currentTab === 'services') renderServices(); }
 
     function renderHome() {
+        renderHeader();
         renderGreeting();
-        renderCarousel();
         renderCats();
         renderQuick();
+        renderHotelCard();
         const dot = $('goBellDot'); if (dot) dot.hidden = !activeOrder();
     }
 
-    // Konum bazlı renkler (görsel yoksa fallback) + kategori türüne göre ikon.
-    const CARD_COLORS = ['#1f3a5c', '#34703f', '#bf8b2e', '#5c5470', '#7a5a44'];
-    // Kategori türüne göre arka plan görseli (otel kökünden servis edilir).
-    // Görsel yüklenemezse altındaki renk + karartma görünür (graceful fallback).
-    const CARD_IMG = {
-        temiz: 'housekeeping_button.webp',
-        konfor: 'housekeeping_button.webp',
-        bell: 'frontoffice_button.webp',
-        food: 'fnb_button.webp'
-    };
-    const CARD_KIND_ICON = {
-        bell: '<path d="M4 12a8 8 0 0 1 16 0"/><line x1="2.5" y1="12" x2="21.5" y2="12"/><line x1="12" y1="5.4" x2="12" y2="3.2"/>',
-        temiz: '<path d="M3 10.6 12 3l9 7.6"/><path d="M5.6 9.3V20a1 1 0 0 0 1 1h10.8a1 1 0 0 0 1-1V9.3"/>',
-        konfor: '<path d="M2 7v11"/><path d="M2 11h15a4 4 0 0 1 4 4v3"/><path d="M2 18h20"/><path d="M6.5 11V9"/>',
-        food: '<path d="M3 18h18"/><path d="M5.2 18a6.8 6.8 0 0 1 13.6 0"/><line x1="12" y1="4.6" x2="12" y2="7.4"/>',
-        teknik: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-7.9 7.9l-6.3 6.3a2.1 2.1 0 0 1-3-3l6.3-6.3a6 6 0 0 1 7.9-7.9l-3.1 3.1z"/>',
-        other: '<rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/>'
-    };
-    function card3Icon(cat, size) { return svg(CARD_KIND_ICON[catKind(cat)] || CARD_KIND_ICON.other, size); }
-    // Ana ekranın 3 büyük kartı: kategoriye göre DEĞİL, departmana göre
-    // gruplanır (bkz. deptOf/deptKindKey yukarıdaki not) — aynı departmanın
-    // birden fazla kategorisi (ör. Housekeeping: Temizlik + Konfor) tek
-    // kartta birleşir, her departman kendi görseliyle görünür.
+    // Departman kutucukları: katalogdaki her departman (Spa gibi özel
+    // departmanlar "Diğer hizmetler"de) — eskiden ilk 3 departman dışındakiler
+    // ana ekranda hiç görünmüyordu.
     function homeDeptGroups() {
-        const seen = [];
-        catalog.forEach(i => {
-            const key = itemDeptKey(i);
-            if (!key || seen.some(g => g.key === key)) return;
-            seen.push(Object.assign({ key }, DEPT_KIND_DEFS[key]));
-        });
-        return seen;
+        const map = {};
+        catalog.forEach(i => { const k = itemDeptKey(i) || 'other'; map[k] = (map[k] || 0) + 1; });
+        return DEPT_ORDER.filter(k => map[k]).map(k => ({ key: k, def: DEPT_KIND_DEFS[k], n: map[k] }));
     }
     function renderCats() {
         const wrap = $('goCats'); if (!wrap) return;
         const groups = homeDeptGroups();
         if (!groups.length) {
-            wrap.innerHTML = `<div class="go-empty" style="grid-column:1/-1"><div class="go-empty-ic">🛎️</div><h3>${esc(t('guest.services.noResult'))}</h3><p>${esc(t('guest.services.notReady'))}</p></div>`;
+            wrap.innerHTML = `<div style="grid-column:1/-1">${emptyHtml('grid', t('guest.services.noResult'), t('guest.services.notReady'))}</div>`;
             return;
         }
-        wrap.innerHTML = groups.slice(0, 3).map((g, i) => {
-            const color = g.color || CARD_COLORS[i % CARD_COLORS.length];
-            const style = g.img
-                ? `background-color:${color};background-image:linear-gradient(180deg,rgba(16,24,36,.20),rgba(16,24,36,.66)),url('${g.img}');background-size:cover;background-position:center;`
-                : `background:${color};`;
-            return `<button class="go-card3" data-dept="${esc(g.key)}" style="${style}">
-                <span class="go-card3-tx">${esc(g.label)}</span>
-            </button>`;
-        }).join('');
-        wrap.onclick = e => {
-            const b = e.target.closest('[data-dept]'); if (!b) return;
-            activeDept = b.dataset.dept; activeCat = 'all'; searchTerm = '';
-            const sx = $('goSearch'); if (sx) sx.value = '';
-            const xx = $('goSearchX'); if (xx) xx.hidden = true;
-            showTab('services');
-        };
+        wrap.innerHTML = groups.map(g => `<button class="go-dept" data-dept="${esc(g.key)}">
+                <span class="go-dept-ic">${icon(g.def.icon, 22, 1.8)}</span>
+                <span class="go-dept-tx"><b>${esc(g.def.label)}</b><span>${esc(t('guest.home.serviceCount', { n: g.n }))}</span></span>
+            </button>`).join('');
+        wrap.onclick = e => { const b = e.target.closest('[data-dept]'); if (b) openServices(b.dataset.dept); };
+    }
+    // Hızlı talepler: misafirin daha önce istedikleri önce, sonra her
+    // departmandan sırayla birer kalem (yalnızca ilk 2 kalem değil — eskiden
+    // hep aynı departmanın kalemleri çıkıyordu). Satırlar hizmet listesiyle
+    // AYNI bileşen: + / adet / Seç davranışı birebir aynı.
+    function quickItems() {
+        const out = [];
+        const push = it => { if (it && out.length < 4 && out.indexOf(it) === -1) out.push(it); };
+        myOrders.forEach(o => (o.items || []).forEach(it => push(catalog.find(c => c.id === it.catalogId))));
+        const byDept = {};
+        catalog.forEach(i => { const k = itemDeptKey(i) || 'other'; (byDept[k] = byDept[k] || []).push(i); });
+        for (let round = 0; out.length < 4 && round < 6; round++) {
+            DEPT_ORDER.forEach(k => { const list = byDept[k]; if (list && list[round]) push(list[round]); });
+        }
+        return out;
     }
     function renderQuick() {
         const wrap = $('goQuick'), sec = $('goQaSec'); if (!wrap) return;
-        const items = catalog.slice(0, 2);
-        if (!items.length) { if (sec) sec.style.display = 'none'; wrap.innerHTML = ''; return; }
-        if (sec) sec.style.display = '';
-        wrap.innerHTML = items.map(it => `
-            <button class="go-qtile" data-quick="${esc(it.id)}">
-                <span class="go-qtile-ic">${catIcon(it.category, 32)}</span>
-                <span class="go-qtile-tx">${esc(it.name)}</span>
-            </button>`).join('');
-        wrap.onclick = e => { const b = e.target.closest('[data-quick]'); if (b) changeQty(b.dataset.quick, +1); };
-    }
-    function renderActiveBanner() { /* ana sayfada banner kaldırıldı; zil noktası + Taleplerim rozeti kullanılıyor */ }
-
-    // ── Sohbet (Chat) ───────────────────────────────────────────
-    function renderChat() {
-        const wrap = $('goChatBody'); if (!wrap) return;
-        const phone = (config.phone || '').replace(/[^0-9+]/g, '');
-        wrap.innerHTML = `
-            <div class="go-chat-hero">
-                <div class="go-chat-emoji">💬</div>
-                <h2>${esc(t('guest.services.howCanWeHelp'))}</h2>
-                <p>Resepsiyon ekibimiz hizmetinizde. Aşağıdan ulaşın ya da hızlıca bir talep oluşturun.</p>
-            </div>
-            ${phone ? `<a class="go-cta go-cta-block" href="tel:${esc(phone)}">${svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>', 18)} Resepsiyonu Ara</a>` : ''}
-            <button class="go-btn-ghost" id="goChatNew">${esc(t('guest.track.createNew'))}</button>`;
-        const nb = $('goChatNew'); if (nb) nb.onclick = () => { activeDept = ''; activeCat = 'all'; showTab('services'); };
+        const items = quickItems();
+        if (!items.length) { if (sec) sec.hidden = true; wrap.innerHTML = ''; return; }
+        if (sec) sec.hidden = false;
+        wrap.innerHTML = items.map(itemHtml).join('');
+        bindItemEvents(wrap);
     }
 
-    // ── Profil ──────────────────────────────────────────────────
+    // "Oteliniz" kartı: otelin kapak görseli (varsa) + bilgi/menü/konaklama
+    // kısayolları + resepsiyonu ara.
+    function rowBtnHtml(attr, ic, title, sub) {
+        return `<button class="go-row" ${attr}><span class="go-row-ic">${ic}</span><span class="go-row-main"><span class="go-row-tl">${esc(title)}</span>${sub ? `<span class="go-row-sub">${esc(sub)}</span>` : ''}</span><span class="go-row-end">${icon('chev', 18)}</span></button>`;
+    }
+    function callRowHtml() {
+        const ph = phoneDigits(); if (!ph) return '';
+        return `<a class="go-row" href="tel:${esc(ph)}"><span class="go-row-ic">${svg(INFO_ICONS.phone, 18)}</span><span class="go-row-main"><span class="go-row-tl">${esc(t('guest.home.callReception'))}</span><span class="go-row-sub">${esc(config.phone)}</span></span><span class="go-row-end">${icon('chev', 18)}</span></a>`;
+    }
+    function renderHotelCard() {
+        const wrap = $('goHotelCard'); if (!wrap) return;
+        const img = String(config.heroImage || '').trim();
+        const welcome = String(config.welcome || '').trim();
+        wrap.innerHTML = (img ? `<div class="go-hotelcard-img">${welcome ? `<p>${esc(welcome)}</p>` : ''}</div>` : '')
+            + `<div class="go-listcard">
+                ${rowBtnHtml('data-open="info"', icon('info', 18, 1.9), t('guest.info.title'), '')}
+                ${rowBtnHtml('data-open="menus"', icon('doc', 18, 1.9), t('guest.menus.title'), '')}
+                ${rowBtnHtml('data-open="stay"', icon('bed', 18, 1.9), t('guest.stay.myStay'), '')}
+                ${callRowHtml()}
+            </div>`;
+        // Görsel adresi stil özelliğine METİN olarak gömülmez (tırnak
+        // kaçışıyla CSS enjeksiyonu riski) — DOM üzerinden atanır.
+        const im = wrap.querySelector('.go-hotelcard-img');
+        if (im) im.style.backgroundImage = 'url(' + JSON.stringify(img) + ')';
+        wrap.onclick = e => {
+            const b = e.target.closest('[data-open]'); if (!b) return;
+            const k = b.dataset.open;
+            if (k === 'info') openInfo(); else if (k === 'menus') openMenus(); else if (k === 'stay') openStay();
+        };
+    }
+    function renderActiveBanner() { /* ana sayfada banner yok; canlı şerit + Taleplerim rozeti kullanılıyor */ }
+
+    // ── Profil: misafir kartı + konaklama + tercihler + yardım ──────
     function renderProfile() {
         const wrap = $('goProfileBody'); if (!wrap) return;
-        const hname = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
-        const rows = [
-            infoRow('phone', t('guest.info.reception'), config.phone, { tel: (config.phone || '').replace(/[^0-9+]/g, '') }),
-            infoRow('wifi', t('guest.info.wifiName'), config.wifiName, { copy: config.wifiName }),
-            infoRow('wifi', t('guest.info.wifiPass'), config.wifiPass, { copy: config.wifiPass }),
-            infoRow('clock', t('guest.info.checkout'), config.checkoutTime),
-            infoRow('coffee', t('guest.info.breakfast'), config.breakfast),
-            infoRow('pin', t('guest.info.address'), config.address, { map: config.address })
-        ].filter(Boolean).join('');
         const initial = (firstName().charAt(0) || 'M').toLocaleUpperCase('tr-TR');
+        const sub = [ROOM ? t('guest.home.room', { room: ROOM }) : '', hotelName()].filter(Boolean).join(' · ') + (DEMO ? ' · DEMO' : '');
         wrap.innerHTML = `
-            <div class="go-prof-card">
-                <div class="go-prof-av">${esc(initial)}</div>
-                <div class="go-prof-name">${esc(guestName || t('guest.home.guestFallback'))}</div>
-                <div class="go-prof-sub">${ROOM ? 'Oda ' + esc(ROOM) + ' · ' : ''}${esc(hname)}${DEMO ? ' · DEMO' : ''}</div>
+            <div class="go-prof-head">
+                <div class="go-prof-av" aria-hidden="true">${esc(initial)}</div>
+                <div><div class="go-prof-name">${esc(guestName || t('guest.home.guestFallback'))}</div><div class="go-prof-sub">${esc(sub)}</div></div>
             </div>
-            ${config.welcome && config.welcome.trim() ? `<p class="go-prof-welcome">${esc(config.welcome.trim())}</p>` : ''}
-            <div class="go-prof-sec">${esc(t('guest.info.title'))}</div>
-            ${rows || `<div class="go-empty"><div class="go-empty-ic">ℹ️</div><h3>${esc(t('guest.info.none'))}</h3><p>${esc(t('guest.info.noneHint'))}</p></div>`}
-            <div class="go-prof-sec">${esc(t('guest.lang.switch'))}</div>
-            <div class="go-langbar" id="goLangBar">
-                ${I18n.supported().map(l => `<button class="go-lang${l === I18n.lang() ? ' active' : ''}" data-lang="${esc(l)}">${l === 'tr' ? '🇹🇷 Türkçe' : '🇬🇧 English'}</button>`).join('')}
+            <div class="go-caption">${esc(t('guest.stay.myStay'))}</div>
+            <div id="goStayBody"></div>
+            <div class="go-caption">${esc(t('guest.lang.switch'))}</div>
+            <div class="go-seg go-langseg" id="goLangBar" role="group">
+                ${I18n.supported().map(l => `<button class="${l === I18n.lang() ? 'active' : ''}" data-lang="${esc(l)}" aria-pressed="${l === I18n.lang()}">${l === 'tr' ? 'Türkçe' : 'English'}</button>`).join('')}
+            </div>
+            <div class="go-caption">${esc(t('guest.profile.help'))}</div>
+            <div class="go-listcard" id="goProfHelp">
+                ${callRowHtml()}
+                ${rowBtnHtml('data-open="info"', icon('info', 18, 1.9), t('guest.info.title'), '')}
+                <a class="go-row" href="legal/kvkk-aydinlatma" target="_blank" rel="noopener"><span class="go-row-ic">${icon('shield', 18, 1.9)}</span><span class="go-row-main"><span class="go-row-tl">${esc(t('guest.home.legal'))}</span></span><span class="go-row-end">${icon('chev', 18)}</span></a>
             </div>`;
-        wrap.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast(t('common.copied')); } catch (e) {} });
-        // Dil değişimi sayfayı yeniler (bkz. js/core/i18n.js) — bu kadar
-        // dinamik DOM'u canlı yeniden çizmekten güvenli.
+        // Dil değişimi sayfayı yeniler (bkz. js/core/i18n.js).
         const lb = $('goLangBar');
-        if (lb) lb.onclick = e => { const b = e.target.closest('[data-lang]'); if (b) I18n.setLang(b.dataset.lang); };
+        if (lb) lb.onclick = e => { const b = e.target.closest('[data-lang]'); if (b && b.dataset.lang !== I18n.lang()) I18n.setLang(b.dataset.lang); };
+        const hp = $('goProfHelp');
+        if (hp) hp.onclick = e => { const b = e.target.closest('[data-open="info"]'); if (b) openInfo(); };
+        renderStay();
     }
 
-    // ── Otel bilgileri (Otel Bilgileri sheet + Profil sekmesi ortak ikonlar) ──
+    // ── Otel bilgileri ikonları (Otel Bilgileri sheet + kısayollar) ──
     const INFO_ICONS = {
         wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
         phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
@@ -869,48 +911,15 @@
         pin: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>'
     };
 
-    // ── Ana carousel: 3 büyük giriş kartı (Otel Bilgileri / Menüler / Konaklama) ──
-    const BIG_CARDS = [
-        { key: 'info', title: 'Otel Bilgileri', img: 'info_button.webp', color: '#1f3a5c' },
-        { key: 'menus', title: t('guest.menus.title'), img: 'menus_button.webp', color: '#7a5a44' },
-        { key: 'stay', title: 'Konaklama', img: 'stay_button.webp', color: '#34703f' }
-    ];
-    function renderCarousel() {
-        const wrap = $('goCarousel'), dots = $('goDots'); if (!wrap) return;
-        const sec = $('goInfoSec'); if (sec) sec.style.display = '';
-        wrap.innerHTML = BIG_CARDS.map(c => `
-            <button class="go-bigcard" data-open="${esc(c.key)}"
-                style="background-color:${c.color};background-image:linear-gradient(180deg,rgba(16,24,36,.16),rgba(16,24,36,.62)),url('${esc(c.img)}');background-size:cover;background-position:center;">
-                <span class="go-bigcard-tx">${esc(c.title)}</span>
-            </button>`).join('');
-        if (dots) dots.innerHTML = BIG_CARDS.map((_, i) => `<span class="go-dot ${i === 0 ? 'active' : ''}"></span>`).join('');
-        wrap.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
-            const key = b.dataset.open;
-            if (key === 'info') openInfo();
-            else if (key === 'menus') openMenus();
-            else if (key === 'stay') openStay();
-        });
-        wrap.onscroll = () => {
-            if (!dots) return;
-            const card = wrap.querySelector('.go-bigcard'); if (!card) return;
-            const w = card.offsetWidth + 12;
-            const idx = Math.round(wrap.scrollLeft / w);
-            dots.querySelectorAll('.go-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
-        };
-    }
-
     // ── Menüler (admin panelden eklenen PDF bağlantıları) ─────────
     let menusCache = null; // [{name,pdfUrl}] — bir kez çekilip sekme boyunca saklanır
     function menuRow(m) {
-        return `<button class="go-menu-row" data-url="${esc(m.pdfUrl || '')}">
-            <span class="go-menu-row-ic">${svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>', 20)}</span>
-            <span class="go-menu-row-tx">${esc(m.name || 'Menü')}</span>
-            <span class="go-menu-row-arrow">›</span></button>`;
+        return rowBtnHtml(`data-url="${esc(m.pdfUrl || '')}"`, icon('doc', 18, 1.9), m.name || t('guest.menus.title'), '');
     }
     function renderMenus(list) {
         const body = $('goMenusBody'); if (!body) return;
-        if (!list.length) { body.innerHTML = `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>${esc(t('guest.menus.none'))}</h3><p>${esc(t('guest.menus.noneHint'))}</p></div>`; return; }
-        body.innerHTML = list.map(menuRow).join('');
+        if (!list.length) { body.innerHTML = emptyHtml('doc', t('guest.menus.none'), t('guest.menus.noneHint')); return; }
+        body.innerHTML = `<div class="go-listcard">${list.map(menuRow).join('')}</div>`;
         body.querySelectorAll('[data-url]').forEach(b => b.onclick = () => {
             const url = b.dataset.url;
             if (!url) { toast(t('guest.menus.noLink'), true); return; }
@@ -918,11 +927,9 @@
         });
     }
     function openMenus() {
-        $('goMenusBackdrop').classList.add('show');
-        $('goMenusSheet').classList.add('show');
-        $('goMenusSheet').setAttribute('aria-hidden', 'false');
+        openSheet('goMenusSheet', 'goMenusBackdrop');
         if (menusCache) { renderMenus(menusCache); return; }
-        $('goMenusBody').innerHTML = '<div class="go-spinner" style="margin:30px auto;"></div>';
+        $('goMenusBody').innerHTML = '<div class="go-spinner"></div>';
         if (DEMO) { menusCache = DEMO_MENUS; renderMenus(menusCache); return; }
         db.collection('guestMenus').where('tenantId', '==', TENANT).get().then(snap => {
             menusCache = snap.docs.map(d => d.data()).filter(m => m.active !== false)
@@ -930,304 +937,275 @@
             renderMenus(menusCache);
         }).catch(() => { menusCache = []; renderMenus([]); });
     }
-    function closeMenus() {
-        $('goMenusBackdrop').classList.remove('show');
-        $('goMenusSheet').classList.remove('show');
-        $('goMenusSheet').setAttribute('aria-hidden', 'true');
-    }
+    function closeMenus() { closeSheet('goMenusSheet', 'goMenusBackdrop'); }
 
-    // ── Konaklama (tarihler + Oda Hesabım özeti + rezervasyonlar) ─
+    // ── Konaklama (Profil içinde: tarihler + Oda Hesabım + rezervasyonlar) ─
     // Tek bir sunucu-taraflı doğrulanmış çağrı (getGuestStay) ile gelir; soyadı
-    // gate'te girildiğinde saklanır (SURNAME_KEY). Doğrulama hiç yapılmamışsa bu
-    // sekme "doğrulama gerekli" gösterir — yeni bir zorunlu akış icat etmek yerine.
-    let stayData = null; // { checkIn, checkOut, folio:{total,count,items}, reservations:[...] }
-    const RES_TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: t('common.other') };
+    // gate'te girildiğinde saklanır (SURNAME_KEY). Doğrulama yoksa "doğrulama
+    // gerekli" gösterilir ve tek dokunuşla kapı açılır.
+    let stayData = null, stayState = 'idle'; // idle | loading | error
+    const RES_TYPE_KEY = { Restaurant: 'restaurant', Beach: 'beach', Transfer: 'transfer', Flower: 'flower', Cake: 'cake', Boat: 'boat', Tour: 'tour' };
+    function resTypeLabel(type) { const k = RES_TYPE_KEY[type]; return k ? t('guest.res.' + k) : (type === 'Other' ? t('common.other') : (type || t('guest.res.generic'))); }
     function resDetailText(r) {
         if (r.type === 'Restaurant' || r.type === 'Beach') return [r.resName, r.pax ? r.pax + ' ' + t('common.people') : ''].filter(Boolean).join(' · ');
         if (r.type === 'Transfer') return [r.from, r.to].filter(Boolean).join(' → ') + (r.vehicle ? ' · ' + r.vehicle : '');
         if (r.type === 'Boat' || r.type === 'Tour') return [r.vessel, r.provider].filter(Boolean).join(' · ');
-        // Other + Flower/Cake (+ bilinmeyen tür) — önceden yalnızca 'Other'
-        // otherType'a bakıyordu, Flower/Cake her zaman "Detay yok" gösteriyordu
-        // (bkz. QR Concierge denetimi — concierge.js'in eşdeğer catch-all'ı).
+        // Other + Flower/Cake (+ bilinmeyen tür)
         return r.otherType || r.resName || '';
     }
     function reservationRow(r, i) {
         const detail = resDetailText(r);
-        return `<div class="go-stay-res-row" data-i="${i}">
-            <div class="go-stay-res-top">
-                <div><b>${esc(RES_TYPE_TR[r.type] || r.type || 'Rezervasyon')}</b><span>${esc(fmtDateTR(r.date))}${r.time ? ' · ' + esc(r.time) : ''}</span></div>
-                <span class="go-stay-res-chev">›</span>
-            </div>
-            <div class="go-stay-res-detail">${detail ? esc(detail) : `<span class="go-ink-mute">${esc(t('guest.stay.noDetail'))}</span>`}</div>
-        </div>`;
+        return `<button class="go-row go-stay-res" data-i="${i}" aria-expanded="false">
+            <span class="go-row-ic">${icon('clock', 18, 1.9)}</span>
+            <span class="go-row-main">
+                <span class="go-row-tl">${esc(resTypeLabel(r.type))}</span>
+                <span class="go-row-sub go-num">${esc(fmtDateTR(r.date))}${r.time ? ' · ' + esc(r.time) : ''}</span>
+                <span class="go-stay-res-detail">${detail ? esc(detail) : esc(t('guest.stay.noDetail'))}</span>
+            </span>
+            <span class="go-chev">${icon('chev', 18)}</span>
+        </button>`;
     }
     function fmtDateTR(iso) {
         if (!iso) return '—';
         const p = String(iso).slice(0, 10).split('-');
         return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
     }
-    function renderStay() {
-        const body = $('goStayBody'); if (!body || !stayData) return;
-        const dateRow = (stayData.checkIn || stayData.checkOut) ? `
-            <div class="go-stay-dates">
-                <div><b>${esc(t('guest.stay.checkIn'))}</b><span>${esc(fmtDateTR(stayData.checkIn))}</span></div>
-                <div><b>${esc(t('guest.stay.checkOut'))}</b><span>${esc(fmtDateTR(stayData.checkOut))}</span></div>
-            </div>` : '';
-        // Oda hesabı, PARA BİRİMİ BAŞINA ayrı bir buton olarak gösterilir —
-        // ör. Concierge'in €150'lik ekstrası ile restoranın ₺2.400'lük
-        // adisyonu ASLA tek bir tutarda toplanmaz (kaynağı farklı para
-        // birimleri olduğundan bu yanlış bir tutar gösterir).
-        const folioGroups = stayData.folio || [];
-        const folioRowsHtml = folioGroups.length
-            ? folioGroups.map((g, i) => `<button class="go-stay-folio" data-folio-i="${i}">
-                <span><b>${esc(t('guest.stay.folio'))}</b><span>${g.count} kalem · ${esc(g.currency)}</span></span>
-                <span class="go-stay-folio-amt">${esc(fmtCur(g.total, g.currency))}</span></button>`).join('')
-            : `<button class="go-stay-folio off" disabled><span><b>${esc(t('guest.stay.folio'))}</b><span>Ekstra yok</span></span></button>`;
-        const resList = (stayData.reservations || []);
-        const resHtml = resList.length
-            ? `<div class="go-prof-sec">${esc(t('guest.stay.reservations'))}</div>${resList.map(reservationRow).join('')}`
-            : `<div class="go-prof-sec">${esc(t('guest.stay.reservations'))}</div><div class="go-empty" style="padding:24px 10px;"><p>${esc(t('guest.stay.noReservations'))}</p></div>`;
-        const langHtml = `<div class="go-prof-sec">${esc(t('guest.lang.switch'))}</div>
-            <div class="go-langbar" id="goStayLangBar">${I18n.supported().map(l =>
-                `<button class="go-lang${l === I18n.lang() ? ' active' : ''}" data-lang="${esc(l)}">${l === 'tr' ? '🇹🇷 Türkçe' : '🇬🇧 English'}</button>`).join('')}</div>`;
-        body.innerHTML = `${dateRow}${folioRowsHtml}${resHtml}${langHtml}`;
-        const slb = $('goStayLangBar');
-        if (slb) slb.onclick = e => { const b = e.target.closest('[data-lang]'); if (b) I18n.setLang(b.dataset.lang); };
-        body.querySelectorAll('[data-folio-i]').forEach(btn => btn.onclick = () => { closeStay(); openFolio(folioGroups[+btn.dataset.folioI]); });
-        body.querySelectorAll('.go-stay-res-row').forEach(row => row.onclick = () => row.classList.toggle('open'));
+    function nightsBetween(a, b) {
+        const da = new Date(String(a).slice(0, 10) + 'T12:00:00'), db2 = new Date(String(b).slice(0, 10) + 'T12:00:00');
+        const n = Math.round((db2 - da) / 86400000);
+        return isFinite(n) && n > 0 ? n : 0;
     }
-    function openStay() {
-        $('goStayBackdrop').classList.add('show');
-        $('goStaySheet').classList.add('show');
-        $('goStaySheet').setAttribute('aria-hidden', 'false');
-        if (DEMO) { stayData = DEMO_STAY; renderStay(); return; }
-        const surname = loadSurname();
-        if (!fns || !ROOM || !surname) {
-            $('goStayBody').innerHTML = `<div class="go-empty"><div class="go-empty-ic">🔒</div><h3>${esc(t('guest.gate.required'))}</h3><p>${esc(t('guest.gate.requiredHint'))}</p></div>`;
+    function canLoadStay() { return DEMO || (!!fns && !!ROOM && !!loadSurname()); }
+    function renderStay() {
+        const body = $('goStayBody'); if (!body) return;
+        if (DEMO && !stayData) stayData = DEMO_STAY;
+        if (!stayData) {
+            if (!canLoadStay()) {
+                body.innerHTML = `<div class="go-listcard">${rowBtnHtml('data-stay="verify"', icon('lock', 18, 1.9), t('guest.gate.required'), t('guest.gate.requiredHint'))}</div>`;
+            } else if (stayState === 'error') {
+                body.innerHTML = `<div class="go-listcard">${rowBtnHtml('data-stay="retry"', icon('alert', 18, 1.9), t('guest.stay.loadFailed'), t('common.tapRetry'))}</div>`;
+            } else {
+                body.innerHTML = '<div class="go-spinner"></div>';
+            }
+            body.onclick = e => {
+                const b = e.target.closest('[data-stay]'); if (!b) return;
+                if (b.dataset.stay === 'verify') openGate();
+                else { stayState = 'idle'; loadStay(); }
+            };
             return;
         }
-        if (stayData) { renderStay(); return; }
-        $('goStayBody').innerHTML = '<div class="go-spinner" style="margin:30px auto;"></div>';
-        fns.httpsCallable('getGuestStay')({ tenant: TENANT, room: ROOM, surname }).then(res => {
-            if (res && res.data && res.data.ok) { stayData = res.data; renderStay(); }
-            else $('goStayBody').innerHTML = `<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>${esc(t('guest.stay.loadFailed'))}</h3><p>${esc(t('common.retry'))}</p></div>`;
-        }).catch(() => { $('goStayBody').innerHTML = `<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>${esc(t('guest.stay.loadFailed'))}</h3><p>${esc(t('common.retry'))}</p></div>`; });
+        const nights = (stayData.checkIn && stayData.checkOut) ? nightsBetween(stayData.checkIn, stayData.checkOut) : 0;
+        const dateRow = (stayData.checkIn || stayData.checkOut) ? `
+            <div class="go-stay-dates">
+                <div class="go-stay-date"><small>${esc(t('guest.stay.checkIn'))}</small><b>${esc(fmtDateTR(stayData.checkIn))}</b></div>
+                <div class="go-stay-date"><small>${esc(t('guest.stay.checkOut'))}</small><b>${esc(fmtDateTR(stayData.checkOut))}</b></div>
+            </div>
+            ${nights ? `<div class="go-stay-nights">${esc(t('guest.stay.nights', { n: nights }))}</div>` : ''}` : '';
+        // Oda hesabı PARA BİRİMİ BAŞINA ayrı satır — ör. Concierge'in €150'lik
+        // ekstrası ile restoranın ₺2.400'lük adisyonu ASLA tek tutarda toplanmaz.
+        const folioGroups = stayData.folio || [];
+        const folioRows = folioGroups.length
+            ? folioGroups.map((g, i) => `<button class="go-row" data-folio-i="${i}">
+                <span class="go-row-ic">${icon('receipt', 18, 1.9)}</span>
+                <span class="go-row-main"><span class="go-row-tl">${esc(t('guest.stay.folio'))}</span><span class="go-row-sub">${esc(t('guest.stay.folioCount', { n: g.count, cur: g.currency }))}</span></span>
+                <span class="go-row-val go-num">${esc(fmtCur(g.total, g.currency))}</span>
+                <span class="go-chev">${icon('chev', 18)}</span></button>`).join('')
+            : `<div class="go-row"><span class="go-row-ic">${icon('receipt', 18, 1.9)}</span><span class="go-row-main"><span class="go-row-tl">${esc(t('guest.stay.folio'))}</span><span class="go-row-sub">${esc(t('guest.stay.noExtras'))}</span></span></div>`;
+        const resList = stayData.reservations || [];
+        const resHtml = `<div class="go-caption">${esc(t('guest.stay.reservations'))}</div>` + (resList.length
+            ? `<div class="go-listcard">${resList.map(reservationRow).join('')}</div>`
+            : `<div class="go-listcard"><div class="go-row"><span class="go-row-main"><span class="go-row-sub">${esc(t('guest.stay.noReservations'))}</span></span></div></div>`);
+        body.innerHTML = `${dateRow}<div class="go-listcard" style="margin-top:12px">${folioRows}</div>${resHtml}`;
+        body.onclick = e => {
+            const f = e.target.closest('[data-folio-i]'); if (f) { openFolio(folioGroups[+f.dataset.folioI]); return; }
+            const r = e.target.closest('.go-stay-res');
+            if (r) { const open = !r.classList.contains('open'); r.classList.toggle('open', open); r.setAttribute('aria-expanded', String(open)); }
+        };
     }
-    function closeStay() {
-        $('goStayBackdrop').classList.remove('show');
-        $('goStaySheet').classList.remove('show');
-        $('goStaySheet').setAttribute('aria-hidden', 'true');
+    function loadStay() {
+        if (DEMO) { stayData = DEMO_STAY; renderStay(); return; }
+        if (stayData || stayState === 'loading' || !canLoadStay()) { renderStay(); return; }
+        stayState = 'loading'; renderStay();
+        fns.httpsCallable('getGuestStay')({ tenant: TENANT, room: ROOM, surname: loadSurname() }).then(res => {
+            if (res && res.data && res.data.ok) { stayData = res.data; stayState = 'idle'; }
+            else stayState = 'error';
+            renderStay();
+        }).catch(() => { stayState = 'error'; renderStay(); });
     }
+    // Ana sayfadaki "Konaklamam" kısayolu Profil sekmesine götürür (konaklama
+    // bilgileri artık ayrı bir sheet değil, Profil'in bir bölümü).
+    function openStay() { showTab('profile'); }
 
-    // ── Oda Hesabım detayı (Konaklama'dan drill-down) ─────────────
-    // NOT: burada HER ZAMAN kalemin/grubun KENDİ para birimi (curr) kullanılır,
-    // fmtPrice() (guestConfig.currency, ör. ₺) değil — Concierge kalemleri
-    // EUR olabilir, restoran kalemleri TRY; ikisini aynı sembolle göstermek
-    // yanlış tutar izlenimi verir.
+    // ── Oda Hesabım detayı (Profil'den drill-down) ─────────────
+    // NOT: burada HER ZAMAN grubun KENDİ para birimi kullanılır, fmtPrice()
+    // (guestConfig.currency) değil — Concierge kalemleri EUR olabilir.
     const CUR_SYM_MAP = { EUR: '€', TRY: '₺', USD: '$' };
     function fmtCur(amount, currency) { return (CUR_SYM_MAP[currency] || config.currency) + Number(amount || 0).toLocaleString('tr-TR'); }
-    const FOLIO_SOURCE_LABEL = { restaurant: 'Restoran / Bar', concierge: 'Concierge Rezervasyonu' };
+    function folioSourceLabel(src) { return src === 'restaurant' || src === 'concierge' ? t('guest.stay.src.' + src) : (src || t('guest.stay.folioShort')); }
     function folioRow(it, currency) {
-        const meta = [it.tableName || '', it.createdAt ? new Date(it.createdAt).toLocaleDateString('tr-TR') : ''].filter(Boolean).join(' · ');
+        const meta = [it.tableName || '', it.createdAt ? new Date(it.createdAt).toLocaleDateString(I18n.locale()) : ''].filter(Boolean).join(' · ');
         return `<div class="go-folio-row">
-            <div class="go-folio-row-tx"><div class="go-folio-row-src">${esc(FOLIO_SOURCE_LABEL[it.source] || it.source || t('guest.stay.folioShort'))}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
+            <div><div class="go-folio-row-src">${esc(folioSourceLabel(it.source))}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
             <div class="go-folio-row-amt">${esc(fmtCur(it.amount, currency))}</div></div>`;
     }
     function openFolio(group) {
         const body = $('goFolioBody'); if (!body || !group) return;
         const rows = (group.items || []).map(it => folioRow(it, group.currency)).join('');
-        body.innerHTML = `${rows || `<div class="go-empty"><div class="go-empty-ic">🧾</div><h3>${esc(t('guest.stay.noItems'))}</h3></div>`}
-            <div class="go-folio-total"><b>Toplam (${esc(group.currency)})</b><span>${esc(fmtCur(group.total || 0, group.currency))}</span></div>`;
-        $('goFolioBackdrop').classList.add('show');
-        $('goFolioSheet').classList.add('show');
-        $('goFolioSheet').setAttribute('aria-hidden', 'false');
+        body.innerHTML = `${rows || emptyHtml('receipt', t('guest.stay.noItems'), '')}
+            <div class="go-folio-total"><b>${esc(t('guest.stay.total', { cur: group.currency }))}</b><span>${esc(fmtCur(group.total || 0, group.currency))}</span></div>`;
+        openSheet('goFolioSheet', 'goFolioBackdrop');
     }
-    function closeFolio() {
-        $('goFolioBackdrop').classList.remove('show');
-        $('goFolioSheet').classList.remove('show');
-        $('goFolioSheet').setAttribute('aria-hidden', 'true');
-    }
+    function closeFolio() { closeSheet('goFolioSheet', 'goFolioBackdrop'); }
 
     // ════════════════════════════════════════════════════════════
     //  HİZMETLER
     // ════════════════════════════════════════════════════════════
-    // Kategoriye özel hero bandı: başlık ana ekrandaki kartla aynı görsel
-    // dili taşır (renk + görsel + tanıtım cümlesi) — jenerik "Hizmetler"
-    // listesi yerine kategori sayfası hissi verir.
-    const HERO_COLORS = { temiz: '#33574a', konfor: '#4d6155', food: '#7a5a44', teknik: '#33485c', bell: '#1f3a5c', other: '#5c5470' };
-    function renderCatHero() {
-        const hero = $('goCatHero'), title = $('goServicesTitle'); if (!hero) return;
-        // Ana ekrandan bir DEPARTMAN kartıyla gelindiyse (activeDept), o
-        // departmanın tüm kategorilerini kapsayan tek bir bant gösterilir —
-        // tek kategori seçiliyken (activeCat) aşağıdaki eski davranış sürer.
-        if (activeDept) {
-            const def = DEPT_KIND_DEFS[activeDept];
-            if (!def) { activeDept = ''; }
-            else {
-                const style = def.img
-                    ? `background-color:${def.color};background-image:linear-gradient(100deg,rgba(16,24,36,.72),rgba(16,24,36,.38)),url('${def.img}');background-size:cover;background-position:center;`
-                    : `background:${def.color};`;
-                const n = filteredItems().length;
-                hero.hidden = false;
-                hero.innerHTML = `<div class="go-cathero-in" style="${style}">
-                    <span class="go-cathero-tx">
-                        <b>${esc(def.label)}</b>
-                        <span>${n} hizmet</span>
-                    </span>
-                    <span class="go-cathero-n">${n}</span>
-                </div>`;
-                if (title) title.textContent = def.label;
-                return;
-            }
-        }
-        if (activeCat === 'all') {
-            hero.hidden = true;
-            if (title) title.textContent = 'Hizmetler';
-            return;
-        }
-        const kind = catKind(activeCat);
-        const img = CARD_IMG[kind];
-        const color = HERO_COLORS[kind] || HERO_COLORS.other;
-        const style = img
-            ? `background-color:${color};background-image:linear-gradient(100deg,rgba(16,24,36,.72),rgba(16,24,36,.38)),url('${img}');background-size:cover;background-position:center;`
-            : `background:${color};`;
-        hero.hidden = false;
-        hero.innerHTML = `<div class="go-cathero-in" style="${style}">
-            <span class="go-cathero-ic">${catIcon(activeCat, 26)}</span>
-            <span class="go-cathero-tx">
-                <b>${esc(activeCat)}</b>
-                <span>${esc(catBlurb(activeCat) || catCount(activeCat) + ' hizmet')}</span>
-            </span>
-            <span class="go-cathero-n">${catCount(activeCat)}</span>
-        </div>`;
-        if (title) title.textContent = activeCat;
-    }
+    // Başlık departman adını taşır; eskiden başlığın altında AYNI adı
+    // tekrarlayan fotoğraflı bir "hero" bandı vardı (kaldırıldı). Kategori
+    // çipleri artık yalnızca SEÇİLİ DEPARTMANIN kategorilerini gösterir —
+    // eskiden F&B ekranında "Tümü 19 · Kat Hizmetleri · Konfor…" görünüyordu.
+    const catOf = i => String((i && i.category) || t('common.other')).trim();
+    function scopeItems() { return activeDept ? catalog.filter(i => (itemDeptKey(i) || 'other') === activeDept) : catalog; }
+    function scopeCats(scope) { const seen = []; scope.forEach(i => { const c = catOf(i); if (seen.indexOf(c) === -1) seen.push(c); }); return seen; }
     function renderServices() {
         const chips = $('goChips'); if (!chips) return;
-        const cats = categories();
-        if (activeCat !== 'all' && !cats.includes(activeCat)) activeCat = 'all';
-        renderCatHero();
-        const allActive = !activeDept && activeCat === 'all';
-        chips.innerHTML = [`<button class="go-chip ${allActive ? 'active' : ''}" data-chip="all">${esc(t('common.all'))}<i>${catalog.length}</i></button>`]
-            .concat(cats.map(c => `<button class="go-chip ${(!activeDept && activeCat === c) ? 'active' : ''}" data-chip="${esc(c)}"><span class="go-chip-ic">${catIcon(c, 18)}</span>${esc(c)}<i>${catCount(c)}</i></button>`)).join('');
-        // Herhangi bir kategori çipine (Tümü dahil) tıklamak departman
-        // modundan çıkar — kullanıcı artık tek kategori/tüm liste görünümünde.
-        chips.onclick = e => { const b = e.target.closest('[data-chip]'); if (!b) return; activeDept = ''; activeCat = b.dataset.chip; renderServices(); const a = chips.querySelector('.go-chip.active'); if (a) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); };
+        const scope = scopeItems();
+        const cats = scopeCats(scope);
+        if (activeCat !== 'all' && cats.indexOf(activeCat) === -1) activeCat = 'all';
+        const title = $('goServicesTitle');
+        if (title) title.textContent = (activeDept && DEPT_KIND_DEFS[activeDept]) ? DEPT_KIND_DEFS[activeDept].label : t('guest.services.title');
+        chips.innerHTML = cats.length > 1
+            ? [`<button class="go-chip ${activeCat === 'all' ? 'active' : ''}" data-chip="all">${esc(t('common.all'))}<i>${scope.length}</i></button>`]
+                .concat(cats.map(c => `<button class="go-chip ${activeCat === c ? 'active' : ''}" data-chip="${esc(c)}">${esc(c)}<i>${scope.filter(i => catOf(i) === c).length}</i></button>`)).join('')
+            : '';
+        chips.onclick = e => {
+            const b = e.target.closest('[data-chip]'); if (!b) return;
+            activeCat = b.dataset.chip; renderServices();
+            const a = chips.querySelector('.go-chip.active'); if (a) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+            const list = $('goItems'); if (list) list.scrollTop = 0;
+        };
         renderItems();
     }
     function filteredItems() {
         const term = norm(searchTerm);
         return catalog.filter(i => {
-            if (activeDept) { if (itemDeptKey(i) !== activeDept) return false; }
-            else if (activeCat !== 'all' && (i.category || t('common.other')) !== activeCat) return false;
-            if (term) { const hay = norm((i.name || '') + ' ' + (i.category || '') + ' ' + (i.description || '')); if (!hay.includes(term)) return false; }
-            return true;
+            // Arama yapılırken departman/kategori sınırı kalkar: misafir
+            // "havlu" yazdığında bulunduğu departmandan bağımsız bulmalı.
+            if (!term) {
+                if (activeDept && (itemDeptKey(i) || 'other') !== activeDept) return false;
+                if (activeCat !== 'all' && catOf(i) !== activeCat) return false;
+                return true;
+            }
+            const hay = norm((i.name || '') + ' ' + (i.category || '') + ' ' + (i.description || ''));
+            return hay.includes(term);
         });
     }
     function renderItems() {
         const wrap = $('goItems'); if (!wrap) return;
         const items = filteredItems();
         if (!items.length) {
-            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">🔍</div><h3>${esc(t('guest.services.noResult'))}</h3><p>${esc(searchTerm ? t('guest.services.noMatch') : t('guest.services.emptyCategory'))}</p></div>`;
+            wrap.innerHTML = emptyHtml('search', t('guest.services.noResult'), searchTerm ? t('guest.services.noMatch') : t('guest.services.emptyCategory'));
             return;
         }
-        // group by category when showing "all", or a whole department's
-        // multiple categories, and there's no active search term
-        let html = '';
-        if ((activeDept || activeCat === 'all') && !searchTerm) {
-            categories().forEach(c => {
-                const sub = items.filter(i => (i.category || t('common.other')) === c);
-                if (!sub.length) return;
-                html += `<div class="go-cat-head">${esc(c)}</div>` + sub.map(itemHtml).join('');
-            });
+        let html;
+        const cats = scopeCats(items);
+        if (activeCat === 'all' && !searchTerm && cats.length > 1) {
+            html = cats.map(c => `<div class="go-caption">${esc(c)}</div><div class="go-listcard">${items.filter(i => catOf(i) === c).map(itemHtml).join('')}</div>`).join('');
         } else {
-            html = items.map(itemHtml).join('');
+            html = `<div class="go-listcard">${items.map(itemHtml).join('')}</div>`;
         }
         wrap.innerHTML = html;
         bindItemEvents(wrap);
     }
-    // Seçenekli kalemler (ör. VIP Transfer → Vito/Sprinter/S Class) satırda
-    // doğrudan "+" ile eklenemez — misafirin ÖNCE bir seçenek seçmesi gerekir,
-    // bu yüzden henüz sepette yoksa satırdaki aksiyon "Seç"e döner (detay
-    // sheet'ini açar); sepette bir satır varsa (seçim zaten yapılmış) normal
-    // adet +/- kontrolüne dönülür — seçim değiştirmek için sheet'e girilir.
+    // Süre etiketi dakikadan, aktif dilde üretilir ("15–30 dk" / "15–30 min");
+    // dakika yoksa otelin girdiği serbest metin olduğu gibi gösterilir.
+    function etaShort(src) {
+        const m = etaMinutes(src);
+        if (m) return m.min === m.max ? t('guest.item.etaOne', { n: m.min }) : t('guest.item.etaRange', { a: m.min, b: m.max });
+        const raw = String((src && src.eta) || '').trim();
+        return raw && raw !== '—' ? raw : '';
+    }
+    // Seçenekli/özelleştirmeli/transfer/concierge kalemler satırda doğrudan
+    // eklenemez — önce detay sayfası açılır ("Seç"). Sepetteyse adet kontrolü;
+    // tek-adetlik kalemlerde (oda temizliği…) yalnızca onay işareti.
     const hasOptions = item => Array.isArray(item && item.options) && item.options.length > 0;
+    const needsSheet = item => hasOptions(item) || hasModifiers(item) || isTransferItem(item) || isConciergeItem(item);
     function itemAction(item, av, line) {
         if (!av.available) return `<span class="go-unavail">${esc(t('guest.services.offHours'))}</span>`;
-        // Tek-adetlik talepler (maxQty=1: oda temizliği, çarşaf değişimi…)
-        // adet kontrolü GÖSTERMEZ — "2 kez oda temizliği" anlamsız. Sepetteyken
-        // aç/kapa bir onay rozetine döner.
         if (line && line.qty > 0) {
             return lineMax(item) === 1
-                ? `<button class="go-add go-add-on" data-dec="${esc(item.id)}" aria-label="${esc(t('guest.item.removeFromCart'))}">✓</button>`
+                ? `<button class="go-add go-add-on" data-dec="${esc(item.id)}" aria-label="${esc(t('guest.item.removeFromCart'))}">${icon('check', 18, 2.6)}</button>`
                 : stepHtml(item.id, line.qty);
         }
-        if (hasOptions(item) || hasModifiers(item) || isTransferItem(item) || isConciergeItem(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}" aria-label="Seç">${esc(t('common.select'))}</button>`;
-        return `<button class="go-add" data-add="${esc(item.id)}" aria-label="Ekle">+</button>`;
+        if (needsSheet(item)) return `<button class="go-add go-add-choose" data-choose="${esc(item.id)}">${esc(t('common.select'))}</button>`;
+        return `<button class="go-add" data-add="${esc(item.id)}" aria-label="${esc(t('guest.item.add'))}: ${esc(item.name)}">${icon('plus', 20, 2.4)}</button>`;
+    }
+    function itemTags(item, av, withPlus) {
+        const tags = [];
+        const eta = etaShort(item);
+        if (eta) tags.push(`<span class="go-tag">${icon('clock', 13, 2.2)}${esc(eta)}</span>`);
+        if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">${esc(av.available ? av.window : t('guest.services.hoursWindow', { window: av.window }))}</span>`);
+        if (pricesOn() && priceOf(item)) tags.push(`<span class="go-tag price">${esc(fmtPrice(priceOf(item)))}${withPlus ? '+' : ''}</span>`);
+        return tags;
     }
     function itemHtml(item) {
         const av = availInfo(item);
-        const tags = [];
-        if (item.eta && item.eta !== '—') tags.push(`<span class="go-tag">${svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', 13)}${esc(item.eta)}</span>`);
-        if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">🕒 ${esc(av.window)}</span>`);
-        if (pricesOn() && priceOf(item)) tags.push(`<span class="go-tag price">${esc(fmtPrice(priceOf(item)))}</span>`);
+        const tags = itemTags(item, av, false);
         const line = cart.find(l => l.catalogId === item.id);
-        const action = itemAction(item, av, line);
         return `<div class="go-item ${av.available ? '' : 'go-item-unavail'}" data-id="${esc(item.id)}" data-open-item="${esc(item.id)}">
-            <div class="go-item-emoji go-k-${catKind(item.category)}">${esc(item.icon || '🛎️')}</div>
+            <div class="go-item-emoji" aria-hidden="true">${esc(item.icon || '🛎️')}</div>
             <div class="go-item-main">
                 <div class="go-item-name">${esc(item.name)}</div>
                 ${item.description ? `<div class="go-item-desc">${esc(item.description)}</div>` : ''}
                 ${tags.length ? `<div class="go-item-meta">${tags.join('')}</div>` : ''}
             </div>
-            <div class="go-item-act" data-act="${esc(item.id)}">${action}</div>
+            <div class="go-item-act" data-act="${esc(item.id)}">${itemAction(item, av, line)}</div>
         </div>`;
     }
-    const stepHtml = (id, qty) => `<div class="go-step"><button data-dec="${esc(id)}">−</button><b>${qty}</b><button data-inc="${esc(id)}">+</button></div>`;
+    const stepHtml = (id, qty) => `<div class="go-step"><button data-dec="${esc(id)}" aria-label="${esc(t('guest.item.decrease'))}">${icon('minus', 17, 2.4)}</button><b>${qty}</b><button data-inc="${esc(id)}" aria-label="${esc(t('guest.item.increase'))}">${icon('plus', 17, 2.4)}</button></div>`;
     function bindItemEvents(wrap) {
         wrap.onclick = e => {
             const choose = e.target.closest('[data-choose]'); if (choose) return openItemSheet(choose.dataset.choose);
             const add = e.target.closest('[data-add]'); if (add) return changeQty(add.dataset.add, +1);
             const inc = e.target.closest('[data-inc]'); if (inc) return changeQty(inc.dataset.inc, +1);
             const dec = e.target.closest('[data-dec]'); if (dec) return changeQty(dec.dataset.dec, -1);
-            // Satırın kendisine dokunma → detay sheet'i (not / saat / adet birlikte)
+            // Satırın kendisine dokunma → detay (not / saat / adet birlikte)
             const row = e.target.closest('[data-open-item]'); if (row) openItemSheet(row.dataset.openItem);
         };
     }
 
     // ── Hizmet detayı sheet ─────────────────────────────────────
-    // Satıra dokununca açılır: açıklama + adet + not + tercih saati (+ varsa
-    // seçenek) tek yerde. Sepette satır varsa mevcut değerlerle gelir ve
-    // günceller.
-    let sheetItemId = null, sheetQty = 1, sheetOption = '', sheetModifiers = [];
+    // Gövde kayar, "Sepete ekle" butonu ALTTA SABİT durur (uzun özelleştirme
+    // listelerinde kaydırmadan eklenebilir). Sepette satır varsa mevcut
+    // değerlerle açılır ve günceller.
+    let sheetItemId = null, sheetQty = 1, sheetOption = '', sheetModifiers = [], sheetWhen = 'now';
     function optPillsHtml(item, selected) {
-        return `<div class="go-fld"><label>Seçenek</label>
-            <div class="go-opt-pills" id="goShOptPills">
-                ${optionsOf(item).map(o => `<button type="button" class="go-opt-pill ${o.name === selected ? 'active' : ''}" data-opt="${esc(o.name)}">${esc(o.name)}${(pricesOn() && o.priceDelta) ? ` <span class="go-opt-pill-delta">${esc(fmtDelta(o.priceDelta))}</span>` : ''}</button>`).join('')}
+        return `<div class="go-fsec">
+            <div class="go-fsec-h"><b>${esc(t('guest.item.option'))}</b><span class="req">${esc(t('guest.item.optionReq'))}</span></div>
+            <div class="go-opt-pills" id="goShOptPills" role="radiogroup">
+                ${optionsOf(item).map(o => `<button type="button" role="radio" aria-checked="${o.name === selected}" class="go-opt-pill ${o.name === selected ? 'active' : ''}" data-opt="${esc(o.name)}">${esc(o.name)}${(pricesOn() && o.priceDelta) ? ` <span class="go-opt-pill-delta">${esc(fmtDelta(o.priceDelta))}</span>` : ''}</button>`).join('')}
             </div></div>`;
     }
-    // Çıkarılabilir/ekstra bileşenler — options'tan farklı olarak ÇOKLU seçim.
-    // Yemek sipariş uygulamalarındaki gibi BAŞLIKLI bölümler halinde çizilir
-    // (özel grup adı varsa o, yoksa "Ekstralar"/"Çıkarılacaklar"). maxQty > 1
-    // olan ekstralar satır içi adet kontrolü alır (2× Ekstra Peynir).
-    // DİKKAT: dış kapsayıcı <div>'dir, <button> DEĞİL. Adetli ekstralarda
-    // satırın içinde − / + butonları var; HTML'de buton içine buton
-    // yerleştirilemez (tarayıcı ayrıştırıcısı dış butonu erkenden kapatır ve
-    // stepper satırın DIŞINA düşer, tıklama hiç ulaşmaz). Dokunma hedefi
-    // olarak içteki .go-modrow-tap butonu kullanılır.
+    // Çıkarılabilir/ekstra bileşenler — ÇOKLU seçim, başlıklı gruplar
+    // (özel grup adı yoksa "Ekstralar"/"Çıkarılacaklar"). maxQty > 1 olan
+    // ekstralar satır içi adet kontrolü alır (2× Ekstra Peynir).
+    // DİKKAT: dış kapsayıcı <div>'dir, <button> DEĞİL — buton içine buton
+    // konamaz (stepper satırın dışına düşer). Dokunma hedefi .go-modrow-tap.
     function modRowHtml(m, qty) {
         const on = qty > 0;
         const delta = (pricesOn() && m.priceDelta) ? `<span class="go-modrow-delta">${esc(fmtDelta(m.priceDelta))}</span>` : '';
-        const ctrl = (m.maxQty > 1)
+        // Adet kontrolü yalnızca SEÇİLİ adetli ekstrada görünür — seçilmemiş
+        // satırlarda "0" sayaçları gürültüydü; satıra dokunmak 1 ekler.
+        const ctrl = (m.maxQty > 1 && on)
             ? `<span class="go-modrow-step">
-                   <button type="button" data-moddec="${esc(m.name)}" aria-label="Azalt" ${on ? '' : 'disabled'}>−</button>
+                   <button type="button" data-moddec="${esc(m.name)}" aria-label="${esc(t('guest.item.decrease'))}" ${on ? '' : 'disabled'}>${icon('minus', 15, 2.4)}</button>
                    <b data-modqty="${esc(m.name)}">${qty}</b>
-                   <button type="button" data-modinc="${esc(m.name)}" aria-label="Artır" ${qty >= m.maxQty ? 'disabled' : ''}>+</button>
+                   <button type="button" data-modinc="${esc(m.name)}" aria-label="${esc(t('guest.item.increase'))}" ${qty >= m.maxQty ? 'disabled' : ''}>${icon('plus', 15, 2.4)}</button>
                </span>`
-            : `<span class="go-modrow-check" aria-hidden="true">${on ? '✓' : ''}</span>`;
+            : '';
         return `<div class="go-modrow ${on ? 'active' : ''} ${m.type === 'extra' ? 'is-extra' : 'is-remove'}" data-mod="${esc(m.name)}">
-            <button type="button" class="go-modrow-tap" data-modtoggle="${esc(m.name)}" aria-pressed="${on ? 'true' : 'false'}">
-                <span class="go-modrow-sign">${m.type === 'extra' ? '+' : '−'}</span>
+            <button type="button" class="go-modrow-tap" data-modtoggle="${esc(m.name)}" role="checkbox" aria-checked="${on ? 'true' : 'false'}">
+                <span class="go-modrow-box">${icon('check', 14, 3)}</span>
                 <span class="go-modrow-name">${esc(m.name)}</span>
                 ${delta}
             </button>
@@ -1237,12 +1215,12 @@
     function modChipsHtml(item, sel) {
         const groups = modifierGroups(item);
         if (!groups.length) return '';
-        return `<div class="go-modsec" id="goShModPills">
+        return `<div class="go-fsec"><div class="go-modsec" id="goShModPills">
             ${groups.map(g => `<div class="go-modgrp">
                 <div class="go-modgrp-h">${esc(g.key)}</div>
-                ${g.items.map(m => modRowHtml(m, selQty(sel, m.name))).join('')}
+                <div class="go-modgrp-list">${g.items.map(m => modRowHtml(m, selQty(sel, m.name))).join('')}</div>
             </div>`).join('')}
-        </div>`;
+        </div></div>`;
     }
     function openItemSheet(id) {
         const item = catalog.find(i => i.id === id); if (!item) return;
@@ -1251,78 +1229,93 @@
         sheetItemId = id;
         sheetQty = line && line.qty > 0 ? line.qty : 1;
         sheetOption = line ? (line.option || '') : '';
-        // selList: eski sepet satırları modifiers'ı adetsiz tuttuğu için
-        // ikisini de kabul eden normalize edici.
         sheetModifiers = line ? selList(line.modifiers) : [];
+        sheetWhen = (line && line.preferredTime) ? 'later' : 'now';
         const withOpts = hasOptions(item);
         const withMods = hasModifiers(item);
         const maxq = lineMax(item);
         const isTransfer = isTransferItem(item);
         // Concierge (transfer OLMAYAN: restoran rezervasyonu, spa, tur…)
-        // kalemleri de TARİH ister. Eskiden yalnızca transfer'e tarih alanı
-        // vardı; diğerleri order-bridge'de koşulsuz BUGÜNE sabitleniyordu —
-        // "Cuma akşamı için masa" isteyen misafirin talebi bugünün
-        // ajandasına düşüyordu (bkz. QR↔Concierge operasyon denetimi).
+        // kalemleri TARİH ister — yoksa talep bugünün ajandasına düşerdi.
         const isConcierge = !isTransfer && isConciergeItem(item);
         const tmb = (isTransfer || isConcierge) ? transferMinBound() : null;
-        const tags = [];
-        if (item.eta && item.eta !== '—') tags.push(`<span class="go-tag">${svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>', 13)}${esc(item.eta)}</span>`);
-        if (av.limited) tags.push(`<span class="go-tag ${av.available ? '' : 'off'}">🕒 ${esc(av.window)}</span>`);
-        if (pricesOn() && priceOf(item)) tags.push(`<span class="go-tag price">${esc(fmtPrice(priceOf(item)))}${(withOpts || withMods) ? ' +' : ''}</span>`);
-        const addDisabled = withOpts && !sheetOption;
+        const tags = itemTags(item, av, withOpts || withMods);
         const sheetUnitPrice = () => priceOf(item) + optionDelta(item, sheetOption) + modifiersDelta(item, sheetModifiers);
+        const field = (id2, label, inner) => `<div class="go-fld"><label for="${id2}">${esc(label)}</label>${inner}</div>`;
+        let whenHtml = '';
+        if (isTransfer) {
+            whenHtml = `<div class="go-fsec">
+                ${field('goShFrom', t('guest.transfer.from'), `<input type="text" id="goShFrom" maxlength="80" placeholder="${esc(t('guest.transfer.fromPlaceholder'))}" value="${esc(line ? line.transferFrom || '' : '')}">`)}
+                ${field('goShTo', t('guest.transfer.to'), `<input type="text" id="goShTo" maxlength="80" placeholder="${esc(t('guest.transfer.toPlaceholder'))}" value="${esc(line ? line.transferTo || '' : '')}">`)}
+                <div class="go-fld-2">
+                    ${field('goShDate', t('guest.transfer.date'), `<input type="date" id="goShDate" min="${tmb.dateIso}" value="${esc(line && line.transferDate || tmb.dateIso)}">`)}
+                    ${field('goShTime', t('guest.transfer.time'), `<input type="time" id="goShTime" min="${tmb.timeHHMM}" value="${esc(line && line.transferTime || tmb.timeHHMM)}">`)}
+                </div>
+                ${!withOpts ? field('goShVehicle', t('guest.transfer.vehicle'), `<input type="text" id="goShVehicle" maxlength="80" placeholder="${esc(t('guest.transfer.vehiclePlaceholder'))}" value="${esc(line ? line.option || '' : '')}">`) : ''}
+            </div>`;
+        } else if (isConcierge) {
+            whenHtml = `<div class="go-fsec"><div class="go-fld-2">
+                ${field('goShDate', t('guest.transfer.date'), `<input type="date" id="goShDate" min="${tmb.dateIso}" value="${esc(line && line.transferDate || tmb.dateIso)}">`)}
+                ${field('goShTime', t('guest.transfer.time'), `<input type="time" id="goShTime" value="${esc(line && line.transferTime || '')}">`)}
+            </div></div>`;
+        } else {
+            // "Ne zaman?" — çoğu talep hemen istenir; saat seçmek ikinci adım.
+            // Eskiden her kalemde boş, tarayıcıya göre "--:-- --" görünen ham
+            // bir saat alanı vardı.
+            whenHtml = `<div class="go-fsec">
+                <div class="go-fsec-h"><b>${esc(t('guest.item.when'))}</b></div>
+                <div class="go-seg" id="goShWhen" role="group">
+                    <button type="button" data-when="now" class="${sheetWhen === 'now' ? 'active' : ''}" aria-pressed="${sheetWhen === 'now'}">${esc(t('guest.item.whenNow'))}</button>
+                    <button type="button" data-when="later" class="${sheetWhen === 'later' ? 'active' : ''}" aria-pressed="${sheetWhen === 'later'}">${esc(t('guest.item.whenLater'))}</button>
+                </div>
+                <div class="go-timefld" id="goShTimeWrap" ${sheetWhen === 'later' ? '' : 'hidden'}>
+                    <input type="time" class="go-input" id="goShTime" aria-label="${esc(t('guest.item.whenLater'))}" value="${esc(line ? line.preferredTime || '' : '')}">
+                </div>
+            </div>`;
+        }
         $('goItemSheetBody').innerHTML = `
             <div class="go-isheet-head">
-                <div class="go-item-emoji go-k-${catKind(item.category)}" style="width:56px;height:56px;font-size:28px;">${esc(item.icon || '🛎️')}</div>
+                <div class="go-item-emoji" aria-hidden="true">${esc(item.icon || '🛎️')}</div>
                 <div class="go-isheet-tx">
-                    <h2>${esc(item.name)}</h2>
-                    <span class="go-isheet-cat">${esc(item.category || t('common.other'))}</span>
+                    <h2 id="goItemTitle">${esc(item.name)}</h2>
+                    <span class="go-isheet-cat">${esc(catOf(item))}</span>
                 </div>
-                <button class="go-sheet-close" id="goItemClose" aria-label="Kapat">✕</button>
+                <button class="go-sheet-close" id="goItemClose" aria-label="${esc(t('common.close'))}">${icon('x', 16, 2.4)}</button>
             </div>
             ${item.description ? `<p class="go-isheet-desc">${esc(item.description)}</p>` : ''}
-            ${tags.length ? `<div class="go-item-meta" style="margin:0 0 14px;">${tags.join('')}</div>` : ''}
+            ${tags.length ? `<div class="go-item-meta go-isheet-meta">${tags.join('')}</div>` : ''}
             ${av.available ? `
-            ${withOpts ? optPillsHtml(item, sheetOption) : ''}
-            ${withMods ? modChipsHtml(item, sheetModifiers) : ''}
-            ${maxq > 1 ? `
-            <div class="go-isheet-qty" style="${(withOpts || withMods) ? 'margin-top:12px;' : ''}">
-                <span>${esc(t('guest.item.quantity'))}</span>
-                <div class="go-step go-step-lg"><button id="goShDec">−</button><b id="goShQty">${sheetQty}</b><button id="goShInc">+</button></div>
-            </div>` : ''}
-            <div class="go-fld"><label>${esc(t('guest.item.note'))}</label><input type="text" id="goShNote" maxlength="160" placeholder="${esc(t('guest.item.notePlaceholder'))}" value="${esc(line ? line.note || '' : '')}"></div>
-            ${isTransfer ? `
-            <div class="go-fld"><label>${esc(t('guest.transfer.from'))}</label><input type="text" id="goShFrom" maxlength="80" placeholder="${esc(t('guest.transfer.fromPlaceholder'))}" value="${esc(line ? line.transferFrom || '' : '')}"></div>
-            <div class="go-fld"><label>${esc(t('guest.transfer.to'))}</label><input type="text" id="goShTo" maxlength="80" placeholder="${esc(t('guest.transfer.toPlaceholder'))}" value="${esc(line ? line.transferTo || '' : '')}"></div>
-            <div class="go-fld-2">
-                <div class="go-fld"><label>${esc(t('guest.transfer.date'))}</label><input type="date" id="goShDate" min="${tmb.dateIso}" value="${esc(line && line.transferDate || tmb.dateIso)}"></div>
-                <div class="go-fld"><label>${esc(t('guest.transfer.time'))}</label><input type="time" id="goShTime" min="${tmb.timeHHMM}" value="${esc(line && line.transferTime || tmb.timeHHMM)}"></div>
-            </div>
-            ${!withOpts ? `<div class="go-fld"><label>${esc(t('guest.transfer.vehicle'))}</label><input type="text" id="goShVehicle" maxlength="80" placeholder="${esc(t('guest.transfer.vehiclePlaceholder'))}" value="${esc(line ? line.option || '' : '')}"></div>` : ''}
-            ` : (isConcierge ? `
-            <div class="go-fld-2">
-                <div class="go-fld"><label>${esc(t('guest.transfer.date'))}</label><input type="date" id="goShDate" min="${tmb.dateIso}" value="${esc(line && line.transferDate || tmb.dateIso)}"></div>
-                <div class="go-fld"><label>${esc(t('guest.transfer.time'))}</label><input type="time" id="goShTime" value="${esc(line && line.transferTime || '')}"></div>
-            </div>
-            ` : `
-            <div class="go-fld"><label>${esc(t('guest.item.preferredTime'))}</label><input type="time" id="goShTime" value="${esc(line ? line.preferredTime || '' : '')}"></div>
-            `)}
-            <button class="go-cta go-cta-block" id="goShAdd" style="margin-top:16px;" ${addDisabled ? 'disabled' : ''}>
-                <span id="goShAddLbl">${addDisabled ? t('guest.item.pickOption') : (line ? t('guest.item.updateCart') : t('guest.item.addToCart'))}</span>
-                ${pricesOn() ? `<span class="go-isheet-amt" id="goShAmt">${esc(addDisabled ? '' : (sheetUnitPrice() ? fmtPrice(sheetUnitPrice() * sheetQty) : ''))}</span>` : ''}
-            </button>
-            ${line ? `<button class="go-btn-ghost go-btn-danger" id="goShRemove" style="margin-top:10px;">${esc(t('guest.item.removeFromCart'))}</button>` : ''}`
-            : `<div class="go-unavail" style="display:block;text-align:center;padding:14px;margin-top:6px;">${esc(t('guest.services.unavailableWindow', { window: av.window }))}</div>`}
+                ${withOpts ? optPillsHtml(item, sheetOption) : ''}
+                ${withMods ? modChipsHtml(item, sheetModifiers) : ''}
+                ${maxq > 1 ? `<div class="go-isheet-qty"><span>${esc(t('guest.item.quantity'))}</span>
+                    <div class="go-step go-step-lg"><button id="goShDec" aria-label="${esc(t('guest.item.decrease'))}">${icon('minus', 18, 2.4)}</button><b id="goShQty">${sheetQty}</b><button id="goShInc" aria-label="${esc(t('guest.item.increase'))}">${icon('plus', 18, 2.4)}</button></div>
+                </div>` : ''}
+                ${whenHtml}
+                <div class="go-fsec">
+                    <div class="go-fsec-h"><b>${esc(t('guest.item.noteTitle'))}</b><span>${esc(t('common.optional'))}</span></div>
+                    <input type="text" class="go-input" id="goShNote" maxlength="160" aria-label="${esc(t('guest.item.noteTitle'))}" placeholder="${esc(t('guest.item.notePlaceholder'))}" value="${esc(line ? line.note || '' : '')}">
+                </div>`
+            : `<div class="go-cancel-reason" style="margin-top:18px"><div class="go-cancel-reason-b">${esc(t('guest.services.unavailableWindow', { window: av.window }))}</div></div>`}
         `;
+        const addDisabled = withOpts && !sheetOption;
+        $('goItemSheetFoot').innerHTML = av.available
+            ? `<button class="go-cta go-cta-block" id="goShAdd" ${addDisabled ? 'disabled' : ''}>
+                    <span id="goShAddLbl">${esc(addDisabled ? t('guest.item.pickOption') : (line ? t('guest.item.updateCart') : t('guest.item.addToCart')))}</span>
+                    <span class="go-cta-amt" id="goShAmt"></span>
+               </button>
+               ${line ? `<button class="go-btn-text danger" id="goShRemove">${esc(t('guest.item.removeFromCart'))}</button>` : ''}`
+            : `<button class="go-btn" id="goShDismiss">${esc(t('common.close'))}</button>`;
+        $('goItemSheet').setAttribute('aria-labelledby', 'goItemTitle');
         const addB = $('goShAdd');
         const upd = () => {
             const q = $('goShQty'); if (q) q.textContent = sheetQty;
-            const a = $('goShAmt');
-            // Seçenek zorunluyken ve henüz seçilmemişken tutar GÖSTERİLMEZ
-            // (seçenek fiyatı değiştirebilir), ama eleman DOM'da durur —
-            // eskiden hiç render edilmediği için seçim yapıldığında fiyat
-            // asla görünmüyordu.
-            if (a) a.textContent = (withOpts && !sheetOption) ? '' : (sheetUnitPrice() ? fmtPrice(sheetUnitPrice() * sheetQty) : '');
+            const dB = $('goShDec'); if (dB) dB.disabled = sheetQty <= 1;
+            const a = $('goShAmt'); if (!a) return;
+            // Seçenek zorunluyken ve seçilmemişken tutar gösterilmez (seçenek
+            // fiyatı değiştirebilir); eleman DOM'da durur ki seçimle görünsün.
+            const unit = sheetUnitPrice();
+            a.textContent = (pricesOn() && !(withOpts && !sheetOption) && unit) ? fmtPrice(unit * sheetQty) : '';
+            if (addB) addB.classList.toggle('has-amt', !!a.textContent);
         };
         const syncAddState = () => {
             if (!addB || !withOpts) return;
@@ -1335,36 +1328,38 @@
         if (pills) pills.onclick = e => {
             const b = e.target.closest('[data-opt]'); if (!b) return;
             sheetOption = b.dataset.opt;
-            pills.querySelectorAll('.go-opt-pill').forEach(p => p.classList.toggle('active', p.dataset.opt === sheetOption));
-            syncAddState(); upd();
+            pills.querySelectorAll('.go-opt-pill').forEach(p => { const on = p.dataset.opt === sheetOption; p.classList.toggle('active', on); p.setAttribute('aria-checked', String(on)); });
+            syncAddState();
         };
         const modPills = $('goShModPills');
         if (modPills) modPills.onclick = e => {
             const row = e.target.closest('[data-mod]'); if (!row) return;
             const name = row.dataset.mod;
             const def = modifiersOf(item).find(x => x.name === name); if (!def) return;
-            // Adetli ekstralarda − / + satır içi kontrolü; diğerlerinde satırın
-            // tamamı aç/kapa. e.target'a bakılır ki stepper'a basmak kalemi
-            // sıfırlamasın.
+            // Adetli ekstralarda − / + satır içi; diğer her yer aç/kapa.
             const dec = e.target.closest('[data-moddec]'), inc = e.target.closest('[data-modinc]');
             let q = selQty(sheetModifiers, name);
-            if (def.maxQty > 1 && (dec || inc)) {
-                q = inc ? Math.min(def.maxQty, q + 1) : Math.max(0, q - 1);
-            } else {
-                q = q > 0 ? 0 : 1;
-            }
+            if (def.maxQty > 1 && (dec || inc)) q = inc ? Math.min(def.maxQty, q + 1) : Math.max(0, q - 1);
+            else q = q > 0 ? 0 : 1;
             sheetModifiers = selList(sheetModifiers).filter(s => s.name !== name);
             if (q > 0) sheetModifiers.push({ name: name, qty: q });
-            // Sadece dokunulan satırı yeniden çiz — tüm sheet'i yeniden
-            // kurmak açık klavyeyi/kaydırma konumunu bozardı.
+            // Yalnızca dokunulan satır yeniden çizilir (klavye/kaydırma korunur).
             row.outerHTML = modRowHtml(def, q);
             upd();
+        };
+        const whenSeg = $('goShWhen');
+        if (whenSeg) whenSeg.onclick = e => {
+            const b = e.target.closest('[data-when]'); if (!b) return;
+            sheetWhen = b.dataset.when;
+            whenSeg.querySelectorAll('[data-when]').forEach(x => { const on = x.dataset.when === sheetWhen; x.classList.toggle('active', on); x.setAttribute('aria-pressed', String(on)); });
+            const wrapT = $('goShTimeWrap'); if (wrapT) wrapT.hidden = sheetWhen !== 'later';
+            // Boş saat alanı yerine en yakın yarım saat önerilir (değiştirilebilir).
+            if (sheetWhen === 'later') { const ti = $('goShTime'); if (ti && !ti.value) ti.value = transferMinBound().timeHHMM; }
         };
         const dec = $('goShDec'); if (dec) dec.onclick = () => { if (sheetQty > 1) { sheetQty--; upd(); } };
         const inc = $('goShInc'); if (inc) inc.onclick = () => { if (sheetQty >= maxq) { toast(capMsg(item), true); return; } sheetQty++; upd(); };
         // Yalnızca UX cilası — asıl "en yakın yarım saat" doğrulaması
-        // confirmItemSheet()'te yapılır. Bugünden farklı bir tarih
-        // seçildiğinde saat alanı serbest bırakılır.
+        // confirmItemSheet()'te. Bugünden farklı tarihte saat serbest kalır.
         if (isTransfer) {
             const dateEl = $('goShDate'), timeEl = $('goShTime');
             if (dateEl && timeEl) dateEl.onchange = () => { timeEl.min = dateEl.value === tmb.dateIso ? tmb.timeHHMM : ''; };
@@ -1372,16 +1367,18 @@
         if (addB) addB.onclick = () => confirmItemSheet(item);
         const rmB = $('goShRemove'); if (rmB) rmB.onclick = () => {
             cart = cart.filter(l => l.catalogId !== id);
-            saveCart(); renderCartUI(); refreshItemRow(id); closeItemSheet(); toast(t('guest.item.removed'));
+            saveCart(); renderCartUI(); refreshItemRow(id); if (currentTab === 'cart') renderCart(); closeItemSheet(); toast(t('guest.item.removed'));
         };
+        const dm = $('goShDismiss'); if (dm) dm.onclick = closeItemSheet;
         const cl = $('goItemClose'); if (cl) cl.onclick = closeItemSheet;
-        $('goItemBackdrop').classList.add('show');
-        $('goItemSheet').classList.add('show');
-        $('goItemSheet').setAttribute('aria-hidden', 'false');
+        upd();
+        const body = $('goItemSheetBody'); if (body) body.scrollTop = 0;
+        openSheet('goItemSheet', 'goItemBackdrop');
     }
     function confirmItemSheet(item) {
         if (hasOptions(item) && !sheetOption) { toast(t('guest.item.pickOptionToast'), true); return; }
         const isTransfer = isTransferItem(item);
+        const isConcierge = !isTransfer && isConciergeItem(item);
         let transferFrom = '', transferTo = '', transferDate = '', transferTime = '';
         if (isTransfer) {
             if (!hasOptions(item)) {
@@ -1403,61 +1400,58 @@
                 toast(t('guest.transfer.tooEarly', { time: b.timeHHMM, date: b.dateIso.split('-').reverse().join('.') }), true);
                 return;
             }
-        } else if (isConciergeItem(item)) {
-            // Transfer olmayan Concierge kalemi: TARİH zorunlu (hangi gün için
-            // istendiği bilinmezse kayıt bugüne düşer), saat opsiyoneldir
-            // (ör. "yarın için spa" — saat personel ile netleşebilir).
+        } else if (isConcierge) {
+            // Transfer olmayan Concierge kalemi: TARİH zorunlu, saat opsiyonel.
             transferDate = ($('goShDate') && $('goShDate').value || '').slice(0, 10);
             transferTime = ($('goShTime') && $('goShTime').value || '').slice(0, 5);
             if (!transferDate) { toast(t('guest.transfer.needDate'), true); return; }
         }
         const note = ($('goShNote') && $('goShNote').value || '').slice(0, 160);
-        // Transfer kalemlerinde preferredTime kullanılmaz (mutually exclusive
-        // — bkz. transferDate/transferTime).
-        const time = isTransfer ? '' : ($('goShTime') && $('goShTime').value || '').slice(0, 10);
+        // Transfer kalemlerinde preferredTime kullanılmaz (transferDate/Time).
+        // Normal kalemde saat yalnızca "Saat seç" işaretliyse alınır.
+        let time = '';
+        if (isConcierge) time = ($('goShTime') && $('goShTime').value || '').slice(0, 10);
+        else if (!isTransfer && sheetWhen === 'later') {
+            time = ($('goShTime') && $('goShTime').value || '').slice(0, 10);
+            if (!time) { toast(t('guest.item.pickTime'), true); return; }
+        }
         let line = cart.find(l => l.catalogId === item.id);
         if (!line) {
             if (cart.length >= MAX_DISTINCT) { toast(t('guest.item.maxDistinct', { n: MAX_DISTINCT }), true); return; }
             line = { catalogId: item.id, name: item.name, category: item.category || t('common.other'), icon: item.icon || '🛎️',
                 department: item.department || '', price: priceOf(item), maxQty: Number(item.maxQty) || 0, qty: 0, note: '', preferredTime: '', option: '',
-                // Süre sepete eklendiği ANDA damgalanır (price ile aynı gerekçe):
-                // katalog sonradan değişse bile misafire verilen söz sabit kalır.
+                // Süre sepete eklendiği ANDA damgalanır (price ile aynı gerekçe).
                 etaMin: (etaMinutes(item) || {}).min || 0, etaMax: (etaMinutes(item) || {}).max || 0,
                 transferFrom: '', transferTo: '', transferDate: '', transferTime: '' };
             cart.push(line);
         }
         line.qty = Math.min(lineMax(line), Math.max(1, sheetQty));
         line.note = note; line.preferredTime = time; line.option = sheetOption || '';
-        // Seçilen bileşenler adetleriyle birlikte saklanır; sıra katalogdaki
-        // sıradır (misafirin dokunma sırası değil) — sepet ve personel metni
-        // her zaman aynı düzende okunur.
+        // Seçilen bileşenler adetleriyle, KATALOG sırasıyla saklanır.
         line.modifiers = modifiersOf(item)
             .map(m => ({ m: m, q: selQty(sheetModifiers, m.name) }))
             .filter(x => x.q > 0)
             .map(x => ({ name: x.m.name, type: x.m.type, priceDelta: x.m.priceDelta, qty: x.q }));
         line.transferFrom = transferFrom; line.transferTo = transferTo; line.transferDate = transferDate; line.transferTime = transferTime;
-        // Seçilen seçenek/özelleştirmelerin fiyat farkı BURADA satır fiyatına
-        // gömülür (bakılan an itibarıyla) — priceOf(line) her yerde tek bir
-        // toplam birim fiyat olarak okunur, sepet/gönderim ayrıca delta
-        // hesaplamaz.
+        // Seçenek/özelleştirme farkı satır fiyatına gömülür (tek birim fiyat).
         line.price = priceOf(item) + optionDelta(item, sheetOption) + modifiersDelta(item, sheetModifiers);
         saveCart(); renderCartUI(); refreshItemRow(item.id);
         if (currentTab === 'cart') renderCart();
         closeItemSheet(); buzz(10); toast(t('guest.item.added'));
     }
     function closeItemSheet() {
-        sheetItemId = null; sheetOption = ''; sheetModifiers = [];
-        $('goItemBackdrop').classList.remove('show');
-        $('goItemSheet').classList.remove('show');
-        $('goItemSheet').setAttribute('aria-hidden', 'true');
+        sheetItemId = null; sheetOption = ''; sheetModifiers = []; sheetWhen = 'now';
+        closeSheet('goItemSheet', 'goItemBackdrop');
     }
+    // Aynı kalem hem hizmet listesinde hem ana sayfadaki "Hızlı talepler"de
+    // olabilir — tüm kopyalar birlikte güncellenir.
     function refreshItemRow(id) {
-        const row = document.querySelector(`#goItems .go-item-act[data-act="${CSS.escape(id)}"]`);
-        if (!row) return;
+        const rows = document.querySelectorAll(`.go-item-act[data-act="${CSS.escape(id)}"]`);
+        if (!rows.length) return;
         const item = catalog.find(i => i.id === id); if (!item) return;
         const av = availInfo(item);
         const line = cart.find(l => l.catalogId === id);
-        row.innerHTML = itemAction(item, av, line);
+        rows.forEach(r => { r.innerHTML = itemAction(item, av, line); });
     }
 
     // ── Cart mutations ─────────────────────────────────────────
@@ -1517,7 +1511,7 @@
         return `<div class="go-cline-breakdown">${esc(parts.join(' '))} = ${esc(fmtPrice(base + optD + modD))}</div>`;
     }
 
-    // ── Sepet ekranı + pill + badge ────────────────────────────
+    // ── Sepet ekranı + yüzen sepet çubuğu ──────────────────────
     function renderCartUI() { updateCartPill(); }
     function updateCartPill() {
         const pill = $('goCartPill'); if (!pill) return;
@@ -1526,104 +1520,98 @@
         pill.hidden = !show;
         if (show) {
             $('goPillBadge').textContent = n;
-            const tp = $('goPillTotal'); const t = cartTotal();
-            tp.style.display = (pricesOn() && t) ? '' : 'none';
-            tp.textContent = fmtPrice(t);
+            const tp = $('goPillTotal'); const tot = cartTotal();
+            tp.textContent = (pricesOn() && tot) ? fmtPrice(tot) : '';
+            pill.setAttribute('aria-label', t('guest.cart.view') + ' · ' + t('guest.cart.countLabel', { n: n }));
         }
+    }
+    // Sepet satırının ayrıntıları TEK okunur satırda: seçenek · ekstralar ·
+    // saat · not. (Eskiden her biri ayrı bir renkli çipti — kalabalıktı.)
+    function lineDetails(l) {
+        const det = [];
+        if (l.option) det.push(l.option);
+        selList(l.modifiers).forEach(sm => {
+            const def = (l.modifiers || []).find(m => m && m.name === sm.name) || { name: sm.name, type: 'extra' };
+            det.push(modLabel(normalizeModifier(def), sm.qty));
+        });
+        if (l.transferFrom || l.transferTo) det.push((l.transferFrom || '?') + ' → ' + (l.transferTo || '?'));
+        if (l.transferDate || l.transferTime) det.push([l.transferDate ? String(l.transferDate).split('-').reverse().join('.') : '', l.transferTime].filter(Boolean).join(' '));
+        else if (l.preferredTime) det.push(t('guest.cart.at', { time: l.preferredTime }));
+        if (l.note) det.push('“' + l.note + '”');
+        return det;
     }
     function renderCart() {
         const wrap = $('goCartList'), foot = $('goCartFoot'); if (!wrap) return;
         $('goCartClear').hidden = !cart.length;
         if (!cart.length) {
             foot.hidden = true;
-            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">🛒</div><h3>${esc(t('guest.cart.empty'))}</h3><p>${esc(t('guest.cart.emptyHint'))}</p><button class="go-cta" data-go="services">${esc(t('guest.cart.browse'))}</button></div>`;
-            wrap.querySelector('[data-go]').onclick = () => showTab('services');
+            wrap.innerHTML = emptyHtml('bag', t('guest.cart.empty'), t('guest.cart.emptyHint'), `<button class="go-cta" id="goCartBrowse">${esc(t('guest.cart.browse'))}</button>`);
+            $('goCartBrowse').onclick = () => openServices('');
             return;
         }
         foot.hidden = false;
-        $('goCartCountLbl').textContent = cart.length + ' talep · ' + cartCount() + ' adet';
         // DİKKAT: yerel değişken `t` OLAMAZ — global `t()` çeviri fonksiyonunu
-        // bu fonksiyonun tamamında gölgelerdi (aşağıdaki satır/grup metinleri
-        // onu çağırıyor).
-        const tt = $('goCartTotal'); const total = cartTotal();
-        tt.style.display = (pricesOn() && total) ? '' : 'none'; tt.textContent = fmtPrice(total);
-        // Sepet alt barında göreli teslim tahmini ("~20–30 dk") — sipariş
-        // henüz yok, mutlak saat verilemez.
-        const etaEl = $('goCartEta');
-        if (etaEl) { const txt = cartEtaText(); etaEl.textContent = txt; etaEl.hidden = !txt; }
-        // Sepet kartı KOMPAKT tutulur: not/tercih saati için ayrı, her zaman
-        // açık giriş alanları yerine (eski tasarım — kart başına 4 dikey blok)
-        // hepsi tek bir etiket (chip) satırında özetlenir; kart artık uçtan
-        // uca dokunulabilir ve openItemSheet()'i açar (o sheet zaten
-        // seçenek/modifier/not/saati önceden dolduruyor ve geri yazıyor —
-        // bkz. openItemSheet/confirmItemSheet). "Adet" için ayrıca salt-okunur
-        // bir kutu YOKTUR — bir satır üstteki stepper zaten aynı bilgiyi taşır.
-        // Sepet satırı. Tek-adetlik kalemlerde (maxQty=1) adet kontrolü HİÇ
-        // çizilmez — "2 kez çarşaf değişimi" anlamsız; kaldırmak için çöp
-        // kutusu zaten var.
+        // gölgeler.
+        const total = cartTotal();
+        const amt = $('goSubmitAmt');
+        if (amt) amt.textContent = (pricesOn() && total) ? fmtPrice(total) : '';
+        $('goSubmit').classList.toggle('has-amt', !!(amt && amt.textContent));
         const lineHtml = (l, i) => {
-            const chips = [];
-            if (l.option) chips.push(`<span class="go-cline-opt">${esc(l.option)}</span>`);
-            selList(l.modifiers).forEach(sm => {
-                const def = (l.modifiers || []).find(m => m && m.name === sm.name) || { name: sm.name, type: 'extra' };
-                chips.push(`<span class="go-cline-mod">${esc(modLabel(normalizeModifier(def), sm.qty))}</span>`);
-            });
-            if (l.preferredTime) chips.push(`<span class="go-cline-mod">🕒 ${esc(l.preferredTime)}</span>`);
-            // Transfer'e özel alanlar — preferredTime bu kalemlerde zaten
-            // boş kalır (mutually exclusive), o yüzden çakışma olmaz.
-            if (l.transferFrom || l.transferTo) chips.push(`<span class="go-cline-mod">${esc((l.transferFrom || '?') + ' → ' + (l.transferTo || '?'))}</span>`);
-            if (l.transferDate || l.transferTime) chips.push(`<span class="go-cline-mod">🕒 ${esc([l.transferDate ? String(l.transferDate).split('-').reverse().join('.') : '', l.transferTime].filter(Boolean).join(' '))}</span>`);
-            if (l.note) chips.push(`<span class="go-cline-mod go-cline-notechip">📝 ${esc(l.note)}</span>`);
-            const chipsHtml = chips.length ? `<div class="go-cline-chips">${chips.join('')}</div>` : '';
+            const det = lineDetails(l);
             const single = lineMax(l) === 1;
-            const qtyHtml = single
-                ? `<span class="go-cline-single">${esc(t('guest.item.singleOnly'))}</span>`
-                : stepHtml('c' + i, l.qty).replace('data-dec="c' + i + '"', 'data-cdec="' + i + '"').replace('data-inc="c' + i + '"', 'data-cinc="' + i + '"');
-            return `
-            <div class="go-cline" data-i="${i}">
-                <div class="go-cline-top">
-                    <div class="go-cline-emoji">${esc(l.icon || '🛎️')}</div>
-                    <div class="go-cline-main" data-editline="${i}">
-                        <div class="go-cline-name">${esc(l.name)}</div>
-                        <div class="go-cline-cat">${esc(l.category || '')}<span class="go-cline-editic" aria-hidden="true">✎</span></div>
-                        ${chipsHtml}
-                        ${lineBreakdownHtml(l)}
-                    </div>
-                    <button class="go-cline-del" data-del="${i}" aria-label="Sil">🗑</button>
+            const side = single
+                ? `<button class="go-cline-del" data-del="${i}" aria-label="${esc(t('guest.item.removeFromCart'))}: ${esc(l.name)}">${icon('trash', 17, 2)}</button>`
+                : `<div class="go-step"><button data-cdec="${i}" aria-label="${esc(l.qty === 1 ? t('guest.item.removeFromCart') : t('guest.item.decrease'))}">${icon(l.qty === 1 ? 'trash' : 'minus', 17, 2.2)}</button><b>${l.qty}</b><button data-cinc="${i}" aria-label="${esc(t('guest.item.increase'))}">${icon('plus', 17, 2.4)}</button></div>`;
+            return `<div class="go-cline" data-i="${i}">
+                <div class="go-item-emoji" aria-hidden="true">${esc(l.icon || '🛎️')}</div>
+                <div class="go-cline-main" data-editline="${i}" role="button" tabindex="0">
+                    <div class="go-cline-name">${esc(l.name)}</div>
+                    ${det.length ? `<div class="go-cline-det">${esc(det.join(' · '))}</div>` : ''}
+                    ${(pricesOn() && priceOf(l)) ? `<div class="go-cline-price">${esc(fmtPrice(priceOf(l) * l.qty))}</div>` : ''}
+                    ${lineBreakdownHtml(l)}
+                    <span class="go-cline-edit">${esc(t('common.edit'))}</span>
                 </div>
-                <div class="go-cline-row">
-                    ${qtyHtml}
-                    ${(pricesOn() && priceOf(l)) ? `<span class="go-cline-price">${esc(fmtPrice(priceOf(l) * l.qty))}</span>` : ''}
-                </div>
+                <div class="go-cline-side">${side}</div>
             </div>`;
         };
-        // Satırlar DEPARTMANA göre gruplanır: birden fazla departmana giden
-        // sepette neyin nereye gittiği görünür olsun (kat hizmetleri ile oda
-        // servisi aynı listede karışmasın). Tek departman varsa başlık
-        // gösterilmez — gereksiz krom.
+        // Satırlar DEPARTMANA göre gruplanır (canonicalDept eş adları birleştirir)
+        // — birden fazla departmana giden sepette neyin nereye gittiği görünür.
         const groups = [];
         cart.forEach((l, i) => {
-            // canonicalDept (js/core/firebase-config.js): eş adları tek başlığa
-            // indirger — "Housekeeping" ve "Kat Hizmetleri" sepette iki ayrı
-            // grup olarak görünmesin (geçiş dönemi verisi).
             const raw = String(l.department || l.category || '').trim();
-            const key = (raw && typeof canonicalDept === 'function' ? canonicalDept(raw) : raw) || t('common.other');
+            // Bilinen departmanlar ana sayfadaki adla ve AKTİF DİLDE başlık olur;
+            // bilinmeyenler (otelin özel departmanı) olduğu gibi.
+            const kk = deptKindKey(deptOf(l));
+            const key = (kk && DEPT_KIND_DEFS[kk]) ? DEPT_KIND_DEFS[kk].label
+                : ((raw && typeof canonicalDept === 'function' ? canonicalDept(raw) : raw) || t('common.other'));
             let g = groups.find(x => x.key === key);
             if (!g) { g = { key: key, rows: [] }; groups.push(g); }
             g.rows.push(lineHtml(l, i));
         });
-        wrap.innerHTML = groups.length === 1
-            ? groups[0].rows.join('')
-            : groups.map(g => `<div class="go-cart-grp">${esc(g.key)}</div>` + g.rows.join('')).join('');
-        wrap.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { cart.splice(+b.dataset.del, 1); saveCart(); renderCartUI(); renderCart(); refreshAllItemRows(); });
-        wrap.querySelectorAll('[data-cinc]').forEach(b => b.onclick = () => bumpLine(+b.dataset.cinc, +1));
-        wrap.querySelectorAll('[data-cdec]').forEach(b => b.onclick = () => bumpLine(+b.dataset.cdec, -1));
-        // Kartın tamamına (isim/kategori/etiketler alanı) dokununca o kalemin
-        // ürün detay sheet'i açılır — seçenek/modifier/not/saat değiştirmek
-        // için sepetten ayrı bir yere gitmeye gerek kalmaz.
-        wrap.querySelectorAll('[data-editline]').forEach(el => el.onclick = () => {
-            const l = cart[+el.dataset.editline]; if (l) openItemSheet(l.catalogId);
-        });
+        const lines = groups.length === 1
+            ? `<div class="go-listcard">${groups[0].rows.join('')}</div>`
+            : groups.map(g => `<div class="go-caption">${esc(g.key)}</div><div class="go-listcard">${g.rows.join('')}</div>`).join('');
+        const eta = cartEtaText();
+        const sumRow = (tl, val, cls) => `<div class="go-row ${cls || ''}"><span class="go-row-main"><span class="go-row-tl">${esc(tl)}</span></span><span class="go-row-val go-num">${esc(val)}</span></div>`;
+        const summary = `<div class="go-listcard go-summary">
+                ${ROOM ? sumRow(t('guest.cart.deliverTo'), t('guest.home.room', { room: ROOM })) : ''}
+                ${eta ? sumRow(t('guest.cart.etaLabel'), eta) : ''}
+                ${(pricesOn() && total) ? sumRow(t('guest.cart.total'), fmtPrice(total), 'total') : ''}
+            </div>
+            <p class="go-cart-note">${esc(t('guest.cart.note'))}</p>`;
+        wrap.innerHTML = lines + summary;
+        wrap.onclick = e => {
+            const del = e.target.closest('[data-del]'); if (del) { cart.splice(+del.dataset.del, 1); saveCart(); renderCartUI(); renderCart(); refreshAllItemRows(); return; }
+            const ci = e.target.closest('[data-cinc]'); if (ci) return bumpLine(+ci.dataset.cinc, +1);
+            const cd = e.target.closest('[data-cdec]'); if (cd) return bumpLine(+cd.dataset.cdec, -1);
+            // Satırın gövdesine dokunma → o kalemin detayı (seçenek/not/saat).
+            const ed = e.target.closest('[data-editline]'); if (ed) { const l = cart[+ed.dataset.editline]; if (l) openItemSheet(l.catalogId); }
+        };
+        wrap.onkeydown = e => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const ed = e.target.closest('[data-editline]'); if (!ed) return;
+            e.preventDefault(); const l = cart[+ed.dataset.editline]; if (l) openItemSheet(l.catalogId);
+        };
     }
     function bumpLine(i, delta) {
         const l = cart[i]; if (!l) return;
@@ -1633,7 +1621,8 @@
         saveCart(); renderCartUI(); refreshAllItemRows();
         renderCart();
     }
-    function refreshAllItemRows() { if (currentTab === 'services') (catalog || []).forEach(it => refreshItemRow(it.id)); }
+    function refreshAllItemRows() { (catalog || []).forEach(it => refreshItemRow(it.id)); }
+
 
     // ════════════════════════════════════════════════════════════
     //  GÖNDERİM
@@ -1804,7 +1793,7 @@
         const o = nearestActive();
         const st = STATUS[o.status] || STATUS.pending;
         const names = (o.items || []).map(it => it.name).join(', ');
-        const title = names.length > 30 ? names.slice(0, 29) + '…' : (names || ((o.items || []).length + ' talep'));
+        const title = names.length > 30 ? names.slice(0, 29) + '…' : (names || t('guest.cart.countLabel', { n: (o.items || []).length }));
         const w = orderEta(o);
         const sub = w ? fmtWindow(w) + ' · ' + etaRemainText(w) : relTime(tsMs(o));
         $('goLiveBar').dataset.track = o.id;
@@ -1864,49 +1853,53 @@
         $('goTrack').classList.add('go-hidden');
         $('goOrders').classList.remove('go-hidden');
         $('goTrackBack').hidden = true;
-        $('goOrdersTitle').textContent = 'Taleplerim';
+        $('goOrdersBar').classList.add('is-root');
+        $('goOrdersTitle').textContent = t('guest.nav.orders');
         const wrap = $('goOrders');
         if (!myOrders.length) {
-            wrap.innerHTML = `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>${esc(t('guest.track.none'))}</h3><p>${esc(t('guest.track.noneHint'))}</p><button class="go-cta" data-go="services">${esc(t('guest.track.create'))}</button></div>`;
-            wrap.querySelector('[data-go]').onclick = () => showTab('services');
+            wrap.innerHTML = emptyHtml('list', t('guest.track.none'), t('guest.track.noneHint'), `<button class="go-cta" id="goOrdersCreate">${esc(t('guest.track.create'))}</button>`);
+            $('goOrdersCreate').onclick = () => openServices('');
             return;
         }
         // Concierge talepleri ayrı sekmede — hiç concierge siparişi yoksa
-        // sekme çubuğu hiç görünmez (mevcut davranış birebir korunur).
+        // sekme kontrolü hiç görünmez.
         const anyCon = myOrders.some(orderHasConcierge);
         let tabsHtml = '';
         let list = myOrders;
         if (anyCon) {
-            if (ordersTab === 'con') list = myOrders.filter(orderHasConcierge);
-            else list = myOrders.filter(o => orderHasNormal(o) || !orderHasConcierge(o));
-            const nReq = myOrders.filter(o => orderHasNormal(o) || !orderHasConcierge(o)).length;
-            const nCon = myOrders.filter(orderHasConcierge).length;
-            tabsHtml = `<div class="go-otabs">
-                <button class="go-otab ${ordersTab === 'req' ? 'active' : ''}" data-otab="req">Talepler<i>${nReq}</i></button>
-                <button class="go-otab ${ordersTab === 'con' ? 'active' : ''}" data-otab="con">🛎️ Concierge<i>${nCon}</i></button>
+            const reqList = myOrders.filter(o => orderHasNormal(o) || !orderHasConcierge(o));
+            const conList = myOrders.filter(orderHasConcierge);
+            list = ordersTab === 'con' ? conList : reqList;
+            tabsHtml = `<div class="go-seg go-segtabs" role="tablist">
+                <button role="tab" aria-selected="${ordersTab === 'req'}" class="${ordersTab === 'req' ? 'active' : ''}" data-otab="req">${esc(t('guest.track.tabRequests'))} · ${reqList.length}</button>
+                <button role="tab" aria-selected="${ordersTab === 'con'}" class="${ordersTab === 'con' ? 'active' : ''}" data-otab="con">${esc(t('guest.track.tabConcierge'))} · ${conList.length}</button>
             </div>`;
-            if (!list.length) {
-                wrap.innerHTML = tabsHtml + `<div class="go-empty"><div class="go-empty-ic">📋</div><h3>${esc(t('guest.track.noneInTab'))}</h3></div>`;
-                wrap.querySelectorAll('[data-otab]').forEach(b => b.onclick = () => { ordersTab = b.dataset.otab; showOrderList(); });
-                return;
-            }
         }
-        wrap.innerHTML = tabsHtml + list.map(o => {
+        const isOpen = o => o.status !== 'completed' && o.status !== 'cancelled';
+        const card = o => {
             const st = STATUS[o.status] || STATUS.pending;
-            const names = (o.items || []).map(it => it.name).join(', ');
+            const names = (o.items || []).map(it => it.name).join(', ') || t('guest.cart.countLabel', { n: (o.items || []).length });
             const when = relTime(tsMs(o));
+            const w = isOpen(o) ? orderEta(o) : null;
             return `<button class="go-ocard" data-open="${esc(o.id)}">
-                <span class="go-ocard-ic go-st-${esc(o.status)}" style="background:transparent">${esc(st.emoji)}</span>
+                <span class="go-stic go-st-${esc(o.status)}">${statusIcon(o.status, 20)}</span>
                 <span class="go-ocard-main">
-                    <span class="go-ocard-tl">${(o.items || []).length} talep · <span class="go-statepill go-st-${esc(o.status)}">${esc(st.label)}</span></span>
-                    <span class="go-ocard-sub">${esc(names)}${when ? ' · ' + esc(when) : ''}</span>
+                    <span class="go-ocard-tl">${esc(names)}</span>
+                    <span class="go-ocard-sub"><span class="go-statepill go-st-${esc(o.status)}">${esc(st.label)}</span>${when ? `<span>${esc(when)}</span>` : ''}</span>
+                    ${w ? `<span class="go-ocard-eta">${esc(etaLabelText(w, 'guest.eta.order'))}</span>` : ''}
                 </span>
-                <span class="go-ocard-chev">${svg('<polyline points="9 18 15 12 9 6"/>', 20)}</span>
+                <span class="go-chev">${icon('chev', 18)}</span>
             </button>`;
-        }).join('');
+        };
+        const act = list.filter(isOpen), past = list.filter(o => !isOpen(o));
+        let body = '';
+        if (act.length) body += `<div class="go-caption">${esc(t('guest.track.activeTitle'))}</div><div class="go-listcard">${act.map(card).join('')}</div>`;
+        if (past.length) body += `<div class="go-caption">${esc(t('guest.track.pastTitle'))}</div><div class="go-listcard">${past.map(card).join('')}</div>`;
+        if (!body) body = emptyHtml('list', t('guest.track.noneInTab'), '');
+        wrap.innerHTML = tabsHtml + body;
         wrap.onclick = e => {
-            const t = e.target.closest('[data-otab]');
-            if (t) { ordersTab = t.dataset.otab; showOrderList(); return; }
+            const tb = e.target.closest('[data-otab]');
+            if (tb) { ordersTab = tb.dataset.otab; showOrderList(); return; }
             const b = e.target.closest('[data-open]'); if (b) openTracking(b.dataset.open);
         };
     }
@@ -1918,111 +1911,107 @@
         $('goOrders').classList.add('go-hidden');
         $('goTrack').classList.remove('go-hidden');
         $('goTrackBack').hidden = false;
-        $('goOrdersTitle').textContent = 'Talep Takibi';
+        $('goOrdersBar').classList.remove('is-root');
+        $('goOrdersTitle').textContent = t('guest.track.title');
         renderTracking();
         $('goTrack').scrollTop = 0;
     }
     function currentTracked() { return myOrders.find(o => o.id === trackingId) || null; }
-    // Kalem hâlâ 'pending' (personel henüz üstlenmedi) olduğu sürece misafir
-    // o kalemi düzenleyebilir/iptal edebilir — sunucuda updateGuestOrderItem/
-    // cancelGuestOrderItem AYNI şartı (item.status + guestLogs durumu) tekrar
-    // kontrol eder (bkz. functions/index.js), burası yalnızca UI kapısı.
+    // Kalem hâlâ 'pending'/'confirmed' (personel henüz üstlenmedi) olduğu
+    // sürece misafir düzenleyebilir/iptal edebilir — sunucu
+    // (updateGuestOrderItem/cancelGuestOrderItem) aynı şartı tekrar kontrol
+    // eder; burası yalnızca arayüz kapısı.
     let trackEditItemId = null, trackEditQty = 1;
     function renderTracking() {
         const o = currentTracked(); const wrap = $('goTrack'); if (!wrap) return;
         if (!o) { showOrderList(); return; }
         const st = STATUS[o.status] || STATUS.pending;
         const cancelled = o.status === 'cancelled';
+        const finished = cancelled || o.status === 'completed';
         const stepIdx = FLOW.indexOf(o.status);
         const showP = !!o.showPrices && Number(o.total) > 0;
         const cur = o.currency || '₺';
         const money = n => cur + Number(n || 0).toLocaleString('tr-TR');
-        const steps = cancelled ? '' : `<div class="go-steps">${FLOW.map((s, i) => {
+        const w = finished ? null : orderEta(o);
+        const etaHtml = w ? `<div class="go-trk-eta" role="status">
+                <small>${esc(t(w.scheduled ? 'guest.eta.scheduledTitle' : 'guest.eta.title'))}</small>
+                <strong>${esc(fmtWindow(w))}</strong>
+                <span>${esc(etaRemainText(w))}</span>
+            </div>` : '';
+        const steps = cancelled ? '' : `<div class="go-trk-steps" aria-label="${esc(st.label)}">${FLOW.map((s, i) => {
             const cls = i < stepIdx ? 'done' : (i === stepIdx ? 'active' : '');
             const log = (o.statusLog || []).filter(l => l.status === s).pop();
             const tm = log ? clock(log.at) : '';
-            return `<div class="go-stp ${cls}"><div class="go-stp-dot">${i < stepIdx ? '✓' : (i + 1)}</div>
-                <div class="go-stp-body"><div class="go-stp-tl">${esc(STATUS[s].label)}</div>${tm ? `<div class="go-stp-tm">${esc(tm)}</div>` : ''}</div></div>`;
+            return `<div class="go-trk-step ${cls}"><i></i><b>${esc(STATUS[s].label)}</b>${tm ? `<span>${esc(tm)}</span>` : ''}</div>`;
         }).join('')}</div>`;
+        const metaRow = (tl, val) => `<div class="go-row"><span class="go-row-main"><span class="go-row-tl">${esc(tl)}</span></span><span class="go-row-val go-num">${esc(val)}</span></div>`;
+        const meta = `<div class="go-listcard go-trk-meta">
+                ${o.room ? metaRow(t('guest.track.metaRoom'), o.room) : ''}
+                ${metaRow(t('guest.track.metaCreated'), [relTime(tsMs(o)), clock(tsMs(o))].filter(Boolean).join(' · '))}
+                ${showP ? metaRow(t('guest.track.metaTotal'), money(o.total)) : ''}
+            </div>`;
         const items = (o.items || []).map(it => {
             const ist = STATUS[it.status] || STATUS.pending;
-            // Transfer kalemleri: Nereden→Nereye + tarih/saat ayrı gösterilir;
-            // preferredTime bu kalemlerde zaten boş kalır (mutually exclusive
-            // — bkz. Transfer alanları), o yüzden yalnızca transfer bilgisi
-            // YOKSA gösterilir.
             const transferMeta = (it.transferFrom || it.transferTo) ? (it.transferFrom || '?') + ' → ' + (it.transferTo || '?') : '';
             const transferWhen = (it.transferDate || it.transferTime)
                 ? [it.transferDate ? String(it.transferDate).split('-').reverse().join('.') : '', it.transferTime].filter(Boolean).join(' ') : '';
-            const bits = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', transferMeta, transferWhen,
-                (!transferWhen && it.preferredTime) ? '🕐 ' + it.preferredTime : '', it.note];
+            const bits = [it.option || '', it.qty > 1 ? t('guest.track.qty', { n: it.qty }) : '', transferMeta, transferWhen,
+                (!transferWhen && it.preferredTime) ? t('guest.cart.at', { time: it.preferredTime }) : '', it.note ? '“' + it.note + '”' : ''];
             if (Array.isArray(it.modifiers) && it.modifiers.length) bits.push(it.modifiers.map(m => modLabel(normalizeModifier(m), Number(m.qty) || 1)).join(', '));
             if (showP && Number(it.price) > 0) bits.push(money(Number(it.price) * (it.qty || 1)));
-            const meta = bits.filter(Boolean).join(' · ');
-            // Tahmini teslim: tamamlandıysa gerçek saat, iptalse hiç, aksi
-            // halde kayan EDT penceresi (bkz. etaWindow/slideWindow).
+            const metaTxt = bits.filter(Boolean).join(' · ');
+            // Tahmini teslim: tamamlandıysa gerçek saat, iptalse yok, aksi
+            // halde kayan/planlı EDT penceresi.
             const ie = itemEta(o, it);
-            const etaHtml = !ie ? ''
+            const itemEtaHtml = !ie ? ''
                 : (ie.done
                     ? `<div class="go-titem-eta done">${esc(ie.at ? t('guest.eta.deliveredAt', { time: clock(ie.at) }) : t('guest.eta.delivered'))}</div>`
                     : `<div class="go-titem-eta">${esc(etaLabelText(ie, 'guest.eta.item'))}</div>`);
-            // Düzenleme/iptal, personel işi ÜSTLENENE kadar açık: kalem
-            // 'pending' ya da 'confirmed' iken. Asıl operasyonel güvence
-            // sunucudaki canCancelItem() (bağlı guestLogs hâlâ 'Following' mi)
-            // — burası yalnızca arayüz kapısı, onunla aynı sınırı çizer.
             const editable = (it.status || 'pending') === 'pending' || it.status === 'confirmed';
             const canAct = !DEMO && !cancelled && editable;
-            if (canAct && trackEditItemId === it.id) {
-                return `<div class="go-titem go-titem-editing">
-                    <div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>
-                    <div class="go-titem-main" style="width:100%;">
-                        <div class="go-titem-name">${esc(it.name)}</div>
-                        ${lineMax(it) > 1 ? `<div class="go-fld-2" style="margin-top:8px;">
-                            <div class="go-fld"><label>${esc(t('guest.item.quantity'))}</label><div class="go-step"><button id="goTEDec">−</button><b id="goTEQty">${trackEditQty}</b><button id="goTEInc">+</button></div></div>
-                        </div>` : ''}
-                        <div class="go-fld" style="margin-top:8px;"><label>Not</label><input type="text" id="goTENote" maxlength="160" value="${esc(it.note || '')}"></div>
-                        <div class="go-track-btns" style="margin-top:10px;">
-                            <button class="go-btn-ghost" id="goTECancel">${esc(t('common.cancel'))}</button>
-                            <button class="go-cta" id="goTESave">Kaydet</button>
-                        </div>
-                    </div>
-                </div>`;
-            }
-            return `<div class="go-titem"><div class="go-titem-emoji">${esc(it.icon || '🛎️')}</div>
-                <div class="go-titem-main"><div class="go-titem-name">${esc(it.name)}</div>${meta ? `<div class="go-titem-meta">${esc(meta)}</div>` : ''}
-                ${etaHtml}
-                ${it.status === 'cancelled' && it.cancelReason ? `<div class="go-titem-cancel-reason">${esc(it.cancelReason)}</div>` : ''}
-                ${canAct ? `<div class="go-titem-acts"><button class="go-titem-act" data-item-edit="${esc(it.id)}">${esc(t('common.edit'))}</button><button class="go-titem-act danger" data-item-cancel="${esc(it.id)}">${esc(t('guest.track.cancelItem'))}</button></div>` : ''}</div>
-                <span class="go-statepill go-st-${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>`;
+            const editing = canAct && trackEditItemId === it.id;
+            const editHtml = editing ? `<div class="go-titem-edit">
+                    ${lineMax(it) > 1 ? `<div class="go-titem-edit-qty"><span>${esc(t('guest.item.quantity'))}</span><div class="go-step"><button id="goTEDec" aria-label="${esc(t('guest.item.decrease'))}">${icon('minus', 17, 2.4)}</button><b id="goTEQty">${trackEditQty}</b><button id="goTEInc" aria-label="${esc(t('guest.item.increase'))}">${icon('plus', 17, 2.4)}</button></div></div>` : ''}
+                    <div class="go-fld"><label for="goTENote">${esc(t('guest.item.noteTitle'))}</label><input type="text" id="goTENote" maxlength="160" value="${esc(it.note || '')}"></div>
+                    <div class="go-titem-edit-acts"><button class="go-btn" id="goTECancel">${esc(t('common.dismiss'))}</button><button class="go-cta" id="goTESave">${esc(t('common.save'))}</button></div>
+                </div>` : '';
+            return `<div class="go-titem">
+                <div class="go-item-emoji" aria-hidden="true">${esc(it.icon || '🛎️')}</div>
+                <div class="go-titem-main">
+                    <div class="go-titem-top"><div class="go-titem-name">${esc(it.name)}</div><span class="go-statepill go-st-${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>
+                    ${metaTxt ? `<div class="go-titem-meta">${esc(metaTxt)}</div>` : ''}
+                    ${itemEtaHtml}
+                    ${it.status === 'cancelled' && it.cancelReason ? `<div class="go-titem-cancel-reason">${esc(it.cancelReason)}</div>` : ''}
+                    ${canAct && !editing ? `<div class="go-titem-acts"><button class="go-titem-act" data-item-edit="${esc(it.id)}">${esc(t('common.edit'))}</button><button class="go-titem-act danger" data-item-cancel="${esc(it.id)}">${esc(t('guest.track.cancelItem'))}</button></div>` : ''}
+                    ${editHtml}
+                </div>
+            </div>`;
         }).join('');
         wrap.innerHTML = `
-            <div class="go-track-hero">
-                <div class="go-track-emoji">${esc(st.emoji)}</div>
-                <h2>${esc(st.label)}</h2>
-                <p>${esc(st.sub)}</p>
-                <div class="go-track-meta">
-                    ${o.room ? `<span class="go-track-tag">Oda ${esc(o.room)}</span>` : ''}
-                    <span class="go-track-tag">${(o.items || []).length} talep</span>
-                    ${showP ? `<span class="go-track-tag">Toplam ${esc(money(o.total))}</span>` : ''}
-                </div>
-                ${(() => { const w = orderEta(o); return w ? `<div class="go-track-eta">${esc(etaLabelText(w, 'guest.eta.order'))}<span>${esc(etaRemainText(w))}</span></div>` : ''; })()}
+            <div class="go-trk-head">
+                <span class="go-stic go-st-${esc(o.status)}">${statusIcon(o.status, 24)}</span>
+                <div><h2>${esc(st.label)}</h2><p>${esc(st.sub)}</p></div>
             </div>
+            ${etaHtml}
             ${cancelled && o.cancelReason ? `<div class="go-cancel-reason">
-                <div class="go-cancel-reason-h">İptal Nedeni</div>
+                <div class="go-cancel-reason-h">${esc(t('guest.track.cancelReason'))}</div>
                 <div class="go-cancel-reason-b">${esc(o.cancelReason)}</div>
             </div>` : ''}
             ${steps}
-            <div class="go-track-sec">Talepleriniz</div>
-            ${items}
-            <div class="go-track-btns">
-                ${(o.status === 'pending' || o.status === 'confirmed') ? `<button class="go-btn-ghost go-btn-danger" id="goCancelBtn">${esc(t('guest.track.cancelOrder'))}</button>` : ''}
-                <button class="go-btn-ghost" id="goNewBtn">${esc(t('guest.track.createNew'))}</button>
+            <div class="go-caption">${esc(t('guest.track.itemsTitle', { n: (o.items || []).length }))}</div>
+            <div class="go-listcard">${items}</div>
+            ${meta}
+            <div class="go-btns">
+                <button class="go-btn" id="goNewBtn">${icon('plus', 18, 2.2)}${esc(t('guest.track.createNew'))}</button>
+                ${(o.status === 'pending' || o.status === 'confirmed') ? `<button class="go-btn-text danger" id="goCancelBtn">${esc(t('guest.track.cancelOrder'))}</button>` : ''}
             </div>`;
         const cb = $('goCancelBtn'); if (cb) cb.onclick = () => cancelOrder(o.id);
-        $('goNewBtn').onclick = () => showTab('services');
+        $('goNewBtn').onclick = () => openServices('');
         wrap.querySelectorAll('[data-item-edit]').forEach(b => b.onclick = () => {
             const it = (o.items || []).find(x => x.id === b.dataset.itemEdit); if (!it) return;
             trackEditItemId = it.id; trackEditQty = Math.max(1, it.qty || 1);
             renderTracking();
+            const n = $('goTENote'); if (n) { try { n.focus(); } catch (e) {} }
         });
         wrap.querySelectorAll('[data-item-cancel]').forEach(b => b.onclick = () => cancelOrderItem(o.id, b.dataset.itemCancel));
         const teDec = $('goTEDec'), teInc = $('goTEInc'), teQty = $('goTEQty');
@@ -2034,7 +2023,7 @@
     async function saveTrackItemEdit(orderId, itemId) {
         if (!fns) { toast(t('common.noConnection'), true); return; }
         const note = ($('goTENote') && $('goTENote').value || '').slice(0, 160);
-        const btn = $('goTESave'); if (btn) { btn.disabled = true; btn.textContent = 'Kaydediliyor…'; }
+        const btn = $('goTESave'); if (btn) { btn.disabled = true; btn.textContent = t('common.saving'); }
         try {
             const res = await fns.httpsCallable('updateGuestOrderItem')({ orderId, itemId, patch: { qty: trackEditQty, note } });
             if (!res || !res.data || !res.data.ok) throw new Error('fail');
@@ -2042,11 +2031,12 @@
         } catch (e) {
             console.error('update item failed', e);
             toast(t('guest.track.updateFailedTaken'), true);
-            if (btn) { btn.disabled = false; btn.textContent = 'Kaydet'; }
+            if (btn) { btn.disabled = false; btn.textContent = t('common.save'); }
         }
     }
     async function cancelOrderItem(orderId, itemId) {
-        if (!confirm(t('guest.track.confirmCancelItem'))) return;
+        const ok = await confirmSheet({ title: t('guest.track.cancelItemTitle'), message: t('guest.track.confirmCancelItem'), confirmText: t('guest.track.cancelItem'), danger: true });
+        if (!ok) return;
         if (!fns) { toast(t('common.noConnection'), true); return; }
         try {
             const res = await fns.httpsCallable('cancelGuestOrderItem')({ orderId, itemId });
@@ -2057,15 +2047,13 @@
             toast(t('guest.track.cancelFailedTaken'), true);
         }
     }
-    function cancelOrder(id) {
-        if (!confirm(t('guest.track.confirmCancelOrder'))) return;
+    async function cancelOrder(id) {
+        const ok = await confirmSheet({ title: t('guest.track.cancelOrderTitle'), message: t('guest.track.confirmCancelOrder'), confirmText: t('guest.track.cancelOrder'), danger: true });
+        if (!ok) return;
         if (DEMO) { const o = loadDemoOrder(id); if (o) { o.cancelled = true; saveDemoOrder(o); } if (demoTimer) { clearInterval(demoTimer); } loadDemoOrders(); return; }
         if (!fns) { toast(t('common.noConnection'), true); return; }
-        // Eskiden çıplak bir client .update({status:'cancelled'}) idi — hiçbir
-        // bağlı guestLogs/reservations dokümanına dokunmuyordu (misafir
-        // iptal etti gibi görünüyordu ama personel Concierge panelinde
-        // hiç haberdar olmuyordu). Artık tek transaction'da bağlı tüm
-        // dokümanları senkronize eden Cloud Function'ı çağırıyor.
+        // Bağlı guestLogs/reservations dokümanlarını tek transaction'da
+        // senkronize eden Cloud Function (çıplak client update DEĞİL).
         fns.httpsCallable('cancelGuestOrder')({ orderId: id })
             .then(res => { if (!res || !res.data || !res.data.ok) throw new Error('fail'); toast(t('guest.track.orderCancelled')); })
             .catch(err => { console.error(err); toast(t('guest.track.cancelFailed'), true); });
@@ -2108,7 +2096,7 @@
         if (!byRaw || !isFinite(birthYear) || birthYear < 1900 || birthYear > thisYear) { setErr(t('guest.gate.needBirthYear')); return; }
         setErr('');
         const btn = $('goGateBtn'), lbl = $('goGateBtnLabel');
-        btn.disabled = true; lbl.textContent = 'Kontrol ediliyor…';
+        btn.disabled = true; lbl.textContent = t('guest.gate.checking');
         const fail = m => { btn.disabled = false; lbl.textContent = t('guest.gate.submit'); setErr(m); buzz(70); };
         // room ARTIK istemciden gelmiyor — sunucu (verifyGuestIdentity),
         // soyad+doğum yılını guestDirectory ile eşleştirip misafirin GERÇEK
@@ -2160,30 +2148,33 @@
     function infoRow(ic, label, value, opts) {
         opts = opts || {}; const val = String(value == null ? '' : value).trim(); if (!val) return '';
         let act = '';
-        if (opts.tel) act = `<a class="go-inforow-act" href="tel:${esc(opts.tel)}">Ara</a>`;
-        else if (opts.map) act = `<a class="go-inforow-act" href="https://maps.google.com/?q=${encodeURIComponent(opts.map)}" target="_blank" rel="noopener">Harita</a>`;
-        else if (opts.copy) act = `<button class="go-inforow-act" data-copy="${esc(opts.copy)}">${esc(t('guest.info.copy'))}</button>`;
-        return `<div class="go-inforow"><span class="go-inforow-ic">${svg(INFO_ICONS[ic] || INFO_ICONS.pin, 22)}</span>
-            <div class="go-inforow-tx"><div class="go-inforow-lbl">${esc(label)}</div><div class="go-inforow-val">${esc(val)}</div></div>${act}</div>`;
+        if (opts.tel) act = `<a class="go-row-act" href="tel:${esc(opts.tel)}">${esc(t('guest.info.call'))}</a>`;
+        else if (opts.map) act = `<a class="go-row-act" href="https://maps.google.com/?q=${encodeURIComponent(opts.map)}" target="_blank" rel="noopener">${esc(t('guest.info.map'))}</a>`;
+        else if (opts.copy) act = `<button class="go-row-act" data-copy="${esc(opts.copy)}">${esc(t('guest.info.copy'))}</button>`;
+        return `<div class="go-row"><span class="go-row-ic">${svg(INFO_ICONS[ic] || INFO_ICONS.pin, 18)}</span>
+            <span class="go-row-main"><span class="go-row-sub">${esc(label)}</span><span class="go-row-val">${esc(val)}</span></span>${act}</div>`;
     }
     function openInfo() {
         const body = $('goInfoBody');
-        const hname = (config.hotelName && config.hotelName.trim()) || prettyTenant(TENANT);
+        const welcome = String(config.welcome || '').trim();
         const rows = [
-            infoRow('phone', t('guest.info.reception'), config.phone, { tel: (config.phone || '').replace(/[^0-9+]/g, '') }),
+            infoRow('phone', t('guest.info.reception'), config.phone, { tel: phoneDigits() }),
             infoRow('wifi', t('guest.info.wifiName'), config.wifiName, { copy: config.wifiName }),
             infoRow('wifi', t('guest.info.wifiPass'), config.wifiPass, { copy: config.wifiPass }),
             infoRow('clock', t('guest.info.checkout'), config.checkoutTime),
             infoRow('coffee', t('guest.info.breakfast'), config.breakfast),
             infoRow('pin', t('guest.info.address'), config.address, { map: config.address })
         ].filter(Boolean).join('');
-        body.innerHTML = `<div class="go-info-hero"><h3>${esc(hname)}</h3>${config.welcome && config.welcome.trim() ? `<p>${esc(config.welcome.trim())}</p>` : ''}</div>${rows || `<div class="go-empty"><div class="go-empty-ic">ℹ️</div><h3>${esc(t('guest.info.none'))}</h3><p>${esc(t('guest.info.noneHint'))}</p></div>`}`;
-        body.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { try { navigator.clipboard.writeText(b.dataset.copy); toast(t('common.copied')); } catch (e) {} });
-        $('goInfoBackdrop').classList.add('show');
-        $('goInfoSheet').classList.add('show');
-        $('goInfoSheet').setAttribute('aria-hidden', 'false');
+        body.innerHTML = `<div class="go-info-hero"><h3>${esc(hotelName())}</h3>${welcome ? `<p>${esc(welcome)}</p>` : ''}</div>`
+            + (rows ? `<div class="go-listcard">${rows}</div>` : emptyHtml('info', t('guest.info.none'), t('guest.info.noneHint')));
+        body.onclick = e => {
+            const b = e.target.closest('[data-copy]'); if (!b) return;
+            try { navigator.clipboard.writeText(b.dataset.copy); toast(t('common.copied')); } catch (err) {}
+        };
+        openSheet('goInfoSheet', 'goInfoBackdrop');
     }
-    function closeInfo() { $('goInfoBackdrop').classList.remove('show'); $('goInfoSheet').classList.remove('show'); $('goInfoSheet').setAttribute('aria-hidden', 'true'); }
+    function closeInfo() { closeSheet('goInfoSheet', 'goInfoBackdrop'); }
+
 
     // ════════════════════════════════════════════════════════════
     //  DEMO backend
@@ -2217,28 +2208,30 @@
     //  WIRING
     // ════════════════════════════════════════════════════════════
     function wireShell() {
-        // "Profil" (alt nav + üst avatar) artık ayrı bir sekme değil — Konaklama
-        // sheet'ini açar (giriş/çıkış, Oda Hesabım, rezervasyonlar zaten orada).
-        document.querySelectorAll('.go-nav-b').forEach(b => b.onclick = () => { if (b.dataset.go === 'profile') openStay(); else showTab(b.dataset.go); });
+        document.querySelectorAll('.go-nav-b').forEach(b => b.onclick = () => showTab(b.dataset.go));
         // Dil düğmesi (ana ekran üst çubuğu). İki dil olduğu için tek dokunuş
-        // diğerine geçirir; etiket HEDEF dili gösterir ki misafir ne olacağını
-        // önceden bilsin.
+        // diğerine geçirir; etiket HEDEF dili gösterir.
         const lgb = $('goLangBtn');
         if (lgb) {
             const other = I18n.lang() === 'tr' ? 'en' : 'tr';
             lgb.textContent = other === 'en' ? 'EN' : 'TR';
             lgb.onclick = () => I18n.setLang(other);
         }
-        document.querySelectorAll('[data-go]').forEach(el => { if (!el.classList.contains('go-nav-b')) el.addEventListener('click', () => showTab(el.dataset.go)); });
         $('goCartPill').onclick = () => showTab('cart');
         const lb = $('goLiveBar'); if (lb) lb.onclick = () => { const id = lb.dataset.track; if (id) openTracking(id); };
         const ibk = $('goItemBackdrop'); if (ibk) ibk.onclick = closeItemSheet;
         $('goBell').onclick = () => showTab('orders');
-        const av = $('goAvatar'); if (av) av.onclick = openStay;
+        const hs = $('goHomeSearch'); if (hs) hs.onclick = () => openServices('', true);
+        const sa = $('goSeeAll'); if (sa) sa.onclick = () => openServices('');
         const sb = $('goServicesBack'); if (sb) sb.onclick = () => showTab('home');
-        const cbk = $('goCartBack'); if (cbk) cbk.onclick = () => showTab('home');
+        const cbk = $('goCartBack'); if (cbk) cbk.onclick = () => showTab(activeDept || searchTerm ? 'services' : 'home');
         $('goTrackBack').onclick = showOrderList;
-        $('goCartClear').onclick = () => { if (cart.length && confirm('Sepeti temizlemek istiyor musunuz?')) { cart = []; saveCart(); renderCartUI(); renderCart(); refreshAllItemRows(); } };
+        $('goCartClear').onclick = async () => {
+            if (!cart.length) return;
+            const ok = await confirmSheet({ title: t('guest.cart.clearTitle'), message: t('guest.cart.clearConfirm'), confirmText: t('guest.cart.clear'), danger: true });
+            if (!ok) return;
+            cart = []; saveCart(); renderCartUI(); renderCart(); refreshAllItemRows();
+        };
         $('goSubmit').onclick = submitOrder;
         $('goGateBtn').onclick = doVerify;
         $('goGateBackdrop').onclick = () => { if (isVerified()) closeGate(); };
@@ -2248,21 +2241,23 @@
         const ib = $('goInfoBackdrop'); if (ib) ib.onclick = closeInfo;
         const mc = $('goMenusClose'); if (mc) mc.onclick = closeMenus;
         const mb = $('goMenusBackdrop'); if (mb) mb.onclick = closeMenus;
-        const sc2 = $('goStayClose'); if (sc2) sc2.onclick = closeStay;
-        const sb2 = $('goStayBackdrop'); if (sb2) sb2.onclick = closeStay;
+        // Escape: en üstteki açık sheet'i kapatır (klavye/erişilebilirlik).
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape') return;
+            if ($('goConfirm').classList.contains('show')) { $('goConfirmNo').click(); return; }
+            if ($('goItemSheet').classList.contains('show')) { closeItemSheet(); return; }
+            if ($('goFolioSheet').classList.contains('show')) { closeFolio(); return; }
+            if ($('goInfoSheet').classList.contains('show')) { closeInfo(); return; }
+            if ($('goMenusSheet').classList.contains('show')) { closeMenus(); return; }
+            if ($('goGate').classList.contains('show') && isVerified()) closeGate();
+        });
         // Arama
         const s = $('goSearch');
         if (s) s.addEventListener('input', () => { searchTerm = s.value; $('goSearchX').hidden = !s.value; renderItems(); });
         $('goSearchX').onclick = () => { searchTerm = ''; $('goSearch').value = ''; $('goSearchX').hidden = true; renderItems(); $('goSearch').focus(); };
-        // Soyadı otomatik büyük harfe çevrilir.
-        //
-        // DÜZELTME: filtre eskiden `[^A-ZÇĞİÖŞÜ \-']` idi — yani YALNIZCA
-        // Türkçe harfler. Yabancı misafirlerin soyadındaki Ø/Ñ/Å/Æ gibi
-        // harfler ve Kiril/Yunan alfabesi tamamen SİLİNİYOR, misafir adını
-        // yazamadığı için kimlik doğrulamasını hiç geçemiyordu. Artık her
-        // Unicode HARF kabul edilir (rakam/simge hâlâ engellenir). Sunucu
-        // zaten diyakritikleri katlayarak karşılaştırıyor
-        // (functions/index.js:_normTr), bu yüzden eşleşme bozulmaz.
+        // Soyadı otomatik büyük harfe çevrilir; her Unicode HARF kabul edilir
+        // (yabancı misafirlerin Ø/Ñ/Å/Kiril soyadları silinmesin). Sunucu
+        // diyakritikleri katlayarak karşılaştırır (functions/index.js:_normTr).
         const su = $('goGateSurname');
         if (su) su.addEventListener('input', () => {
             const p = su.selectionStart;
@@ -2272,6 +2267,8 @@
             su.value = v;
             try { su.setSelectionRange(p, p); } catch (e) {}
         });
+        const by = $('goGateBirthYear');
+        if (by) by.addEventListener('input', () => { const v = by.value.replace(/\D/g, '').slice(0, 4); if (v !== by.value) by.value = v; });
         ['goGateSurname', 'goGateBirthYear'].forEach(id => { const el = $(id); if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doVerify(); }); });
     }
 
@@ -2282,7 +2279,7 @@
     // "Yapılandırma hatası" gösterip hiç boot olmuyordu.
     if (!DEMO && (typeof db === 'undefined' || typeof auth === 'undefined' || !db || !auth)) {
         const el = document.getElementById('goCats');
-        if (el) el.innerHTML = `<div class="go-empty"><div class="go-empty-ic">⚠️</div><h3>${esc(t('guest.stay.configError'))}</h3><p>${esc(t('common.noConnection'))}</p></div>`;
+        if (el) el.innerHTML = `<div style="grid-column:1/-1">${emptyHtml('alert', t('guest.stay.configError'), t('common.noConnection'))}</div>`;
         return;
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
