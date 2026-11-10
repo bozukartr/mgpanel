@@ -231,7 +231,7 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
 .go-searchbtn svg { width: 20px; height: 20px; color: var(--ink-2); }
 
 /* Fotoğraflı kartlar (departmanlar + otel kısayolları). Fotoğrafı olmayan
-   departman (ör. Teknik Servis, otelin özel departmanları) aynı ölçüde,
+   departman (otelin özel departmanları → "Diğer hizmetler") aynı ölçüde,
    vurgu tonunda koyu bir zemin + ikonla çizilir — eskiden düz lacivert bir
    blok olarak diğerlerinden kopuk duruyordu. Her kartta aynı ikon rozeti
    olduğundan fotoğraflı ve fotoğrafsız kartlar tek aile gibi görünür. */
