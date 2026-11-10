@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- ?v=: JS/CSS 10 dk önbellekli (firebase.json), HTML değil — yeni HTML eski
          CSS/JS ile birleşmesin diye tasarım değişikliğinde sürüm artırılır. -->
-    <link rel="stylesheet" href="css/modules/guest-order.css?v=20261110">
+    <link rel="stylesheet" href="css/modules/guest-order.css?v=20261110b">
 </head>
 
 <body>
@@ -37,8 +37,7 @@
             </header>
 
             <div class="go-greet">
-                <p class="go-greet-hi" id="goGreetTime" data-i18n="guest.home.welcome">Hoş geldiniz,</p>
-                <h1 class="go-greet-name" id="goGuestName" data-i18n="guest.home.guestShort">Misafirimiz</h1>
+                <h1 class="go-greet-line"><span class="go-greet-hi" id="goGreetTime" data-i18n="guest.home.welcome">Hoş geldiniz,</span> <span id="goGuestName" data-i18n="guest.home.guestShort">Misafirimiz</span></h1>
             </div>
 
             <button class="go-searchbtn" id="goHomeSearch">
@@ -48,7 +47,7 @@
 
             <section class="go-sec" aria-labelledby="goSecServices">
                 <div class="go-sec-head"><h2 id="goSecServices" data-i18n="guest.home.servicesTitle">Hizmetler</h2></div>
-                <div class="go-depts" id="goCats"><div class="go-spinner"></div></div>
+                <div class="go-pgrid" id="goCats"><div class="go-spinner"></div></div>
             </section>
 
             <section class="go-sec" id="goQaSec" aria-labelledby="goSecQuick">
@@ -61,7 +60,7 @@
 
             <section class="go-sec" aria-labelledby="goSecHotel">
                 <div class="go-sec-head"><h2 id="goSecHotel" data-i18n="guest.home.hotelTitle">Oteliniz</h2></div>
-                <div class="go-hotelcard" id="goHotelCard"></div>
+                <div id="goHotelCard"></div>
             </section>
 
             <div class="go-legal">
@@ -243,7 +242,7 @@
     <script src="js/i18n/tr.js?v=20261110"></script>
     <script src="js/i18n/en.js?v=20261110"></script>
     <script src="js/core/i18n.js"></script>
-    <script src="js/modules/guest-order.js?v=20261110"></script>
+    <script src="js/modules/guest-order.js?v=20261110b"></script>
 </body>
 
 </html>
