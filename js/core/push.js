@@ -15,7 +15,7 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
     // Durum, zil panelindeki "Cihaz Bildirimleri" satırında gösterilir —
     // kayıt sorunları artık sessiz kalmaz, personel tek dokunuşla onarır.
     function stubPush(reason) {
-        window.Push = { supported: false, reason: reason, state: function () { return { supported: false, reason: reason }; }, repair: async function () { return { supported: false, reason: reason }; } };
+        window.Push = { supported: false, reason: reason, detach: async function () { return false; }, state: function () { return { supported: false, reason: reason }; }, repair: async function () { return { supported: false, reason: reason }; } };
     }
     if (!PUSH_VAPID_KEY) { stubPush('VAPID anahtarı ayarlı değil'); console.info('[push] VAPID key not set — OS push disabled (in-app notifications still work).'); return; }
     if (typeof firebase === 'undefined' || !firebase.messaging || typeof db === 'undefined' || typeof auth === 'undefined') { stubPush('Bildirim altyapısı yüklenemedi'); return; }
@@ -23,8 +23,14 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
     try { if (firebase.messaging.isSupported && !firebase.messaging.isSupported()) { stubPush('Bu tarayıcı cihaz bildirimini desteklemiyor'); return; } } catch (e) { stubPush('Bu tarayıcı cihaz bildirimini desteklemiyor'); return; }
 
     let inFlight = false;
-    let refreshHooked = false;
     let messaging = null;
+    // useServiceWorker() de SDK singleton'ında YALNIZCA BİR KEZ ve getToken()'dan
+    // önce çağrılabilir (8.10.0: ikinci çağrı 'messaging/use-sw-after-get-token'
+    // fırlatır; getToken() kendisi de SW atar). Bu bayrak olmadan ilk denemeden
+    // sonraki her enable() — zil panelindeki "Onar/Yenile", sekme öne gelince
+    // yeniden bağlama — bu hatayla düşüyor, kayıt sayfa yenilenene kadar
+    // onarılamıyordu.
+    let swApplied = false;
     // Teşhis durumu: bu oturumda token HANGI kullanıcı için kaydedildi?
     const pstate = { savedUid: '', token: '', error: '', savedAt: 0 };
 
@@ -95,22 +101,19 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
             } catch (e) { reg = null; }
 
             const msg = getMessaging();
-            if (reg) msg.useServiceWorker(reg);
+            if (!swApplied) {
+                if (reg) msg.useServiceWorker(reg);
+                swApplied = true; // getToken() SW'yi her durumda sabitler
+            }
 
             const token = await msg.getToken();
             const uid = auth.currentUser && auth.currentUser.uid;
             if (!token || !uid) { inFlight = false; return; }
             await saveToken(token);
-
-            // Token döndüğünde (rotasyon) yeniden kaydet — yoksa eski/ölü token'a
-            // push düşmez. Yalnızca bir kez bağla.
-            if (!refreshHooked && typeof msg.onTokenRefresh === 'function') {
-                refreshHooked = true;
-                msg.onTokenRefresh(async () => {
-                    try { await saveToken(await msg.getToken()); }
-                    catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'push.onTokenRefresh' }); }
-                });
-            }
+            // Not: onTokenRefresh 8.10.0'da işlevsiz (boş fonksiyon). Token
+            // rotasyonunu getToken() kendisi yapar; enable() açılışta ve sekme
+            // öne geldiğinde (12 saatte bir) yeniden çağrıldığından yeni token
+            // kaydedilir — bkz. visibilitychange.
             console.info('[push] device registered for OS notifications.');
         } catch (e) {
             pstate.error = (e && e.message) || 'bilinmeyen hata';
@@ -120,8 +123,42 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
         inFlight = false;
     }
 
+    // Bu cihazın mevcut FCM token'ı (izin verilmişse). enable() bu sayfada hiç
+    // çalışmadıysa FCM SW kaydı üzerinden alınır; kayıt yoksa token da yoktur.
+    async function currentToken() {
+        if (pstate.token) return pstate.token;
+        if (Notification.permission !== 'granted') return '';
+        try {
+            const msg = getMessaging();
+            if (!swApplied) {
+                const reg = await navigator.serviceWorker.getRegistration('/firebase-cloud-messaging-push-scope');
+                if (!reg) return '';
+                msg.useServiceWorker(reg);
+                swApplied = true;
+            }
+            return (await msg.getToken()) || '';
+        } catch (e) { return ''; }
+    }
+
+    // Elle çıkışta cihazı hesaptan ayırır: pushTokens/{token} dokümanı token
+    // başına tek uid taşıdığından, ayırmadan çıkılırsa ortak bir resepsiyon
+    // cihazı bir sonraki girişe kadar ÖNCEKİ kullanıcının bildirimlerini
+    // (misafir adı, oda) almaya devam ediyordu. Kural yalnızca kendi
+    // kaydını silmeye izin verir — token başkasına aitse sessizce geçilir.
+    async function detach() {
+        const uid = auth.currentUser && auth.currentUser.uid;
+        if (!uid) return false;
+        const token = await currentToken();
+        if (!token) return false;
+        try { await db.collection('pushTokens').doc(token).delete(); }
+        catch (e) { return false; }
+        pstate.savedUid = ''; pstate.token = ''; pstate.savedAt = 0;
+        return true;
+    }
+
     // Zil panelinin kullandığı teşhis/onarım API'si.
     window.Push = {
+        detach: detach,
         supported: true,
         state: function () {
             const uid = auth.currentUser && auth.currentUser.uid;
@@ -140,18 +177,22 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
         }
     };
 
+
     auth.onAuthStateChanged(function (u) {
         if (!u) return;
         if (Notification.permission === 'granted') {
             enable();
         } else if (Notification.permission === 'default') {
             // iOS requires the permission prompt to come from a user gesture.
+            // 'pointerdown' DOKUNMATİKTE kullanıcı etkileşimi sayılmaz (HTML
+            // spec: yalnızca fare için) — iOS'ta izin istemi hiç çıkmıyordu.
+            // touchend ve click etkileşim sayılır.
             const once = function () {
-                enable();
-                window.removeEventListener('pointerdown', once);
+                window.removeEventListener('touchend', once);
                 window.removeEventListener('click', once);
+                enable();
             };
-            window.addEventListener('pointerdown', once, { once: true });
+            window.addEventListener('touchend', once, { once: true });
             window.addEventListener('click', once, { once: true });
         }
     });
@@ -164,6 +205,8 @@ const PUSH_VAPID_KEY = 'BLjczT1bCMbeOFJqW5DZw_sC7uMMRWY-v4jUWaf9FuVZLuXJP_TrPHae
         if (document.hidden) return;
         const uid = auth.currentUser && auth.currentUser.uid;
         if (!uid || Notification.permission !== 'granted') return;
-        if (pstate.savedUid !== uid) enable();
+        // Hesap değiştiyse ya da son kayıt 12 saatten eskiyse (token rotasyonu —
+        // onTokenRefresh 8.10.0'da işlevsiz) yeniden bağla.
+        if (pstate.savedUid !== uid || Date.now() - pstate.savedAt > 12 * 3600 * 1000) enable();
     });
 })();

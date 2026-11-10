@@ -176,7 +176,7 @@
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) {
             document.querySelectorAll('.sh-orders').forEach(function (el) { el.style.display = 'none'; });
         }
-        $('shLogout').onclick = function () { try { auth.signOut(); } catch (e) {} try { clearSessionStorage(); } catch (e) {} location.href = 'login'; };
+        $('shLogout').onclick = function () { this.disabled = true; hotelSignOut('login'); };
         fromHash();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

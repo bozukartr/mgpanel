@@ -447,15 +447,67 @@
     function etaWindow(baseMs, src, now) {
         const m = etaMinutes(src);
         if (!baseMs || !m) return null;
-        return slideWindow(baseMs + m.min * 60000, baseMs + m.max * 60000, now == null ? Date.now() : now);
+        const ref = now == null ? Date.now() : now;
+        const w = slideWindow(baseMs + m.min * 60000, baseMs + m.max * 60000, ref);
+        w.ref = ref;
+        return w;
     }
-    function fmtWindow(w) { return w ? clock(w.start) + ' – ' + clock(w.end) : ''; }
+    // Kalemin PLANLI zamanı (ms) — yoksa 0. Transfer: seçilen tarih + saat.
+    // Tercih edilen saat (ör. "Oda temizliği 15:00"): siparişin verildiği
+    // gün; o saat 30 dk'dan fazla geçmişse ertesi gün (gece verilen "09:00"
+    // sabahı kasteder). Önceden EDT her zaman siparişin verildiği andan
+    // hesaplanıyordu: yarın 10:00'a istenen transfer bugün "14:15 – 14:30"
+    // gösteriyor, sonra 5'er dk kayarak sürekli gecikiyormuş gibi görünüyordu.
+    function scheduledAt(baseMs, it) {
+        if (!it) return 0;
+        if (it.transferDate && it.transferTime) {
+            const d = new Date(String(it.transferDate).slice(0, 10) + 'T' + String(it.transferTime).slice(0, 5) + ':00').getTime();
+            return isFinite(d) ? d : 0;
+        }
+        const pm = String(it.preferredTime || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+        if (!pm || !baseMs) return 0;
+        const d = new Date(baseMs);
+        d.setHours(parseInt(pm[1], 10), parseInt(pm[2], 10), 0, 0);
+        let ms = d.getTime();
+        if (ms < baseMs - 30 * 60000) ms += 86400000;
+        return ms;
+    }
+    // Kalemin teslim penceresi: planlı zaman, hazırlık süresinden SONRAYA
+    // düşüyorsa pencere planlı zamandan başlar ve süre aralığı kadar (en az
+    // bir kademe) sürer; aksi halde normal EDT. Kayma kuralı aynı.
+    function itemWindow(baseMs, it, now) {
+        const S = scheduledAt(baseMs, it);
+        const m = etaMinutes(it);
+        if (S && (!m || S > baseMs + m.min * 60000)) {
+            const ref = now == null ? Date.now() : now;
+            const span = Math.max(EDT_SLIDE_STEP_MS, m ? (m.max - m.min) * 60000 : 0);
+            const w = slideWindow(S, S + span, ref);
+            w.ref = ref; w.scheduled = true;
+            return w;
+        }
+        return etaWindow(baseMs, it, now);
+    }
+    // Pencere bugünün dışındaysa saate tarih eklenir ("11.11 10:00").
+    function dayTag(ms, ref) {
+        const a = new Date(ms), b = new Date(ref == null ? Date.now() : ref);
+        if (a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()) return '';
+        return String(a.getDate()).padStart(2, '0') + '.' + String(a.getMonth() + 1).padStart(2, '0') + ' ';
+    }
+    function fmtWindow(w) { return w ? dayTag(w.start, w.ref) + clock(w.start) + ' – ' + (dayTag(w.end, w.start) ? dayTag(w.end, w.ref) : '') + clock(w.end) : ''; }
     // Pencerenin bitişine kalan süre ("8 dk"). Pencere içindeyken bile
     // pozitiftir (slideWindow bitişe 2 dk kala kaydırdığı için 0'a düşmez).
     function etaRemainText(w, now) {
         if (!w) return '';
         const left = Math.round((w.end - (now == null ? Date.now() : now)) / 60000);
-        return left > 0 ? t('guest.eta.remaining', { n: left }) : t('guest.eta.soon');
+        if (left <= 0) return t('guest.eta.soon');
+        // Planlı (saatler/günler sonrası) teslimde "1080 dk kaldı" yazmasın.
+        if (left >= 1440) return t('guest.eta.remainingD', { n: Math.round(left / 1440) });
+        if (left >= 90) return t('guest.eta.remainingH', { h: Math.floor(left / 60), m: left % 60 });
+        return t('guest.eta.remaining', { n: left });
+    }
+    // Pencere etiketi: planlı teslimde "Planlanan …", aksi halde verilen anahtar.
+    function etaLabelText(w, key) {
+        return t(w && w.scheduled ? 'guest.eta.scheduled' : key, { window: fmtWindow(w) });
     }
     // Kalemin teslim bilgisi: tamamlandıysa GERÇEK saat, iptalse yok,
     // aksi halde kayan EDT penceresi.
@@ -466,27 +518,36 @@
             const log = (order.statusLog || []).filter(l => l.status === 'completed').pop();
             return { done: true, at: log ? log.at : 0 };
         }
-        return etaWindow(tsMs(order), it, now);
+        return itemWindow(tsMs(order), it, now);
     }
-    // Sipariş penceresi = AÇIK kalemlerin birleşimi (en erken başlangıç,
-    // en geç bitiş). Hepsi kapandıysa null.
+    // Sipariş penceresi = AÇIK ve PLANSIZ kalemlerin birleşimi (en erken
+    // başlangıç, en geç bitiş — hepsi aynı andan hesaplandığı için dar bir
+    // aralık). Yalnızca planlı kalemler kaldıysa EN YAKIN planlı pencere:
+    // "şimdi" ile "yarın 10:00"ı tek aralıkta birleştirmek anlamsız olurdu.
+    // Hepsi kapandıysa null.
     function orderEta(order, now) {
-        let start = 0, end = 0;
+        let start = 0, end = 0, ref = null, next = null;
         (order.items || []).forEach(it => {
             const s = it.status || 'pending';
             if (s === 'cancelled' || s === 'completed') return;
-            const w = etaWindow(tsMs(order), it, now);
+            const w = itemWindow(tsMs(order), it, now);
             if (!w) return;
+            if (w.scheduled) { if (!next || w.start < next.start) next = w; return; }
             start = start ? Math.min(start, w.start) : w.start;
             end = Math.max(end, w.end);
+            ref = w.ref;
         });
-        return end ? { start: start, end: end } : null;
+        if (end) return { start: start, end: end, ref: ref };
+        return next;
     }
     // Sepet için göreli aralık ("~20–30 dk") — henüz bir sipariş yok, mutlak
     // saat gösterilemez.
     function cartEtaText() {
         let lo = 0, hi = 0;
         cart.forEach(l => {
+            // Planlı kalemler (transfer tarihi / tercih edilen saat) "~20 dk"
+            // göreli tahminine katılmaz — teslimleri seçilen saatte.
+            if (scheduledAt(Date.now(), l)) return;
             const m = etaMinutes(l) || etaMinutes(catalog.find(i => i.id === l.catalogId));
             if (!m) return;
             lo = lo ? Math.min(lo, m.min) : m.min;
@@ -1903,7 +1964,7 @@
             const etaHtml = !ie ? ''
                 : (ie.done
                     ? `<div class="go-titem-eta done">${esc(ie.at ? t('guest.eta.deliveredAt', { time: clock(ie.at) }) : t('guest.eta.delivered'))}</div>`
-                    : `<div class="go-titem-eta">${esc(t('guest.eta.item', { window: fmtWindow(ie) }))}</div>`);
+                    : `<div class="go-titem-eta">${esc(etaLabelText(ie, 'guest.eta.item'))}</div>`);
             // Düzenleme/iptal, personel işi ÜSTLENENE kadar açık: kalem
             // 'pending' ya da 'confirmed' iken. Asıl operasyonel güvence
             // sunucudaki canCancelItem() (bağlı guestLogs hâlâ 'Following' mi)
@@ -1943,7 +2004,7 @@
                     <span class="go-track-tag">${(o.items || []).length} talep</span>
                     ${showP ? `<span class="go-track-tag">Toplam ${esc(money(o.total))}</span>` : ''}
                 </div>
-                ${(() => { const w = orderEta(o); return w ? `<div class="go-track-eta">${esc(t('guest.eta.order', { window: fmtWindow(w) }))}<span>${esc(etaRemainText(w))}</span></div>` : ''; })()}
+                ${(() => { const w = orderEta(o); return w ? `<div class="go-track-eta">${esc(etaLabelText(w, 'guest.eta.order'))}<span>${esc(etaRemainText(w))}</span></div>` : ''; })()}
             </div>
             ${cancelled && o.cancelReason ? `<div class="go-cancel-reason">
                 <div class="go-cancel-reason-h">İptal Nedeni</div>

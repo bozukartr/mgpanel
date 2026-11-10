@@ -117,6 +117,24 @@ function clearSessionStorage() {
      'hotelModules', 'hotelMaxUsers', 'hotelPlan', 'hotelPmsEnabled'].forEach(k => localStorage.removeItem(k));
 }
 
+// ELLE çıkış ("Çıkış" butonu): önce bu cihazın push kaydını hesaptan ayırır
+// (bkz. push.js detach — ortak cihazda önceki kullanıcının bildirimleri
+// gelmeye devam ediyordu), sonra oturumu kapatır, oturum anahtarlarını
+// temizler ve giriş sayfasına gider. Ayırma en fazla 2,5 sn bekletir.
+// push.js yüklenmemiş bir iframe sayfasında App Shell'in Push'u kullanılır.
+// 15 dk hareketsizlik çıkışı (panel/concierge) bunu BİLEREK kullanmaz:
+// telefonda uygulamayı açık unutan personel kapalıyken de bildirim almalı.
+async function hotelSignOut(redirect) {
+    let P = null;
+    try { P = window.Push || (window.parent !== window && window.parent.Push) || null; } catch (e) { P = null; }
+    if (P && typeof P.detach === 'function') {
+        try { await Promise.race([P.detach(), new Promise(r => setTimeout(r, 2500))]); } catch (e) { /* çıkışı engellemez */ }
+    }
+    try { await auth.signOut(); } catch (e) { /* yine de çık */ }
+    try { clearSessionStorage(); } catch (e) {}
+    if (redirect !== false) window.location.href = redirect || 'login';
+}
+
 // Is PMS integration enabled for the signed-in hotel?
 function pmsEnabled() {
     return localStorage.getItem('hotelPmsEnabled') === '1';

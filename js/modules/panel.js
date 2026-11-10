@@ -53,6 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Lifecycle: Following (waiting) → InProgress (taken) → Solved (completed).
     const STATUS_LABELS = { Following: 'Bekliyor', InProgress: 'İşlemde', Solved: 'Tamamlandı' };
     const statusLabelOf = (s) => STATUS_LABELS[s] || STATUS_LABELS.Following;
+    // Arama katlaması: Türkçe küçük harf + 'I'/'ı' ile 'İ'/'i' ayrımını
+    // kaldırır — "ilker", "İLKER", "Ilker" hepsi "İlker"i bulur.
+    const searchFold = (v) => String(v).toLocaleLowerCase('tr-TR').replace(/ı/g, 'i').trim();
 
     function tsToDate(v) {
         if (!v) return null;
@@ -83,12 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            auth.signOut().then(() => {
-                clearSessionStorage();
-                window.location.href = 'login';
-            });
-        });
+        logoutBtn.addEventListener('click', () => hotelSignOut('login'));
     }
 
     // ── AUTO LOGOUT LOGIC (15 MINS) ────────────────────────────
@@ -147,8 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Konaklamayı da kapat (stays.status=checked_out + activeStayId temizle).
             // İdempotent — iki personel ekranı eşzamanlı süpürse de aynı sonuca yazar.
             for (const g of toClose) { await GuestDirectory.closeStay(g, 'auto-checkout'); }
-
-            renderGuestProfileList();
         } catch (e) { console.error("Error loading directory", e); }
     }
 
@@ -162,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!result) return null;
         const idx = guestDirectory.findIndex(g => g.id === result.id);
         if (idx === -1) guestDirectory.push(result); else Object.assign(guestDirectory[idx], result);
-        renderGuestProfileList();
         updateView(globalSearch.value, dateSearch.value);
         return result;
     }
@@ -228,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             await batch.commit();
-            renderGuestProfileList();
             updateGuestMap();
             showToast(`${guestsToAdd.length} eski misafir kayıt defterine eklendi.`);
         } catch (e) { console.error("Backfill failed", e); }
@@ -404,11 +398,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(id)?.addEventListener('blur', () => checkRoomConflict('guestName', 'room', 'gi-conflict-alert'));
     });
 
-    ['mob-guestName', 'mob-room'].forEach(id => {
-        document.getElementById(id)?.addEventListener('input', () => checkRoomConflict('mob-guestName', 'mob-room', 'mob-conflict-alert'));
-        document.getElementById(id)?.addEventListener('blur', () => checkRoomConflict('mob-guestName', 'mob-room', 'mob-conflict-alert'));
-    });
-
     // Elements
     const issueForm = document.getElementById('guestIssueForm');
     const recordsTableBody = document.querySelector('#recordsTable tbody');
@@ -459,7 +448,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let recordToDelete = null;
 
     let globalGuestsHTML = ''; // Local cache for guests
-    let reportsHTML = '';      // Local cache for reports list
 
     function updateGuestMap() {
         // Prepare the HTML snapshot in memory first
@@ -485,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typedVal.length >= 3) {
                 // Only render crossover when actually required
                 if (listEl.children.length === 0) {
-                    listEl.innerHTML = (src === 'reports') ? reportsHTML : globalGuestsHTML;
+                    listEl.innerHTML = globalGuestsHTML;
                 }
             } else {
                 // Auto-suppress upon partial delete
@@ -496,7 +484,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Instigate gating hooks immediately
     setupDynamicAutolist('guestName', 'guest-list');
-    setupDynamicAutolist('rpt-guestSearch', 'guestNamesList', 'reports');
 
     // 2. Data Persistence
     //
@@ -623,10 +610,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const g = guestDirectory.find(x => x.name === e.target.value);
         if (g && g.room) document.getElementById('room').value = g.room;
     });
-    document.getElementById('mob-guestName')?.addEventListener('input', (e) => {
-        const g = guestDirectory.find(x => x.name === e.target.value);
-        if (g && g.room) document.getElementById('mob-room').value = g.room;
-    });
 
     // PMS live lookup on the new-request guest/room fields.
     if (window.PMS) {
@@ -733,8 +716,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const dl = document.getElementById(id);
             if (dl) dl.innerHTML = html;
         });
-        // Keep the report's topic filter in sync if present.
-        if (typeof populateReportTopics === 'function') populateReportTopics();
     }
     if (window.IssueConfig) {
         IssueConfig.listenTopics(() => refreshTopicDatalists());
@@ -846,99 +827,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ═══════════════════════════════════════════════════════════
-    // REPORTS MODAL
-    // ═══════════════════════════════════════════════════════════
-    const reportsModal = document.getElementById('reportsModal');
-    const rptTypeSelect = document.getElementById('reportTypeSelect');
-
-    document.getElementById('openReportsBtn')?.addEventListener('click', () => {
-        reportsModal.style.display = 'flex';
-        populateGuestDatalist();
-        populateReportTopics();
-        updateRptUI(); // Reset UI state on open
-    });
-
-    // Fill the report "Konu" filter from the persisted topic list.
-    function populateReportTopics() {
-        const sel = document.getElementById('rpt-topicSelect');
-        if (!sel) return;
-        const current = sel.value;
-        const topics = (window.IssueConfig ? IssueConfig.topics() : []);
-        sel.innerHTML = '<option value="All">Tüm Konular</option>'
-            + topics.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
-        if (current && [...sel.options].some(o => o.value === current)) sel.value = current;
-    }
-    window.populateReportTopics = populateReportTopics;
-
-    function populateGuestDatalist() {
-        // Construct the latest unique names string
-        const uniqueNames = [...new Set(records.map(r => r.guestName).filter(Boolean))].sort();
-        reportsHTML = uniqueNames.map(name => `<option value="${esc(name)}">`).join('');
-
-        // Sync live component if active
-        const list = document.getElementById('guestNamesList');
-        if (list && list.children.length > 0) list.innerHTML = reportsHTML;
-    }
-
-    document.getElementById('closeReportsModal')?.addEventListener('click', () => {
-        reportsModal.style.display = 'none';
-    });
-
-    // Dynamic UI Toggles
-    rptTypeSelect?.addEventListener('change', updateRptUI);
-
-    function updateRptUI() {
-        const type = rptTypeSelect.value;
-        const specificDateCont = document.getElementById('rpt-specificDateContainer');
-        const rangeGroup = document.getElementById('rpt-rangeGroup');
-        const deptCont = document.getElementById('rpt-deptContainer');
-        const guestCont = document.getElementById('rpt-guestContainer');
-        const topicCont = document.getElementById('rpt-topicContainer');
-
-        // Reset all
-        specificDateCont.style.display = 'none';
-        rangeGroup.style.display = 'none';
-        deptCont.style.display = 'none';
-        guestCont.style.display = 'none';
-        if (topicCont) topicCont.style.display = 'none';
-
-        // Show based on type
-        if (type === 'summary' || type === 'byDate' || type === 'department') {
-            specificDateCont.style.display = 'block';
-            if (type === 'department') deptCont.style.display = 'block';
-        } else if (type === 'dateRange' || type === 'historicalStatus' || type === 'deptHistorical' || type === 'status' || type === 'deptPerformance' || type === 'taskDurations') {
-            rangeGroup.style.display = 'flex';
-            if (type === 'deptHistorical') deptCont.style.display = 'block';
-        } else if (type === 'topic') {
-            rangeGroup.style.display = 'flex';
-            if (topicCont) topicCont.style.display = 'block';
-        } else if (type === 'guest') {
-            guestCont.style.display = 'block';
-        }
-    }
-
-    // Proxy function called from HTML buttons
-    window.generateReportFromUI = function (format) {
-        const type = rptTypeSelect.value;
-        generateReport(type, format);
-    };
-
-    // Track last rendered rows for "Current View" export
-    let lastRenderedRows = [];
-
-    // ── Helpers ────────────────────────────────────────────────
-    function getRptDates() {
-        return {
-            from: document.getElementById('rpt-dateFrom')?.value || '',
-            to: document.getElementById('rpt-dateTo')?.value || '',
-            specific: document.getElementById('rpt-specificDate')?.value || getLocalDate(),
-            dept: document.getElementById('rpt-departmentSelect')?.value || 'All',
-            guest: document.getElementById('rpt-guestSearch')?.value || '',
-            topic: document.getElementById('rpt-topicSelect')?.value || 'All'
-        };
-    }
-
+    // Tarih aralığı süzgeci (performans paneli kullanır). Raporlar modalı
+    // kaldırıldı — hiçbir butonla açılamıyordu; kayıt raporları artık
+    // Raporlar sayfasında (reports.js, Excel dışa aktarımı dahil).
     function filterByRange(data, from, to) {
         return data.filter(r => {
             if (from && r.date < from) return false;
@@ -946,563 +837,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return true;
         });
     }
-
-    // İşi kimin yaptığı: üstlenen > tamamlayan > atanan; eski tamamlanmış
-    // kayıtlarda kaydı giren; açık ve sahipsizse "Üstlenilmedi".
-    function reportWorker(r) {
-        if (r.acknowledgedBy) return r.acknowledgedBy;
-        if (r.completedBy) return r.completedBy;
-        if (r.assignedToName) return r.assignedToName;
-        if ((r.status || 'Following') === 'Solved') return r.staffInitial || '—';
-        return 'Üstlenilmedi';
-    }
-    function rowBase(r) {
-        return {
-            Date: r.date,
-            Room: r.room,
-            'Guest Name': r.guestName,
-            Department: r.department,
-            Complaint: r.complaint,
-            Solution: r.solution || '',
-            Staff: r.staffInitial,
-            'Üstlenen': reportWorker(r),
-            Status: r.status || 'Following'
-        };
-    }
-
-    // ── Excel Helpers ──────────────────────────────────────────
-
-    function exportExcel(rows, filename, sheetName = 'Report', summaryData = null) {
-        if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
-
-        const keys = Object.keys(rows[0]);
-
-        // Build Summary Table if provided
-        let summaryHtml = '';
-        if (summaryData) {
-            summaryHtml = `
-                <table style="margin-bottom: 25px;">
-                    <thead>
-                        <tr><th colspan="2" style="background: #2563eb; color: white;">OPERATIONAL SUMMARY</th></tr>
-                    </thead>
-                    <tbody>
-                        ${Object.entries(summaryData).map(([k, v]) => `
-                            <tr>
-                                <td style="font-weight: bold; background: #f8fafc; width: 180px;">${k}</td>
-                                <td style="text-align: center; width: 100px; font-weight: bold;">${v}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                <div style="height: 20px;"></div>
-            `;
-        }
-
-        // Build Excel-compatible XML/HTML String for full styling support
-        let excelHtml = `
-            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-            <head>
-                <meta charset="UTF-8">
-                <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${sheetName}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-                <style>
-                    table { border-collapse: collapse; margin-bottom: 10px; }
-                    td, th { 
-                        border: 0.5pt solid #000000; 
-                        padding: 8px; 
-                        vertical-align: middle; 
-                        word-wrap: break-word; 
-                        white-space: normal;
-                        font-family: "Segoe UI", Arial, sans-serif;
-                        font-size: 10pt;
-                    }
-                    th { 
-                        background-color: #1a1a1a; 
-                        color: #ffffff;
-                        font-weight: bold; 
-                        text-align: center;
-                    }
-                    .text-center { text-align: center; }
-                    /* Column widths for A4 fit */
-                    .col-date { width: 80px; }
-                    .col-room { width: 60px; }
-                    .col-guest { width: 150px; }
-                    .col-desc { width: 300px; }
-                </style>
-            </head>
-            <body>
-                ${summaryHtml}
-                <table>
-                    <thead>
-                        <tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr>
-                    </thead>
-                    <tbody>
-                        ${rows.map(r => `
-                            <tr>
-                                ${keys.map(k => {
-            const val = r[k] || '';
-            let className = '';
-            if (k.toLowerCase().includes('date')) className = 'col-date text-center';
-            if (k.toLowerCase().includes('room')) className = 'col-room text-center';
-            if (k.toLowerCase().includes('guest')) className = 'col-guest';
-            if (k.toLowerCase().includes('complaint') || k.toLowerCase().includes('solution') || k.toLowerCase().includes('notes')) className = 'col-desc';
-
-            return `<td class="${className}">${val}</td>`;
-        }).join('')}
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </body>
-            </html>
-        `;
-
-        const blob = new Blob([excelHtml], { type: 'application/vnd.ms-excel' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${filename}_${getLocalDate()}.xls`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        showToast('Excel raporu indirildi.');
-    }
-
-    function fixTurkishChars(str) {
-        if (typeof str !== 'string') return str;
-        return str
-            .replace(/ı/g, 'i').replace(/İ/g, 'I')
-            .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
-            .replace(/ü/g, 'u').replace(/Ü/g, 'U')
-            .replace(/ş/g, 's').replace(/Ş/g, 'S')
-            .replace(/ö/g, 'o').replace(/Ö/g, 'O')
-            .replace(/ç/g, 'c').replace(/Ç/g, 'C');
-    }
-
-    // ── PDF export ─────────────────────────────────────────────
-    function exportPDF(title, headers, rows, filename, subtitle = '') {
-        if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: rows[0].length > 6 ? 'landscape' : 'portrait' });
-
-        // Fix Turkish chars
-        const fixedTitle = fixTurkishChars(title);
-        const fixedSubtitle = fixTurkishChars(subtitle);
-        const fixedHeaders = headers.map(h => fixTurkishChars(h));
-        const fixedRows = rows.map(row => row.map(cell => fixTurkishChars(cell)));
-
-        // Header band
-        doc.setFillColor(21, 101, 192);
-        doc.rect(0, 0, doc.internal.pageSize.getWidth(), 28, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(16); doc.setFont('helvetica', 'bold');
-        doc.text(fixedTitle, 14, 12);
-        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text(fixedSubtitle || `Generated: ${getLocalDate()}`, 14, 20);
-        doc.setTextColor(0, 0, 0);
-        doc.autoTable({
-            head: [fixedHeaders],
-            body: fixedRows,
-            startY: 32,
-            theme: 'grid',
-            headStyles: { fillColor: [43, 58, 74], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-            bodyStyles: { fontSize: 8.5 },
-            alternateRowStyles: { fillColor: [245, 248, 255] },
-            margin: { left: 14, right: 14 }
-        });
-        // Footer
-        const pageCount = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
-            doc.setFontSize(8); doc.setTextColor(150);
-            doc.text(`Page ${i} of ${pageCount} — Guest Issues Management System`, 14, doc.internal.pageSize.getHeight() - 8);
-        }
-        doc.save(`${filename}_${getLocalDate()}.pdf`);
-        showToast('PDF raporu indirildi.');
-    }
-
-    // ── Report Engine ──────────────────────────────────────────
-    // Raporlar tüm arşivi gerektirir (rastgele tarih/aralık). Canlı liste 90
-    // günlük pencereyle çalıştığından, rapor üretmeden önce tüm arşivi talep
-    // üzerine yükleriz — böylece eski tarihli raporlar/arşiv eksiksiz olur.
-    // Dışa-aktarma kütüphaneleri TEMBEL yüklenir (bkz. js/core/lazy-load.js) —
-    // önceden sayfa açılışında ~800KB (jspdf+autotable+xlsx) eager iniyordu,
-    // oysa yalnızca rapor indirme anında lazım (hız denetimi). Tüm rapor
-    // çıktıları bu tek giriş noktasından geçtiği için burada yüklemek yeterli.
-    const PDF_LIB_URLS = [
-        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-        'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js'
-    ];
-    const XLSX_LIB_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    async function ensureExportLibs(format) {
-        try {
-            if (format === 'pdf') await loadScriptsOnce(PDF_LIB_URLS);
-            else if (format === 'excel') await loadScriptOnce(XLSX_LIB_URL);
-        } catch (e) {
-            showToast('Rapor kütüphanesi yüklenemedi — bağlantınızı kontrol edin.', true);
-            throw e;
-        }
-    }
-    window.generateReport = async function (type, format) {
-        await ensureExportLibs(format);
-        if (!fullyLoaded) { showToast('Arşiv yükleniyor…'); await ensureFullArchive(); }
-        const { from, to, specific, dept, guest, topic } = getRptDates();
-
-        if (type === 'summary') {
-            const date = specific || getLocalDate();
-            let data = records.filter(r => r.date === date);
-
-            // Optional: apply dept filter even here if user selected one? 
-            // Usually summary is general, but let's stick to the specific date.
-
-            const total = data.length, solved = data.filter(r => r.status === 'Solved').length;
-            const following = total - solved, overdue = data.filter(r => isOverdueFn(r)).length;
-            const deptCounts = {};
-            data.forEach(r => deptCounts[r.department] = (deptCounts[r.department] || 0) + 1);
-            const summaryRows = [
-                { Metric: 'Total Issues', Value: total },
-                { Metric: 'Solved', Value: solved },
-                { Metric: 'Following', Value: following },
-                { Metric: 'Overdue (>15 min)', Value: overdue },
-                ...Object.entries(deptCounts).map(([d, cnt]) => ({ Metric: `Dept: ${d}`, Value: cnt }))
-            ];
-            const detailRows = data.map(r => rowBase(r));
-            if (format === 'excel') {
-                const wb = XLSX.utils.book_new();
-                const wsSum = XLSX.utils.json_to_sheet(summaryRows);
-                const wsDet = XLSX.utils.json_to_sheet(detailRows);
-                autoSizeSheet(wsSum, summaryRows);
-                autoSizeSheet(wsDet, detailRows);
-                XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
-                XLSX.utils.book_append_sheet(wb, wsDet, 'Detail');
-                XLSX.writeFile(wb, `General_Summary_${date}.xlsx`);
-                showToast('Excel raporu indirildi.');
-            } else {
-                exportPDF(`General Summary — ${date}`,
-                    ['Date', 'Room', 'Guest Name', 'Department', 'Complaint', 'Solution', 'Staff', 'Status'],
-                    detailRows.map(r => Object.values(r)),
-                    `General_Summary_${date}`,
-                    `Total: ${total} | Solved: ${solved} | Following: ${following} | Overdue: ${overdue}`
-                );
-            }
-        }
-
-        else if (type === 'inHouseIssues') {
-            const inHouseNames = new Set(guestDirectory.filter(g => g.status === 'in_house').map(g => g.name.toLowerCase()));
-            const data = records.filter(r => inHouseNames.has(r.guestName?.toLowerCase()));
-
-            const deptSummary = {};
-            data.forEach(r => deptSummary[r.department] = (deptSummary[r.department] || 0) + 1);
-
-            const summaryData = {
-                'Total In-House Issues': data.length,
-                ...Object.entries(deptSummary).reduce((acc, [d, c]) => { acc[`Dept: ${d}`] = c; return acc; }, {})
-            };
-
-            if (format === 'excel') {
-                exportExcel(data.map(rowBase), 'In_House_Issues', 'InHouse', summaryData);
-            } else {
-                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.staffInitial, reportWorker(r), r.status || 'Following']);
-                exportPDF('In-House Guest Issues', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'], rows, 'In_House_Issues',
-                    `Total Active In-House Issues: ${data.length} | ` + Object.entries(deptSummary).map(([d, c]) => `${d}:${c}`).join(' | '));
-            }
-        }
-
-        else if (type === 'department') {
-            const date = specific || getLocalDate();
-            let data = records.filter(r => r.date === date);
-            if (dept !== 'All') data = data.filter(r => sameDept(r.department, dept));
-
-            const grouped = {};
-            data.forEach(r => {
-                const d = canonicalDept(r.department) || 'Unknown';
-                if (!grouped[d]) grouped[d] = [];
-                grouped[d].push(r);
-            });
-            if (format === 'excel') {
-                const wb = XLSX.utils.book_new();
-                const summary = Object.entries(grouped).map(([d, arr]) => ({
-                    Solved: arr.filter(r => r.status === 'Solved').length,
-                    Following: arr.filter(r => r.status !== 'Solved').length
-                }));
-                const wsSum = XLSX.utils.json_to_sheet(summary);
-                autoSizeSheet(wsSum, summary);
-                XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
-                Object.entries(grouped).forEach(([d, arr]) => {
-                    const sheetName = d.substring(0, 31);
-                    const rowsData = arr.map(rowBase);
-                    const wsDept = XLSX.utils.json_to_sheet(rowsData);
-                    autoSizeSheet(wsDept, rowsData);
-                    XLSX.utils.book_append_sheet(wb, wsDept, sheetName);
-                });
-                XLSX.writeFile(wb, `By_Department_${dept}_${getLocalDate()}.xlsx`);
-                showToast('Excel raporu indirildi.');
-            } else {
-                const rows = Object.entries(grouped).flatMap(([d, arr]) =>
-                    arr.map(r => [d, r.date, r.room, r.guestName, r.complaint?.substring(0, 40), r.status || 'Following'])
-                );
-                exportPDF(`Issues by Department (${dept})`, ['Department', 'Date', 'Room', 'Guest', 'Complaint', 'Status'], rows, `By_Department_${dept}`);
-            }
-        }
-
-        // ── Konu bazlı rapor (yalnızca şikayetler): hangi konular ne sıklıkla
-        //    tekrar ediyor, çözülme oranı ne? Tarih aralığı + konu filtresi opsiyonel.
-        else if (type === 'topic') {
-            let data = records.filter(r => (r.type || 'complaint') === 'complaint');
-            if (from || to) data = filterByRange(data, from, to);
-            if (topic && topic !== 'All') data = data.filter(r => (r.topic || 'Genel') === topic);
-
-            // Group by topic → counts + status + department breakdown.
-            const grouped = {};
-            data.forEach(r => {
-                const t = (r.topic || 'Genel');
-                if (!grouped[t]) grouped[t] = [];
-                grouped[t].push(r);
-            });
-            const topicNames = Object.keys(grouped).sort((a, b) => grouped[b].length - grouped[a].length || a.localeCompare(b, 'tr'));
-
-            if (!data.length) { showToast('Bu rapor için veri yok.', true); return; }
-
-            const rangeLabel = (from || to) ? `${from || '…'} → ${to || '…'}` : 'Tüm Zamanlar';
-            const summaryTable = topicNames.map(t => {
-                const arr = grouped[t];
-                const solved = arr.filter(r => r.status === 'Solved').length;
-                const open = arr.length - solved;
-                const depts = [...new Set(arr.map(r => r.department || '—'))].join(', ');
-                return { Konu: t, Toplam: arr.length, Çözüldü: solved, Açık: open, Departmanlar: depts };
-            });
-
-            if (format === 'excel') {
-                const wb = XLSX.utils.book_new();
-                const wsSum = XLSX.utils.json_to_sheet(summaryTable);
-                autoSizeSheet(wsSum, summaryTable);
-                XLSX.utils.book_append_sheet(wb, wsSum, 'Konu Özeti');
-                const detail = data.map(r => ({
-                    Konu: r.topic || 'Genel', Tarih: r.date, Oda: r.room, Misafir: r.guestName,
-                    Departman: r.department, Şikayet: r.complaint, Çözüm: r.solution || '',
-                    Personel: r.staffInitial, 'Üstlenen': reportWorker(r), Durum: statusLabelOf(r.status || 'Following')
-                }));
-                const wsDet = XLSX.utils.json_to_sheet(detail);
-                autoSizeSheet(wsDet, detail);
-                XLSX.utils.book_append_sheet(wb, wsDet, 'Detay');
-                XLSX.writeFile(wb, `Konu_Bazli_${topic === 'All' ? 'Tum' : topic}_${getLocalDate()}.xlsx`);
-                showToast('Excel raporu indirildi.');
-            } else {
-                const rows = summaryTable.map(s => [s.Konu, s.Toplam, s.Çözüldü, s.Açık, (s.Departmanlar || '').substring(0, 40)]);
-                exportPDF(`Konu Bazlı Şikayet Raporu (${rangeLabel})`, ['Konu', 'Toplam', 'Çözüldü', 'Açık', 'Departmanlar'], rows, `Konu_Bazli_${topic === 'All' ? 'Tum' : topic}`);
-            }
-        }
-
-        else if (type === 'byDate') {
-            const date = specific || getLocalDate();
-            const data = records.filter(r => r.date === date);
-            if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${date}`, date);
-            else exportPDF(`Issues — ${date}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'],
-                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, reportWorker(r), r.status || 'Following']),
-                `Issues_${date}`);
-        }
-
-        // ── Department performance: how fast each department responds,
-        //    handles and completes its requests. Range optional (default all).
-        else if (type === 'deptPerformance') {
-            const data = (from || to) ? filterByRange(records, from, to) : records;
-            const byDept = {};
-            data.forEach(r => {
-                const dept = canonicalDept(r.department) || 'Diğer';
-                const d = byDept[dept] = byDept[dept] || { total: 0, done: 0, open: 0, resp: [], hand: [], tot: [] };
-                d.total++;
-                if (r.status === 'Solved') d.done++; else d.open++;
-                const c = tsToDate(r.createdAt), a = tsToDate(r.acknowledgedAt), f = tsToDate(r.completedAt);
-                if (c && a) d.resp.push((a - c) / 60000);
-                if (a && f) d.hand.push((f - a) / 60000);
-                if (c && f) d.tot.push((f - c) / 60000);
-            });
-            const avg = arr => arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : '';
-            const rows = Object.entries(byDept).map(([dept, d]) => ({
-                'Departman': dept,
-                'Talep': d.total,
-                'Tamamlanan': d.done,
-                'Açık': d.open,
-                'Ort. Yanıt (dk)': avg(d.resp),
-                'Ort. İşlem (dk)': avg(d.hand),
-                'Ort. Toplam (dk)': avg(d.tot)
-            })).sort((a, b) => b['Talep'] - a['Talep']);
-            const sub = (from && to) ? `${from} → ${to}` : 'Tüm zamanlar';
-            if (format === 'excel') exportExcel(rows, `Departman_Performans_${from || 'tum'}_${to || 'zamanlar'}`, 'Performans');
-            else exportPDF('Departman Performansı (Süreler)', ['Departman', 'Talep', 'Tamamlanan', 'Açık', 'Ort. Yanıt (dk)', 'Ort. İşlem (dk)', 'Ort. Toplam (dk)'],
-                rows.map(r => Object.values(r)), 'Departman_Performans', sub);
-        }
-
-        // ── Per-request duration breakdown: every request with its
-        //    created/taken/completed timestamps and computed durations.
-        else if (type === 'taskDurations') {
-            const data = (from || to) ? filterByRange(records, from, to) : records;
-            const rows = data.map(r => {
-                const c = tsToDate(r.createdAt), a = tsToDate(r.acknowledgedAt), f = tsToDate(r.completedAt);
-                return {
-                    'Tarih': r.date || '',
-                    'Oda': r.room || '',
-                    'Misafir': r.guestName || '',
-                    'Departman': canonicalDept(r.department) || '',
-                    'Durum': statusLabelOf(r.status),
-                    'Oluşturma': fmtClock(c),
-                    'İşleme Alınma': fmtClock(a),
-                    'Tamamlanma': fmtClock(f),
-                    'Yanıt (dk)': minutesBetween(r.createdAt, r.acknowledgedAt),
-                    'İşlem (dk)': minutesBetween(r.acknowledgedAt, r.completedAt),
-                    'Toplam (dk)': minutesBetween(r.createdAt, r.completedAt),
-                    'Üstlenen': r.acknowledgedBy || '',
-                    'Tamamlayan': r.completedBy || ''
-                };
-            });
-            const sub = (from && to) ? `${from} → ${to}` : 'Tüm zamanlar';
-            if (format === 'excel') exportExcel(rows, `Gorev_Sureleri_${from || 'tum'}_${to || 'zamanlar'}`, 'Süreler');
-            else exportPDF('Görev Süreleri Dökümü',
-                ['Tarih', 'Oda', 'Misafir', 'Departman', 'Durum', 'Yanıt (dk)', 'İşlem (dk)', 'Toplam (dk)'],
-                data.map(r => [r.date || '', r.room || '', r.guestName || '', r.department || '', statusLabelOf(r.status),
-                    String(minutesBetween(r.createdAt, r.acknowledgedAt)), String(minutesBetween(r.acknowledgedAt, r.completedAt)), String(minutesBetween(r.createdAt, r.completedAt))]),
-                'Gorev_Sureleri', sub);
-        }
-
-        else if (type === 'dateRange') {
-            if (!from || !to) return showToast('Başlangıç ve bitiş tarihlerini seçin.', true);
-            const data = filterByRange(records, from, to);
-            if (format === 'excel') exportExcel(data.map(rowBase), `Issues_${from}_to_${to}`, 'Date Range');
-            else exportPDF(`Issues: ${from} → ${to}`, ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'],
-                data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, reportWorker(r), r.status || 'Following']),
-                `DateRange_${from}_${to}`, `From: ${from}  To: ${to}`);
-        }
-
-        else if (type === 'guest') {
-            let data = records;
-            if (guest) data = records.filter(r => r.guestName && r.guestName.toLowerCase().includes(guest.toLowerCase()));
-
-            const grouped = {};
-            data.forEach(r => {
-                const key = r.guestName || 'Unknown';
-                if (!grouped[key]) grouped[key] = [];
-                grouped[key].push(r);
-            });
-            if (format === 'excel') {
-                const wb = XLSX.utils.book_new();
-                const summary = Object.entries(grouped).map(([name, arr]) => ({
-                    'Guest Name': name, Room: arr[0]?.room || '', 'Total Issues': arr.length,
-                    Solved: arr.filter(r => r.status === 'Solved').length
-                }));
-                const wsSum = XLSX.utils.json_to_sheet(summary);
-                const wsAll = XLSX.utils.json_to_sheet(data.map(rowBase));
-                autoSizeSheet(wsSum, summary);
-                autoSizeSheet(wsAll, data.map(rowBase));
-                XLSX.utils.book_append_sheet(wb, wsSum, 'Guest Summary');
-                XLSX.utils.book_append_sheet(wb, wsAll, 'All Records');
-                XLSX.writeFile(wb, `By_Guest_${guest || 'All'}_${getLocalDate()}.xlsx`);
-                showToast('Excel raporu indirildi.');
-            } else {
-                const rows = Object.entries(grouped).flatMap(([name, arr]) =>
-                    arr.map(r => [name, r.room, r.date, r.department, r.complaint?.substring(0, 35), r.status || 'Following'])
-                );
-                exportPDF(`Issues by Guest: ${guest || 'All'}`, ['Guest Name', 'Room', 'Date', 'Department', 'Complaint', 'Status'], rows, `By_Guest_${guest || 'All'}`);
-            }
-        }
-
-        else if (type === 'status') {
-            const data = (from || to) ? filterByRange(records, from, to) : records;
-            const solved = data.filter(r => r.status === 'Solved');
-            const following = data.filter(r => r.status !== 'Solved');
-            if (format === 'excel') {
-                const wb = XLSX.utils.book_new();
-                const wsFollow = XLSX.utils.json_to_sheet(following.map(rowBase));
-                const wsSolved = XLSX.utils.json_to_sheet(solved.map(rowBase));
-                autoSizeSheet(wsFollow, following.map(rowBase));
-                autoSizeSheet(wsSolved, solved.map(rowBase));
-                XLSX.utils.book_append_sheet(wb, wsFollow, 'Following');
-                XLSX.utils.book_append_sheet(wb, wsSolved, 'Solved');
-                XLSX.writeFile(wb, `By_Status_${getLocalDate()}.xlsx`);
-                showToast('Excel raporu indirildi.');
-            } else {
-                const rows = data.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.status || 'Following']);
-                exportPDF('Issues by Status', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Status'], rows, 'By_Status',
-                    `Total: ${data.length} | Solved: ${solved.length} | Following: ${following.length}`);
-            }
-        }
-
-        else if (type === 'historicalStatus') {
-            if (!from || !to) return showToast('Başlangıç ve bitiş tarihlerini seçin.', true);
-            const data = filterByRange(records, from, to);
-            // Group by date + status
-            const dailyMap = {};
-            data.forEach(r => {
-                if (!dailyMap[r.date]) dailyMap[r.date] = { date: r.date, total: 0, solved: 0, following: 0, overdue: 0 };
-                dailyMap[r.date].total++;
-                if (r.status === 'Solved') dailyMap[r.date].solved++;
-                else { dailyMap[r.date].following++; if (isOverdueFn(r)) dailyMap[r.date].overdue++; }
-            });
-            const dailyRows = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
-            if (format === 'excel') {
-                const wb = XLSX.utils.book_new();
-                const summaryData = dailyRows.map(d => ({
-                    Date: d.date, Total: d.total, Solved: d.solved, Following: d.following, Overdue: d.overdue
-                }));
-                const wsSum = XLSX.utils.json_to_sheet(summaryData);
-                const wsDet = XLSX.utils.json_to_sheet(data.map(rowBase));
-                autoSizeSheet(wsSum, summaryData);
-                autoSizeSheet(wsDet, data.map(rowBase));
-                XLSX.utils.book_append_sheet(wb, wsSum, 'Daily Summary');
-                XLSX.utils.book_append_sheet(wb, wsDet, 'Detail');
-                XLSX.writeFile(wb, `Historical_Status_${from}_${to}.xlsx`);
-                showToast('Excel raporu indirildi.');
-            } else {
-                const rows = dailyRows.map(d => [d.date, d.total, d.solved, d.following, d.overdue]);
-                exportPDF(`Historical + Status: ${from} → ${to}`, ['Date', 'Total', 'Solved', 'Following', 'Overdue'], rows,
-                    `Historical_Status_${from}_${to}`);
-            }
-        }
-
-        else if (type === 'deptHistorical') {
-            let data = (from || to) ? filterByRange(records, from, to) : records;
-            if (dept !== 'All') data = data.filter(r => sameDept(r.department, dept));
-
-            const matrix = {};
-            data.forEach(r => {
-                const d = canonicalDept(r.department) || 'Unknown';
-                if (!matrix[d]) matrix[d] = {};
-                if (!matrix[d][r.date]) matrix[d][r.date] = 0;
-                matrix[d][r.date]++;
-            });
-            const allDates = [...new Set(data.map(r => r.date))].sort();
-            if (format === 'excel') {
-                const sheetRows = Object.entries(matrix).map(([d, dates]) => {
-                    const row = { Department: d };
-                    allDates.forEach(dt => row[dt] = dates[dt] || 0);
-                    row['Total'] = Object.values(dates).reduce((a, b) => a + b, 0);
-                    return row;
-                });
-                exportExcel(sheetRows, `Dept_Historical_${dept}_${getLocalDate()}`, 'Dept vs Date');
-            } else {
-                const rows = Object.entries(matrix).map(([d, dates]) => [d, ...allDates.map(dt => dates[dt] || 0), Object.values(dates).reduce((a, b) => a + b, 0)]);
-                exportPDF(`Department × Historical (${dept})`, ['Department', ...allDates, 'Total'], rows, `Dept_Historical_${dept}`);
-            }
-        }
-
-        else if (type === 'currentView') {
-            if (lastRenderedRows.length === 0) return showToast('Dışa aktarılacak görünür kayıt yok.', true);
-            if (format === 'excel') exportExcel(lastRenderedRows.map(rowBase), 'Current_View', 'Filtered');
-            else {
-                const rows = lastRenderedRows.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 40), r.staffInitial, reportWorker(r), r.status || 'Following']);
-                exportPDF('Current Filtered View', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'], rows, 'Current_View');
-            }
-        }
-
-        else if (type === 'fullArchive') {
-            if (format === 'excel') exportExcel(records.map(rowBase), 'Full_Archive', 'Archive');
-            else {
-                const rows = records.map(r => [r.date, r.room, r.guestName, r.department, r.complaint?.substring(0, 35), r.staffInitial, reportWorker(r), r.status || 'Following']);
-                exportPDF('Full Archive — All Records', ['Date', 'Room', 'Guest', 'Department', 'Complaint', 'Staff', 'Üstlenen', 'Status'], rows, 'Full_Archive',
-                    `Total Records: ${records.length}`);
-            }
-        }
-    };
 
     // ── SLA / gecikme ──────────────────────────────────────────
     const DEFAULT_SLA_MIN = 15;
@@ -1970,109 +1304,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     }
 
-    // Guest Profiles Modal Logic
-    const guestProfileModal = document.getElementById('guestProfileModal');
-    const closeProfileModal = document.getElementById('closeProfileModal');
-    const profileSearchInput = document.getElementById('profileSearchInput');
-    const guestProfileList = document.getElementById('guestProfileList');
-    const statusPills = document.querySelectorAll('.status-pill');
-
-    let currentProfileFilter = 'all';
-
-    document.getElementById('guestProfilesBtn')?.addEventListener('click', () => {
-        profileSearchInput.value = '';
-        currentProfileFilter = 'all';
-        statusPills.forEach(p => p.classList.toggle('active', p.dataset.filter === 'all'));
-        renderGuestProfileList();
-        guestProfileModal.style.display = 'flex';
-    });
-
-    // Başlıktaki × ve alt çubuktaki "Kapat" aynı işi yapar (alt çubuk, ortak
-    // modal sistemine geçerken eklendi — uzun listede kapatmak için yukarı
-    // kaydırmak gerekmiyor).
-    const closeGuestProfile = () => { guestProfileModal.style.display = 'none'; };
-    closeProfileModal?.addEventListener('click', closeGuestProfile);
-    document.getElementById('closeProfileFooterBtn')?.addEventListener('click', closeGuestProfile);
-
-    statusPills.forEach(pill => {
-        pill.addEventListener('click', () => {
-            statusPills.forEach(p => p.classList.remove('active'));
-            pill.classList.add('active');
-            currentProfileFilter = pill.dataset.filter;
-            renderGuestProfileList();
-        });
-    });
-
-    profileSearchInput?.addEventListener('input', renderGuestProfileList);
-
-    function renderGuestProfileList() {
-        if (!guestProfileList) return;
-        const search = profileSearchInput.value.toLowerCase();
-
-        let filtered = guestDirectory.filter(g => {
-            const matchesSearch = g.name.toLowerCase().includes(search) || (g.room && g.room.includes(search));
-            const matchesStatus = currentProfileFilter === 'all' || g.status === currentProfileFilter;
-            return matchesSearch && matchesStatus;
-        });
-
-        guestProfileList.innerHTML = '';
-        if (filtered.length === 0) {
-            guestProfileList.innerHTML = '<p style="padding:20px; text-align:center; color:#888;">Misafir bulunamadı.</p>';
-            return;
-        }
-
-        filtered.forEach(guest => {
-            const item = document.createElement('div');
-            item.className = 'guest-profile-item';
-            item.style = `
-                display: flex; justify-content: space-between; align-items: center; 
-                padding: 12px 15px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s;
-            `;
-
-            const isInHouse = guest.status === 'in_house';
-
-            item.innerHTML = `
-                <div style="flex: 1;">
-                    <div style="font-weight: 600; color: #333;">${esc(guest.name)}</div>
-                    <div style="font-size: 12px; color: #888;">Oda: ${esc(guest.room || '—')} • <span style="color:${isInHouse ? '#27ae60' : '#7f8c8d'}; font-weight:700;">${isInHouse ? 'OTELDE' : 'ÇIKIŞ YAPTI'}</span></div>
-                </div>
-                <button onclick="toggleGuestStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')"
-                        style="padding: 6px 12px; border-radius: 4px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; 
-                               background: ${isInHouse ? '#fef2f2' : '#f0fdf4'}; color: ${isInHouse ? '#991b1b' : '#166534'};">
-                    ${isInHouse ? 'ÇIKIŞ VER' : 'OTELDE İŞARETLE'}
-                </button>
-            `;
-            guestProfileList.appendChild(item);
-        });
-    }
-
-    window.toggleGuestStatus = async (guestId, newStatus) => {
-        try {
-            await db.collection('guestDirectory').doc(guestId).update({
-                status: newStatus,
-                lastUpdated: new Date().toISOString()
-            });
-            // Update local state
-            const idx = guestDirectory.findIndex(g => g.id === guestId);
-            if (idx !== -1) guestDirectory[idx].status = newStatus;
-            renderGuestProfileList();
-            updateView(globalSearch.value, dateSearch.value); // Refresh table badges
-            showToast('Misafir durumu güncellendi');
-        } catch (e) { showToast('Güncelleme başarısız', true); }
-    };
-
-    profileSearchInput?.addEventListener('input', renderGuestProfileList);
-
-    window.selectGuestProfile = async function (name) {
-        guestProfileModal.style.display = 'none';
-        globalSearch.value = name;
-        dateSearch.value = ''; // clear date to show all history
-        activeStatusFilter = null;
-        if (!fullyLoaded) { showToast('Arşiv yükleniyor…'); await ensureFullArchive(); } // misafirin tüm geçmişi
-        triggerSearch();
-    };
-
-
     // 3. View Logic
     function formatDateShort(dateStr) {
         if (!dateStr) return '';
@@ -2134,7 +1365,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateView(textFilter = '', dateFilter = '') {
         recordsTableBody.innerHTML = '';
-        const lowerText = textFilter.toLowerCase();
+        // Türkçe büyük/küçük harf: 'İlker'.toLowerCase() → 'i̇lker' (i + birleşik
+        // nokta) olduğundan "ilker" araması bulamıyordu; tr-TR katlaması
+        // İ→i, I→ı yapar. Sorgu da aynı katlamadan geçer.
+        const lowerText = searchFold(textFilter);
         let stats = { total: 0, following: 0, inprogress: 0, solved: 0, overdue: 0, mine: 0 };
 
         const tableTitle = document.getElementById('tableTitle');
@@ -2148,8 +1382,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const filtered = records.filter(r => {
-            const matchesText = !textFilter || [r.guestName, r.room, r.department, r.staffInitial, r.status]
-                .some(field => field && field.toLowerCase().includes(lowerText));
+            // Durum, ekranda görünen TÜRKÇE etiketiyle de aranır (veride
+            // 'Solved' saklanıyor, kullanıcı "Tamamlandı" yazıyor). String()
+            // sayı olarak kaydedilmiş oda gibi alanlarda çökmeyi önler.
+            const matchesText = !textFilter || [r.guestName, r.room, r.department, r.staffInitial, r.status, r.status ? statusLabelOf(r.status) : '']
+                .some(field => field != null && field !== '' && searchFold(field).includes(lowerText));
             const matchesDate = !dateFilter || r.date === dateFilter;
             return matchesText && matchesDate;
         });
@@ -2172,8 +1409,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeStatusFilter === 'Mine') return r.status !== 'Solved' && isMineRecord(r);
             return (r.status || 'Following') === activeStatusFilter;
         });
-
-        lastRenderedRows = finalFiltered;
 
         if (!finalFiltered.length) {
             recordsTableBody.innerHTML = `

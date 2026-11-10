@@ -45,12 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('logoutBtn')?.addEventListener('click', () => {
-        auth.signOut().then(() => {
-            clearSessionStorage();
-            window.location.href = 'login';
-        });
-    });
+    document.getElementById('logoutBtn')?.addEventListener('click', () => hotelSignOut('login'));
 
     // ── DATA STATE ─────────────────────────────────────────────
     let guestDirectory = [];

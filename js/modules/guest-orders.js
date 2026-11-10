@@ -490,7 +490,7 @@
             const raw = prompt('Talebi iptal etme nedeni (misafire gösterilecektir):');
             if (raw === null) return;            // vazgeçildi
             const reason = raw.trim();
-            if (!reason) { alert('İptal nedeni belirtmelisiniz.'); return; }
+            if (!reason) { warn('İptal nedeni belirtmelisiniz.'); return; }
             bulkSet(id, 'cancelled', {
                 cancelReason: reason.slice(0, 300),
                 cancelledBy: USERNAME,
@@ -566,7 +566,7 @@
             });
             if (blocked) return null;
             return { items };
-        }, () => { if (blocked) alert(blocked); });
+        }, () => { if (blocked) warn(blocked); });
     }
 
     // Persist new item statuses: writes/updates a guestLog per item so each lands
@@ -678,7 +678,7 @@
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, extra || {}));
         }).then(() => { if (typeof after === 'function') after(); })
-          .catch(err => { console.error('guest order commit failed', err); alert('İşlem kaydedilemedi.'); });
+          .catch(err => { console.error('guest order commit failed', err); warn('İşlem kaydedilemedi.'); });
     }
 
     function assignOrder(orderId, uid, uname) {
@@ -702,25 +702,55 @@
                     }).catch(() => {});
                 }
             })
-            .catch(err => { console.error('assign failed', err); alert('Atama yapılamadı.'); });
+            .catch(err => { console.error('assign failed', err); warn('Atama yapılamadı.'); });
     }
 
     // ── Live listeners ─────────────────────────────────────────
+    // İki dinleyici: (1) son 80 sipariş — geçmiş + yeni sipariş uyarısı,
+    // (2) TÜM açık siparişler (limitsiz). Önceden yalnızca (1) vardı: yoğun
+    // bir otelde 80'den eski ama hâlâ bekleyen/işlemdeki bir sipariş panodan
+    // ve sayaçtan düşüyor, ona giden bildirim bağlantısı da siparişi
+    // açamıyordu. Açık küme her zaman küçüktür (tamamlanan çıkar).
+    const OPEN_STATES = ['pending', 'confirmed', 'in_progress'];
+    // Tarayıcının bloklayan alert() penceresi yerine paylaşımlı toast
+    // (js/utils/toast.js); yüklenmemişse alert'e düşer.
+    function warn(msg) {
+        if (typeof window.showToast === 'function') window.showToast(msg, true);
+        else alert(msg);
+    }
+    let recentOrders = [], openOrders = [];
+    const createdMs = (o) => (o.createdAt && o.createdAt.toMillis) ? o.createdAt.toMillis() : 0;
+    function mergeOrders() {
+        const byId = new Map();
+        recentOrders.forEach(o => byId.set(o.id, o));
+        openOrders.forEach(o => { if (!byId.has(o.id)) byId.set(o.id, o); });
+        orders = Array.from(byId.values()).sort((a, b) => createdMs(b) - createdMs(a));
+    }
+    function afterOrdersChange() {
+        mergeOrders();
+        renderBadge();
+        if (drawerOpen) render();
+        if (pendingFocus) { const id = pendingFocus; pendingFocus = null; setTimeout(() => focusOrder(id), 200); }
+    }
     function listen() {
         db.collection('guestOrders').where('tenantId', '==', TENANT)
             .orderBy('createdAt', 'desc').limit(80)
             .onSnapshot(snap => {
-                orders = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                recentOrders = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
                 if (!firstLoad) {
                     snap.docChanges().forEach(ch => {
                         if (ch.type === 'added' && (ch.doc.data().status === 'pending')) notifyNew(ch.doc.id, ch.doc.data());
                     });
                 }
                 firstLoad = false;
-                renderBadge();
-                if (drawerOpen) render();
-                if (pendingFocus) { const id = pendingFocus; pendingFocus = null; setTimeout(() => focusOrder(id), 200); }
+                afterOrdersChange();
             }, err => console.error('guestOrders listen failed', err));
+        db.collection('guestOrders').where('tenantId', '==', TENANT)
+            .where('status', 'in', OPEN_STATES)
+            .onSnapshot(snap => {
+                openOrders = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                afterOrdersChange();
+            }, err => console.error('guestOrders open listen failed', err));
     }
     // Mirror current in-house occupants so each order shows the real guest name.
     // Durum filtresi sunucuda — tüm dizin yerine yalnızca konaklayanlar iner.

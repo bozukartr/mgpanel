@@ -67,10 +67,12 @@ exports.onNotificationCreate = onDocumentCreated(
     // App Shell rotaları (app.html#route) — eski bağımsız sayfalara (/panel.html,
     // /concierge.html) değil; böylece bildirim tıklayınca sabit header/nav korunur.
     const link = (n.type === 'guestOrder')
-      ? '/app.html#concierge' + (recordId ? '?order=' + encodeURIComponent(recordId) : '')
+      ? '/app#concierge' + (recordId ? '?order=' + encodeURIComponent(recordId) : '')
       : (n.type === 'passwordReset')
-      ? '/app.html#admin'
-      : '/app.html#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
+      // Admin paneli App Shell'in DIŞINDA ayrı bir sayfa; app#admin
+      // diye bir shell rotası yok (varsayılan rotaya düşüyordu).
+      ? '/admin#users'
+      : '/app#kayitlar' + (recordId ? '?open=' + encodeURIComponent(recordId) : '');
     const message = {
       notification: { title: n.title || 'Hotizy', body: n.body || '' },
       data: {
@@ -1040,13 +1042,24 @@ exports.deleteHotel = onCall({ region: REGION }, async (request) => {
   return { deleted: true, removedUsers: usersSnap.size, purged: purge, purgedDocs };
 });
 
-// Superadmin-only: remove a single staff member — Auth account + systemUsers
-// doc — so the same username can be issued again.
+// Remove a single staff member — Auth account + systemUsers doc — so the
+// same username can be issued again. Superadmin: any hotel. Otel admin'i:
+// yalnızca KENDİ otelinin personeli ve kendisi hariç. Eskiden yalnızca
+// superadmin çağırabiliyordu; admin panelindeki "Erişimi Kaldır" bu yüzden
+// sadece systemUsers dokümanını siliyordu — Auth hesabı yetim kalıyor, aynı
+// kullanıcı adı / F&B kodu bir daha verilemiyordu ("zaten kullanımda").
 exports.deleteUser = onCall({ region: REGION }, async (request) => {
-  await requireSuperAdmin(request);
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
   const uid = request.data && request.data.uid;
   if (!uid || typeof uid !== 'string') {
     throw new HttpsError('invalid-argument', 'Kullanıcı kimliği gerekli.');
+  }
+  const isSuper = (await db.collection('superAdmins').doc(request.auth.uid).get()).exists;
+  if (!isSuper) {
+    await requireTenantAdminFor(request, uid);
+    if (uid === request.auth.uid) {
+      throw new HttpsError('failed-precondition', 'Kendi hesabınızı kaldıramazsınız.');
+    }
   }
   await deleteAuthUser(uid);
   await db.collection('systemUsers').doc(uid).delete();
@@ -1315,8 +1328,11 @@ exports.forgotPasswordRequest = onCall({ region: REGION }, async (request) => {
     if (userQ.empty) return generic;
     const targetId = userQ.docs[0].id;
 
+    // Rol büyük/küçük harf karışık saklanıyor: superadmin 'admin', otel
+    // admin paneli 'Admin' yazar. Yalnızca 'admin' aramak panelden açılmış
+    // adminleri atlıyordu (bildirim hiç gitmiyordu).
     const adminsQ = await db.collection('systemUsers')
-      .where('tenantId', '==', tenant).where('role', '==', 'admin').get();
+      .where('tenantId', '==', tenant).where('role', 'in', ['admin', 'Admin', 'ADMIN']).get();
     if (adminsQ.empty) return generic; // gönderecek admin yok (ör. tek admin kendisi unuttu)
 
     const batch = db.batch();

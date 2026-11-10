@@ -78,12 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.app-username').forEach(el => el.textContent = loggedUsername);
 
-    document.getElementById('c-logoutBtn')?.addEventListener('click', () => {
-        auth.signOut().then(() => {
-            localStorage.removeItem('hotelUsername'); localStorage.removeItem('hotelTenantId');
-            window.location.href = 'login';
-        });
-    });
+    document.getElementById('c-logoutBtn')?.addEventListener('click', () => hotelSignOut('login'));
 
     // ── AUTO LOGOUT LOGIC (15 MINS) ────────────────────────────
     let logoutTimer;
