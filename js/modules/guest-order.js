@@ -263,7 +263,7 @@
     const DEPT_KIND_DEFS = {
         housekeeping: deptDef('housekeeping', 'spark', 'housekeeping_button.webp'),
         fnb: deptDef('fnb', 'utensils', 'fnb_button.webp'),
-        engineering: deptDef('engineering', 'wrench'),
+        engineering: deptDef('engineering', 'wrench', 'engineering_button.webp'),
         frontdesk: deptDef('frontdesk', 'bell', 'frontoffice_button.webp'),
         concierge: deptDef('concierge', 'compass', 'vip_transfer_button.webp'),
         other: deptDef('other', 'grid')
