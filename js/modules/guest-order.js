@@ -258,13 +258,14 @@
     // kümeye uymayan departmanlar (ör. otelin eklediği "Spa") 'other'
     // kutucuğunda toplanır — eskiden ana ekranda hiç görünmüyorlardı.
     // Etiketler GETTER: okunduğu an aktif dilden çözülür.
-    function deptDef(key, icn) { return { icon: icn, get label() { return t('guest.dept.name.' + key); } }; }
+    // img: site kökündeki kart fotoğrafı; boşsa kart vurgu tonunda ikonla çizilir.
+    function deptDef(key, icn, img) { return { icon: icn, img: img || '', get label() { return t('guest.dept.name.' + key); } }; }
     const DEPT_KIND_DEFS = {
-        housekeeping: deptDef('housekeeping', 'spark'),
-        fnb: deptDef('fnb', 'utensils'),
+        housekeeping: deptDef('housekeeping', 'spark', 'housekeeping_button.webp'),
+        fnb: deptDef('fnb', 'utensils', 'fnb_button.webp'),
         engineering: deptDef('engineering', 'wrench'),
-        frontdesk: deptDef('frontdesk', 'bell'),
-        concierge: deptDef('concierge', 'compass'),
+        frontdesk: deptDef('frontdesk', 'bell', 'frontoffice_button.webp'),
+        concierge: deptDef('concierge', 'compass', 'vip_transfer_button.webp'),
         other: deptDef('other', 'grid')
     };
     const DEPT_ORDER = ['housekeeping', 'fnb', 'engineering', 'frontdesk', 'concierge', 'other'];
@@ -810,10 +811,8 @@
             wrap.innerHTML = `<div style="grid-column:1/-1">${emptyHtml('grid', t('guest.services.noResult'), t('guest.services.notReady'))}</div>`;
             return;
         }
-        wrap.innerHTML = groups.map(g => `<button class="go-dept" data-dept="${esc(g.key)}">
-                <span class="go-dept-ic">${icon(g.def.icon, 22, 1.8)}</span>
-                <span class="go-dept-tx"><b>${esc(g.def.label)}</b><span>${esc(t('guest.home.serviceCount', { n: g.n }))}</span></span>
-            </button>`).join('');
+        wrap.innerHTML = groups.map(g => photoCardHtml(`data-dept="${esc(g.key)}"`, g.def.img, g.def.icon, g.def.label, t('guest.home.serviceCount', { n: g.n }))).join('');
+        applyCardImages(wrap);
         wrap.onclick = e => { const b = e.target.closest('[data-dept]'); if (b) openServices(b.dataset.dept); };
     }
     // Hızlı talepler: misafirin daha önce istedikleri önce, sonra her
@@ -840,8 +839,21 @@
         bindItemEvents(wrap);
     }
 
-    // "Oteliniz" kartı: otelin kapak görseli (varsa) + bilgi/menü/konaklama
-    // kısayolları + resepsiyonu ara.
+    // Fotoğraflı kart (departman + otel kısayolu). Görsel yolu STATİK bir
+    // dosya adıdır ya da applyCardImages() ile DOM üzerinden atanır — kullanıcı
+    // girdisi stil özelliğine metin olarak gömülmez.
+    function photoCardHtml(attr, img, ic, title, sub) {
+        return `<button class="go-pcard ${img ? '' : 'is-art'}" ${attr}>
+            ${img ? `<span class="go-pcard-img" data-img="${esc(img)}"></span>` : ''}
+            <span class="go-pcard-ic">${icon(ic, 18, 1.9)}</span>
+            <span class="go-pcard-tx"><b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</span>
+        </button>`;
+    }
+    function applyCardImages(root) {
+        root.querySelectorAll('.go-pcard-img[data-img]').forEach(el => { el.style.backgroundImage = 'url(' + JSON.stringify(el.dataset.img) + ')'; });
+    }
+    // "Oteliniz": bilgi / menü / konaklama fotoğraflı kartları + resepsiyonu
+    // ara. Otelin kendi kapak görseli varsa "Otel Bilgileri" kartında o görünür.
     function rowBtnHtml(attr, ic, title, sub) {
         return `<button class="go-row" ${attr}><span class="go-row-ic">${ic}</span><span class="go-row-main"><span class="go-row-tl">${esc(title)}</span>${sub ? `<span class="go-row-sub">${esc(sub)}</span>` : ''}</span><span class="go-row-end">${icon('chev', 18)}</span></button>`;
     }
@@ -851,19 +863,14 @@
     }
     function renderHotelCard() {
         const wrap = $('goHotelCard'); if (!wrap) return;
-        const img = String(config.heroImage || '').trim();
-        const welcome = String(config.welcome || '').trim();
-        wrap.innerHTML = (img ? `<div class="go-hotelcard-img">${welcome ? `<p>${esc(welcome)}</p>` : ''}</div>` : '')
-            + `<div class="go-listcard">
-                ${rowBtnHtml('data-open="info"', icon('info', 18, 1.9), t('guest.info.title'), '')}
-                ${rowBtnHtml('data-open="menus"', icon('doc', 18, 1.9), t('guest.menus.title'), '')}
-                ${rowBtnHtml('data-open="stay"', icon('bed', 18, 1.9), t('guest.stay.myStay'), '')}
-                ${callRowHtml()}
-            </div>`;
-        // Görsel adresi stil özelliğine METİN olarak gömülmez (tırnak
-        // kaçışıyla CSS enjeksiyonu riski) — DOM üzerinden atanır.
-        const im = wrap.querySelector('.go-hotelcard-img');
-        if (im) im.style.backgroundImage = 'url(' + JSON.stringify(img) + ')';
+        const hero = String(config.heroImage || '').trim();
+        const call = callRowHtml();
+        wrap.innerHTML = `<div class="go-hgrid">
+                ${photoCardHtml('data-open="info"', hero || 'info_button.webp', 'info', t('guest.info.title'), '')}
+                ${photoCardHtml('data-open="menus"', 'menus_button.webp', 'doc', t('guest.menus.title'), '')}
+                ${photoCardHtml('data-open="stay"', 'stay_button.webp', 'bed', t('guest.stay.title'), '')}
+            </div>${call ? `<div class="go-listcard">${call}</div>` : ''}`;
+        applyCardImages(wrap);
         wrap.onclick = e => {
             const b = e.target.closest('[data-open]'); if (!b) return;
             const k = b.dataset.open;
