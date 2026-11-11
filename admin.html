@@ -1,181 +1,423 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Admin Console | Core System</title>
-    <link rel="stylesheet" href="css/modules/panel.css"> <!-- Reusing global tokens -->
-    <link rel="stylesheet" href="css/modules/admin.css">
+    <title>Ayarlar | Hotizy</title>
+    <meta name="theme-color" content="#f6f6f7">
+    <!-- ?v=: JS/CSS 10 dk önbellekli (firebase.json), HTML değil — yeni HTML eski
+         stil/JS ile karışmasın diye değişen dosyalar sürümlenir. -->
+    <link rel="stylesheet" href="css/modules/admin.css?v=20261111d">
     <link rel="stylesheet" href="css/core/modal.css">
     <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="admin-body">
     <div class="shell">
-        <aside class="sidebar" id="sidebar">
+        <!-- ═══ Kenar çubuğu: gruplanmış ayarlar menüsü ═══ -->
+        <aside class="sidebar" id="sidebar" aria-label="Ayarlar menüsü">
             <div class="sb-brand">
                 <img src="logo.png" alt="">
                 <div>
                     <div class="name">Hotizy</div>
-                    <div class="role">Admin Konsolu</div>
+                    <div class="role">Otel Ayarları</div>
                 </div>
             </div>
-            <nav class="sb-apps">
-                <a href="app#dashboard">← Panel'e dön</a>
-                <a href="app#concierge" data-module="concierge">Concierge</a>
-                <a href="app#kayitlar" data-module="guestIssues">Misafir Kayıtları</a>
-                <a href="app#crm" data-module="crm">CRM</a>
-            </nav>
+            <a class="sb-back" href="app#dashboard"><span data-ic="arrowLeft"></span>Panele dön</a>
+
             <nav class="sb-nav" id="admTabs">
-                <button class="sb-link active" data-view="overview">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-                    Genel Bakış
-                </button>
-                <button class="sb-link" data-view="finance">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>
-                    Finans
-                </button>
-                <button class="sb-link" data-view="users">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    Kullanıcılar
-                </button>
-                <button class="sb-link" data-view="catalog">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 20h18M5 20V7l8-4v17M19 20V11l-6-4"/></svg>
-                    Hazır Talepler
-                </button>
-                <button class="sb-link" data-view="notify">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                    Bildirimler
-                </button>
-                <button class="sb-link" data-view="issues">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg>
-                    Departmanlar
-                </button>
-                <button class="sb-link" data-view="tickets">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-                    Destek
-                    <span class="nav-badge" id="ticketsBadge" hidden></span>
-                </button>
-                <button class="sb-link" data-view="system">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    Sistem
-                </button>
+                <button class="sb-link active" data-view="overview"><span data-ic="home"></span>Genel Bakış</button>
+
+                <div class="sb-group" data-group="guest">Misafir deneyimi</div>
+                <button class="sb-link" data-view="catalog"><span data-ic="clipboard"></span>Hizmet Kataloğu</button>
+                <button class="sb-link" data-view="guestpage"><span data-ic="phone"></span>Misafir Sayfası</button>
+                <button class="sb-link" data-view="menusqr"><span data-ic="qr"></span>Menüler ve QR</button>
+
+                <div class="sb-group">Ekip ve operasyon</div>
+                <button class="sb-link" data-view="users"><span data-ic="users"></span>Kullanıcılar</button>
+                <button class="sb-link" data-view="issues"><span data-ic="layers"></span>Departmanlar</button>
+                <button class="sb-link" data-view="notify"><span data-ic="bell"></span>Bildirimler</button>
+                <button class="sb-link" data-view="shift"><span data-ic="pin"></span>Vardiya Konumu</button>
+
+                <div class="sb-group">Finans</div>
+                <button class="sb-link" data-view="finance"><span data-ic="chart"></span>Gelir ve Komisyon</button>
+                <button class="sb-link" data-view="billing"><span data-ic="credit"></span>Abonelik</button>
+
+                <div class="sb-group">Destek ve sistem</div>
+                <button class="sb-link" data-view="tickets"><span data-ic="message"></span>Destek<span class="nav-badge" id="ticketsBadge" hidden></span></button>
+                <button class="sb-link" data-view="system"><span data-ic="gear"></span>Sistem</button>
             </nav>
-            <div class="sb-foot">
-                <div class="sb-rt-bell" id="rt-bell"></div>
-            </div>
         </aside>
         <div class="sb-backdrop" id="sbBackdrop"></div>
 
         <div class="main">
             <header class="topbar">
-                <button class="menu-toggle" id="menuToggle" aria-label="Menü">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-                </button>
-                <div>
+                <button class="menu-toggle" id="menuToggle" aria-label="Menüyü aç"><span data-ic="menu"></span></button>
+                <div class="tb-titles">
                     <h1 id="pageTitle">Genel Bakış</h1>
                     <div class="sub" id="pageSub">Otelinizin özet durumu</div>
                 </div>
-                <div class="topbar-r"></div>
+                <div class="topbar-r"><div id="rt-bell"></div></div>
             </header>
 
             <div class="content">
-            <!-- ═══ GENEL BAKIŞ ═══ -->
+            <!-- ═══ GENEL BAKIŞ — sade özet kartları ═══ -->
             <section class="adm-view active" id="view-overview">
-                <div class="stat-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon i-users">👥</div>
-                        <div class="stat-body">
-                            <span class="stat-label">Ekip Üyeleri</span>
-                            <span class="stat-value" id="statUsers">—</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon i-sub">💳</div>
-                        <div class="stat-body">
-                            <span class="stat-label">Abonelik</span>
-                            <span class="sub-status" id="subStatus">—</span>
-                            <span class="sub-expiry" id="subExpiry"></span>
-                            <!-- Online ödeme kaldırıldı: tahsilat çevrim dışı (havale/EFT).
-                                 Banka bilgileri siteConfig/billing'den okunur; operatör
-                                 ödemeyi superadmin panelinden elle kaydeder. -->
-                            <div class="sub-actions sub-offline" id="subOffline"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon i-tickets">🎫</div>
-                        <div class="stat-body">
-                            <span class="stat-label">Açık Talepler</span>
-                            <span class="stat-value" id="statTickets">—</span>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon i-maint">🛠️</div>
-                        <div class="stat-body">
-                            <span class="stat-label">Bakım</span>
-                            <span class="stat-value" id="statMaintenance">Kapalı</span>
-                        </div>
-                    </div>
+                <div class="ov-grid">
+                    <button type="button" class="ov-card" data-goto="users">
+                        <div class="ov-head"><span class="ov-label">Ekip üyeleri</span><span class="ov-ic"><span data-ic="users"></span></span></div>
+                        <div class="ov-value" id="statUsers">—</div>
+                        <div class="ov-foot">Kullanıcıları yönet <span data-ic="chevronRight"></span></div>
+                    </button>
+                    <button type="button" class="ov-card" data-goto="billing">
+                        <div class="ov-head"><span class="ov-label">Abonelik</span><span class="ov-ic"><span data-ic="credit"></span></span></div>
+                        <div class="ov-value ov-text" id="ovSubStatus">—</div>
+                        <div class="ov-foot" id="ovSubExpiry">Abonelik ayrıntıları</div>
+                    </button>
+                    <button type="button" class="ov-card" data-goto="tickets">
+                        <div class="ov-head"><span class="ov-label">Açık destek talebi</span><span class="ov-ic"><span data-ic="message"></span></span></div>
+                        <div class="ov-value" id="statTickets">—</div>
+                        <div class="ov-foot">Destek'e git <span data-ic="chevronRight"></span></div>
+                    </button>
+                    <button type="button" class="ov-card" data-goto="system">
+                        <div class="ov-head"><span class="ov-label">Bakım modu</span><span class="ov-ic"><span data-ic="wrench"></span></span></div>
+                        <div class="ov-value ov-text" id="statMaintenance">Kapalı</div>
+                        <div class="ov-foot">Sistem ayarları <span data-ic="chevronRight"></span></div>
+                    </button>
                 </div>
             </section>
 
-            <!-- ═══ FİNANS ═══ -->
+            <!-- ═══ HİZMET KATALOĞU (misafir self-servis talepleri) ═══ -->
+            <section class="adm-view" id="view-catalog">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Hizmetler</h2>
+                            <p class="card-sub">Misafirin QR sayfasından isteyebildiği hizmet ve ürünler. Bir satıra tıklayarak düzenleyin.</p>
+                        </div>
+                        <div class="card-hd-actions">
+                            <div class="tools-menu" id="catToolsMenu">
+                                <button class="btn btn-ghost" id="catToolsBtn" aria-haspopup="true"><span data-ic="layers"></span>Toplu işlemler</button>
+                                <div class="tools-dropdown" id="catToolsDropdown">
+                                    <button type="button" id="catBulkAddBtn"><span data-ic="zap"></span>Hızlı toplu ekle</button>
+                                    <button type="button" id="catExportBtn"><span data-ic="download"></span>Şablon indir (CSV)</button>
+                                    <button type="button" id="catImportBtn"><span data-ic="upload"></span>CSV'den yükle</button>
+                                    <div class="tools-sep"></div>
+                                    <button type="button" id="catSeedBtn"><span data-ic="sparkles"></span>Varsayılanları yükle</button>
+                                    <button type="button" id="catUnseedBtn" class="danger"><span data-ic="trash"></span>Varsayılanları kaldır</button>
+                                </div>
+                            </div>
+                            <input type="file" id="catImportInput" accept=".csv,text/csv" style="display:none;">
+                            <button class="btn btn-primary" id="catAddBtn"><span data-ic="plus"></span>Hizmet ekle</button>
+                        </div>
+                    </div>
+                    <div id="catalogQrHint"></div>
+                    <div class="cat-toolbar">
+                        <input type="search" id="catSearch" class="cat-search" placeholder="Hizmet veya kategori ara" autocomplete="off">
+                    </div>
+                    <div id="catalogList" class="cat-list"><!-- request-catalog.js --></div>
+                </section>
+            </section>
+
+            <!-- ═══ MİSAFİR SAYFASI (QR sayfası görünümü + otel bilgileri) ═══ -->
+            <section class="adm-view" id="view-guestpage">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Görünüm</h2>
+                            <p class="card-sub">Misafirin QR sayfasında otel adı, fiyatlar ve kapak görseli.</p>
+                        </div>
+                        <button class="btn btn-primary" id="catCfgSave">Kaydet</button>
+                    </div>
+                    <div class="settings-body">
+                        <div class="f-row r-cur">
+                            <div>
+                                <label for="cfgHotelName">Otel adı (misafire görünen)</label>
+                                <input type="text" id="cfgHotelName" maxlength="60" placeholder="Otel adınız">
+                            </div>
+                            <div>
+                                <label for="cfgCurrency">Para birimi</label>
+                                <input type="text" id="cfgCurrency" maxlength="4" placeholder="₺">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="cfgHeroImage">Kapak görseli (URL)</label>
+                            <input type="url" id="cfgHeroImage" maxlength="500" placeholder="https://… otel, lobi veya manzara fotoğrafı">
+                            <p class="field-hint">Misafir ana sayfasının üst görseli. Boş bırakılırsa sade bir arka plan kullanılır.</p>
+                        </div>
+                        <label class="switch-row">
+                            <input type="checkbox" id="cfgShowPrices">
+                            <span>Fiyatları göster <small>— yalnızca fiyatı girilmiş hizmetlerde</small></span>
+                        </label>
+                        <div class="card-note"><span data-ic="lock"></span><span>Misafir kimlik doğrulaması (soyadı + doğum yılı) tüm oteller için zorunlu ve otomatiktir; ayrıca bir ayar gerekmez.</span></div>
+                    </div>
+                </section>
+
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Otel bilgileri</h2>
+                            <p class="card-sub">QR sayfasındaki "Otel Bilgileri" bölümünde görünür; boş bırakılanlar gizlenir. Yukarıdaki "Kaydet" ile birlikte kaydedilir.</p>
+                        </div>
+                    </div>
+                    <div class="settings-body">
+                        <div class="form-group">
+                            <label for="cfgWelcome">Karşılama mesajı</label>
+                            <input type="text" id="cfgWelcome" maxlength="160" placeholder="Konaklamanızın keyfini çıkarın, her şey bir dokunuş uzağınızda.">
+                        </div>
+                        <div class="f-row">
+                            <div>
+                                <label for="cfgPhone">Resepsiyon telefonu</label>
+                                <input type="text" id="cfgPhone" maxlength="30" placeholder="0 (000) 000 00 00">
+                            </div>
+                            <div>
+                                <label for="cfgCheckout">Çıkış (check-out) saati</label>
+                                <input type="text" id="cfgCheckout" maxlength="20" placeholder="12:00">
+                            </div>
+                        </div>
+                        <div class="f-row">
+                            <div>
+                                <label for="cfgWifiName">Wi-Fi ağı</label>
+                                <input type="text" id="cfgWifiName" maxlength="40" placeholder="Hotel-Guest">
+                            </div>
+                            <div>
+                                <label for="cfgWifiPass">Wi-Fi şifresi</label>
+                                <input type="text" id="cfgWifiPass" maxlength="40" placeholder="konaklama2024">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="cfgBreakfast">Kahvaltı saatleri</label>
+                            <input type="text" id="cfgBreakfast" maxlength="60" placeholder="07:00 – 10:30 · Lobi Restoran">
+                        </div>
+                        <div class="form-group">
+                            <label for="cfgAddress">Adres</label>
+                            <input type="text" id="cfgAddress" maxlength="160" placeholder="Otel adresi (haritada açılır)">
+                        </div>
+                    </div>
+                </section>
+            </section>
+
+            <!-- ═══ MENÜLER VE QR ═══ -->
+            <section class="adm-view" id="view-menusqr">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Menüler (PDF)</h2>
+                            <p class="card-sub">Misafirin QR sayfasındaki "Menüler" bölümünde açılır (Oda Servisi, Restoran, Spa…). PDF'in bulunduğu bağlantıyı (Drive, otel web siteniz vb.) yapıştırın; dosya yükleme yoktur.</p>
+                        </div>
+                    </div>
+                    <div class="menu-add-row">
+                        <input type="text" id="menuNewName" maxlength="80" placeholder="Menü adı, ör. Restoran Menüsü">
+                        <input type="text" id="menuNewUrl" maxlength="500" placeholder="PDF bağlantısı (https://…)">
+                        <button class="btn btn-primary" id="menuAddBtn"><span data-ic="plus"></span>Menü ekle</button>
+                    </div>
+                    <div id="menuList"><!-- menus-admin.js --></div>
+                </section>
+
+                <section class="admin-card" id="qrCard">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Oda QR kodları</h2>
+                            <p class="card-sub">Her oda için misafir sayfasının QR kodunu oluşturun, yazdırıp odaya koyun.</p>
+                        </div>
+                        <button class="btn btn-ghost" id="qrPrintBtn" style="display:none;"><span data-ic="printer"></span>Yazdır</button>
+                    </div>
+                    <div class="settings-body">
+                        <div class="form-group">
+                            <label for="qrRooms">Odalar</label>
+                            <div class="qr-gen">
+                                <input type="text" id="qrRooms" placeholder="101-110, 201, 305">
+                                <button class="btn btn-primary" id="qrGenBtn">Oluştur</button>
+                            </div>
+                            <p class="field-hint">Aralık (101-110) ve tek oda (201) virgülle ayrılabilir.</p>
+                        </div>
+                        <div id="qrGrid" class="qr-grid"></div>
+                    </div>
+                </section>
+            </section>
+
+            <!-- ═══ KULLANICILAR ═══ -->
+            <section class="adm-view" id="view-users">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Ekip</h2>
+                            <p class="card-sub">Personel hesapları, roller ve modül erişimi. Düzenlemek için bir satıra tıklayın.</p>
+                        </div>
+                        <button class="btn btn-primary" id="openUserModal"><span data-ic="plus"></span>Kullanıcı ekle</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>Kullanıcı adı</th>
+                                    <th>Rol</th>
+                                    <th>Departman</th>
+                                    <th>İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <!-- ═══ DEPARTMANLAR ═══ -->
+            <section class="adm-view" id="view-issues">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Departmanlar</h2>
+                            <p class="card-sub">Misafir kayıtlarında (talep / şikayet) kullanılan departmanlar ve yanıt süreleri. Düzenlemek için bir karta tıklayın.</p>
+                        </div>
+                        <div class="card-hd-actions">
+                            <button class="btn btn-ghost" id="issSeedBtn">Varsayılanları yükle</button>
+                            <button class="btn btn-primary" id="issAddBtn"><span data-ic="plus"></span>Departman ekle</button>
+                        </div>
+                    </div>
+                    <div id="issueList" class="iss-list"><!-- issue-config-admin.js --></div>
+                </section>
+
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Konular</h2>
+                            <p class="card-sub">Şikayet eklerken yazılan konular buraya otomatik eklenir. Silmek mevcut kayıtları etkilemez, yalnızca öneri listesinden çıkarır.</p>
+                        </div>
+                        <button class="btn btn-ghost" id="issTopicAddBtn"><span data-ic="plus"></span>Konu ekle</button>
+                    </div>
+                    <div id="issTopicList" class="iss-topic-list"><!-- issue-config-admin.js --></div>
+                </section>
+            </section>
+
+            <!-- ═══ BİLDİRİMLER ═══ -->
+            <section class="adm-view" id="view-notify">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Misafir talebi bildirimleri</h2>
+                            <p class="card-sub">QR'dan yeni talep geldiğinde personele giden bildirim.</p>
+                        </div>
+                        <button class="btn btn-primary" id="ntSave">Kaydet</button>
+                    </div>
+                    <div class="settings-body">
+                        <label class="switch-row">
+                            <input type="checkbox" id="ntEnabled">
+                            <span>Yeni misafir talebinde bildirim gönder</span>
+                        </label>
+                        <div class="form-group">
+                            <label for="ntTitle">Bildirim başlığı</label>
+                            <input type="text" id="ntTitle" maxlength="80" placeholder="Yeni misafir talebi">
+                        </div>
+                        <label class="switch-row">
+                            <input type="checkbox" id="ntShowItems">
+                            <span>Talep içeriğini göster <small>— kapalıysa bildirimde yalnızca talep sayısı görünür</small></span>
+                        </label>
+                        <div class="form-group">
+                            <label for="ntRecipients">Bildirimi kimler alsın?</label>
+                            <select id="ntRecipients">
+                                <option value="all">Tüm personel</option>
+                                <option value="managers">Yalnızca yönetici ve admin</option>
+                            </select>
+                        </div>
+                        <div class="card-note"><span data-ic="info"></span><span>Bildirimin telefona veya masaüstüne uygulama kapalıyken düşmesi için cihazda bildirim izni verilmeli; iOS'ta site ana ekrana eklenmelidir.</span></div>
+                    </div>
+                </section>
+            </section>
+
+            <!-- ═══ VARDİYA KONUMU ═══ -->
+            <section class="adm-view" id="view-shift">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Vardiya konumu</h2>
+                            <p class="card-sub">Açıksa, otel konumundan uzaktaki personel yeni bildirim almaz ve talep/şikayet üstlenemez (yönetici ve admin muaftır). Konum izni vermeyen personel kısıtlanmaz; yalnızca otel dışında olduğu kesin olan personel etkilenir.</p>
+                        </div>
+                        <span id="shStatus" class="status-pill">Pasif</span>
+                    </div>
+                    <div class="settings-body">
+                        <label class="switch-row">
+                            <input type="checkbox" id="shEnabled">
+                            <span>Vardiya konumu kontrolünü etkinleştir</span>
+                        </label>
+                        <div class="f-row r-3">
+                            <div>
+                                <label for="shLat">Enlem</label>
+                                <input type="number" id="shLat" step="0.000001" placeholder="36.8969">
+                            </div>
+                            <div>
+                                <label for="shLng">Boylam</label>
+                                <input type="number" id="shLng" step="0.000001" placeholder="30.7133">
+                            </div>
+                            <div>
+                                <label for="shRadius">Yarıçap (m)</label>
+                                <input type="number" id="shRadius" min="30" step="10" placeholder="150">
+                            </div>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-ghost" id="shUseHere"><span data-ic="pin"></span>Şu anki konumumu kullan</button>
+                        </div>
+                        <p class="mod-hint" id="shHint" style="display:none;"></p>
+                        <div><button class="btn btn-primary" id="shSave">Kaydet</button></div>
+                    </div>
+                </section>
+            </section>
+
+            <!-- ═══ GELİR VE KOMİSYON ═══ -->
             <section class="adm-view" id="view-finance">
                 <section class="admin-card" id="financeCard">
                     <div class="card-header">
                         <div class="card-title">
-                            <h2>Finans</h2>
-                            <p class="card-sub">Gelir, tahsilat, komisyon ve finansal kontroller.</p>
+                            <h2>Gelir özeti</h2>
+                            <p class="card-sub">Concierge rezervasyonlarından gelir, tahsilat ve komisyon.</p>
                         </div>
                         <div class="fin-range">
                             <select id="finCur" aria-label="Para birimi" title="Para birimi" style="display:none">
                                 <option value="EUR">EUR (€)</option>
                             </select>
-                            <select id="finRange">
+                            <select id="finRange" aria-label="Tarih aralığı">
                                 <option value="today">Bugün</option>
-                                <option value="week">Son 7 Gün</option>
-                                <option value="month" selected>Bu Ay</option>
-                                <option value="all">Tüm Zamanlar</option>
-                                <option value="custom">Özel Aralık</option>
+                                <option value="week">Son 7 gün</option>
+                                <option value="month" selected>Bu ay</option>
+                                <option value="all">Tüm zamanlar</option>
+                                <option value="custom">Özel aralık</option>
                             </select>
-                            <input type="date" id="finFrom" style="display:none">
-                            <input type="date" id="finTo" style="display:none">
+                            <input type="date" id="finFrom" style="display:none" aria-label="Başlangıç">
+                            <input type="date" id="finTo" style="display:none" aria-label="Bitiş">
                         </div>
                     </div>
 
                     <div class="fin-kpis" id="finKpis"></div>
 
-                    <div class="fin-block" style="margin-top:20px;">
-                        <h3 style="font-size:13.5px; font-weight:700; margin-bottom:10px;">Kategori Bazlı Döküm</h3>
-                        <div class="fin-table-wrap">
-                            <table class="fin-table" id="finCatTable">
-                                <thead><tr>
-                                    <th>Kategori</th><th>Adet</th><th>Brüt</th><th>Tahsil</th><th>Bakiye</th><th>Kom. %</th><th>Komisyon</th><th>Net</th>
-                                </tr></thead>
-                                <tbody id="finCatBody"></tbody>
-                                <tfoot id="finCatFoot"></tfoot>
-                            </table>
-                        </div>
+                    <h3 class="fin-block-h">Kategori bazlı döküm</h3>
+                    <div class="fin-table-wrap">
+                        <table class="fin-table" id="finCatTable">
+                            <thead><tr>
+                                <th>Kategori</th><th>Adet</th><th>Brüt</th><th>Tahsil</th><th>Bakiye</th><th>Kom. %</th><th>Komisyon</th><th>Net</th>
+                            </tr></thead>
+                            <tbody id="finCatBody"></tbody>
+                            <tfoot id="finCatFoot"></tfoot>
+                        </table>
                     </div>
 
                     <details class="fin-section">
-                        <summary>Duruma Göre &amp; Personele Göre</summary>
+                        <summary>Duruma ve personele göre</summary>
                         <div class="fin-section-body fin-cols">
                             <div class="fin-block">
-                                <h3 style="font-size:13px; font-weight:700; margin-bottom:8px;">Duruma Göre</h3>
+                                <h3>Duruma göre</h3>
                                 <div id="finStatus"></div>
                             </div>
                             <div class="fin-block">
-                                <h3 style="font-size:13px; font-weight:700; margin-bottom:8px;">Personele Göre</h3>
+                                <h3>Personele göre</h3>
                                 <div id="finStaff"></div>
                             </div>
                         </div>
                     </details>
 
                     <details class="fin-section">
-                        <summary>Finansal Kontroller</summary>
+                        <summary>Finansal kontroller</summary>
                         <div class="fin-section-body fin-checks" id="finChecks"></div>
                     </details>
                 </section>
@@ -183,18 +425,40 @@
                 <section class="admin-card" id="commissionCard">
                     <div class="card-header">
                         <div class="card-title">
-                            <h2>Komisyon Ayarları</h2>
-                            <p class="card-sub">Kategori bazlı komisyon oranları (%). Finans hesaplamalarında kullanılır.</p>
+                            <h2>Komisyon oranları</h2>
+                            <p class="card-sub">Kategori bazında komisyon yüzdesi; gelir özetindeki komisyon ve net hesabında kullanılır.</p>
                         </div>
                         <button class="btn btn-primary" id="commSave">Kaydet</button>
                     </div>
                     <div class="comm-grid" id="commGrid"></div>
                 </section>
+            </section>
+
+            <!-- ═══ ABONELİK ═══ -->
+            <section class="adm-view" id="view-billing">
+                <section class="admin-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <h2>Abonelik</h2>
+                            <p class="card-sub">Hotizy paketinizin durumu ve yenileme bilgisi.</p>
+                        </div>
+                    </div>
+                    <div class="sub-panel">
+                        <div class="sub-line">
+                            <span class="sub-status" id="subStatus">—</span>
+                            <span class="sub-expiry" id="subExpiry"></span>
+                        </div>
+                        <!-- Online ödeme kaldırıldı: tahsilat çevrim dışı (havale/EFT).
+                             Banka bilgileri siteConfig/billing'den okunur; operatör
+                             ödemeyi superadmin panelinden elle kaydeder. -->
+                        <div class="sub-actions sub-offline" id="subOffline"></div>
+                    </div>
+                </section>
 
                 <section class="admin-card" id="payHistoryCard">
                     <div class="card-header">
                         <div class="card-title">
-                            <h2>Ödeme Geçmişi</h2>
+                            <h2>Ödeme geçmişi</h2>
                             <p class="card-sub">Bu otelin abonelik ödemeleri.</p>
                         </div>
                     </div>
@@ -207,266 +471,17 @@
                 </section>
             </section>
 
-            <!-- ═══ KULLANICILAR ═══ -->
-            <section class="adm-view" id="view-users">
-                <section class="admin-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <h2>Kullanıcı Yönetimi</h2>
-                            <p class="card-sub">Personel hesapları, roller ve erişim kontrolü.</p>
-                        </div>
-                        <button class="btn btn-primary" id="openUserModal">+ Kullanıcı Ekle</button>
-                    </div>
-                    <div class="table-container">
-                        <table id="usersTable">
-                            <thead>
-                                <tr>
-                                    <th>Kullanıcı Adı</th>
-                                    <th>Rol</th>
-                                    <th>Departman</th>
-                                    <th>İşlemler</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Users will be listed here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </section>
-
-            <!-- ═══ HAZIR TALEPLER (Guest self-service catalog) ═══ -->
-            <section class="adm-view" id="view-catalog">
-                <nav class="cat-subtabs" id="catSubtabs">
-                    <button class="cat-subtab active" data-sub="items">Talepler</button>
-                    <button class="cat-subtab" data-sub="settings">Sayfa Ayarları</button>
-                    <button class="cat-subtab" data-sub="menus">Menüler &amp; QR</button>
-                </nav>
-
-                <!-- ═══ Talepler (asıl katalog — günlük kullanım) ═══ -->
-                <div class="cat-subview active" data-sub-view="items">
-                    <section class="admin-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <h2>Hazır Talepler</h2>
-                                <p class="card-sub">Misafirlerin QR ile gördüğü self-servis talep menüsü.</p>
-                            </div>
-                            <div class="card-hd-actions">
-                                <div class="tools-menu" id="catToolsMenu">
-                                    <button class="btn btn-ghost" id="catToolsBtn">⚙️ Toplu İşlemler</button>
-                                    <div class="tools-dropdown" id="catToolsDropdown">
-                                        <button type="button" id="catBulkAddBtn">⚡ Hızlı Toplu Ekle</button>
-                                        <button type="button" id="catExportBtn">📥 Şablon İndir</button>
-                                        <button type="button" id="catImportBtn">📤 Excel'den Yükle</button>
-                                        <div class="tools-sep"></div>
-                                        <button type="button" id="catSeedBtn">Varsayılanları Yükle</button>
-                                        <button type="button" id="catUnseedBtn" class="danger">Varsayılanları Kaldır</button>
-                                    </div>
-                                </div>
-                                <input type="file" id="catImportInput" accept=".csv,text/csv" style="display:none;">
-                                <button class="btn btn-primary" id="catAddBtn">+ Talep Ekle</button>
-                            </div>
-                        </div>
-                        <div class="cat-toolbar">
-                            <input type="search" id="catSearch" class="cat-search" placeholder="Ara: talep adı, kategori…" autocomplete="off">
-                        </div>
-                        <div id="catalogQrHint" class="card-sub" style="margin:0 0 10px;"></div>
-                        <div id="catalogList" class="cat-list"><!-- rendered by request-catalog.js --></div>
-                    </section>
-                </div>
-
-                <!-- ═══ Sayfa Ayarları (marka/görünüm — nadiren değişir) ═══ -->
-                <div class="cat-subview" data-sub-view="settings">
-                    <section class="admin-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <h2>Misafir Sayfası Ayarları</h2>
-                                <p class="card-sub">QR sayfasında nelerin gösterileceğini buradan kontrol edin.</p>
-                            </div>
-                            <button class="btn btn-primary" id="catCfgSave">Kaydet</button>
-                        </div>
-                        <div class="settings-body" style="display:grid; gap:14px;">
-                            <div class="form-group" style="display:grid; grid-template-columns:1fr 120px; gap:12px;">
-                                <div>
-                                    <label>Otel adı (misafire görünen)</label>
-                                    <input type="text" id="cfgHotelName" maxlength="60" placeholder="Örn. Otel adınız">
-                                </div>
-                                <div>
-                                    <label>Para birimi</label>
-                                    <input type="text" id="cfgCurrency" maxlength="4" placeholder="₺">
-                                </div>
-                            </div>
-                            <label class="switch-row">
-                                <input type="checkbox" id="cfgShowPrices">
-                                <span>Fiyatları göster (fiyatı girilen ürünlerde)</span>
-                            </label>
-                            <p class="card-sub" style="margin:0;">🔒 Misafir kimlik doğrulaması (soyadı + doğum yılı) artık tüm oteller için zorunlu ve otomatik — ayrıca bir ayar gerekmez.</p>
-                            <div class="form-group">
-                                <label>Kapak görseli (URL) — misafir ana sayfasının üst görseli</label>
-                                <input type="url" id="cfgHeroImage" maxlength="500" placeholder="https://… (otel/lobi/manzara fotoğrafı). Boş bırakılırsa sıcak bir arka plan kullanılır.">
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="admin-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <h2>Otel Bilgileri</h2>
-                                <p class="card-sub">Misafirin QR sayfasındaki "Otel Bilgileri" bölümünde görünür. Boş bırakılanlar gizlenir.</p>
-                            </div>
-                        </div>
-                        <div style="display:grid; gap:12px;">
-                            <div class="form-group">
-                                <label>Karşılama mesajı</label>
-                                <input type="text" id="cfgWelcome" maxlength="160" placeholder="Örn. Konaklamanızın keyfini çıkarın, her şey bir dokunuş uzağınızda.">
-                            </div>
-                            <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                                <div>
-                                    <label>Resepsiyon telefonu</label>
-                                    <input type="text" id="cfgPhone" maxlength="30" placeholder="Örn. 0 (000) 000 00 00">
-                                </div>
-                                <div>
-                                    <label>Çıkış (check-out) saati</label>
-                                    <input type="text" id="cfgCheckout" maxlength="20" placeholder="Örn. 12:00">
-                                </div>
-                            </div>
-                            <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                                <div>
-                                    <label>Wi-Fi ağı</label>
-                                    <input type="text" id="cfgWifiName" maxlength="40" placeholder="Örn. Hotel-Guest">
-                                </div>
-                                <div>
-                                    <label>Wi-Fi şifresi</label>
-                                    <input type="text" id="cfgWifiPass" maxlength="40" placeholder="Örn. konaklama2024">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Kahvaltı saatleri</label>
-                                <input type="text" id="cfgBreakfast" maxlength="60" placeholder="Örn. 07:00 – 10:30 · Lobi Restoran">
-                            </div>
-                            <div class="form-group">
-                                <label>Adres</label>
-                                <input type="text" id="cfgAddress" maxlength="160" placeholder="Otel adresi (haritada açılır)">
-                            </div>
-                        </div>
-                    </section>
-                </div>
-
-                <!-- ═══ Menüler & QR (kurulum işleri — nadiren değişir) ═══ -->
-                <div class="cat-subview" data-sub-view="menus">
-                    <section class="admin-card">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <h2>Menüler (PDF)</h2>
-                                <p class="card-sub">Misafirin QR sayfasındaki "Menüler" kartında göreceği PDF menüler (Oda Servisi, Restoran, Spa vb.). PDF'i barındırdığınız bir bağlantı (Drive, otel web siteniz vb.) yapıştırın — dosya yükleme yoktur.</p>
-                            </div>
-                        </div>
-                        <div class="menu-add-row">
-                            <input type="text" id="menuNewName" maxlength="80" placeholder="Menü adı (ör. Restoran Menüsü)">
-                            <input type="text" id="menuNewUrl" maxlength="500" placeholder="PDF bağlantısı (https://…)">
-                            <button class="btn btn-primary" id="menuAddBtn">+ Menü Ekle</button>
-                        </div>
-                        <div id="menuList"><!-- rendered by menus-admin.js --></div>
-                    </section>
-
-                    <section class="admin-card" id="qrCard">
-                        <div class="card-header">
-                            <div class="card-title">
-                                <h2>Oda QR Kodları</h2>
-                                <p class="card-sub">Her oda için misafir talep sayfasının QR kodunu oluşturun, yazdırıp odaya koyun.</p>
-                            </div>
-                            <button class="btn btn-ghost" id="qrPrintBtn" style="display:none;">🖨️ Yazdır</button>
-                        </div>
-                        <div class="settings-body" style="display:grid; gap:12px;">
-                            <div class="form-group">
-                                <label>Odalar (örn: 101-110, 201, 305)</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                    <input type="text" id="qrRooms" placeholder="101-110, 201, 305" style="flex:1; min-width:180px;">
-                                    <button class="btn btn-primary" id="qrGenBtn">Oluştur</button>
-                                </div>
-                            </div>
-                            <div id="qrGrid" class="qr-grid"></div>
-                        </div>
-                    </section>
-                </div>
-            </section>
-
-            <!-- ═══ BİLDİRİMLER (misafir talebi push/ekran bildirimleri) ═══ -->
-            <section class="adm-view" id="view-notify">
-                <section class="admin-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <h2>Bildirim Ayarları</h2>
-                            <p class="card-sub">Yeni misafir talebi geldiğinde personele gönderilen bildirimleri özelleştirin.</p>
-                        </div>
-                        <button class="btn btn-primary" id="ntSave">Kaydet</button>
-                    </div>
-                    <div class="settings-body" style="display:grid; gap:14px;">
-                        <label class="switch-row">
-                            <input type="checkbox" id="ntEnabled">
-                            <span>Yeni misafir talebinde bildirim gönder</span>
-                        </label>
-                        <div class="form-group">
-                            <label>Bildirim başlığı</label>
-                            <input type="text" id="ntTitle" maxlength="80" placeholder="🛎️ Yeni misafir talebi">
-                        </div>
-                        <label class="switch-row">
-                            <input type="checkbox" id="ntShowItems">
-                            <span>Talep içeriğini bildirimde göster (talep edilen ürünler) — kapalıysa yalnızca talep sayısı görünür</span>
-                        </label>
-                        <div class="form-group">
-                            <label>Bildirimi kimler alsın?</label>
-                            <select id="ntRecipients">
-                                <option value="all">Tüm personel</option>
-                                <option value="managers">Yalnızca yönetici ve admin</option>
-                            </select>
-                        </div>
-                        <p class="card-sub" style="margin:0;">Not: Bildirimlerin telefona/masaüstüne kapalıyken düşmesi için cihazda bildirim izni verilmeli; iOS'ta site ana ekrana (PWA olarak) eklenmelidir.</p>
-                    </div>
-                </section>
-            </section>
-
-            <!-- ═══ DEPARTMAN & KONU (Misafir kayıtları sınıflandırması) ═══ -->
-            <section class="adm-view" id="view-issues">
-                <section class="admin-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <h2>Departmanlar</h2>
-                            <p class="card-sub">Misafir kayıtlarında (talep / şikayet) kullanılan departmanlar. Her departmanı talep, şikayet veya her ikisi için işaretleyebilirsiniz. Konu (alt başlık) ise şikayet eklerken elle yazılır; girilen konular otomatik olarak öneri listesine eklenir.</p>
-                        </div>
-                        <div class="card-hd-actions">
-                            <button class="btn btn-ghost" id="issSeedBtn">Varsayılanları Yükle</button>
-                            <button class="btn btn-primary" id="issAddBtn">+ Departman Ekle</button>
-                        </div>
-                    </div>
-                    <div id="issueList" class="iss-list"><!-- rendered by issue-config-admin.js --></div>
-                </section>
-
-                <section class="admin-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <h2>Konular</h2>
-                            <p class="card-sub">Şikayet eklerken yazılan konular buraya otomatik eklenir. Buradan görebilir, gerekirse silebilirsiniz. Silmek mevcut kayıtları etkilemez; yalnızca öneri listesinden çıkarır.</p>
-                        </div>
-                        <button class="btn btn-primary" id="issTopicAddBtn">+ Konu Ekle</button>
-                    </div>
-                    <div id="issTopicList" class="iss-topic-list"><!-- rendered by issue-config-admin.js --></div>
-                </section>
-            </section>
-
             <!-- ═══ DESTEK ═══ -->
             <section class="adm-view" id="view-tickets">
                 <section class="admin-card">
                     <div class="card-header">
                         <div class="card-title">
-                            <h2>Destek Talepleri</h2>
-                            <p class="card-sub">Sistem yöneticilerine iletilen talepler.</p>
+                            <h2>Destek talepleri</h2>
+                            <p class="card-sub">Hotizy ekibine ilettiğiniz sorun, istek ve öneriler. Ayrıntı ve yanıtlar için bir talebe tıklayın.</p>
                         </div>
-                        <button class="btn btn-primary" id="openTicketModal">+ Yeni Talep</button>
+                        <button class="btn btn-primary" id="openTicketModal"><span data-ic="plus"></span>Yeni talep</button>
                     </div>
-                    <div id="ticketList" class="ticket-list">
-                        <!-- Tickets render here -->
-                    </div>
+                    <div id="ticketList" class="ticket-list"></div>
                 </section>
             </section>
 
@@ -475,8 +490,8 @@
                 <section class="admin-card">
                     <div class="card-header">
                         <div class="card-title">
-                            <h2>Bakım Modu</h2>
-                            <p class="card-sub">Yöneticiler dışında herkesin erişimini geçici olarak kısıtlar.</p>
+                            <h2>Bakım modu</h2>
+                            <p class="card-sub">Açıkken yöneticiler dışındaki herkesin erişimi geçici olarak kısıtlanır ve aşağıdaki mesaj gösterilir.</p>
                         </div>
                         <span id="mtStatus" class="status-pill">Pasif</span>
                     </div>
@@ -485,86 +500,55 @@
                             <input type="checkbox" id="mtEnabled">
                             <span>Bakım modunu etkinleştir</span>
                         </label>
-                        <div class="form-group">
-                            <label>Bitiş zamanı</label>
-                            <input type="datetime-local" id="mtEndsAt">
-                        </div>
-                        <div class="form-group">
-                            <label>Mesaj (opsiyonel)</label>
-                            <input type="text" id="mtMessage" placeholder="Sistem bakımda, kısa süre içinde döneceğiz...">
-                        </div>
-                        <button class="btn btn-primary" id="mtSave" style="align-self:flex-start;">Kaydet</button>
-                    </div>
-                </section>
-
-                <section class="admin-card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <h2>Vardiya Konumu</h2>
-                            <p class="card-sub">Etkinleştirilirse: otel konumundan uzaktaki personel yeni bildirim almaz ve talep/şikayet üstleyemez (yönetici/admin muaftır). Konum izni vermeyen veya kapsam dışında görünmeyen personel eski davranışta kalır — yalnızca otel dışında olduğu KANITLANMIŞ personel kısıtlanır.</p>
-                        </div>
-                        <span id="shStatus" class="status-pill">Pasif</span>
-                    </div>
-                    <div class="settings-body">
-                        <label class="switch-row">
-                            <input type="checkbox" id="shEnabled">
-                            <span>Vardiya konumu kontrolünü etkinleştir</span>
-                        </label>
-                        <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr 120px; gap:12px;">
+                        <div class="f-row">
                             <div>
-                                <label>Enlem (lat)</label>
-                                <input type="number" id="shLat" step="0.000001" placeholder="Örn. 36.8969">
+                                <label for="mtEndsAt">Bitiş zamanı</label>
+                                <input type="datetime-local" id="mtEndsAt">
                             </div>
                             <div>
-                                <label>Boylam (lng)</label>
-                                <input type="number" id="shLng" step="0.000001" placeholder="Örn. 30.7133">
-                            </div>
-                            <div>
-                                <label>Yarıçap (m)</label>
-                                <input type="number" id="shRadius" min="30" step="10" placeholder="150">
+                                <label for="mtMessage">Mesaj (isteğe bağlı)</label>
+                                <input type="text" id="mtMessage" placeholder="Sistem bakımda, kısa süre içinde döneceğiz.">
                             </div>
                         </div>
-                        <button type="button" class="btn btn-ghost" id="shUseHere" style="align-self:flex-start;">📍 Şu anki konumumu kullan</button>
-                        <p class="mod-hint" id="shHint" style="display:none;"></p>
-                        <button class="btn btn-primary" id="shSave" style="align-self:flex-start;">Kaydet</button>
+                        <div><button class="btn btn-primary" id="mtSave">Kaydet</button></div>
                     </div>
                 </section>
 
                 <section class="admin-card danger-card">
                     <div class="card-header">
                         <div class="card-title">
-                            <h2>Tehlikeli Bölge</h2>
-                            <p class="card-sub">Tüm rezervasyon, misafir, kayıt ve personel verisini kalıcı olarak siler. Silmeden önce otomatik yedek indirilir.</p>
+                            <h2>Sistemi sıfırla</h2>
+                            <p class="card-sub">Tüm rezervasyon, misafir, kayıt ve personel verisini kalıcı olarak siler. Silmeden önce otomatik bir yedek dosyası indirilir. Bu işlem geri alınamaz.</p>
                         </div>
                     </div>
-                    <button id="adminEjectBtn" class="btn btn-danger">Sistemi Sıfırla (Yedekle &amp; Sil)</button>
+                    <button id="adminEjectBtn" class="btn btn-danger"><span data-ic="trash"></span>Yedekle ve sıfırla</button>
                 </section>
             </section>
             </div>
         </div>
     </div>
 
-    <!-- User Management Modal -->
+    <!-- Kullanıcı modalı -->
     <div id="userModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Kullanıcı Ayarları</h3>
-                <button class="close-modal" id="closeUserModal">&times;</button>
+                <h3>Kullanıcı</h3>
+                <button class="close-modal" id="closeUserModal" aria-label="Kapat">&times;</button>
             </div>
             <form id="userForm">
                 <div class="modal-body modal-grid">
                     <div class="form-group">
-                        <label>Kullanıcı Adı</label>
+                        <label for="adminNewUsername">Kullanıcı adı</label>
                         <input type="text" id="adminNewUsername" required autocapitalize="none" autocomplete="off" spellcheck="false">
                         <p class="mod-hint" id="adminUserHint" style="display:none;">Kullanıcı adı giriş kimliğidir, değiştirilemez. Farklı bir ad gerekiyorsa kullanıcıyı kaldırıp yeniden oluşturun.</p>
                     </div>
                     <div class="form-group">
-                        <label id="adminPwLabel">Şifre</label>
+                        <label id="adminPwLabel" for="adminNewPassword">Şifre</label>
                         <input type="password" id="adminNewPassword" required>
-                        <p class="mod-hint" id="adminPwHint" style="display:none;">F&amp;B personeli Hotizy F&amp;B kapısından bu 5 haneli kod ile giriş yapar (yalnızca rakam).</p>
+                        <p class="mod-hint" id="adminPwHint" style="display:none;">F&amp;B personeli Hotizy F&amp;B girişinden bu 5 haneli kodla girer (yalnızca rakam).</p>
                     </div>
                     <div class="form-group">
-                        <label>Rol</label>
+                        <label for="adminUserRole">Rol</label>
                         <select id="adminUserRole">
                             <option value="Staff">Personel</option>
                             <option value="Manager">Yönetici</option>
@@ -572,7 +556,7 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Varsayılan Departman</label>
+                        <label for="adminUserDept">Departman</label>
                         <select id="adminUserDept">
                             <option value="Housekeeping">Housekeeping</option>
                             <option value="Front Desk">Front Desk</option>
@@ -581,16 +565,16 @@
                         </select>
                     </div>
                     <div class="form-group span2">
-                        <label>Erişebileceği Modüller</label>
+                        <label>Erişebileceği modüller</label>
                         <div class="mod-perms" id="userModules">
-                            <label class="mod-perm"><input type="checkbox" data-mod="concierge"><span>🛎️ Concierge</span></label>
-                            <label class="mod-perm"><input type="checkbox" data-mod="guestIssues"><span>📋 Misafir Kayıtları</span></label>
-                            <label class="mod-perm"><input type="checkbox" data-mod="reports"><span>📊 Raporlar</span></label>
-                            <label class="mod-perm"><input type="checkbox" data-mod="crm"><span>👤 CRM</span></label>
-                            <label class="mod-perm"><input type="checkbox" data-mod="guestOrders"><span>🧾 Misafir Siparişleri</span></label>
-                            <label class="mod-perm"><input type="checkbox" data-mod="restaurant"><span>🍽️ Restoran (POS)</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="concierge"><span data-ic="concierge"></span><span>Concierge</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="guestIssues"><span data-ic="clipboard"></span><span>Misafir Kayıtları</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="reports"><span data-ic="chart"></span><span>Raporlar</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="crm"><span data-ic="user"></span><span>CRM</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="guestOrders"><span data-ic="receipt"></span><span>Misafir Siparişleri</span></label>
+                            <label class="mod-perm"><input type="checkbox" data-mod="restaurant"><span data-ic="utensils"></span><span>Restoran (POS)</span></label>
                         </div>
-                        <p class="mod-hint">İşaretlenmeyen modüller bu kullanıcının menüsünde görünmez. Panel ve (admin ise) Ayarlar her zaman erişilebilir. Değişiklik kullanıcının bir sonraki girişinde etkin olur.</p>
+                        <p class="mod-hint">İşaretlenmeyen modüller kullanıcının menüsünde görünmez. Panel ve (admin ise) Ayarlar her zaman açıktır. Değişiklik kullanıcının bir sonraki girişinde geçerli olur.</p>
                     </div>
                 </div>
                 <div class="modal-actions">
@@ -600,195 +584,196 @@
         </div>
     </div>
 
-    <!-- Catalog Item Modal (guest self-service request) -->
+    <!-- Hizmet modalı (misafir self-servis kalemi) -->
     <div id="catalogModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="catalogModalTitle">Talep Ekle</h3>
-                <button class="close-modal" id="closeCatalogModal">&times;</button>
+                <button class="close-modal" id="closeCatalogModal" aria-label="Kapat">&times;</button>
             </div>
             <form id="catalogForm">
                 <div class="modal-body modal-grid">
-                    <div class="modal-section-h first">Temel Bilgiler</div>
+                    <div class="modal-section-h first">Temel bilgiler</div>
                     <div class="form-group span2">
-                        <label>Talep Adı</label>
-                        <input type="text" id="catName" maxlength="120" placeholder="Örn. Ekstra Havlu" required>
+                        <label for="catName">Hizmet adı</label>
+                        <input type="text" id="catName" maxlength="120" placeholder="Ör. Ekstra Havlu" required>
                     </div>
                     <div class="form-group">
-                        <label>Kategori</label>
-                        <input type="text" id="catCategory" list="catCatOptions" maxlength="60" placeholder="Örn. Konfor" required>
+                        <label for="catCategory">Kategori</label>
+                        <input type="text" id="catCategory" list="catCatOptions" maxlength="60" placeholder="Ör. Konfor" required>
                         <datalist id="catCatOptions"></datalist>
                     </div>
                     <div class="form-group">
-                        <label>Alt Kategori (opsiyonel)</label>
-                        <input type="text" id="catSubcategory" list="catSubOptions" maxlength="60" placeholder="Örn. Yastık">
+                        <label for="catSubcategory">Alt kategori (isteğe bağlı)</label>
+                        <input type="text" id="catSubcategory" list="catSubOptions" maxlength="60" placeholder="Ör. Yastık">
                         <datalist id="catSubOptions"></datalist>
                     </div>
                     <div class="form-group">
-                        <label>İkon</label>
-                        <input type="text" id="catIcon" maxlength="8" placeholder="🛏️" style="text-align:center; font-size:20px;">
+                        <label for="catIcon">İkon ipucu (emoji, isteğe bağlı)</label>
+                        <div class="cat-icon-field">
+                            <span class="cat-icon-prev" id="catIconPreview" title="Misafirin göreceği ikon"></span>
+                            <input type="text" id="catIcon" maxlength="8" placeholder="🛏️">
+                        </div>
+                        <p class="field-hint">Misafir, ad ve kategoriye göre seçilen çizgi ikonu görür (solda önizleme).</p>
                     </div>
                     <div class="form-group">
-                        <label>Departman (personel)</label>
+                        <label for="catDept">Departman (personel)</label>
                         <!-- Seçenekler request-catalog.js:fillDeptSelect ile otelin
-                             KENDİ departman listesinden (Ayarlar → Departmanlar)
-                             doldurulur. Eskiden burada sabit bir İngilizce liste
-                             vardı; personel departmanlarıyla hiç kesişmediği için
-                             o taleplerin sahiplenilmesi engelleniyordu. -->
+                             KENDİ departman listesinden (Ayarlar → Departmanlar) doldurulur. -->
                         <select id="catDept"></select>
                     </div>
 
-                    <div class="modal-section-h">Fiyat &amp; Kısıtlar</div>
+                    <div class="modal-section-h">Fiyat ve kısıtlar</div>
                     <div class="form-group span2">
-                        <label>Açıklama (opsiyonel)</label>
+                        <label for="catDesc">Açıklama (isteğe bağlı)</label>
                         <input type="text" id="catDesc" maxlength="160" placeholder="Misafire gösterilecek kısa açıklama">
                     </div>
                     <div class="form-group">
-                        <label>Fiyat (opsiyonel)</label>
+                        <label for="catPrice">Fiyat (isteğe bağlı)</label>
                         <input type="number" id="catPrice" min="0" step="1" placeholder="0 = ücretsiz">
                     </div>
                     <div class="form-group span2">
-                        <label>Tahmini teslim süresi <small style="font-weight:400;color:#94a3b8;">— misafir bunu talep takip ekranında saat aralığı olarak görür (ör. 14:00 – 14:10). Saat:dakika olarak girin.</small></label>
+                        <label>Tahmini teslim süresi <small>— misafir takip ekranında saat aralığı olarak görür (ör. 14:00 – 14:10). Saat:dakika olarak girin.</small></label>
                         <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center;">
                             <input type="time" id="catEtaMin" step="300" aria-label="En erken">
-                            <span style="color:#94a3b8;">→</span>
+                            <span style="color:var(--ink-3);">→</span>
                             <input type="time" id="catEtaMax" step="300" aria-label="En geç">
                         </div>
-                        <small id="catEtaHint" style="display:block;margin-top:6px;color:#94a3b8;"></small>
+                        <small id="catEtaHint" class="field-hint" style="display:block;"></small>
                     </div>
                     <div class="form-group span2">
                         <label class="switch-row">
                             <input type="checkbox" id="catSingle">
-                            <span>Tek adet talep <small style="font-weight:400;color:#94a3b8;">— misafire adet seçimi (+ −) hiç gösterilmez. Oda temizliği, çarşaf değişimi gibi bir kez istenen hizmetler için.</small></span>
+                            <span>Tek adet <small>— misafire adet seçimi gösterilmez (oda temizliği, çarşaf değişimi gibi bir kez istenen hizmetler)</small></span>
                         </label>
                     </div>
                     <div class="form-group" id="catMaxQtyGroup">
-                        <label>Aynı anda en fazla adet (0 = sınırsız)</label>
-                        <input type="number" id="catMaxQty" min="0" step="1" placeholder="Örn. 3">
+                        <label for="catMaxQty">Aynı anda en fazla adet (0 = sınırsız)</label>
+                        <input type="number" id="catMaxQty" min="0" step="1" placeholder="Ör. 3">
                     </div>
                     <div class="form-group">
                         <label>Uygunluk saatleri (boş = her zaman)</label>
                         <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center;">
-                            <input type="time" id="catAvailFrom">
-                            <span style="color:#94a3b8;">→</span>
-                            <input type="time" id="catAvailTo">
+                            <input type="time" id="catAvailFrom" aria-label="Başlangıç">
+                            <span style="color:var(--ink-3);">→</span>
+                            <input type="time" id="catAvailTo" aria-label="Bitiş">
                         </div>
                     </div>
 
-                    <div class="modal-section-h">Durum &amp; Seçenekler</div>
+                    <div class="modal-section-h">Durum ve seçenekler</div>
                     <div class="form-group span2">
                         <label class="switch-row">
                             <input type="checkbox" id="catActive" checked>
-                            <span>Aktif (misafirlere göster)</span>
+                            <span>Aktif <small>— misafirlere göster</small></span>
                         </label>
                     </div>
                     <div class="form-group span2">
-                        <label>Seçenekler (opsiyonel) <small style="font-weight:400;color:#94a3b8;">— misafir sipariş verirken bunlardan birini seçer. Örn. VIP Transfer için: Vito, Sprinter, S Class. Fiyat farkı isteğe bağlıdır (ör. daha büyük araç için +150₺).</small></label>
+                        <label>Seçenekler (isteğe bağlı) <small>— misafir bunlardan birini seçer, ör. VIP Transfer için Vito, Sprinter. Fiyat farkı isteğe bağlıdır.</small></label>
                         <div style="display:flex; gap:8px;">
                             <input type="text" id="catOptInput" maxlength="40" placeholder="Seçenek adı, ör. Vito" style="flex:1;">
-                            <input type="number" id="catOptPriceInput" placeholder="+₺ fark" style="width:100px;">
-                            <button type="button" class="btn btn-ghost" id="catOptAddBtn">+ Ekle</button>
+                            <input type="number" id="catOptPriceInput" placeholder="+ fark" style="width:100px;">
+                            <button type="button" class="btn btn-ghost" id="catOptAddBtn">Ekle</button>
                         </div>
                         <div id="catOptList" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;"></div>
                     </div>
                     <div class="form-group span2">
-                        <label>Ürün içerikleri — ekstra / çıkart (opsiyonel) <small style="font-weight:400;color:#94a3b8;">— misafir birden fazlasını seçebilir. Örn. "Soğansız" (çıkar) veya "Ekstra Peynir" (ekle, +30₺). <b>Grup</b> verirseniz misafir ekranında o başlık altında toplanır (ör. Soslar); boş bırakırsanız "Ekstralar" / "Çıkarılacaklar" başlıklarına düşer. <b>Adet</b> yalnızca "Ekle" için — 2× Ekstra Peynir gibi.</small></label>
-                        <div style="display:flex; gap:8px;">
-                            <input type="text" id="catModInput" maxlength="40" placeholder="Ör. Soğansız" style="flex:1;">
+                        <label>Ürün içerikleri — ekle / çıkar (isteğe bağlı) <small>— misafir birden fazlasını seçebilir, ör. "Soğansız" (çıkar) veya "Ekstra Peynir" (ekle, +30). <b>Grup</b> verirseniz o başlık altında toplanır (ör. Soslar). <b>Adet</b> yalnızca "Ekle" için.</small></label>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <input type="text" id="catModInput" maxlength="40" placeholder="Ör. Soğansız" style="flex:1; min-width:140px;">
                             <select id="catModType" style="width:100px;">
                                 <option value="remove">Çıkar</option>
                                 <option value="extra">Ekle</option>
                             </select>
                             <input type="text" id="catModGroupInput" maxlength="40" placeholder="Grup (ör. Soslar)" style="width:150px;">
-                            <input type="number" id="catModPriceInput" placeholder="+₺ fark" style="width:100px;">
+                            <input type="number" id="catModPriceInput" placeholder="+ fark" style="width:100px;">
                             <input type="number" id="catModMaxInput" min="1" max="10" step="1" placeholder="Adet" title="Ekstranın en fazla kaç kez eklenebileceği (yalnızca 'Ekle' için)" style="width:80px;">
-                            <button type="button" class="btn btn-ghost" id="catModAddBtn">+ Ekle</button>
+                            <button type="button" class="btn btn-ghost" id="catModAddBtn">Ekle</button>
                         </div>
                         <div id="catModList" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;"></div>
                     </div>
                 </div>
                 <div class="modal-actions">
                     <button type="submit" class="action-btn save-btn">Kaydet</button>
-                    <button type="button" class="action-btn" id="catalogDeleteBtn" style="display:none; background:#fef2f2; color:#dc2626;">Sil</button>
+                    <button type="button" class="action-btn danger-btn" id="catalogDeleteBtn" style="display:none;">Sil</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Hazır Talepler — hızlı toplu ekleme (birden fazla satır, tek seferde) -->
+    <!-- Hızlı toplu ekleme -->
     <div id="catBulkModal" class="modal">
         <div class="modal-content" style="max-width:760px;">
             <div class="modal-header">
-                <h3>Hızlı Toplu Ekle</h3>
-                <button class="close-modal" id="closeCatBulkModal">&times;</button>
+                <h3>Hızlı toplu ekle</h3>
+                <button class="close-modal" id="closeCatBulkModal" aria-label="Kapat">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="card-sub" style="margin:0 0 12px;">Birden fazla basit talebi tek seferde ekleyin (yalnızca ad/kategori/fiyat/departman) — alt kategori, açıklama, seçenekler gibi diğer alanları sonra "Talep Ekle" ile düzenleyebilirsiniz. Boş satırlar yok sayılır.</p>
+                <p class="card-sub" style="margin:0 0 12px;">Birden fazla basit hizmeti tek seferde ekleyin (ad, kategori, fiyat, departman). Alt kategori, açıklama ve seçenekleri sonra düzenleyebilirsiniz. Boş satırlar yok sayılır.</p>
                 <div id="catBulkHead" class="cat-bulk-row cat-bulk-head">
-                    <span>Departman</span><span>Talep Adı</span><span>Kategori</span><span>Fiyat</span><span></span>
+                    <span>Departman</span><span>Hizmet adı</span><span>Kategori</span><span>Fiyat</span><span></span>
                 </div>
                 <div id="catBulkRows"></div>
-                <button type="button" class="btn btn-ghost" id="catBulkAddRowBtn" style="margin-top:10px;">+ Satır Ekle</button>
+                <button type="button" class="btn btn-ghost" id="catBulkAddRowBtn" style="margin-top:10px;"><span data-ic="plus"></span>Satır ekle</button>
             </div>
             <div class="modal-actions">
-                <button type="button" class="action-btn save-btn" id="catBulkSubmitBtn">Tümünü Ekle</button>
+                <button type="button" class="action-btn save-btn" id="catBulkSubmitBtn">Tümünü ekle</button>
             </div>
         </div>
     </div>
 
-    <!-- Department & Topic Modal -->
+    <!-- Departman modalı -->
     <div id="issueModal" class="modal">
         <div class="modal-content small-modal">
             <div class="modal-header">
                 <h3 id="issueModalTitle">Departman Ekle</h3>
-                <button class="close-modal" id="closeIssueModal">&times;</button>
+                <button class="close-modal" id="closeIssueModal" aria-label="Kapat">&times;</button>
             </div>
             <form id="issueDeptForm">
                 <div class="modal-body modal-grid">
                     <div class="form-group span2">
-                        <label>Departman Adı</label>
-                        <input type="text" id="issName" maxlength="60" placeholder="Örn. Teknik" required>
+                        <label for="issName">Departman adı</label>
+                        <input type="text" id="issName" maxlength="60" placeholder="Ör. Teknik" required>
                     </div>
                     <div class="form-group span2">
-                        <label>Tür</label>
+                        <label for="issKind">Tür</label>
                         <select id="issKind">
-                            <option value="both">Talep & Şikayet (her ikisi)</option>
-                            <option value="request">Sadece Talep</option>
-                            <option value="complaint">Sadece Şikayet</option>
+                            <option value="both">Talep ve şikayet</option>
+                            <option value="request">Yalnızca talep</option>
+                            <option value="complaint">Yalnızca şikayet</option>
                         </select>
                     </div>
                     <div class="form-group span2">
-                        <label>SLA — yanıt süresi (dakika)</label>
+                        <label for="issSla">Yanıt süresi (SLA, dakika)</label>
                         <input type="number" id="issSla" min="1" step="1" placeholder="Boş = varsayılan (15 dk)">
                     </div>
                 </div>
                 <div class="modal-actions">
                     <button type="submit" class="action-btn save-btn">Kaydet</button>
-                    <button type="button" class="action-btn" id="issueDeleteBtn" style="display:none; background:#fef2f2; color:#dc2626;">Sil</button>
+                    <button type="button" class="action-btn danger-btn" id="issueDeleteBtn" style="display:none;">Sil</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- New Ticket Modal -->
+    <!-- Yeni destek talebi -->
     <div id="ticketModal" class="modal">
         <div class="modal-content small-modal">
             <div class="modal-header">
-                <h3>Yeni Destek Talebi</h3>
-                <button class="close-modal" id="closeTicketModal">&times;</button>
+                <h3>Yeni destek talebi</h3>
+                <button class="close-modal" id="closeTicketModal" aria-label="Kapat">&times;</button>
             </div>
             <form id="ticketForm">
                 <div class="modal-body modal-grid">
                     <div class="form-group">
-                        <label>Tür</label>
+                        <label for="ticketType">Tür</label>
                         <select id="ticketType">
-                            <option value="Sorun">🛠️ Sorun / Hata</option>
-                            <option value="İstek">📨 İstek / Talep</option>
-                            <option value="Öneri">💡 Öneri / Yenilik</option>
+                            <option value="Sorun">Sorun / hata</option>
+                            <option value="İstek">İstek</option>
+                            <option value="Öneri">Öneri</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Öncelik</label>
+                        <label for="ticketPriority">Öncelik</label>
                         <select id="ticketPriority">
                             <option value="Low">Düşük</option>
                             <option value="Medium" selected>Orta</option>
@@ -796,11 +781,11 @@
                         </select>
                     </div>
                     <div class="form-group span2">
-                        <label>Konu</label>
+                        <label for="ticketSubject">Konu</label>
                         <input type="text" id="ticketSubject" required>
                     </div>
                     <div class="form-group span2">
-                        <label>Mesaj</label>
+                        <label for="ticketMessage">Mesaj</label>
                         <textarea id="ticketMessage" rows="5" required></textarea>
                     </div>
                 </div>
@@ -811,22 +796,22 @@
         </div>
     </div>
 
-    <!-- Ticket Detail Modal -->
+    <!-- Destek talebi ayrıntısı -->
     <div id="ticketDetailModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="tdSubject">Talep</h3>
-                <button class="close-modal" id="closeTicketDetail">&times;</button>
+                <button class="close-modal" id="closeTicketDetail" aria-label="Kapat">&times;</button>
             </div>
             <div class="modal-body">
                 <div id="tdMeta"></div>
                 <div id="tdThread"></div>
                 <div class="form-group">
-                    <label>Yanıt</label>
+                    <label for="tdReply">Yanıt</label>
                     <textarea id="tdReply" rows="3"></textarea>
                 </div>
                 <div class="form-group">
-                    <label>Durum</label>
+                    <label for="tdStatus">Durum</label>
                     <select id="tdStatus">
                         <option value="Open">Açık</option>
                         <option value="In Progress">İşlemde</option>
@@ -835,16 +820,13 @@
                 </div>
             </div>
             <div class="modal-actions">
-                <button class="action-btn save-btn" id="tdSendReply">Yanıt Gönder</button>
-                <button class="action-btn secondary" id="tdUpdateStatus">Durumu Güncelle</button>
+                <button class="action-btn save-btn" id="tdSendReply">Yanıt gönder</button>
+                <button class="action-btn secondary" id="tdUpdateStatus">Durumu güncelle</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="toast-notification"></div>
-
-    </div>
+    <div id="toast" class="toast-notification" role="status" aria-live="polite"></div>
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js" crossorigin="anonymous"></script>
@@ -852,6 +834,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js" crossorigin="anonymous"></script>
     <script src="js/core/firebase-config.js"></script>
+    <script src="js/core/ui-icons.js?v=20261111d"></script>
+    <script src="js/core/service-icons.js?v=20261111b"></script>
     <script src="js/core/monitor.js"></script>
     <script src="js/core/modules.js"></script>
     <script src="js/core/realtime.js"></script>
@@ -859,68 +843,81 @@
     <script src="js/core/issue-config.js"></script>
     <script src="js/utils/toast.js"></script>
     <script src="js/utils/app-dialog.js"></script>
-    <script src="js/modules/admin.js"></script>
+    <script src="js/modules/admin.js?v=20261111d"></script>
     <!-- qrcodejs artık eager değil — QR üretimi anında tembel yüklenir. -->
     <script src="js/core/lazy-load.js"></script>
-    <script src="js/modules/request-catalog.js"></script>
-    <script src="js/modules/issue-config-admin.js"></script>
+    <script src="js/modules/request-catalog.js?v=20261111d"></script>
+    <script src="js/modules/issue-config-admin.js?v=20261111d"></script>
     <script src="js/modules/notify-config-admin.js"></script>
-    <script src="js/modules/menus-admin.js"></script>
+    <script src="js/modules/menus-admin.js?v=20261111d"></script>
     <script src="js/modules/room-access.js"></script>
     <script src="js/utils/modal-guard.js"></script>
     <script>
-        // Sidebar navigation: view switch + mobile drawer + page title/sub.
+        // Kenar çubuğu: görünüm geçişi + mobil çekmece + başlık. Görünüm adı
+        // URL hash'inde tutulur (ör. bildirimden gelen admin#users).
         (function () {
             var nav = document.getElementById('admTabs');
             if (!nav) return;
             var TITLES = {
-                overview: ['Genel Bakış', 'Otelinizin özet durumu'],
-                finance: ['Finans', 'Gelir, tahsilat ve komisyon'],
-                users: ['Kullanıcılar', 'Personel hesapları ve erişim'],
-                catalog: ['Hazır Talepler', 'Misafir self-servis talep menüsü'],
-                notify: ['Bildirimler', 'Misafir talebi bildirim ayarları'],
-                issues: ['Departmanlar', 'Talep/şikayet sınıflandırması'],
-                tickets: ['Destek', 'Sistem yöneticisine iletilen talepler'],
-                system: ['Sistem', 'Bakım, vardiya konumu ve tehlikeli işlemler']
+                overview:  ['Genel Bakış', 'Otelinizin özet durumu'],
+                catalog:   ['Hizmet Kataloğu', 'Misafirlerin QR sayfasından isteyebildiği hizmetler'],
+                guestpage: ['Misafir Sayfası', 'QR sayfasının görünümü ve otel bilgileri'],
+                menusqr:   ['Menüler ve QR', 'PDF menüler ve oda QR kodları'],
+                users:     ['Kullanıcılar', 'Personel hesapları, roller ve erişim'],
+                issues:    ['Departmanlar', 'Talep ve şikayet sınıflandırması'],
+                notify:    ['Bildirimler', 'Yeni misafir talebi bildirimleri'],
+                shift:     ['Vardiya Konumu', 'Otel dışındaki personel için kısıtlama'],
+                finance:   ['Gelir ve Komisyon', 'Gelir, tahsilat ve komisyon oranları'],
+                billing:   ['Abonelik', 'Paketiniz ve ödeme geçmişi'],
+                tickets:   ['Destek', 'Hotizy ekibine iletilen talepler'],
+                system:    ['Sistem', 'Bakım modu ve sıfırlama']
             };
             var sidebar = document.getElementById('sidebar');
             var backdrop = document.getElementById('sbBackdrop');
+            var toggle = document.getElementById('menuToggle');
             function closeSidebar() {
-                if (sidebar) sidebar.classList.remove('open');
+                sidebar.classList.remove('open');
                 if (backdrop) backdrop.classList.remove('show');
+                if (toggle) toggle.setAttribute('aria-expanded', 'false');
             }
             function show(view) {
+                if (!TITLES[view] || !document.getElementById('view-' + view)) view = 'overview';
                 document.querySelectorAll('.adm-view').forEach(function (v) {
                     v.classList.toggle('active', v.id === 'view-' + view);
                 });
                 nav.querySelectorAll('.sb-link').forEach(function (b) {
-                    b.classList.toggle('active', b.dataset.view === view);
+                    var on = b.dataset.view === view;
+                    b.classList.toggle('active', on);
+                    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
                 });
-                var t = TITLES[view];
-                if (t) {
-                    var h1 = document.getElementById('pageTitle'), sub = document.getElementById('pageSub');
-                    if (h1) h1.textContent = t[0];
-                    if (sub) sub.textContent = t[1];
-                }
+                document.getElementById('pageTitle').textContent = TITLES[view][0];
+                document.getElementById('pageSub').textContent = TITLES[view][1];
+                document.title = TITLES[view][0] + ' · Ayarlar | Hotizy';
                 try { history.replaceState(null, '', '#' + view); } catch (e) {}
+                window.scrollTo(0, 0);
             }
+            window.AdminNav = { show: show };
             nav.addEventListener('click', function (e) {
                 var b = e.target.closest('.sb-link');
-                if (!b) return;
+                if (!b || b.disabled) return;
                 show(b.dataset.view);
                 closeSidebar();
             });
-            var menuToggle = document.getElementById('menuToggle');
-            if (menuToggle) menuToggle.addEventListener('click', function () {
+            document.querySelectorAll('[data-goto]').forEach(function (c) {
+                c.addEventListener('click', function () { show(c.dataset.goto); });
+            });
+            if (toggle) toggle.addEventListener('click', function () {
                 var open = sidebar.classList.toggle('open');
                 if (backdrop) backdrop.classList.toggle('show', open);
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
             });
             if (backdrop) backdrop.addEventListener('click', closeSidebar);
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSidebar(); });
             var initial = (location.hash || '').replace('#', '');
-            if (initial && document.getElementById('view-' + initial)) show(initial);
+            if (initial) show(initial);
         })();
 
-        // Hazır Talepler — "Toplu İşlemler" açılır menüsü.
+        // Hizmet Kataloğu — "Toplu işlemler" açılır menüsü.
         (function () {
             var menu = document.getElementById('catToolsMenu');
             if (!menu) return;
@@ -928,26 +925,13 @@
             var dd = document.getElementById('catToolsDropdown');
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                dd.classList.toggle('open');
+                btn.setAttribute('aria-expanded', dd.classList.toggle('open') ? 'true' : 'false');
             });
             dd.addEventListener('click', function (e) {
-                if (e.target.tagName === 'BUTTON') dd.classList.remove('open');
+                if (e.target.closest('button')) dd.classList.remove('open');
             });
             document.addEventListener('click', function (e) {
                 if (!menu.contains(e.target)) dd.classList.remove('open');
-            });
-        })();
-
-        // Hazır Talepler — alt sekmeler (Talepler / Sayfa Ayarları / Menüler & QR).
-        (function () {
-            var nav = document.getElementById('catSubtabs');
-            if (!nav) return;
-            nav.addEventListener('click', function (e) {
-                var b = e.target.closest('.cat-subtab');
-                if (!b) return;
-                var sub = b.dataset.sub;
-                nav.querySelectorAll('.cat-subtab').forEach(function (t) { t.classList.toggle('active', t === b); });
-                document.querySelectorAll('.cat-subview').forEach(function (v) { v.classList.toggle('active', v.dataset.subView === sub); });
             });
         })();
     </script>

@@ -56,6 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let userCount = 0;
     const maxUsers = () => parseInt(localStorage.getItem('hotelMaxUsers') || '0', 10);
 
+    // Rol verisi İngilizce saklanır (Admin/Manager/Staff); arayüzde Türkçe.
+    const ROLE_TR = { admin: 'Admin', manager: 'Yönetici', staff: 'Personel' };
+    const roleLabel = (r) => ROLE_TR[String(r || '').toLowerCase()] || (r || '—');
+
     // 2. Fetch Users
     const fetchUsers = () => {
         db.collection('systemUsers').where('tenantId', '==', TENANT_ID).onSnapshot(snapshot => {
@@ -69,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.style.cursor = 'pointer';
                 tr.innerHTML = `
                     <td><strong>${esc(user.username)}</strong></td>
-                    <td><span class="role-badge">${esc(user.role)}</span></td>
+                    <td><span class="role-badge">${esc(roleLabel(user.role))}</span></td>
                     <td>${esc(user.department)}</td>
                     <td>
                         <button class="reset-pw-btn">Şifre Sıfırla</button>
@@ -395,12 +399,12 @@ document.addEventListener('DOMContentLoaded', () => {
             ejectBtn.disabled = true;
             try {
                 const ok1 = await AppDialog.confirm({
-                    title: '⚠️ Dikkat', danger: true, confirmText: 'Devam Et',
+                    title: 'Dikkat', danger: true, confirmText: 'Devam Et',
                     message: 'Tüm sistem verileri (rezervasyonlar, misafirler, kayıtlar, personel hesapları) KALICI olarak silinecek!\n\nSilmeden önce bir yedek dosyası indirilecek.\n\nDevam etmek istediğinize emin misiniz?'
                 });
                 if (!ok1) { ejectBtn.disabled = false; return; }
                 const ok2 = await AppDialog.confirm({
-                    title: '⚠️ Son Uyarı', danger: true, confirmText: 'Sistemi Sıfırla',
+                    title: 'Son uyarı', danger: true, confirmText: 'Sistemi Sıfırla',
                     message: 'Bu işlem geri alınamaz. Sistemi sıfırlamak istediğinize kesinlikle emin misiniz?'
                 });
                 if (!ok2) { ejectBtn.disabled = false; return; }
@@ -468,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await b.commit();
                 }
 
-                showToast("💥 Sistem sıfırlandı! Tüm veriler silindi.", false);
+                showToast("Sistem sıfırlandı. Tüm veriler silindi.", false);
                 setTimeout(() => {
                     window.location.reload();
                 }, 2000);
@@ -488,6 +492,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const subStatus = document.getElementById('subStatus');
     const subExpiry = document.getElementById('subExpiry');
 
+    // Genel Bakış'taki özet kart (ovSub*) Abonelik görünümündeki ayrıntıyı yansıtır.
+    const ovSubStatus = document.getElementById('ovSubStatus');
+    const ovSubExpiry = document.getElementById('ovSubExpiry');
+    const mirrorSubscription = (ok) => {
+        if (ovSubStatus) {
+            ovSubStatus.textContent = subStatus.textContent;
+            ovSubStatus.classList.toggle('is-ok', !!ok);
+            ovSubStatus.classList.toggle('is-bad', !ok);
+        }
+        if (ovSubExpiry) ovSubExpiry.textContent = subExpiry.textContent;
+    };
     const renderSubscription = (end) => {
         const now = new Date();
         if (end && end > now) {
@@ -495,14 +510,17 @@ document.addEventListener('DOMContentLoaded', () => {
             subStatus.textContent = `Aktif — ${daysLeft} gün kaldı`;
             subStatus.className = 'sub-status active';
             subExpiry.textContent = `Bitiş: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+            mirrorSubscription(true);
         } else if (end) {
-            subStatus.textContent = 'Süresi Doldu';
+            subStatus.textContent = 'Süresi doldu';
             subStatus.className = 'sub-status expired';
             subExpiry.textContent = `Bitti: ${end.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+            mirrorSubscription(false);
         } else {
             subStatus.textContent = 'Tanımsız';
             subStatus.className = 'sub-status expired';
             subExpiry.textContent = 'Abonelik tanımsız';
+            mirrorSubscription(false);
         }
     };
 
@@ -531,7 +549,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // değerleri okur) — yalnızca görüntü Türkçeleştirilir.
     const TK_STATUS = { 'Open': 'Açık', 'In Progress': 'İşlemde', 'Closed': 'Kapalı' };
     const TK_PRIO = { 'Low': 'Düşük', 'Medium': 'Orta', 'High': 'Yüksek' };
-    const tkStatus = (s) => TK_STATUS[s || 'Open'] || s;
+    const TK_STATUS_LC = { 'open': 'Açık', 'in progress': 'İşlemde', 'in-progress': 'İşlemde', 'closed': 'Kapalı' };
+    const tkStatus = (s) => TK_STATUS[s || 'Open'] || TK_STATUS_LC[String(s).toLowerCase()] || s;
     const tkPrio = (p) => TK_PRIO[p || 'Medium'] || p;
 
     const fetchTickets = () => {
@@ -542,8 +561,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if ((doc.data().status || 'Open') !== 'Closed') openCount++;
             });
             if (statTickets) statTickets.textContent = openCount;
+            const tb = document.getElementById('ticketsBadge');
+            if (tb) { tb.textContent = openCount; tb.hidden = openCount === 0; }
             if (snap.empty) {
-                ticketList.innerHTML = '<p style="color:#64748b; font-size:13px; padding:10px;">Henüz destek talebi yok.</p>';
+                ticketList.innerHTML = '<div class="list-empty">Henüz destek talebi yok. Bir sorun, istek veya öneriniz olduğunda "Yeni talep" ile bize iletebilirsiniz.</div>';
                 return;
             }
             snap.forEach(doc => {
@@ -552,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.className = 'ticket-item';
                 const statusClass = (t.status || 'Open').toLowerCase().replace(/\s+/g, '-');
                 const prioClass = (t.priority || 'Medium').toLowerCase();
-                const when = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString('tr-TR') : '';
+                const when = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
                 const replyCount = Array.isArray(t.replies) ? t.replies.length : 0;
                 item.innerHTML = `
                     <div class="ticket-item-top">
@@ -560,9 +581,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="ticket-status ${statusClass}">${esc(tkStatus(t.status))}</span>
                     </div>
                     <div class="ticket-meta">
-                        ${t.type ? `<span class="ticket-priority" style="background:#eef2ff;color:#4f46e5;">${esc(t.type)}</span>` : ''}
+                        ${t.type ? `<span class="tag">${esc(t.type)}</span>` : ''}
                         <span class="ticket-priority ${prioClass}">${esc(tkPrio(t.priority))}</span>
-                        ${esc(t.createdBy || 'Bilinmiyor')} • ${when}${replyCount ? ` • ${replyCount} yanıt` : ''}
+                        <span>${esc(t.createdBy || 'Bilinmiyor')} · ${esc(when)}${replyCount ? ` · ${replyCount} yanıt` : ''}</span>
                     </div>
                 `;
                 item.onclick = () => openTicketDetail(doc.id, t);
@@ -574,9 +595,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function openTicketDetail(id, t) {
         currentTicketId = id;
         document.getElementById('tdSubject').textContent = t.subject || 'Destek talebi';
-        const when = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString('tr-TR') : '';
-        document.getElementById('tdMeta').textContent = `${tkPrio(t.priority)} öncelik • Açan: ${t.createdBy || 'Bilinmiyor'} • ${when}`;
-        document.getElementById('tdStatus').value = t.status || 'Open';
+        const when = t.createdAt && t.createdAt.toDate ? t.createdAt.toDate().toLocaleString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+        document.getElementById('tdMeta').textContent = `${tkPrio(t.priority)} öncelik · Açan: ${t.createdBy || 'Bilinmiyor'}${when ? ' · ' + when : ''}`;
+        // Eski/elle girilmiş kayıtlarda durum küçük harfli olabiliyor ('open') —
+        // seçici eşleşmeyince boş görünüyordu.
+        const ST_NORM = { 'open': 'Open', 'in progress': 'In Progress', 'in-progress': 'In Progress', 'closed': 'Closed' };
+        document.getElementById('tdStatus').value = ST_NORM[String(t.status || 'Open').toLowerCase()] || 'Open';
         document.getElementById('tdReply').value = '';
 
         let html = `<div class="td-msg"><div class="who">${esc(t.createdBy || 'Bilinmiyor')}</div><div class="text">${esc(t.message || '')}</div></div>`;
@@ -798,17 +822,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── PAYMENT HISTORY ─────────────────────────────────────────
     const payHistBody = document.getElementById('payHistBody');
     if (payHistBody) {
-        const stMap = { success: ['Başarılı', '#16a34a'], pending: ['Bekliyor', '#d97706'], failed: ['Başarısız', '#dc2626'], error: ['Hata', '#dc2626'] };
+        const stMap = { success: ['Başarılı', 'ok'], pending: ['Bekliyor', 'warn'], failed: ['Başarısız', 'bad'], error: ['Hata', 'bad'] };
         const planName = { starter: 'Başlangıç', pro: 'Profesyonel', enterprise: 'Kurumsal' };
         db.collection('payments').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
             const rows = snap.docs.map(d => d.data())
                 .sort((a, b) => ((b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0) - (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0)));
-            if (!rows.length) { payHistBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">Henüz ödeme yok</td></tr>'; return; }
+            if (!rows.length) { payHistBody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--ink-3);padding:24px 0;">Henüz ödeme kaydı yok.</td></tr>'; return; }
             payHistBody.innerHTML = rows.map(p => {
                 const d = p.createdAt && p.createdAt.toDate ? p.createdAt.toDate().toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-                const st = stMap[p.status] || [p.status || '—', '#64748b'];
+                const st = stMap[p.status] || [p.status || '—', ''];
                 const amt = (p.amountTRY || 0).toLocaleString('tr-TR') + ' ₺';
-                return `<tr><td>${d}</td><td>${esc(planName[p.plan] || p.plan || '—')}</td><td>${amt}</td><td><span style="color:${st[1]};font-weight:600;">${esc(st[0])}</span></td></tr>`;
+                return `<tr><td>${d}</td><td>${esc(planName[p.plan] || p.plan || '—')}</td><td>${amt}</td><td><span class="fin-dot ${st[1]}"></span>${esc(st[0])}</td></tr>`;
             }).join('');
         }, () => {});
     }
@@ -901,9 +925,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const cancelled = inRange.filter(r => r.status === 'Cancelled');
             const sg = (arr) => arr.reduce((a, r) => a + num(r.totalPrice), 0);
             document.getElementById('finStatus').innerHTML =
-                `<div class="fin-line"><span>✅ Onaylı</span><span><b>${money(sg(conf))}</b> <span class="muted">${conf.length} adet</span></span></div>` +
-                `<div class="fin-line"><span>⏳ Bekleyen</span><span><b>${money(sg(pend))}</b> <span class="muted">${pend.length} adet</span></span></div>` +
-                `<div class="fin-line"><span>✖ İptal</span><span><span class="muted">${cancelled.length} adet</span></span></div>`;
+                `<div class="fin-line"><span><span class="fin-dot ok"></span>Onaylı</span><span><b>${money(sg(conf))}</b> <span class="muted">${conf.length} adet</span></span></div>` +
+                `<div class="fin-line"><span><span class="fin-dot warn"></span>Bekleyen</span><span><b>${money(sg(pend))}</b> <span class="muted">${pend.length} adet</span></span></div>` +
+                `<div class="fin-line"><span><span class="fin-dot"></span>İptal</span><span><span class="muted">${cancelled.length} adet</span></span></div>`;
 
             const staff = {};
             active.forEach(r => { const s = r.staffInitial || '—'; const o = staff[s] || (staff[s] = { count: 0, gross: 0 }); o.count++; o.gross += num(r.totalPrice); });

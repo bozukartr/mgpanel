@@ -51,60 +51,10 @@
     const toast = window.showToast; // js/utils/toast.js (paylaşımlı)
 
     // ── Styles ─────────────────────────────────────────────────
-    function injectStyles() {
-        if ($('cat-admin-styles')) return;
-        const css = `
-        .cat-group { margin-bottom: 18px; }
-        .cat-group h3 { font-size: 14px; font-weight: 800; color: #1e293b; margin: 0 0 10px;
-            display: flex; align-items: center; gap: 8px; }
-        .cat-group h3 .cat-count { font-size: 11px; font-weight: 700; color: #94a3b8; background: #f1f5f9;
-            padding: 2px 8px; border-radius: 999px; }
-        .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-        .cat-row { display: flex; align-items: center; gap: 11px; background: #fff; border: 1px solid #e8edf2;
-            border-radius: 12px; padding: 11px 12px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
-        .cat-row:hover { border-color: #c7d2fe; box-shadow: 0 4px 14px rgba(99,102,241,.1); }
-        .cat-row.inactive { opacity: .55; }
-        .cat-row .cat-emoji { width: 40px; height: 40px; border-radius: 10px; background: #eef2ff; flex-shrink: 0;
-            display: flex; align-items: center; justify-content: center; font-size: 21px; }
-        .cat-row .cat-body { flex: 1; min-width: 0; }
-        .cat-row .cat-name { font-size: 14px; font-weight: 700; color: #1e293b; }
-        .cat-row .cat-reco { color: #f59e0b; font-size: 12px; }
-        .cat-row .cat-sub { font-size: 11.5px; color: #94a3b8; }
-        .cat-row .cat-flag { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
-        .cat-row .cat-flag.on { background: #f0fdf4; color: #16a34a; }
-        .cat-row .cat-flag.off { background: #fef2f2; color: #dc2626; }
-        .cat-row .cat-flag.opt { background: #eef2ff; color: #4f46e5; }
-        .cat-opt-chip { display: inline-flex; align-items: center; gap: 6px; background: #eef2ff; color: #4338ca;
-            border: 1px solid #c7d2fe; font-size: 12.5px; font-weight: 600; padding: 5px 8px 5px 12px; border-radius: 999px; }
-        .cat-opt-chip button { background: none; border: none; color: #6366f1; font-size: 14px; line-height: 1;
-            cursor: pointer; padding: 2px; font-family: inherit; }
-        .cat-opt-empty { font-size: 12px; color: #94a3b8; }
-        .cat-subhead { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
-            color: #6366f1; margin: 12px 0 8px; display: flex; align-items: center; gap: 8px; }
-        .cat-subhead::before { content: '↳'; color: #c7d2fe; font-weight: 700; }
-        .cat-empty { text-align: center; color: #94a3b8; padding: 40px 20px; font-size: 14px; }
-        .cat-qr { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 12px;
-            font-size: 12.5px; color: #475569; }
-        .cat-qr code { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 5px; font-size: 12px; }
-        .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
-        .qr-card { border: 1px solid #e8edf2; border-radius: 12px; padding: 12px; text-align: center; background: #fff; }
-        .qr-card .qr-img { width: 100%; max-width: 150px; margin: 0 auto; line-height: 0; }
-        .qr-card .qr-img img, .qr-card .qr-img canvas { width: 100% !important; height: auto !important; border-radius: 6px; }
-        .qr-card .qr-room { font-weight: 800; font-size: 15px; margin-top: 9px; color: #1e293b; }
-        .qr-card .qr-dl { margin-top: 5px; font-size: 12px; color: #2563eb; cursor: pointer; background: none; border: none; font-weight: 600; font-family: inherit; }
-        .cat-bulk-row { display: grid; grid-template-columns: 150px 1fr 1fr 100px 32px; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .cat-bulk-row.cat-bulk-head { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: #94a3b8; margin-bottom: 6px; }
-        .cat-bulk-row select, .cat-bulk-row input { width: 100%; padding: 9px 10px; border: 1px solid #e2e8f0; border-radius: 8px;
-            font-size: 13.5px; font-family: inherit; color: #1e293b; box-sizing: border-box; }
-        .cat-bulk-row select:focus, .cat-bulk-row input:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
-        .cat-bulk-row-del { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; width: 32px; height: 34px;
-            cursor: pointer; font-size: 13px; line-height: 1; font-family: inherit; }
-        .cat-bulk-row-del:hover { background: #fee2e2; }`;
-        const el = document.createElement('style');
-        el.id = 'cat-admin-styles';
-        el.textContent = css;
-        document.head.appendChild(el);
-    }
+    // Stiller css/modules/admin.css'e taşındı (Ayarlar paneli yeniden
+    // tasarımı) — JS ile <style> enjekte etmek, sayfa stilini her açılışta
+    // eziyordu. Fonksiyon çağrı yeri değişmesin diye boş bırakıldı.
+    function injectStyles() {}
 
     // ── Render ─────────────────────────────────────────────────
     function categoriesOrdered() {
@@ -170,7 +120,7 @@
             try { base = new URL('guest-order', location.href).href; }
             catch (e) { base = 'guest-order'; }
             const url = `${base}?tenant=${encodeURIComponent(TENANT_ID)}&room=ODA_NO`;
-            hint.innerHTML = `<div class="cat-qr">📱 Misafir QR adresi: <code>${esc(url)}</code> — her oda için <code>ODA_NO</code> yerine oda numarasını yazıp QR oluşturun.</div>`;
+            hint.innerHTML = `<div class="cat-qr">${uiIcon('qr')}<span>Misafir sayfası adresi: <code>${esc(url)}</code> — <code>ODA_NO</code> yerine oda numarası yazılır. Oda QR kodlarını <b>Menüler ve QR</b> bölümünden toplu oluşturabilirsiniz.</span></div>`;
         }
         // Category + subcategory datalists for the modal — HER ZAMAN tüm
         // kataloğa göre (arama filtresine göre değil, admin arama kutusuna bir
@@ -181,12 +131,12 @@
         if (dls) dls.innerHTML = allSubcats().map(s => `<option value="${esc(s)}">`).join('');
 
         if (!items.length) {
-            wrap.innerHTML = `<div class="cat-empty">Henüz talep eklenmemiş.<br>“Varsayılanları Yükle” ile başlayabilir veya “Talep Ekle” diyebilirsiniz.</div>`;
+            wrap.innerHTML = `<div class="cat-empty">Henüz hizmet eklenmemiş.<br>"Toplu işlemler → Varsayılanları yükle" ile hazır listeyle başlayabilir ya da "Hizmet ekle" diyebilirsiniz.</div>`;
             return;
         }
         const list = visibleItems();
         if (!list.length) {
-            wrap.innerHTML = `<div class="cat-empty">"${esc(searchTerm.trim())}" ile eşleşen talep yok.</div>`;
+            wrap.innerHTML = `<div class="cat-empty">"${esc(searchTerm.trim())}" ile eşleşen hizmet yok.</div>`;
             return;
         }
         wrap.innerHTML = categoriesIn(list).map(cat => {
@@ -206,16 +156,20 @@
         wrap.querySelectorAll('[data-edit]').forEach(r => r.onclick = () => openModal(r.dataset.edit));
     }
 
+    // Satır ikonu: misafir ekranındakiyle AYNI çözümleyici (service-icons.js) —
+    // yönetici, misafirin göreceği ikonu görür (emoji yalnızca ipucu).
+    const svcIcon = (it, size) => (window.ServiceIcon && typeof ServiceIcon.svg === 'function') ? ServiceIcon.svg(it, size || 19) : '';
+    const uiIcon = (n) => (typeof window.UIcon === 'function' ? window.UIcon(n) : '');
     function rowHtml(i) {
         const active = i.active !== false;
         const cur = (cfg && cfg.currency) || '₺';
         const priceTxt = i.price ? cur + Number(i.price).toLocaleString('tr-TR') : 'Ücretsiz';
-        const avail = (i.availFrom && i.availTo) ? ('🕒 ' + i.availFrom + '–' + i.availTo) : '';
+        const avail = (i.availFrom && i.availTo) ? (i.availFrom + '–' + i.availTo) : '';
         const optCount = Array.isArray(i.options) ? i.options.length : 0;
         const optTitle = optCount ? i.options.map(normalizeOption).map(o => o.name + (o.priceDelta ? ` (${o.priceDelta > 0 ? '+' : ''}${o.priceDelta}₺)` : '')).join(', ') : '';
         const sub = [i.department || '—', priceTxt, avail].filter(Boolean).join(' · ');
         return `<div class="cat-row ${active ? '' : 'inactive'}" data-edit="${esc(i.id)}">
-            <div class="cat-emoji">${esc(i.icon || '🛎️')}</div>
+            <div class="cat-emoji" aria-hidden="true">${svcIcon(i)}</div>
             <div class="cat-body">
                 <div class="cat-name">${esc(i.name)}</div>
                 <div class="cat-sub">${esc(sub)}</div>
@@ -263,7 +217,7 @@
         editingId = id || null;
         const it = id ? items.find(x => x.id === id) : null;
         fillDeptSelect($('catDept'), it ? (it.department || '') : '');
-        setTxt('catalogModalTitle', it ? 'Talep Düzenle' : 'Talep Ekle');
+        setTxt('catalogModalTitle', it ? 'Hizmeti düzenle' : 'Hizmet ekle');
         setVal('catName', it ? (it.name || '') : '');
         setVal('catCategory', it ? (it.category || '') : '');
         setVal('catSubcategory', it ? (it.subcategory || '') : '');
@@ -293,8 +247,20 @@
         ['catModInput', 'catModPriceInput', 'catModGroupInput', 'catModMaxInput'].forEach(id => { if ($(id)) $(id).value = ''; });
         renderModChips();
         $('catalogDeleteBtn').style.display = it ? 'block' : 'none';
+        syncIconPreview();
         $('catalogModal').style.display = 'flex';
     }
+    // İkon önizlemesi: ad/kategori/departman/emoji değiştikçe misafirin
+    // göreceği çizgi ikon güncellenir.
+    function syncIconPreview() {
+        const prev = $('catIconPreview'); if (!prev) return;
+        const v = (id) => ($(id) ? $(id).value : '');
+        prev.innerHTML = svcIcon({ name: v('catName'), category: v('catCategory'), subcategory: v('catSubcategory'), icon: v('catIcon'), department: v('catDept') }, 19);
+    }
+    ['catName', 'catCategory', 'catSubcategory', 'catIcon', 'catDept'].forEach(id => {
+        const el = $(id); if (el) el.addEventListener('input', syncIconPreview);
+        if (el && el.tagName === 'SELECT') el.addEventListener('change', syncIconPreview);
+    });
     function closeModal() {
         $('catalogModal').style.display = 'none';
         editingId = null;
@@ -479,7 +445,7 @@
             data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
             p = db.collection(COL).add(data);
         }
-        p.then(() => { toast(editingId ? 'Talep güncellendi.' : 'Talep eklendi.'); closeModal(); })
+        p.then(() => { toast(editingId ? 'Hizmet güncellendi.' : 'Hizmet eklendi.'); closeModal(); })
          .catch(err => { console.error(err); toast('Kaydedilemedi.', true); });
     }
 
@@ -488,7 +454,7 @@
         const ok = await AppDialog.confirm({ title: 'Talebi sil', danger: true, confirmText: 'Sil', message: 'Bu talebi silmek istediğinize emin misiniz?' });
         if (!ok) return;
         db.collection(COL).doc(editingId).delete()
-            .then(() => { toast('Talep silindi.'); closeModal(); })
+            .then(() => { toast('Hizmet silindi.'); closeModal(); })
             .catch(err => { console.error(err); toast('Silinemedi.', true); });
     }
 
@@ -514,7 +480,7 @@
             n++;
         });
         if (!n) { toast('Eklenecek yeni talep yok.'); return; }
-        batch.commit().then(() => toast(n + ' talep eklendi.')).catch(err => { console.error(err); toast('Yüklenemedi.', true); });
+        batch.commit().then(() => toast(n + ' hizmet eklendi.')).catch(err => { console.error(err); toast('Yüklenemedi.', true); });
     }
 
     // seedDefaults()'ın tersi: isim eşleşmesiyle (case-insensitive) eklenmiş
@@ -838,7 +804,7 @@
         const id = bulkRowSeq++;
         return `<div class="cat-bulk-row" data-row="${id}">
             <select class="cbr-dept">${bulkDepts().map(d => `<option value="${esc(d)}">${d ? esc(d) : 'Otomatik'}</option>`).join('')}</select>
-            <input type="text" class="cbr-name" maxlength="120" placeholder="Talep adı">
+            <input type="text" class="cbr-name" maxlength="120" placeholder="Hizmet adı">
             <input type="text" class="cbr-cat" maxlength="60" list="catCatOptions" placeholder="Kategori">
             <input type="number" class="cbr-price" min="0" step="1" placeholder="Fiyat">
             <button type="button" class="cat-bulk-row-del" data-del="${id}" aria-label="Satırı kaldır">✕</button>
@@ -886,7 +852,7 @@
         const b = db.batch();
         toAdd.forEach(data => b.set(db.collection(COL).doc(), data));
         b.commit().then(() => {
-            toast(toAdd.length + ' talep eklendi.');
+            toast(toAdd.length + ' hizmet eklendi.');
             closeBulkModal();
         }).catch(err => { console.error(err); toast('Eklenemedi: ' + err.message, true); });
     }
@@ -903,11 +869,17 @@
     function boot() {
         // Feature-gated module: if the hotel's plan doesn't include "Misafir
         // Talepleri" (superadmin toggle), drop the admin tab entirely.
+        // Yeniden tasarımda katalog, misafir sayfası ve menüler/QR ayrı
+        // görünümler oldu — üçü de QR misafir özelliğine ait, birlikte kalkar.
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) {
-            const tab = document.querySelector('.sb-link[data-view="catalog"]');
-            if (tab) tab.remove();
-            const view = $('view-catalog');
-            if (view) view.remove();
+            ['catalog', 'guestpage', 'menusqr'].forEach(v => {
+                const tab = document.querySelector('.sb-link[data-view="' + v + '"]');
+                if (tab) tab.remove();
+                const view = $('view-' + v);
+                if (view) view.remove();
+            });
+            const grp = document.querySelector('.sb-group[data-group="guest"]');
+            if (grp) grp.remove();
             return;
         }
         injectStyles();
