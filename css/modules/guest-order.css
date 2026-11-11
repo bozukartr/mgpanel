@@ -305,8 +305,9 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
     background: var(--surface); cursor: pointer; transition: background .12s; }
 .go-item + .go-item::before { content: ''; position: absolute; top: 0; right: 0; left: 74px; height: 1px; background: var(--line); }
 .go-item:active { background: var(--bg-2); }
-.go-item-emoji { width: 48px; height: 48px; flex-shrink: 0; border-radius: 12px; background: var(--bg-2);
-    display: grid; place-items: center; font-size: 24px; line-height: 1; }
+.go-item-ic { width: 48px; height: 48px; flex-shrink: 0; border-radius: 12px; background: var(--bg-2);
+    color: var(--ink-2); display: grid; place-items: center; }
+.go-item-ic svg { width: 24px; height: 24px; }
 .go-item-main { flex: 1; min-width: 0; }
 .go-item-name { font-size: 15px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; }
 .go-item-desc { font-size: 13px; color: var(--ink-3); margin-top: 2px; line-height: 1.4;
@@ -316,7 +317,7 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
 .go-tag svg { width: 13px; height: 13px; }
 .go-tag.price { color: var(--ink); font-weight: 600; }
 .go-tag.off { color: var(--danger); }
-.go-item-unavail .go-item-emoji, .go-item-unavail .go-item-name { opacity: .55; }
+.go-item-unavail .go-item-ic, .go-item-unavail .go-item-name { opacity: .55; }
 .go-item-act { flex-shrink: 0; }
 
 .go-add { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink);
@@ -340,7 +341,8 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
 
 /* ════ Hizmet detayı sheet ════ */
 .go-isheet-head { display: flex; align-items: flex-start; gap: 14px; padding: 4px 0 4px; }
-.go-isheet-head .go-item-emoji { width: 60px; height: 60px; font-size: 30px; border-radius: 16px; }
+.go-isheet-head .go-item-ic { width: 60px; height: 60px; border-radius: 16px; }
+.go-isheet-head .go-item-ic svg { width: 30px; height: 30px; }
 .go-isheet-tx { flex: 1; min-width: 0; padding-top: 2px; }
 .go-isheet-tx h2 { font-size: 21px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
 .go-isheet-cat { display: block; font-size: 13px; color: var(--ink-3); margin-top: 3px; }
@@ -393,7 +395,7 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
 #goCartList { padding: 4px var(--gutter) calc(140px + var(--safe-bottom)); }
 .go-cline { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 14px 12px 14px 14px; background: var(--surface); }
 .go-cline + .go-cline::before { content: ''; position: absolute; top: 0; right: 0; left: 74px; height: 1px; background: var(--line); }
-.go-cline .go-item-emoji { width: 48px; height: 48px; }
+.go-cline .go-item-ic { width: 48px; height: 48px; }
 .go-cline-main { flex: 1; min-width: 0; cursor: pointer; padding-top: 1px; }
 .go-cline-name { font-size: 15px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; }
 .go-cline-det { font-size: 13px; color: var(--ink-3); margin-top: 3px; line-height: 1.45; }
@@ -461,7 +463,7 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
 
 .go-titem { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 14px 12px 14px 14px; background: var(--surface); }
 .go-titem + .go-titem::before { content: ''; position: absolute; top: 0; right: 0; left: 74px; height: 1px; background: var(--line); }
-.go-titem .go-item-emoji { width: 48px; height: 48px; }
+.go-titem .go-item-ic { width: 48px; height: 48px; }
 .go-titem-main { flex: 1; min-width: 0; }
 .go-titem-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .go-titem-name { font-size: 15px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; }

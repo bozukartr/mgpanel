@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentGuestId) viewGuestDetail(currentGuestId);
         } catch (e) {
             console.error("Data load failed", e);
-            showToast("Failed to sync data", true);
+            showToast('Veriler yüklenemedi.', true);
         }
     };
     // Geriye dönük uyum: eski çağrı adı rehberi yükler.
@@ -362,14 +362,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     await GuestDirectory.syncGuestStatus(guest.name, { guestId: guest.id, room: guest.room, status: 'in_house' });
                 }
             }
-            showToast(`Guest status updated: ${newStatus.replace('_',' ')}`);
+            showToast(newStatus === 'checked_out' ? 'Çıkış yapıldı.' : (newStatus === 'in_house' ? 'Giriş yapıldı.' : 'Misafir durumu güncellendi.'));
             loadAllData();
-        } catch (e) { showToast('Update failed', true); }
+        } catch (e) { showToast('Güncellenemedi.', true); }
     };
 
     window.deleteGuest = async (guestId) => {
         if (!isAdminUser) {
-            return showToast('Only Admin can delete guests!', true);
+            return showToast('Misafiri yalnızca yönetici silebilir.', true);
         }
         // guestName her zaman guestDirectory'deki (zaten yüklü, güvenilir) kayıttan
         // okunur — onclick attribute'una serbest metin gömülmez (bkz. güvenlik
@@ -378,13 +378,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const guest = guestDirectory.find(g => g.id === guestId);
         const guestName = guest ? guest.name : guestId;
 
-        if (!confirm(`Are you sure you want to permanently delete the profile for ${guestName}?\n\nWarning: This removes the guest from the directory, but keeps their historical logs intact.`)) {
+        if (!confirm(`${guestName} profili kalıcı olarak silinsin mi?\n\nMisafir listeden kaldırılır; geçmiş talep kayıtları korunur.`)) {
             return;
         }
 
         try {
             await db.collection('guestDirectory').doc(guestId).delete();
-            showToast(`Guest ${guestName} deleted successfully.`);
+            showToast(`${guestName} silindi.`);
             currentGuestId = null;
             document.getElementById('guestDetail').innerHTML = `
                 <div class="empty-state" style="display:flex;">
@@ -394,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadAllData();
         } catch (e) {
             console.error("Delete failed", e);
-            showToast('Delete failed. Check permissions.', true);
+            showToast('Silinemedi. Yetkinizi kontrol edin.', true);
         }
     };
 
@@ -416,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.openMergeModal = (primaryId) => {
-        if (!isAdminUser) return showToast('Only Admin can merge guests!', true);
+        if (!isAdminUser) return showToast('Misafir birleştirmeyi yalnızca yönetici yapabilir.', true);
         const primary = guestDirectory.find(g => g.id === primaryId);
         if (!primary) return;
         mergePrimaryId = primaryId;
@@ -435,16 +435,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.submitMerge = async () => {
-        if (!isAdminUser) return showToast('Only Admin can merge guests!', true);
+        if (!isAdminUser) return showToast('Misafir birleştirmeyi yalnızca yönetici yapabilir.', true);
         const secondaryId = document.getElementById('mergeSelect').value;
-        if (!mergePrimaryId || !secondaryId) return showToast('Select a duplicate guest to merge.', true);
-        if (secondaryId === mergePrimaryId) return showToast('Cannot merge a guest into itself.', true);
+        if (!mergePrimaryId || !secondaryId) return showToast('Birleştirilecek mükerrer misafiri seçin.', true);
+        if (secondaryId === mergePrimaryId) return showToast('Misafir kendisiyle birleştirilemez.', true);
 
         const primary = guestDirectory.find(g => g.id === mergePrimaryId);
         const secondary = guestDirectory.find(g => g.id === secondaryId);
-        if (!primary || !secondary) return showToast('Guest not found.', true);
+        if (!primary || !secondary) return showToast('Misafir bulunamadı.', true);
 
-        if (!confirm(`Merge "${secondary.name}" into "${primary.name}"?\n\nAll of "${secondary.name}"'s reservations, logs and notes will be transferred to "${primary.name}", and the duplicate profile will be deleted. This cannot be undone.`)) {
+        if (!confirm(`"${secondary.name}" profili "${primary.name}" ile birleştirilsin mi?\n\n"${secondary.name}" adına kayıtlı tüm rezervasyon, talep ve notlar "${primary.name}" profiline taşınır ve mükerrer profil silinir. Bu işlem geri alınamaz.`)) {
             return;
         }
 
@@ -507,14 +507,14 @@ document.addEventListener('DOMContentLoaded', () => {
             finalBatch.delete(db.collection('guestDirectory').doc(secondary.id));
             await finalBatch.commit();
 
-            showToast(`Merged "${secondary.name}" into "${primary.name}".`);
+            showToast(`"${secondary.name}" → "${primary.name}" birleştirildi.`);
             closeMergeModal();
             currentGuestId = primary.id;
             activityLoaded = false; // isimler değişti → aktiviteyi tazele
             await loadDirectory();
         } catch (e) {
             console.error('Merge failed', e);
-            showToast('Merge failed. Check permissions.', true);
+            showToast('Birleştirilemedi. Yetkinizi kontrol edin.', true);
         } finally {
             btn.textContent = originalText;
             btn.disabled = false;
@@ -550,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const birthYear = birthYearRaw ? parseInt(birthYearRaw, 10) : null;
         const thisYear = new Date().getFullYear();
         if (!name) return showToast('Lütfen misafir adını girin.', true);
-        if (status === 'in_house' && !room) return showToast('In House için oda numarası gerekli.', true);
+        if (status === 'in_house' && !room) return showToast('Konaklayan misafir için oda numarası gerekli.', true);
         // Doğum yılı artık misafirin QR self-servis sayfasında kendi kimliğiyle
         // (soyad + doğum yılı) doğrulanabilmesi için ZORUNLU — bkz. güvenlik
         // denetimi: eskiden oda numarası tek başına "kimlik" gibi davranıyordu,
@@ -742,8 +742,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return showToast('Geçerli bir doğum yılı girin (veya alanı boş bırakın).', true);
         }
 
-        if (!isPreArrival && !newRoomRaw) return showToast('Please enter a room number.', true);
-        if (!newName) return showToast('Please enter a guest name.', true);
+        if (!isPreArrival && !newRoomRaw) return showToast('Lütfen oda numarası girin.', true);
+        if (!newName) return showToast('Lütfen misafir adını girin.', true);
         if (!rcGuestId || !rcGuestName) return;
 
         const nameChanged = newName !== rcGuestName;
@@ -805,13 +805,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 await b.commit();
             }
 
-            showToast('Stay details updated successfully.');
+            showToast('Konaklama bilgileri güncellendi.');
             closeRoomChangeModal();
             activityLoaded = false; // isim/oda değişti → aktiviteyi ve rehberi tazele
             await loadDirectory();
         } catch (e) {
             console.error(e);
-            showToast('Error updating stay details.', true);
+            showToast('Konaklama bilgileri güncellenemedi.', true);
         } finally {
             btn.textContent = originalText;
             btn.disabled = false;
