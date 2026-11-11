@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- ?v=: JS/CSS 10 dk önbellekli (firebase.json), HTML değil — yeni HTML eski
          CSS/JS ile birleşmesin diye tasarım değişikliğinde sürüm artırılır. -->
-    <link rel="stylesheet" href="css/modules/guest-order.css?v=20261110d">
+    <link rel="stylesheet" href="css/modules/guest-order.css?v=20261110e">
 </head>
 
 <body>
@@ -216,6 +216,18 @@
         <div class="go-scroll go-sheet-body" id="goFolioBody"></div>
     </section>
 
+    <!-- ══ Rezervasyon ayrıntısı — Profil'den drill-down ══ -->
+    <div class="go-backdrop" id="goResBackdrop"></div>
+    <section class="go-sheet" id="goResSheet" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="goResTitle">
+        <div class="go-sheet-grip"></div>
+        <div class="go-sheet-head">
+            <h2 id="goResTitle">Rezervasyon</h2>
+            <button class="go-sheet-close" id="goResClose" aria-label="Kapat" data-i18n-aria="common.close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <div class="go-scroll go-sheet-body" id="goResBody"></div>
+        <div class="go-sheet-foot" id="goResFoot"></div>
+    </section>
+
     <!-- ══ Onay (tarayıcının confirm() penceresi yerine) ══ -->
     <div class="go-backdrop" id="goConfirmBackdrop"></div>
     <section class="go-sheet go-confirm" id="goConfirm" role="alertdialog" aria-modal="true" aria-hidden="true" aria-labelledby="goConfirmTitle" aria-describedby="goConfirmMsg">
@@ -238,10 +250,10 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js" crossorigin="anonymous"></script>
     <script src="js/core/firebase-config.js"></script>
     <!-- Dil desteği: sözlükler motordan ÖNCE yüklenir (motor ilk çizimde okur) -->
-    <script src="js/i18n/tr.js?v=20261110"></script>
-    <script src="js/i18n/en.js?v=20261110"></script>
+    <script src="js/i18n/tr.js?v=20261110e"></script>
+    <script src="js/i18n/en.js?v=20261110e"></script>
     <script src="js/core/i18n.js"></script>
-    <script src="js/modules/guest-order.js?v=20261110d"></script>
+    <script src="js/modules/guest-order.js?v=20261110e"></script>
 </body>
 
 </html>

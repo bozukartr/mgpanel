@@ -199,6 +199,7 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
 .go-st-in_progress { background: var(--accent-soft); color: var(--accent-ink); }
 .go-st-completed { background: var(--ok-soft); color: var(--ok); }
 .go-st-cancelled { background: var(--bg-2); color: var(--ink-3); }
+.go-st-danger { background: var(--danger-soft); color: var(--danger); }
 
 /* Boş durum */
 .go-empty { text-align: center; padding: 48px 24px; animation: go-rise .3s var(--ease); }
@@ -483,25 +484,92 @@ button.go-row:active, a.go-row:active { background: var(--bg-2); }
     display: grid; place-items: center; font-size: 24px; font-weight: 700; }
 .go-prof-name { font-size: 20px; font-weight: 700; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .go-prof-sub { font-size: 14px; color: var(--ink-3); margin-top: 2px; }
-.go-stay-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.go-stay-date { padding: 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1); }
-.go-stay-date small { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-3); }
-.go-stay-date b { display: block; font-size: 16px; font-weight: 700; margin-top: 3px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
-.go-stay-nights { font-size: 13px; color: var(--ink-3); margin: 8px 4px 0; }
-.go-stay-res-detail { display: none; font-size: 13.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.45; }
-.go-stay-res.open .go-stay-res-detail { display: block; }
-.go-stay-res .go-chev { transition: transform .2s; }
-.go-stay-res.open .go-chev { transform: rotate(90deg); }
 .go-langseg { margin-top: 0; }
 
-/* Folio */
-.go-folio-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 2px; border-bottom: 1px solid var(--line); }
-.go-folio-row-src { font-size: 15px; font-weight: 500; }
-.go-folio-row-meta { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
-.go-folio-row-amt { font-size: 15px; font-weight: 600; flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.go-folio-total { display: flex; justify-content: space-between; align-items: baseline; padding: 16px 2px 4px; }
-.go-folio-total b { font-size: 15px; font-weight: 600; }
-.go-folio-total span { font-size: 22px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+/* Konaklama kartı: giriş → çıkış, gece sayısı, ilerleme */
+.go-staycard { padding: 16px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1); }
+.go-staycard-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.go-staycard-col small { display: block; font-size: 12px; font-weight: 600; color: var(--ink-3); letter-spacing: .02em; }
+.go-staycard-col b { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.015em; margin-top: 3px; white-space: nowrap; }
+.go-staycard-col span { display: block; font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+.go-staycard-col.end { text-align: right; }
+.go-staycard-mid { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+    padding: 6px 10px; border-radius: var(--r-pill); background: var(--bg-2); white-space: nowrap; }
+.go-staycard-mid svg { width: 16px; height: 16px; color: var(--ink-3); }
+.go-stayprog { margin-top: 14px; }
+.go-stayprog-bar { height: 6px; border-radius: var(--r-pill); background: var(--bg-2); overflow: hidden; }
+.go-stayprog-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.go-stayprog-tx { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; font-weight: 500; color: var(--ink-3); margin-top: 7px; }
+
+/* Oda hesabı özet kartı */
+.go-foliocard { display: block; width: 100%; margin-top: 12px; padding: 14px 14px 16px; text-align: left; color: var(--ink);
+    border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1); transition: background .15s; }
+button.go-foliocard:active { background: var(--bg-2); }
+.go-foliocard-h { display: flex; align-items: center; gap: 10px; }
+.go-foliocard-h b { flex: 1; font-size: 15px; font-weight: 600; }
+.go-foliocard-amts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 18px; margin-top: 12px; }
+.go-foliocard-amts strong { font-size: 26px; font-weight: 700; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+.go-foliocard-sub { font-size: 13px; color: var(--ink-3); margin-top: 3px; }
+.go-foliocard.is-empty .go-foliocard-sub { margin-top: 8px; }
+
+/* Rezervasyon kartları: takvim karosu + tür/mekân + durum */
+.go-rescard { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 12px 12px 14px;
+    text-align: left; background: var(--surface); color: var(--ink); }
+.go-rescard + .go-rescard::before { content: ''; position: absolute; top: 0; right: 0; left: 74px; height: 1px; background: var(--line); }
+.go-rescard:active { background: var(--bg-2); }
+.go-caldate { width: 48px; flex-shrink: 0; border-radius: 12px; overflow: hidden; text-align: center; background: var(--bg-2); }
+.go-caldate small { display: block; padding: 3px 0 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    background: var(--accent-soft); color: var(--accent-ink); }
+.go-caldate b { display: block; padding: 3px 0 5px; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.go-rescard.is-past .go-caldate small { background: var(--line); color: var(--ink-3); }
+.go-rescard.is-past .go-caldate b, .go-rescard.is-past .go-rescard-tl { color: var(--ink-2); }
+.go-rescard-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.go-rescard-tl { display: flex; align-items: center; gap: 6px; max-width: 100%; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.go-rescard-tl svg { color: var(--ink-3); }
+.go-rescard-tl span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.go-rescard-sub { max-width: 100%; font-size: 13px; color: var(--ink-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.go-rescard .go-statepill { margin-top: 5px; height: 22px; font-size: 11.5px; }
+
+/* Rezervasyon ayrıntısı */
+.go-resd-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.go-resd-ic { width: 52px; height: 52px; flex-shrink: 0; border-radius: 16px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-ink); }
+.go-resd-head h3 { font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.go-resd-head p { font-size: 14.5px; color: var(--ink-2); margin-top: 2px; }
+.go-resd-head .go-statepill { margin-top: 8px; }
+.go-kv .go-row { min-height: 48px; --row-inset: 14px; }
+.go-kv .go-row-tl { color: var(--ink-2); font-size: 14.5px; white-space: nowrap; }
+.go-kv .go-row-val { font-size: 14.5px; text-align: right; max-width: 62%; }
+.go-kv .go-row.total .go-row-tl { color: var(--ink); font-weight: 600; }
+.go-kv .go-row.total .go-row-val { font-size: 17px; font-weight: 700; }
+.go-folioflag { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 12px 14px; border-radius: var(--r-sm);
+    background: var(--ok-soft); color: var(--ok); font-size: 14px; font-weight: 600; }
+
+/* Oda Hesabım — ekstre */
+.go-stmt-meta { font-size: 13.5px; color: var(--ink-3); line-height: 1.5; margin: -6px 0 14px; }
+#goFolioTabs { margin-bottom: 12px; }
+.go-stmt-total { padding: 16px; border-radius: var(--r-md); background: var(--bg-2); }
+.go-stmt-total small { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.go-stmt-total strong { display: block; font-size: 32px; font-weight: 700; letter-spacing: -.03em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.go-stmt-total span { display: block; font-size: 13px; color: var(--ink-3); margin-top: 1px; }
+.go-stmt-day { font-size: 13px; font-weight: 600; color: var(--ink-3); margin: 20px 4px 8px; }
+.go-txn { position: relative; background: var(--surface); }
+.go-txn + .go-txn::before { content: ''; position: absolute; top: 0; right: 0; left: 60px; height: 1px; background: var(--line); }
+.go-txn-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 12px 12px 12px 14px; text-align: left; color: var(--ink); }
+button.go-txn-row:not(:disabled):active { background: var(--bg-2); }
+.go-txn-row:disabled { cursor: default; opacity: 1; }
+.go-txn-amt { flex-shrink: 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.go-txn-chev { transition: transform .2s var(--ease); }
+.go-txn.open .go-txn-chev { transform: rotate(180deg); }
+.go-txn-lines { display: none; padding: 0 14px 14px 58px; }
+.go-txn.open .go-txn-lines { display: block; animation: go-rise .2s var(--ease); }
+.go-line { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 13.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.go-line > span:first-child { min-width: 0; }
+.go-line > span:last-child { flex-shrink: 0; }
+.go-line b { font-weight: 600; color: var(--ink); }
+.go-line .ikram { font-style: normal; font-weight: 600; color: var(--ok); }
+.go-line.sum { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--line-2); }
+.go-line.total { font-weight: 700; color: var(--ink); }
+.go-stmt-note { font-size: 12.5px; color: var(--ink-3); line-height: 1.5; margin: 16px 4px 12px; }
 
 /* ════ Canlı talep şeridi (nav üstü) ════ */
 .go-live { position: fixed; left: 50%; transform: translateX(-50%); z-index: 65; width: 100%; max-width: 480px;

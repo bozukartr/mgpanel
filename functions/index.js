@@ -1917,6 +1917,7 @@ exports.submitItemRating = onCall({ region: REGION }, async (request) => {
 // yalnızca eşleşme başarılıysa Admin SDK ile üç bilgi tek çağrıda toplanır:
 // check-in/check-out tarihleri, açık (status='open') oda hesabı kalemleri ve
 // misafirin (guestDirectory'deki KANONİK adıyla) Concierge rezervasyonları.
+const guestStay = require('./guest-stay');
 exports.getGuestStay = onCall({ region: REGION }, async (request) => {
   const d = request.data || {};
   const tenant = String(d.tenant || '').trim().toLowerCase().slice(0, 40);
@@ -1971,21 +1972,38 @@ exports.getGuestStay = onCall({ region: REGION }, async (request) => {
   // restaurant→TRY) — yeni yazımların hepsi artık currency taşıyor.
   const folioGroups = {}; // { EUR: {total,count,items}, TRY: {...} }
   if (chargesSnap) {
-    chargesSnap.forEach((doc) => {
-      const c = doc.data() || {};
+    const charges = [];
+    chargesSnap.forEach((doc) => charges.push(doc.data() || {}));
+    // Ekstre ayrıntısı: restoran harcamasının ADİSYONU (kalemler, KDV,
+    // indirim) ve concierge harcamasının REZERVASYONU tek getAll ile okunur.
+    // Okunamazsa ekstre ayrıntısız (yalnızca tutar/kaynak) döner — misafir
+    // yine de oda hesabını görür. Hangi alanların misafire gittiği
+    // functions/guest-stay.js'te AÇIKÇA seçilir (personel notu vb. gitmez).
+    const checksById = {}, resById = {};
+    try {
+      const ids = guestStay.linkedIds(charges, 40);
+      const refs = ids.checkIds.map((id) => db.collection('restChecks').doc(id))
+        .concat(ids.resIds.map((id) => db.collection('reservations').doc(id)));
+      if (refs.length) {
+        const snaps = await db.getAll(...refs);
+        snaps.forEach((sn) => {
+          if (!sn.exists) return;
+          if (sn.ref.parent.id === 'restChecks') checksById[sn.id] = sn.data();
+          else resById[sn.id] = sn.data();
+        });
+      }
+    } catch (e) {
+      console.warn('getGuestStay detail read failed', e && e.message);
+    }
+    charges.forEach((c) => {
       const amount = Number(c.amount) || 0;
       const currency = c.currency || (c.source === 'restaurant' ? 'TRY' : 'EUR');
       const g = folioGroups[currency] || (folioGroups[currency] = { currency, total: 0, count: 0, items: [] });
       g.total += amount;
       g.count += 1;
-      g.items.push({
-        amount,
-        source: String(c.source || '').slice(0, 40),
-        tableName: String(c.tableName || '').slice(0, 40),
-        createdAt: c.createdAt && c.createdAt.toMillis ? c.createdAt.toMillis() : null
-      });
+      g.items.push(guestStay.folioItemView(c, tenant, checksById, resById));
     });
-    Object.values(folioGroups).forEach((g) => g.items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+    Object.values(folioGroups).forEach((g) => { g.total = guestStay.round2(g.total); g.items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); });
   }
   const folioByCurrency = Object.values(folioGroups).sort((a, b) => b.total - a.total);
 
@@ -2002,21 +2020,9 @@ exports.getGuestStay = onCall({ region: REGION }, async (request) => {
   const reservations = [];
   if (resSnap) {
     resSnap.forEach((doc) => {
-      const r = doc.data() || {};
-      reservations.push({
-        type: String(r.type || '').slice(0, 30),
-        date: String(r.date || '').slice(0, 20),
-        time: String(r.time || '').slice(0, 20),
-        status: String(r.status || 'Pending').slice(0, 20),
-        resName: String(r.resName || '').slice(0, 80),
-        from: String(r.from || '').slice(0, 80),
-        to: String(r.to || '').slice(0, 80),
-        vehicle: String(r.vehicle || '').slice(0, 60),
-        vessel: String(r.vessel || '').slice(0, 60),
-        provider: String(r.provider || '').slice(0, 60),
-        pax: String(r.pax || '').slice(0, 10),
-        otherType: String(r.otherType || '').slice(0, 60)
-      });
+      // Onay no, tutar, ön ödeme, kalan bakiye ve oda hesabına yansıma da
+      // döner; personelin dahili notu (`notes`) DÖNMEZ (bkz. guest-stay.js).
+      reservations.push(guestStay.reservationView(doc.data() || {}));
     });
     reservations.sort((a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
   }
