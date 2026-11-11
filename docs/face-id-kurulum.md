@@ -10,16 +10,31 @@ saklar ve her girişte imzayı doğrular.
 
 Face ID girişi başarılı olunca sunucu bir Firebase özel token'ı imzalar. Cloud
 Functions'ın bunu yapabilmesi için servis hesabına **Service Account Token
-Creator** rolü gerekir. Cloud Shell'de bir kez çalıştırın:
+Creator** rolü gerekir. Cloud Shell'de bir kez çalıştırın.
+
+Önce gcloud'da oturum açık olmalı (`firebase login` ayrıdır; firebase deploy
+çalışıyor olsa da gcloud oturumsuz olabilir). `gcloud auth list` boşsa:
+
+```bash
+gcloud auth login          # bağlantıyı açın, projenin sahibi olan Google hesabıyla onaylayın, kodu yapıştırın
+```
+
+Ardından:
 
 ```bash
 PROJECT=panel-d25c9
-SA=$(gcloud iam service-accounts list --project $PROJECT \
-  --filter="displayName:Compute Engine default service account" --format="value(email)")
+NUM=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
+SA="${NUM}-compute@developer.gserviceaccount.com"
+echo "$SA"                 # 1234567890-compute@developer.gserviceaccount.com gibi görünmeli
 gcloud services enable iamcredentials.googleapis.com --project $PROJECT
-gcloud iam service-accounts add-iam-policy-binding $SA \
+gcloud iam service-accounts add-iam-policy-binding "$SA" \
   --member="serviceAccount:$SA" --role="roles/iam.serviceAccountTokenCreator" --project $PROJECT
 ```
+
+Komut satırı yerine konsoldan da yapılabilir: Google Cloud Console → IAM ve
+Yönetici → IAM → "Compute Engine default service account" satırında düzenle
+→ rol ekle: **Service Account Token Creator**; ayrıca API'ler → "IAM Service
+Account Credentials API" → Etkinleştir.
 
 Rol eksikse Face ID girişi "Face ID girişi sunucuda henüz etkin değil (kurulum
 eksik)" uyarısı verir; şifreli giriş her durumda çalışmaya devam eder.
