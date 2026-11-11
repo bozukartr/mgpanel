@@ -13,7 +13,11 @@
     'use strict';
     const PMS = window.PMS = window.PMS || {};
     let callable = null;
+    // Kısa ömürlü önbellek: aynı sorgu yazarken tekrar tekrar PMS'e gitmesin,
+    // ama oda değişikliği/yeni giriş birkaç dakika boyunca eski kalmasın
+    // (eskiden sayfa açık kaldıkça sonsuza dek saklanıyordu).
     const cache = new Map();
+    const CACHE_TTL_MS = 60 * 1000, CACHE_MAX = 60;
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"]/g, c =>
@@ -34,14 +38,19 @@
     PMS.lookup = async function (query) {
         const q = String(query || '').trim();
         if (!PMS.enabled() || q.length < 2) return [];
-        const key = q.toLowerCase();
-        if (cache.has(key)) return cache.get(key);
+        const key = q.toLocaleLowerCase('tr-TR');
+        const hit = cache.get(key);
+        if (hit && hit.exp > Date.now()) return hit.results;
         const fn = getFn();
         if (!fn) return [];
         try {
             const res = await fn({ query: q });
-            const results = (res && res.data && res.data.results) || [];
-            cache.set(key, results);
+            const data = (res && res.data) || {};
+            // Demo sağlayıcının sonuçları işaretlenir — listede "DEMO VERİ"
+            // olarak gösterilir, personel uydurma misafiri gerçek sanmasın.
+            const results = (data.results || []).map(g => Object.assign({}, g, { _demo: data.source === 'mock' }));
+            if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+            cache.set(key, { results, exp: Date.now() + CACHE_TTL_MS });
             return results;
         } catch (e) {
             // Zaman aşımı, yanlış kimlik bilgisi, PMS erişilemez, hız sınırı —
@@ -69,11 +78,30 @@
         .pms-mt{font-size:11.5px;color:#64748b;margin-top:2px}
         .pms-src{font-size:10px;font-weight:700;color:#94a3b8;text-align:right;padding:6px 12px;background:#fafbfd;
             display:flex;align-items:center;justify-content:flex-end;gap:6px}
-        .pms-src::before{content:"";width:6px;height:6px;border-radius:50%;background:#10b981}`;
+        .pms-src::before{content:"";width:6px;height:6px;border-radius:50%;background:#10b981}
+        .pms-src.demo{color:#b45309;background:#fff7ed}
+        .pms-src.demo::before{background:#f59e0b}`;
         const el = document.createElement('style');
         el.id = 'pms-styles';
         el.textContent = css;
         document.head.appendChild(el);
+    }
+
+    // "PMS açık mı" bayrağı yalnızca GİRİŞTE yazılıyordu (app.js
+    // applyTenantConfig): süperadmin entegrasyonu açınca personel çıkış yapıp
+    // tekrar girmeden öneri görmüyordu (uygulama günlerce açık kalabiliyor).
+    // Sayfa başına bir kez otel dokümanından tazelenir.
+    let flagRefreshed = false;
+    function refreshFlag() {
+        if (flagRefreshed) return;
+        flagRefreshed = true;
+        try {
+            const tid = localStorage.getItem('hotelTenantId');
+            if (!tid || typeof firebase === 'undefined') return;
+            firebase.firestore().collection('tenants').doc(tid).get().then(d => {
+                if (d.exists) localStorage.setItem('hotelPmsEnabled', (d.data() || {}).pmsEnabled ? '1' : '0');
+            }).catch(() => {});
+        } catch (e) { /* bayrak olduğu gibi kalır */ }
     }
 
     PMS.attach = function (opts) {
@@ -81,6 +109,7 @@
         const name = opts.nameInput;
         if (!name) return;
         injectStyles();
+        refreshFlag();
 
         const dd = document.createElement('div');
         dd.className = 'pms-dd';
@@ -102,8 +131,11 @@
                 opts.roomInput.disabled = false;
                 opts.roomInput.value = g.room;
             }
-            if (opts.checkInInput && g.checkIn) opts.checkInInput.value = g.checkIn;
-            if (opts.checkOutInput && g.checkOut) opts.checkOutInput.value = g.checkOut;
+            // Sunucu tarihleri YYYY-MM-DD'ye normalize eder; <input type="date">
+            // başka biçimi sessizce boşaltır, o yüzden yalnızca bu biçim yazılır.
+            const iso = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+            if (opts.checkInInput && iso(g.checkIn)) opts.checkInInput.value = g.checkIn;
+            if (opts.checkOutInput && iso(g.checkOut)) opts.checkOutInput.value = g.checkOut;
             if (typeof opts.onPick === 'function') opts.onPick(g);
             hide();
             // Let existing autofill / validation logic react to the new value.
@@ -116,7 +148,9 @@
                 `<div class="pms-it" data-i="${i}">
                     <div class="pms-nm">${esc(g.name) || '—'}${g.vip ? ' <span class="pms-vip">VIP</span>' : ''}</div>
                     <div class="pms-mt">Oda ${esc(g.room || '—')}${g.checkIn ? ' · ' + esc(g.checkIn) + ' → ' + esc(g.checkOut || '') : ''}</div>
-                </div>`).join('') + '<div class="pms-src">PMS</div>';
+                </div>`).join('') + (items.some(g => g._demo)
+                    ? '<div class="pms-src demo">DEMO VERİ — gerçek misafir değil</div>'
+                    : '<div class="pms-src">PMS</div>');
             position();
             dd.style.display = 'block';
             dd.querySelectorAll('.pms-it').forEach(el =>

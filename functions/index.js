@@ -584,40 +584,12 @@ exports.onQuoteRequestCreate = onDocumentCreated(
 // oluşturma/iptal yok) — kasıtlı bir kapsam sınırı, bkz. superadmin.js.
 // ═══════════════════════════════════════════════════════════════════
 
-// Demo guests for the 'mock' provider — lets the whole flow work end-to-end
-// before a real PMS is connected.
-const PMS_MOCK_GUESTS = [
-  { name: 'Ahmet Yılmaz',  room: '204', checkIn: '2026-06-12', checkOut: '2026-06-15', vip: true,  phone: '+90 532 111 2233', email: 'ahmet.yilmaz@example.com' },
-  { name: 'Elif Demir',    room: '305', checkIn: '2026-06-11', checkOut: '2026-06-14', vip: false, phone: '+90 533 222 3344', email: 'elif.demir@example.com' },
-  { name: 'Mehmet Kaya',   room: '118', checkIn: '2026-06-10', checkOut: '2026-06-16', vip: false, phone: '+90 534 333 4455', email: 'mehmet.kaya@example.com' },
-  { name: 'Sema Doğan',    room: '410', checkIn: '2026-06-09', checkOut: '2026-06-20', vip: true,  phone: '+90 535 444 5566', email: 'sema.dogan@example.com' },
-  { name: 'John Carter',   room: '512', checkIn: '2026-06-13', checkOut: '2026-06-18', vip: false, phone: '+1 202 555 0142',  email: 'j.carter@example.com' },
-  { name: 'Ayşe Çelik',    room: '207', checkIn: '2026-06-12', checkOut: '2026-06-13', vip: false, phone: '+90 536 555 6677', email: 'ayse.celik@example.com' }
-];
-
-// Read a dotted path (supports array indices) out of a nested object.
-function pmsDig(obj, path) {
-  if (!path) return obj;
-  return String(path).split('.').reduce((acc, key) => {
-    if (acc == null) return undefined;
-    return acc[key];
-  }, obj);
-}
-
-function pmsNormalize(item, map) {
-  map = map || {};
-  const g = {
-    name: pmsDig(item, map.name) ?? item.name ?? item.guestName ?? '',
-    room: pmsDig(item, map.room) ?? item.room ?? item.roomNo ?? item.roomNumber ?? '',
-    checkIn: pmsDig(item, map.checkIn) ?? item.checkIn ?? item.arrival ?? '',
-    checkOut: pmsDig(item, map.checkOut) ?? item.checkOut ?? item.departure ?? '',
-    vip: !!(pmsDig(item, map.vip) ?? item.vip ?? false),
-    phone: pmsDig(item, map.phone) ?? item.phone ?? '',
-    email: pmsDig(item, map.email) ?? item.email ?? ''
-  };
-  Object.keys(g).forEach(k => { if (g[k] == null) g[k] = (k === 'vip' ? false : ''); else if (k !== 'vip') g[k] = String(g[k]); });
-  return g;
-}
+// PMS okuma adaptörünün çekirdeği (URL kurma, kimlik doğrulama, OAuth2,
+// yanıt okuma, alan eşleme, demo veri) functions/pms-core.js'te — ağ, SSRF
+// denetimi, şifre çözme ve token önbelleği buradan enjekte edilir. Böylece
+// çekirdek gerçek bir PMS olmadan, sahte bir PMS sunucusuna karşı uçtan uca
+// test edilebiliyor (tests/pms-core.test.js).
+const pmsCore = require('./pms-core');
 
 // Alan-seviyesi şifreleme (AES-256-GCM) — pmsConfig.apiKey / oauth2.clientSecret /
 // extraHeaders.* artık DÜZ METİN değil, bu master anahtarla (PMS_CRED_ENC_KEY)
@@ -638,32 +610,6 @@ async function assertSafeOutboundUrl(urlStr, label) {
       async (hostname) => (await dns.lookup(hostname, { all: true })).map((r) => r.address));
   } catch (e) {
     throw new HttpsError(e.code || 'invalid-argument', e.message);
-  }
-}
-
-// Tek bir HTTP denemesi, kendi zaman aşımı bütçesiyle.
-async function pmsFetchOnce(url, headers, timeoutMs) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try { return await fetch(url, { headers, signal: ctrl.signal }); }
-  finally { clearTimeout(timer); }
-}
-// Geçici hatalarda (ağ hatası veya 5xx) TEK bir yeniden deneme — harici otel
-// PMS altyapısı sıkça daha az kararlı (genellikle on-prem/eski sistemler).
-// Zaman aşımı (AbortError) veya 4xx'te tekrar denemek faydasız, o yüzden
-// yalnızca bu iki sınıfta (ağ hatası, 5xx) tekrarlanır.
-async function pmsFetchWithRetry(url, headers, timeoutMs) {
-  try {
-    const resp = await pmsFetchOnce(url, headers, timeoutMs);
-    if (resp.status >= 500) {
-      await new Promise((r) => setTimeout(r, 350));
-      return pmsFetchOnce(url, headers, timeoutMs);
-    }
-    return resp;
-  } catch (e) {
-    if (e && e.name === 'AbortError') throw e;
-    await new Promise((r) => setTimeout(r, 350));
-    return pmsFetchOnce(url, headers, timeoutMs);
   }
 }
 
@@ -696,140 +642,52 @@ function logPmsFailure(tenantId, route, err) {
   }).catch(() => {});
 }
 
-// Bellek-içi OAuth2 token önbelleği (aynı Cloud Functions instance'ı
-// sıcakken tekrar tekrar token almayı önler). Kalıcı önbellek (soğuk
-// başlangıçlar/instance'lar arası) için tenantId verildiğinde AYRI
-// `pmsOAuthCache/{tenantId}` koleksiyonu kullanılır (firestore.rules:
-// deny-all — Admin SDK dışında hiçbir client, superadmin dahil, canlı
-// bearer token'ı okuyamaz). Bilinçli olarak pmsConfig'in İÇİNDE değil:
-// pmsConfig superadmin'in ayar formu için client'tan okunabiliyor —
-// canlı bir erişim token'ının o formun okuduğu belgede durması, form asla
-// göstermese bile token'ın superadmin'in tarayıcısına inmesi anlamına
-// gelirdi (bkz. PMS güvenlik denetimi).
-const oauthMemCache = new Map(); // key: tenantId || '_test' -> { token, expiresAt }
-
-async function fetchOAuth2Token(oauth2) {
-  if (!oauth2 || !oauth2.tokenUrl) throw new HttpsError('failed-precondition', 'OAuth2 token URL tanımlı değil.');
-  await assertSafeOutboundUrl(oauth2.tokenUrl, 'OAuth2 token URL');
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: oauth2.clientId || '',
-    client_secret: oauth2.clientSecret || ''
-  });
-  if (oauth2.scope) body.set('scope', oauth2.scope);
-  // Veri aramasındaki 7sn'lik zaman aşımı deseninin aynısı — önceden bu istek
-  // hiç sınırlanmamıştı, PMS'in auth sunucusu asılırsa fonksiyon platform
-  // varsayılanına (~60sn) kadar bloklanabiliyordu (bkz. tutarlılık denetimi).
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 7000);
-  let resp;
-  try {
-    resp = await fetch(oauth2.tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-      body: body.toString(),
-      signal: ctrl.signal
-    });
-  } catch (e) {
-    throw new HttpsError('unavailable', 'PMS OAuth2 token isteği başarısız: ' + (e.message || e.name));
-  } finally { clearTimeout(timer); }
-  if (!resp.ok) throw new HttpsError('unavailable', 'PMS OAuth2 token alınamadı: HTTP ' + resp.status);
-  const data = await resp.json().catch(() => ({}));
-  if (!data.access_token) throw new HttpsError('unavailable', 'PMS OAuth2 yanıtında access_token yok.');
-  const expiresInMs = (Number(data.expires_in) || 300) * 1000;
-  return { token: data.access_token, expiresAt: Date.now() + Math.max(30000, expiresInMs - 15000) };
-}
-
-async function getOAuth2Token(oauth2, tenantId) {
-  const cacheKey = tenantId || '_test';
-  const now = Date.now();
-  const mem = oauthMemCache.get(cacheKey);
-  if (mem && mem.expiresAt > now) return mem.token;
-
-  if (tenantId) {
-    try {
-      const snap = await db.collection('pmsOAuthCache').doc(tenantId).get();
-      const cached = snap.exists ? snap.data() : null;
-      if (cached && cached.expiresAt > now) {
-        oauthMemCache.set(cacheKey, cached);
-        return cached.token;
+// OAuth2 token önbelleği: bellek (sıcak instance) + `pmsOAuthCache/{tenantId}`
+// (soğuk başlangıçlar arası; firestore.rules: deny-all — canlı bearer token'ı
+// hiçbir client, superadmin dahil, okuyamaz). Kayıt {token, expiresAt, fp}:
+// fp kimlik bilgilerinin özetidir, bilgiler değişince eski token kullanılmaz.
+// Süperadmin testi (kaydedilmemiş form değerleri) yalnızca bellekte, otelin
+// canlı önbelleğinden AYRI bir anahtarla tutulur.
+const oauthMemCache = new Map();
+function pmsTokenCache(tenantId, persist) {
+  const key = persist && tenantId ? tenantId : '_test';
+  return {
+    async get() {
+      const m = oauthMemCache.get(key);
+      if (m && m.expiresAt > Date.now()) return m;
+      if (persist && tenantId) {
+        try {
+          const snap = await db.collection('pmsOAuthCache').doc(tenantId).get();
+          if (snap.exists) { const c = snap.data(); oauthMemCache.set(key, c); return c; }
+        } catch (e) { /* önbellek okunamadı — taze token alınır */ }
       }
-    } catch (e) { /* önbellek okunamadı — sıfırdan token al */ }
-  }
-
-  const fresh = await fetchOAuth2Token(oauth2);
-  oauthMemCache.set(cacheKey, fresh);
-  if (tenantId) {
-    db.collection('pmsOAuthCache').doc(tenantId).set(fresh).catch(() => {});
-  }
-  return fresh.token;
+      return null;
+    },
+    async set(v) {
+      oauthMemCache.set(key, v);
+      if (persist && tenantId) db.collection('pmsOAuthCache').doc(tenantId).set(v).catch(() => {});
+    }
+  };
 }
 
-// Run a lookup against a given config (used by both pmsLookup and the
-// superadmin test). Returns a normalized array of guests. `tenantId` is
-// only present for real (saved-config) calls — pmsTestConfig tests
-// in-progress/unsaved form values and passes none, so OAuth2 tokens fetched
-// during a test are only cached in-memory for that invocation.
-async function pmsRunLookup(cfg, query, tenantId) {
-  const q = String(query || '').trim();
-  if (!cfg || cfg.enabled === false) return { enabled: false, results: [] };
-  if (q.length < 2) return { enabled: true, results: [] };
-
-  const provider = cfg.provider || 'mock';
-
-  if (provider === 'mock') {
-    const ql = q.toLowerCase();
-    const results = PMS_MOCK_GUESTS.filter(g =>
-      g.name.toLowerCase().includes(ql) || String(g.room).includes(q)).slice(0, 8);
-    return { enabled: true, results, source: 'mock' };
+// Kaydedilmiş (ya da süperadmin testinde form) yapılandırmasıyla arama.
+// opts.test: kısa sorgu hata verir + yanıt yapısı teşhisi döner; token
+// otelin canlı önbelleğine yazılmaz.
+async function pmsRunLookup(cfg, query, tenantId, opts) {
+  opts = opts || {};
+  const deps = {
+    fetch: (url, init) => fetch(url, init),
+    assertSafeUrl: assertSafeOutboundUrl,
+    decrypt: pmsDecrypt,
+    tokenCache: pmsTokenCache(tenantId, !opts.test)
+  };
+  try {
+    return await pmsCore.runLookup(cfg, query, deps, { diagnose: !!opts.test });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    if (e && e.isPmsError) throw new HttpsError(e.code, e.message);
+    throw new HttpsError('unavailable', 'PMS bağlantısı başarısız: ' + ((e && e.message) || 'bilinmeyen hata'));
   }
-
-  // generic REST adapter (statik anahtar VEYA OAuth2 client-credentials)
-  if (provider === 'generic') {
-    if (!cfg.baseUrl) throw new HttpsError('failed-precondition', 'PMS baseUrl tanımlı değil.');
-    const path = (cfg.searchPath || '?q={q}').replace(/\{q\}/g, encodeURIComponent(q));
-    const url = cfg.baseUrl.replace(/\/+$/, '') + (path.startsWith('/') || path.startsWith('?') ? path : '/' + path);
-    await assertSafeOutboundUrl(url, 'PMS baseUrl');
-    const headers = { 'Accept': 'application/json' };
-
-    if (cfg.authType === 'oauth2') {
-      // cfg.oauth2.clientSecret Firestore'da şifreli — pmsDecrypt zaten
-      // şifreli olmayan (ör. henüz kaydedilmemiş, test edilen) bir değeri
-      // olduğu gibi geri döner, o yüzden burada kaynağın kaydedilmiş mi
-      // yoksa taze mi olduğunu bilmemize gerek yok.
-      const oauth2Cfg = Object.assign({}, cfg.oauth2, { clientSecret: pmsDecrypt(cfg.oauth2 && cfg.oauth2.clientSecret) });
-      const token = await getOAuth2Token(oauth2Cfg, tenantId);
-      headers[cfg.authHeader || 'Authorization'] = (cfg.authPrefix != null ? cfg.authPrefix : 'Bearer ') + token;
-    } else if (cfg.apiKey) {
-      headers[cfg.authHeader || 'Authorization'] = (cfg.authPrefix || '') + pmsDecrypt(cfg.apiKey);
-    }
-    if (cfg.extraHeaders && typeof cfg.extraHeaders === 'object') {
-      Object.keys(cfg.extraHeaders).forEach((k) => {
-        // pmsDecrypt, şifreli olmayan (test edilmekte olan kaydedilmemiş
-        // form değeri) bir string'i olduğu gibi geri döner — bkz. yukarıdaki
-        // pmsDecrypt tanımı; geriye dönük uyumlu.
-        const v = pmsDecrypt(cfg.extraHeaders[k]);
-        if (k && v) headers[k] = String(v);
-      });
-    }
-
-    let data;
-    try {
-      const resp = await pmsFetchWithRetry(url, headers, 7000);
-      if (!resp.ok) throw new HttpsError('unavailable', 'PMS yanıtı: HTTP ' + resp.status);
-      data = await resp.json();
-    } catch (e) {
-      if (e instanceof HttpsError) throw e;
-      throw new HttpsError('unavailable', 'PMS bağlantısı başarısız: ' + (e.message || e.name));
-    }
-
-    let arr = pmsDig(data, cfg.resultsPath);
-    if (!Array.isArray(arr)) arr = Array.isArray(data) ? data : [];
-    const results = arr.slice(0, 12).map(it => pmsNormalize(it, cfg.map)).filter(g => g.name || g.room);
-    return { enabled: true, results, source: 'generic' };
-  }
-
-  return { enabled: true, results: [] };
 }
 
 // Hız sınırlama: mevcut _rateLimits deseni (getGuestName/fnbLoginGate'te
@@ -876,7 +734,10 @@ exports.pmsTestConfig = onCall({ region: REGION, timeoutSeconds: 20, secrets: [P
   const su = await db.collection('superAdmins').doc(request.auth.uid).get();
   if (!su.exists) throw new HttpsError('permission-denied', 'Yalnızca platform operatörü.');
   const cfg = Object.assign({}, (request.data && request.data.config) || {});
-  const query = (request.data && request.data.query) || 'a';
+  // Varsayılan 'a' KALDIRILDI: 2 karakterden kısa sorgu PMS'e hiç gitmeden
+  // "başarılı" dönüyordu — test hiçbir zaman gerçek bağlantıyı denemiyordu.
+  // Çekirdek artık test modunda kısa sorguya açık hata veriyor.
+  const query = String((request.data && request.data.query) || '').trim();
   const tenantId = (request.data && request.data.tenantId) || null;
 
   // superadmin.js artık kaydedilmiş secret'ları forma geri okumuyor (bkz.
@@ -903,8 +764,22 @@ exports.pmsTestConfig = onCall({ region: REGION, timeoutSeconds: 20, secrets: [P
     }
   }
 
+  // Formdan gelen TAZE (düz metin) gizli değerler çekirdeğe şifrelenmiş
+  // verilir: decrypt, tam iki ':' içeren düz bir anahtarı şifreli sanıp
+  // boşaltıyordu (test sahte 401 alıyordu). Kayıtlı değerler zaten şifreli.
+  effectiveCfg = Object.assign({}, effectiveCfg);
+  if (cfg.apiKey) effectiveCfg.apiKey = pmsEncrypt(String(cfg.apiKey).trim());
+  if (cfg.oauth2 && cfg.oauth2.clientSecret) {
+    effectiveCfg.oauth2 = Object.assign({}, effectiveCfg.oauth2, { clientSecret: pmsEncrypt(String(cfg.oauth2.clientSecret).trim()) });
+  }
+  if (cfg.extraHeaders && typeof cfg.extraHeaders === 'object') {
+    const eh = Object.assign({}, effectiveCfg.extraHeaders || {});
+    Object.keys(cfg.extraHeaders).forEach((k) => { if (cfg.extraHeaders[k]) eh[k] = pmsEncrypt(String(cfg.extraHeaders[k]).trim()); });
+    effectiveCfg.extraHeaders = eh;
+  }
+
   try {
-    const result = await pmsRunLookup(Object.assign({}, effectiveCfg, { enabled: true }), query, tenantId);
+    const result = await pmsRunLookup(Object.assign({}, effectiveCfg, { enabled: true }), query, tenantId, { test: true });
     if (tenantId) {
       db.collection('pmsConfig').doc(tenantId).set({
         _lastTest: { ok: true, count: result.results.length, at: admin.firestore.FieldValue.serverTimestamp() }
@@ -925,6 +800,7 @@ exports.pmsTestConfig = onCall({ region: REGION, timeoutSeconds: 20, secrets: [P
 // are encrypted here (never stored in plaintext, see PMS_CRED_ENC_KEY) — a
 // blank secret field means "keep the existing one" (the client no longer
 // reads secrets back to display them, see superadmin.js openPmsModal).
+const PMS_MAP_FIELDS = ['name', 'room', 'checkIn', 'checkOut', 'vip', 'phone', 'email', 'birthDate'];
 exports.pmsSaveConfig = onCall({ region: REGION, secrets: [PMS_CRED_ENC_KEY] }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
   const su = await db.collection('superAdmins').doc(request.auth.uid).get();
@@ -941,14 +817,26 @@ exports.pmsSaveConfig = onCall({ region: REGION, secrets: [PMS_CRED_ENC_KEY] }, 
     presetId: String(cfg.presetId || ''),
     provider: cfg.provider === 'generic' ? 'generic' : 'mock',
     authType: cfg.authType === 'oauth2' ? 'oauth2' : 'apikey',
-    baseUrl: String(cfg.baseUrl || '').slice(0, 300),
-    searchPath: String(cfg.searchPath || '').slice(0, 200),
-    resultsPath: String(cfg.resultsPath || '').slice(0, 200),
-    authHeader: String(cfg.authHeader || 'Authorization').slice(0, 80),
-    authPrefix: String(cfg.authPrefix || '').slice(0, 40),
-    map: (cfg.map && typeof cfg.map === 'object') ? cfg.map : {},
+    baseUrl: String(cfg.baseUrl || '').trim().slice(0, 300),
+    searchPath: String(cfg.searchPath || '').trim().slice(0, 200),
+    // Oda numarası gibi görünen sorgular için ayrı yol (opsiyonel).
+    roomSearchPath: String(cfg.roomSearchPath || '').trim().slice(0, 200),
+    resultsPath: String(cfg.resultsPath || '').trim().slice(0, 200),
+    authHeader: String(cfg.authHeader || '').trim().slice(0, 80) || 'Authorization',
+    // Kırpılmış saklanır; boşluk ve OAuth2'deki "Bearer" varsayılanı
+    // pms-core authValue'da eklenir ("Bearer" boşluksuz yazılınca 401 oluyordu).
+    authPrefix: String(cfg.authPrefix || '').trim().slice(0, 40),
+    // Yalnızca bilinen eşleme alanları, düz metin yol olarak.
+    map: PMS_MAP_FIELDS.reduce((m, k) => {
+      const v = cfg.map && typeof cfg.map === 'object' ? String(cfg.map[k] || '').trim().slice(0, 200) : '';
+      if (v) m[k] = v;
+      return m;
+    }, {}),
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
   };
+  if (out.provider === 'generic' && out.baseUrl && !/^https?:\/\//i.test(out.baseUrl)) {
+    throw new HttpsError('invalid-argument', 'Base URL http:// veya https:// ile başlamalı.');
+  }
   const newApiKey = String(cfg.apiKey || '').trim();
   out.apiKey = newApiKey ? pmsEncrypt(newApiKey) : (existing.apiKey || '');
 
@@ -969,9 +857,17 @@ exports.pmsSaveConfig = onCall({ region: REGION, secrets: [PMS_CRED_ENC_KEY] }, 
     out.oauth2 = null;
   }
 
-  await ref.set(out, { merge: true });
+  // mergeFields: yazılan her ALAN bütünüyle değiştirilir, diğer alanlar
+  // (_lastTest) korunur. Eskiden `merge: true` iç içe birleştiriyordu —
+  // formdan kaldırılan bir ek header ya da alan eşlemesi kayıtta kalıyor ve
+  // PMS'e GÖNDERİLMEYE devam ediyordu.
+  await ref.set(out, { mergeFields: Object.keys(out) });
+  // Kimlik bilgileri değişmiş olabilir — otelin token önbelleğini boşalt
+  // (fp kontrolü zaten eski token'ı reddeder; bu yalnızca temizlik).
+  oauthMemCache.delete(tenantId);
+  db.collection('pmsOAuthCache').doc(tenantId).delete().catch(() => {});
   // Cheap client gate lives on the tenant doc (hotel users can read it).
-  await db.collection('tenants').doc(tenantId).update({ pmsEnabled: out.enabled });
+  await db.collection('tenants').doc(tenantId).set({ pmsEnabled: out.enabled }, { merge: true });
   return { ok: true };
 });
 
