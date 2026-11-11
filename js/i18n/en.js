@@ -128,6 +128,7 @@ window.I18N_EN = {
     'guest.cart.submittedDemo': 'Your request has been received! (demo)',
     'guest.cart.failed': 'Could not send. Please try again.',
     'guest.cart.tooFast': 'Too fast! Please try again in {n} s.',
+    'guest.cart.unavailableRemoved': 'No longer available, removed from your cart: {names}',
     'guest.cart.pendingExists': 'You have {n} requests awaiting a response. Please wait for one to be handled; for urgent matters call the reception.',
 
     // ── Guest · request tracking ─────────────────────────────────────────
