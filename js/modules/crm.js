@@ -126,6 +126,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return tags;
     };
 
+    // ── Görünüm yardımcıları ──────────────────────────────────
+    const crmIc = (n) => (typeof window.UIcon === 'function' ? window.UIcon(n) : '');
+    const CRM_TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
+    const CRM_STATUS_TR = { Pending: 'Bekliyor', Confirmed: 'Onaylı', Done: 'Tamamlandı', Cancelled: 'İptal' };
+    // "2026-11-09" → "9 Kas 2026"
+    function fmtDayTR(iso) {
+        const p = String(iso || '').slice(0, 10).split('-');
+        if (p.length !== 3) return String(iso || '');
+        const d = new Date(+p[0], +p[1] - 1, +p[2]);
+        return isNaN(d) ? String(iso) : d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    // lastUpdated eksikse "Güncellendi Invalid Date" yazıyordu — boş döner.
+    function updatedTxt(v) {
+        if (!v) return '';
+        const d = (v && v.toDate) ? v.toDate() : new Date(v);
+        return isNaN(d) ? '' : d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
     const renderGuestList = () => {
         const listEl = document.getElementById('guestList');
         const search = document.getElementById('guestSearch').value.toLowerCase();
@@ -150,6 +168,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sort by lastUpdated or status
         filtered.sort((a,b) => (b.lastUpdated || '').localeCompare(a.lastUpdated || ''));
 
+        // Boş liste: eskiden sol sütun bembeyaz kalıyordu — filtrede/aramada
+        // kimse yoksa bunu açıkça söyle.
+        if (!filtered.length) {
+            const emptyTxt = searching ? '“' + search.trim() + '” ile eşleşen misafir yok.'
+                : ({ arrival: 'Bekleyen (ön geliş) misafir yok.', in_house: 'Şu an konaklayan misafir yok.', checked_out: 'Çıkış yapmış misafir yok.' })[filterStatus] || 'Misafir yok.';
+            listEl.innerHTML = '<div class="crm-list-empty">' + crmIc('users') + '<span>' + esc(emptyTxt) + '</span></div>';
+            return;
+        }
         listEl.innerHTML = filtered.map(g => {
             const missingDates = (g.status === 'in_house' || g.status === 'pre_arrival') && (!g.checkIn || !g.checkOut);
             const dateAlert = missingDates ? `<span style="font-size:9px; background:#ef4444; color:white; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:bold;">Tarih Eksik</span>` : '';
@@ -214,38 +240,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}
                     </div>
                     <div class="profile-room-badge">
-                        Oda ${esc(guest.room || '—')} • Güncellendi ${new Date(guest.lastUpdated).toLocaleDateString('tr-TR')}
-                        ${guest.checkIn ? `<br><span style="color:#2563eb; font-weight:600;">Giriş: ${esc(guest.checkIn)}</span>` : ''}
-                        ${guest.checkOut ? ` <span style="color:#e11d48; font-weight:600; margin-left:10px;">Çıkış: ${esc(guest.checkOut)}</span>` : ''}
-                        ${guest.birthYear
-                            ? ` <span style="color:#64748b; font-weight:600; margin-left:10px;">Doğum Yılı: ${esc(guest.birthYear)}</span>`
-                            : (guest.status === 'in_house' ? ` <span style="color:#f59e0b; font-weight:700; margin-left:10px;">⚠ Doğum yılı eksik — QR self-servis girişi çalışmaz</span>` : '')}
+                        <span>Oda ${esc(guest.room && guest.room !== 'Pre-Arrival' ? guest.room : '—')}</span>
+                        ${updatedTxt(guest.lastUpdated) ? `<span>Güncellendi ${esc(updatedTxt(guest.lastUpdated))}</span>` : ''}
                     </div>
+                    <div class="profile-facts">
+                        ${guest.checkIn ? `<span class="pf"><b>Giriş</b>${esc(fmtDayTR(guest.checkIn))}</span>` : ''}
+                        ${guest.checkOut ? `<span class="pf"><b>Çıkış</b>${esc(fmtDayTR(guest.checkOut))}</span>` : ''}
+                        ${guest.birthYear ? `<span class="pf"><b>Doğum yılı</b>${esc(guest.birthYear)}</span>` : ''}
+                    </div>
+                    ${(!guest.birthYear && guest.status === 'in_house') ? `<div class="profile-warn">${crmIc('alert')} Doğum yılı eksik — misafir QR ekranında kimliğini doğrulayamaz.</div>` : ''}
                 </div>
-                <div class="profile-actions" style="display: flex; gap: 8px;">
-                    <button class="btn-status-toggle" style="background-color: #f59e0b; color: white;"
-                            onclick="openRoomChangeModal('${guest.id}')">
-                        Bilgileri Düzenle
-                    </button>
+                <!-- Buton hiyerarşisi: tek birincil eylem (Giriş/Çıkış), diğerleri
+                     nötr; Sil yıkıcı ama sessiz. Eskiden turuncu/gri/mor/kırmızı
+                     dört renkli buton yan yanaydı. -->
+                <div class="profile-actions">
                     ${guest.status === 'pre_arrival' ? `
-                    <button class="btn-status-toggle btn-in-house" onclick="toggleStatus('${guest.id}', 'in_house')">
-                        Giriş Yap
-                    </button>
+                    <button class="crm-act primary" onclick="toggleStatus('${guest.id}', 'in_house')">${crmIc('check')} Giriş Yap</button>
                     ` : `
-                    <button class="btn-status-toggle ${guest.status === 'in_house' ? 'btn-checked-out' : 'btn-in-house'}"
-                            onclick="toggleStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')">
-                        ${guest.status === 'in_house' ? 'Çıkış Yap' : 'Giriş Yap'}
+                    <button class="crm-act primary" onclick="toggleStatus('${guest.id}', '${guest.status === 'in_house' ? 'checked_out' : 'in_house'}')">
+                        ${crmIc(guest.status === 'in_house' ? 'logout' : 'check')} ${guest.status === 'in_house' ? 'Çıkış Yap' : 'Giriş Yap'}
                     </button>
                     `}
+                    <button class="crm-act" onclick="openRoomChangeModal('${guest.id}')">${crmIc('pencil')} Düzenle</button>
                     ${isAdminUser ? `
-                    <button class="btn-status-toggle" style="background-color: #7c3aed; color: white;"
-                            onclick="openMergeModal('${guest.id}')">
-                        Birleştir
-                    </button>
-                    <button class="btn-status-toggle" style="background-color: #ef4444; color: white;"
-                            onclick="deleteGuest('${guest.id}')">
-                        Sil
-                    </button>
+                    <button class="crm-act" onclick="openMergeModal('${guest.id}')">${crmIc('link')} Birleştir</button>
+                    <button class="crm-act danger" onclick="deleteGuest('${guest.id}')" aria-label="Misafiri sil">${crmIc('trash')} Sil</button>
                     ` : ''}
                 </div>
             </div>
@@ -268,11 +287,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="info-card">
                     <label>Çözüm Oranı</label>
-                    <div class="val">${gLogs.length === 0 ? '100%' : Math.round((gLogs.filter(l => l.status === 'Solved').length / gLogs.length) * 100) + '%'}</div>
+                    <div class="val">${gLogs.length === 0 ? '—' : '%' + Math.round((gLogs.filter(l => l.status === 'Solved').length / gLogs.length) * 100)}</div>
                 </div>
                 <div class="info-card">
                     <label>Durum</label>
-                    <div class="val" style="color:${guest.status === 'in_house' ? '#10b981' : '#64748b'}">${guest.status === 'in_house' ? 'KONAKLIYOR' : 'ÇIKIŞ YAPTI'}</div>
+                    <div class="val st-${esc(guest.status || 'checked_out')}">${guest.status === 'in_house' ? 'Konaklıyor' : (guest.status === 'pre_arrival' ? 'Bekleniyor' : 'Çıkış yaptı')}</div>
                 </div>
             </div>
 
@@ -286,19 +305,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="history-timeline">
                     ${filteredInteractions.length === 0 ? '<p style="color:#888; padding:20px;">Bu kategoride kayıt yok.</p>' : filteredInteractions.map(i => {
                         const isIssue = i.interactionType === 'issue';
-                        const title = isIssue ? i.complaint : `${i.type} Rezervasyon ${i.resName || i.vehicle || i.vessel || ''}`;
+                        const resDetail = i.type === 'Transfer' ? [i.from, i.to].filter(Boolean).join(' → ') : (i.resName || i.vessel || i.otherType || '');
+                        const title = isIssue ? i.complaint : `${CRM_TYPE_TR[i.type] || i.type || 'Rezervasyon'} rezervasyonu${resDetail ? ' · ' + resDetail : ''}`;
                         const desc = isIssue ? (i.solution || '') : (i.notes || '');
 
                         return `
                             <div class="timeline-item ${isIssue ? 'issue' : 'concierge'}">
                                 <div class="item-header">
                                     <span class="item-type type-${isIssue ? 'issue' : 'concierge'}">${isIssue ? 'Kayıt' : 'Concierge'}</span>
-                                    <span class="item-date">${new Date(i.sortDate).toLocaleDateString('tr-TR')}</span>
+                                    <span class="item-date">${isNaN(new Date(i.sortDate)) ? '' : new Date(i.sortDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                                 </div>
                                 <div class="item-title">${esc(title)}</div>
                                 <div class="item-desc">${esc(desc)}</div>
                                 <div style="font-size:11px; color:#94a3b8; margin-top:8px;">
-                                    ${isIssue ? `Departman: ${esc(i.department)} • Personel: ${esc(i.staffInitial)}` : `Saat: ${esc(i.time || '—')} • Durum: ${esc(i.status)} • Personel: ${esc(i.staffInitial)}`}
+                                    ${isIssue ? `Departman: ${esc(i.department)} • Personel: ${esc(i.staffInitial)}` : `${i.date ? esc(fmtDayTR(i.date)) + ' ' : ''}${esc(i.time || '')} • Durum: ${esc(CRM_STATUS_TR[i.status] || i.status || 'Bekliyor')} • Personel: ${esc(i.staffInitial)}`}
                                 </div>
                             </div>
                         `;

@@ -1877,8 +1877,11 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
 .wf-btn.escalate { background:#fff1f2; color:#be123c; border:1px solid #fecdd3; }
 .wf-btn.escalate:hover { background:#ffe4e6; }
 .wf-esc-tag { display:inline-flex; align-items:center; gap:4px; background:#fee2e2; color:#b91c1c; font-size:12px; font-weight:800; padding:8px 12px; border-radius:8px; }
-.cz-new.cz-perf { background:#0ea5e9; box-shadow:0 6px 16px rgba(14,165,233,.28); }
-.cz-new.cz-perf:hover { background:#0284c7; }
+/* Performans ikincil eylem: birincil "Ekle" ile yarışan camgöbeği dolgu
+   yerine nötr, çerçeveli buton. */
+.cz-new.cz-perf { background:#fff; color: var(--text); border: 1px solid var(--border); box-shadow: none; }
+.cz-new.cz-perf:hover { background:#f8fafc; border-color:#cbd5e1; }
+.cz-new.cz-perf .ui-ic { color: var(--primary); }
 
 /* ── Performans paneli (CSS bar grafik) ── */
 .perf-range { display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
@@ -1947,7 +1950,9 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
         -webkit-tap-highlight-color: transparent;
     }
     .mh-card:active { transform: scale(.97); box-shadow: 0 1px 4px rgba(15, 23, 42, .06); }
-    .mh-ico { font-size: 26px; line-height: 1; }
+    /* İkon: emoji yerine tonlu kutuda çizgi ikon (ui-icons.js). */
+    .mh-ico { width: 40px; height: 40px; border-radius: 12px; background: #eef2ff; color: #4f46e5; font-size: 21px; line-height: 1; margin-bottom: 4px; }
+    .mh-card.mh-act .mh-ico { background: rgba(255, 255, 255, .2); color: #fff; }
     .mh-label { font-size: 14.5px; font-weight: 700; color: #0f172a; letter-spacing: -.1px; }
     .mh-count {
         position: absolute; top: 12px; right: 12px; min-width: 26px; height: 24px; padding: 0 8px;
@@ -2059,3 +2064,44 @@ tr.gi-empty-row:hover td { transform: none; cursor: default; }
     max-height: 42vh; overflow-y: auto;
     border: 1px solid #e8edf2; border-radius: 10px;
 }
+
+
+/* ════ Kayıt tablosu — yoğun, okunur satırlar (masaüstü) ════
+   Satırlar eskiden 100-150px yüksekliğindeydi: ad alt alta kırılıyor, 5-6
+   rozet ayrı satırlar oluşturuyor, SÜRE sütunu tablo dışına taşıyordu. */
+.gc-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.gc-top strong { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.gc-meta { display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; margin-top: 4px; }
+.gc-meta:empty { display: none; }
+.kind-badge { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 6px; line-height: 1.5; }
+.kind-badge.req { background: var(--primary-soft); color: var(--primary-dark); }
+.kind-badge.cmp { background: #fff7ed; color: #c2410c; }
+.gstat { font-size: 11px !important; font-weight: 600 !important; padding: 1px 7px !important; border-radius: 6px !important; line-height: 1.5; }
+.gc-assign { font-size: 11px; color: var(--primary); font-weight: 600; }
+.gc-meta .owner-badge, .gc-meta .late-warning, .gc-meta .sla-soon, .gc-meta .esc-badge, .gc-meta .recurring-badge {
+    margin: 0 !important; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.5; }
+.note-indicator { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.status-badge { text-transform: none; letter-spacing: 0; font-size: 12px; padding: 4px 10px; white-space: nowrap; }
+@media (min-width: 769px) {
+    #recordsTable { border-spacing: 0 6px; }
+    #recordsTable th { padding: 10px 12px; color: #8a94a6; letter-spacing: .06em; font-weight: 600; white-space: nowrap; }
+    #recordsTable td { padding: 11px 12px; vertical-align: middle; }
+    /* Misafir sütunu rozetlere yer açsın: tablo otomatik düzeninde ~130px'e
+       sıkışıp her rozeti ayrı satıra itiyordu. */
+    #recordsTable .guest-cell { min-width: 210px; width: 34%; }
+    #recordsTable .status-badge, #recordsTable .dur-chip { white-space: nowrap; }
+    #recordsTable tr:hover td { transform: none; }
+    #recordsTable .date-cell { white-space: nowrap; color: var(--text-muted); font-size: 12.5px; }
+    #recordsTable .room-cell { width: 64px; }
+    #recordsTable .staff-cell { color: var(--text-muted); font-weight: 600; }
+    #recordsTable .dept-badge { white-space: nowrap; }
+}
+
+/* Kayıt detayı: zaman akışı içeriğe göre büyür, boşken yer kaplamaz */
+.timeline-feed { height: auto; min-height: 0; max-height: 220px; }
+.timeline-feed.is-empty { border-bottom: 0; margin-bottom: 10px; padding-right: 0; }
+.timeline-empty {
+    font-size: 12.5px; color: #8a94a6; padding: 12px 14px;
+    background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 12px;
+}
+.timeline-input.compact textarea { min-height: 38px; max-height: 120px; }

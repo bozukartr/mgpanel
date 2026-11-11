@@ -6,7 +6,7 @@
     <title>Concierge Konsolu · Hotizy</title>
     <link rel="stylesheet" href="css/core/mobile.css">
     <link rel="stylesheet" href="css/modules/crm.css">
-    <link rel="stylesheet" href="css/modules/concierge.css">
+    <link rel="stylesheet" href="css/modules/concierge.css?v=20261111a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -53,10 +53,10 @@
                     </button>
                     <div class="backup-menu" id="c-backupMenu" style="right: 0; left: auto;">
                         <div class="menu-item" id="c-exportDataBtn">
-                            <span class="m-icon">📥</span> Dışa Aktar (JSON)
+                            <span class="m-icon" data-ic="download"></span> Dışa Aktar (JSON)
                         </div>
                         <div class="menu-item" id="c-importDataBtn">
-                            <span class="m-icon">📤</span> İçe Aktar (JSON)
+                            <span class="m-icon" data-ic="upload"></span> İçe Aktar (JSON)
                             <input type="file" id="c-importFileInput" accept=".json" style="display:none">
                         </div>
                     </div>
@@ -137,7 +137,7 @@
                     <!-- Cards injected by JS -->
                 </div>
                 <div class="empty-state" id="c-emptyState" style="display:none; text-align: center; padding-top: 100px;">
-                    <p style="font-size: 40px; margin-bottom: 10px;">🛎️</p>
+                    <p style="font-size: 40px; margin-bottom: 10px; color: #94a3b8;" data-ic="concierge" data-ic-sw="1.6"></p>
                     <span style="color: #6b7280; font-size: 15px; font-weight: 500;">Rezervasyon bulunamadı</span>
                 </div>
             </section>
@@ -174,7 +174,7 @@
 
                 <div class="rs-ticket">
                     <div class="rs-ticket-head">
-                        <span class="rs-ticket-ico" id="rsPvIcon">🍽️</span>
+                        <span class="rs-ticket-ico" id="rsPvIcon" data-ic="utensils"></span>
                         <div class="rs-ticket-headmain">
                             <div class="rs-ticket-type" id="rsPvType">Restoran</div>
                             <div class="rs-ticket-when" id="rsPvWhen">Tarih ve saat girilmedi</div>
@@ -207,14 +207,14 @@
                         <div class="field-group">
                             <label>Hizmet Türü</label>
                             <select id="rs-type">
-                                <option value="Restaurant">🍽️ Restoran</option>
-                                <option value="Beach">🏖️ Plaj</option>
-                                <option value="Transfer">🚗 Transfer</option>
-                                <option value="Flower">🌸 Çiçek Siparişi</option>
-                                <option value="Cake">🎂 Pasta Siparişi</option>
-                                <option value="Boat">🛥️ Tekne Rezervasyonu</option>
-                                <option value="Tour">🗺️ Tur / Gezi</option>
-                                <option value="Other">✨ Diğer</option>
+                                <option value="Restaurant">Restoran</option>
+                                <option value="Beach">Plaj</option>
+                                <option value="Transfer">Transfer</option>
+                                <option value="Flower">Çiçek Siparişi</option>
+                                <option value="Cake">Pasta Siparişi</option>
+                                <option value="Boat">Tekne Rezervasyonu</option>
+                                <option value="Tour">Tur / Gezi</option>
+                                <option value="Other">Diğer</option>
                             </select>
                         </div>
                         <div class="field-row">
@@ -302,7 +302,7 @@
                         <div class="rs-repeat" id="rs-repeatBox">
                             <label class="rs-repeat-toggle">
                                 <input type="checkbox" id="rs-repeatOn">
-                                <span>🔁 Tekrarla / Paket</span>
+                                <span><span data-ic="repeat"></span> Tekrarla / Paket</span>
                             </label>
                             <div class="rs-repeat-opts" id="rs-repeatOpts" style="display:none;">
                                 <div class="field-row">
@@ -397,7 +397,7 @@
                 </div>
             </div>
 
-            <button class="secondary-btn" id="d-applyFolioBtn" style="display:none; width:100%; margin-top:4px;">🧾 Kalan Bakiyeyi Oda Hesabına Yansıt</button>
+            <button class="secondary-btn" id="d-applyFolioBtn" style="display:none; width:100%; margin-top:4px;"><span data-ic="receipt"></span> Kalan Bakiyeyi Oda Hesabına Yansıt</button>
 
             <div id="d-dynamic-info" class="detail-section">
                 <!-- Dynamic info here -->
@@ -576,10 +576,10 @@
             <!-- Export Buttons -->
             <div style="display: flex; gap: 15px;">
                 <button class="primary-btn" onclick="generateReportFromUI('excel')" style="flex: 1; background: #2e7d32; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <span style="font-size: 16px;">📄</span> Excel
+                    <span data-ic="sheet"></span> Excel
                 </button>
                 <button class="primary-btn" onclick="generateReportFromUI('pdf')" style="flex: 1; background: #c62828; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <span style="font-size: 16px;">📕</span> PDF
+                    <span data-ic="file"></span> PDF
                 </button>
             </div>
         </div>
@@ -636,6 +636,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js" crossorigin="anonymous"></script>
     <script src="js/core/firebase-config.js"></script>
+    <script src="js/core/ui-icons.js?v=20261111a"></script>
     <script src="js/core/guest-directory.js"></script>
     <script src="js/core/monitor.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
@@ -651,8 +652,8 @@
     <script src="js/core/lazy-load.js"></script>
 
     <script src="js/modules/pms.js"></script>
-    <script src="js/modules/concierge.js"></script>
-    <script src="js/modules/guest-orders.js"></script>
+    <script src="js/modules/concierge.js?v=20261111a"></script>
+    <script src="js/modules/guest-orders.js?v=20261111a"></script>
     <script src="js/modules/room-access.js"></script>
     <script src="js/utils/modal-guard.js"></script>
     <!-- â”€â”€ SELECTION MODAL (For Reports) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
@@ -661,7 +662,7 @@
         <div class="sheet-pill"></div>
         <div class="sheet-top">
             <h3>Hizmetleri Seç</h3>
-            <button class="sheet-close-btn" id="selClose">✕</button>
+            <button class="sheet-close-btn" id="selClose" aria-label="Kapat"><span data-ic="x"></span></button>
         </div>
         <div class="sheet-body">
             <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Programa eklenecek öğeleri seçin.</p>

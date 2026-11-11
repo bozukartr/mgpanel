@@ -168,34 +168,22 @@
     margin-bottom: 10px;
 }
 
-.res-card[data-status="Confirmed"] { 
-    background: linear-gradient(to left, rgba(76, 175, 80, 0.15), #ffffff 50%); 
-    border-left: 4px solid #4caf50;
-}
-.res-card[data-status="Pending"]   { 
-    background: linear-gradient(to left, rgba(255, 152, 0, 0.15), #ffffff 50%); 
-    border-left: 4px solid #ff9800;
-}
-.res-card[data-status="Cancelled"] { 
-    background: linear-gradient(to left, rgba(158, 158, 158, 0.2), #ffffff 50%); 
-    border-left: 4px solid #9e9e9e;
-}
+/* Durum yalnızca sol şeritle anlatılır; kart zemini düz beyaz. Eskiden
+   sağdan sola renkli degrade + sağda ikinci bir tür şeridi vardı — kart
+   başına iki renk kodu okunurluğu düşürüyordu. Tür, ikon kutusunun
+   tonundan okunur (aşağıda). */
+.res-card[data-status="Confirmed"] { border-left: 3px solid #16a34a; }
+.res-card[data-status="Pending"]   { border-left: 3px solid #f59e0b; }
+.res-card[data-status="Cancelled"] { border-left: 3px solid #94a3b8; opacity: .72; }
 
 /* Tamamlandı — hizmet fiilen verildi. Onaylı'nın canlı yeşilinden ayrışsın
    diye soluk/koyu yeşil: kart artık "yapılacak iş" değil, arşiv. */
-.res-card[data-status="Done"] {
-    background: linear-gradient(to left, rgba(21, 128, 61, 0.10), #ffffff 50%);
-    border-left: 4px solid #15803d;
-    opacity: .82;
-}
+.res-card[data-status="Done"] { border-left: 3px solid #15803d; opacity: .8; }
 
 /* GECİKMİŞ: tarihi/saati geçmiş ama hâlâ Bekleyen kayıt. Eskiden yarınki
    talepten görsel olarak AYIRT EDİLEMİYORDU ve "Yaklaşan" kutusundan da
    düştüğü için personelin baktığı hiçbir yerde görünmüyordu. */
-.res-card.res-overdue {
-    background: linear-gradient(to left, rgba(211, 47, 47, 0.16), #ffffff 50%);
-    border-left: 4px solid #d32f2f;
-}
+.res-card.res-overdue { border-left: 3px solid #dc2626; background: #fffafa; }
 .res-overdue-badge {
     display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 5px;
     background: #d32f2f; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .2px;
@@ -207,19 +195,28 @@
     background: #eef2ff; color: #4f46e5; font-size: 9px; font-weight: 800;
 }
 
-.res-card:active { transform: scale(0.97); background: #f9f9f9; }
+.res-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 14px rgba(15, 23, 42, .06); }
+.res-card:active { transform: scale(0.985); }
 
 .res-card-icon {
     grid-area: icon;
-    width: 32px;
-    height: 32px;
-    background: var(--bg);
-    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    background: #f1f5f9;
+    color: #475569;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 17px;
 }
+.res-card[data-type="Restaurant"] .res-card-icon { background: #fff4ed; color: #c2410c; }
+.res-card[data-type="Beach"] .res-card-icon      { background: #ecfeff; color: #0e7490; }
+.res-card[data-type="Transfer"] .res-card-icon   { background: #eff6ff; color: #1d4ed8; }
+.res-card[data-type="Flower"] .res-card-icon     { background: #fdf2f8; color: #be185d; }
+.res-card[data-type="Cake"] .res-card-icon       { background: #fef9c3; color: #a16207; }
+.res-card[data-type="Boat"] .res-card-icon       { background: #f0f9ff; color: #0369a1; }
+.res-card[data-type="Tour"] .res-card-icon       { background: #f0fdf4; color: #15803d; }
 
 .res-card-info {
     grid-area: info;
@@ -236,10 +233,19 @@
 }
 
 .res-card-room {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    color: #64748b;
+    margin-top: 2px;
+    line-height: 1.4;
+    /* En fazla 2 satır — dar ekranda "Oda 1204 · 11:3…" diye kesilmesin. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
+.res-card-info { min-width: 0; }
+.res-card-guest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .res-card-status {
     grid-area: status;
@@ -275,14 +281,7 @@
     font-weight: 800 !important;
 }
 
-/* Category Color Stripe (Symmetrical Right Side) */
 .res-card { overflow: hidden; position: relative; }
-.res-card[data-type="Restaurant"] { border-right: 3px solid var(--res-restaurant); }
-.res-card[data-type="Transfer"]   { border-right: 3px solid var(--res-transfer); }
-.res-card[data-type="Flower"]     { border-right: 3px solid var(--res-flower); }
-.res-card[data-type="Cake"]       { border-right: 3px solid var(--res-cake); }
-.res-card[data-type="Boat"]       { border-right: 3px solid var(--res-boat); }
-.res-card[data-type="Tour"]       { border-right: 3px solid var(--res-tour); }
 
 /* â”€â”€ STATUS TOGGLE OVERRIDE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .status-toggle-btn.active[data-status="Pending"] {
@@ -914,6 +913,10 @@
 .cz-center .slot-time { background: #fff; border-right: 1px solid #f1f4f9; padding-top: 16px; flex-basis: 70px; }
 .cz-center .slot-content { background: #fff; padding: 10px 16px; min-height: 44px; justify-content: center; }
 .cz-center .empty-slot-msg { font-size: 11px; color: #c4ccd9; font-style: normal; margin: 0; }
+/* Birleştirilmiş boş aralık satırı: daha alçak, sakin. */
+.cz-center .agenda-slot.agenda-gap .slot-time { padding-top: 10px; color: #94a3b8; }
+.cz-center .agenda-slot.agenda-gap .slot-content { padding-top: 8px; padding-bottom: 8px; min-height: 0; }
+.cz-center .agenda-slot.agenda-gap .empty-slot-msg { font-size: 12px; color: #94a3b8; }
 .cz-center .res-card { margin-bottom: 6px; }
 .cz-center .res-card:last-child { margin-bottom: 0; }
 

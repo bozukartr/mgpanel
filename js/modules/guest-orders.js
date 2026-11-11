@@ -141,10 +141,13 @@
         .gos-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); opacity: 0; pointer-events: none;
             transition: opacity .25s; z-index: 5000; }
         .gos-backdrop.show { opacity: 1; pointer-events: auto; }
+        /* Kapalıyken gölge YOK + görünmez: çekmece ekran dışında dururken
+           -18px'lik gölgesi sağ kenara taşıyor, her sayfada ince bir gri
+           şerit olarak görünüyordu. */
         .gos-drawer { position: fixed; top: 0; right: 0; height: 100%; width: 420px; max-width: 94vw; background: #f4f7f9;
-            box-shadow: -18px 0 50px rgba(15,23,42,.18); z-index: 5001; transform: translateX(100%);
-            transition: transform .32s cubic-bezier(.2,1,.3,1); display: flex; flex-direction: column; font-family: 'Outfit', sans-serif; }
-        .gos-drawer.show { transform: translateX(0); }
+            box-shadow: none; z-index: 5001; transform: translateX(100%); visibility: hidden;
+            transition: transform .32s cubic-bezier(.2,1,.3,1), box-shadow .32s, visibility .32s; display: flex; flex-direction: column; font-family: 'Outfit', sans-serif; }
+        .gos-drawer.show { transform: translateX(0); visibility: visible; box-shadow: -18px 0 50px rgba(15,23,42,.18); }
         .gos-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 14px;
             background: #fff; border-bottom: 1px solid #e8edf2; flex-shrink: 0; }
         .gos-head h2 { font-size: 17px; font-weight: 800; margin: 0; color: #1e293b; }
