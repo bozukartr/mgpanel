@@ -98,10 +98,15 @@ function todayYmd(d) {
   const p = (n) => (n < 10 ? '0' + n : '' + n);
   return x.getFullYear() + '-' + p(x.getMonth() + 1) + '-' + p(x.getDate());
 }
+// Saat de İstanbul'a göre (todayYmd ile aynı gerekçe). Eskiden sunucunun
+// yerel saati (UTC) yazılıyordu: QR talebinin zaman akışındaki ilk not
+// ("Misafir self-servis talebi alındı.") gerçek saatten 3 saat geri
+// görünüyordu (08:34'te gelen talep "05:34").
 function hhmm(d) {
-  const x = d || new Date();
   const p = (n) => (n < 10 ? '0' + n : '' + n);
-  return p(x.getHours()) + ':' + p(x.getMinutes());
+  if (d) return p(d.getHours()) + ':' + p(d.getMinutes());
+  const x = new Date(Date.now() + 3 * 3600 * 1000); // UTC+3 (İstanbul, yaz saati yok)
+  return p(x.getUTCHours()) + ':' + p(x.getUTCMinutes());
 }
 function safeId(s) { return String(s || '').replace(/[\/#?%\[\]]/g, '_').slice(0, 60); }
 

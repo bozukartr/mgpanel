@@ -102,6 +102,10 @@
         return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
+    // Çizgi ikonlar (js/core/ui-icons.js + js/core/service-icons.js) — emoji
+    // yerine. Yüklü değillerse boş/metin yedeğine düşer.
+    const ic = (n) => (typeof window.UIcon === 'function' ? window.UIcon(n) : '');
+    const itemIc = (it) => (window.ServiceIcon && typeof ServiceIcon.svg === 'function') ? ServiceIcon.svg(it, 19) : '';
     function timeAgo(ms) {
         if (!ms) return '';
         const s = Math.floor((Date.now() - ms) / 1000);
@@ -160,7 +164,7 @@
         .gos-fchip.active { background: #1e293b; color: #fff; border-color: #1e293b; }
         .gos-list { flex: 1; overflow-y: auto; padding: 8px 16px 24px; }
         .gos-empty { text-align: center; color: #94a3b8; padding: 60px 20px; font-size: 14px; }
-        .gos-empty .e { font-size: 40px; display: block; margin-bottom: 10px; }
+        .gos-empty .e { font-size: 34px; display: block; margin: 0 auto 10px; color: #cbd5e1; }
         /* Compact, clickable summary row */
         .gos-card { background: #fff; border: 1px solid #e8edf2; border-radius: 14px; margin-bottom: 9px;
             box-shadow: 0 2px 8px rgba(15,23,42,.04); display: flex; align-items: center; gap: 11px;
@@ -189,7 +193,7 @@
         .gos-items { padding: 0 14px; }
         .gos-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #f1f5f9; }
         .gos-item .gos-ico { width: 34px; height: 34px; border-radius: 9px; background: #f4f7f9; display: flex;
-            align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+            align-items: center; justify-content: center; color: #475569; flex-shrink: 0; }
         .gos-item .gos-ibody { flex: 1; min-width: 0; }
         .gos-item .gos-iname { font-size: 13.5px; font-weight: 600; color: #1e293b; }
         .gos-item .gos-imeta { font-size: 11.5px; color: #94a3b8; }
@@ -274,7 +278,7 @@
         drawer.innerHTML = `
             <div class="gos-head">
                 <div><h2>Misafir Talepleri</h2><p>QR self-servis siparişleri</p></div>
-                <button class="gos-close" id="gos-close">✕</button>
+                <button class="gos-close" id="gos-close" aria-label="Kapat">${ic('x') || '×'}</button>
             </div>
             <div class="gos-filters">
                 <button class="gos-fchip active" data-f="active">Aktif</button>
@@ -369,7 +373,7 @@
         if (!listEl) return;
         const list = visibleOrders();
         if (!list.length) {
-            listEl.innerHTML = `<div class="gos-empty"><span class="e">🛎️</span>Gösterilecek talep yok.</div>`;
+            listEl.innerHTML = `<div class="gos-empty"><span class="e">${ic('concierge')}</span>Gösterilecek talep yok.</div>`;
             return;
         }
         listEl.innerHTML = list.map(cardHtml).join('');
@@ -413,15 +417,15 @@
             const block = isRes ? null : itemBlockReason(it);
             const canAdv = !isRes && !block && o.status !== 'cancelled' && it.status !== 'cancelled' && sIdx >= 0 && sIdx < FLOW.length - 1;
             const dept = isRes ? '' : itemDept(it);
-            const meta = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? '🕐 ' + it.preferredTime : '', it.note]
+            const meta = [it.option || '', it.qty > 1 ? it.qty + ' adet' : '', it.preferredTime ? 'Saat ' + it.preferredTime : '', it.note]
                 .filter(Boolean).join(' · ');
             return `<div class="gos-item${isRes ? ' gos-item-res' : ''}${block ? ' gos-item-locked' : ''}">
-                <div class="gos-ico">${esc(it.icon || '🛎️')}</div>
+                <div class="gos-ico">${itemIc(it)}</div>
                 <div class="gos-ibody">
                     <div class="gos-iname">${esc(it.name)}${isRes ? ' <span class="gos-resbadge">CONCIERGE</span>' : ''}${dept ? ` <span class="gos-deptbadge">${esc(dept)}</span>` : ''}</div>
                     ${meta ? `<div class="gos-imeta">${esc(meta)}</div>` : ''}
                     ${isRes ? '<div class="gos-imeta gos-reshint">Bu kayıt Concierge panelinden yönetilir.</div>' : ''}
-                    ${block ? `<div class="gos-imeta gos-blockhint">🔒 ${esc(block)}</div>` : ''}
+                    ${block ? `<div class="gos-imeta gos-blockhint">${esc(block)}</div>` : ''}
                 </div>
                 <span class="gos-istat ${esc(it.status)}">${esc(LABEL[it.status] || it.status)}</span>
                 ${isRes
@@ -441,19 +445,27 @@
         const dis = noneMine ? ' disabled title="Bu talebin kalemleri sizin departmanınıza ait değil."' : '';
         let actions = '';
         if (o.status === 'pending') {
-            actions = `<button class="gos-act primary" data-bulk="${esc(o.id)}|confirmed"${dis}>✓ Onayla</button>
-                       <button class="gos-act ghost" data-cancel="${esc(o.id)}"${locked.length ? ' disabled title="Başka departmanın kalemleri var — iptali yalnızca yönetici yapabilir."' : ''}>İptal</button>`;
+            // İptal: yetkili (Concierge dışı) kalem yoksa iptal edilecek bir şey
+            // de yoktur. Eskiden yalnızca-Concierge bir talepte buton açıktı:
+            // bulkSet Concierge kalemlerine dokunmadığından HİÇBİR ŞEY iptal
+            // olmuyor ama siparişe iptal nedeni yazılıp işlem başarılı
+            // görünüyordu (misafirin talebi açık kalıyordu).
+            const cancelDis = noneMine
+                ? ' disabled title="İptal edilebilecek kalem yok — Concierge kalemleri Concierge panelinden yönetilir."'
+                : (locked.length ? ' disabled title="Başka departmanın kalemleri var — iptali yalnızca yönetici yapabilir."' : '');
+            actions = `<button class="gos-act primary" data-bulk="${esc(o.id)}|confirmed"${dis}>${ic('check')} Onayla</button>
+                       <button class="gos-act ghost" data-cancel="${esc(o.id)}"${cancelDis}>İptal</button>`;
         } else if (o.status === 'confirmed') {
             actions = `<button class="gos-act step" data-bulk="${esc(o.id)}|in_progress"${dis}>İşleme Al</button>
                        <button class="gos-act ok" data-bulk="${esc(o.id)}|completed"${dis}>Tamamla</button>`;
         } else if (o.status === 'in_progress') {
-            actions = `<button class="gos-act ok" data-bulk="${esc(o.id)}|completed"${dis}>✓ Tümünü Tamamla</button>`;
+            actions = `<button class="gos-act ok" data-bulk="${esc(o.id)}|completed"${dis}>${ic('check')} Tümünü Tamamla</button>`;
         }
         if (actions && locked.length && !noneMine) {
             actions += `<div class="gos-scopehint">Yalnızca departmanınıza ait ${mine.length} kalem işlenecek; ${locked.length} kalem diğer departmanlarda kalacak.</div>`;
         }
 
-        return `<div class="gos-mhead"><span class="gos-mtitle">Talep Detayı</span><button class="gos-mclose" id="gos-mclose">✕</button></div>
+        return `<div class="gos-mhead"><span class="gos-mtitle">Talep Detayı</span><button class="gos-mclose" id="gos-mclose" aria-label="Kapat">${ic('x') || '×'}</button></div>
             <div class="gos-card-top">
                 <div class="gos-room"><small>ODA</small><b>${esc(o.room || '—')}</b></div>
                 <div class="gos-meta">
@@ -463,7 +475,7 @@
                 <span class="gos-ostat ${o.status}">${esc(LABEL[o.status] || o.status)}</span>
             </div>
             <div class="gos-items">${items}</div>
-            ${o.assignedToName ? `<div class="gos-assigned">👤 Atanan: ${esc(o.assignedToName)}</div>` : ''}
+            ${o.assignedToName ? `<div class="gos-assigned">${ic('user')} Atanan: ${esc(o.assignedToName)}</div>` : ''}
             ${(o.status !== 'completed' && o.status !== 'cancelled' && usersOpts) ? `<div class="gos-assign">
                 <select data-assignsel="${esc(o.id)}"><option value="">Personele ata...</option>${usersOpts}</select>
                 <button class="gos-act ghost" data-assign="${esc(o.id)}">Ata</button>
@@ -789,7 +801,7 @@
         if (window.__EMBED__) return;
         const t = document.createElement('div');
         t.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:12px 18px;border-radius:12px;z-index:99999;font-family:Outfit,sans-serif;font-size:13.5px;font-weight:600;box-shadow:0 18px 50px rgba(15,23,42,.35);cursor:pointer';
-        t.textContent = `🛎️ Yeni misafir talebi · ${guestNameForRoom(o.room)}`;
+        t.textContent = `Yeni misafir talebi · ${guestNameForRoom(o.room)}`;
         t.onclick = () => { focusOrder(id); t.remove(); };
         document.body.appendChild(t);
         setTimeout(() => t.remove(), 6000);

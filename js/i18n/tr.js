@@ -128,7 +128,7 @@ window.I18N_TR = {
     'guest.cart.submittedDemo': 'Talebiniz alındı! (demo)',
     'guest.cart.failed': 'Gönderilemedi. Tekrar deneyin.',
     'guest.cart.tooFast': 'Çok hızlı! Lütfen {n} sn sonra deneyin.',
-    'guest.cart.pendingExists': 'Onay bekleyen bir talebiniz var. Lütfen önce onun sonuçlanmasını bekleyin.',
+    'guest.cart.pendingExists': 'Yanıt bekleyen {n} talebiniz var. Yeni talep için birinin sonuçlanmasını bekleyin; acil durumda resepsiyonu arayın.',
 
     // ── Misafir · talep takibi ───────────────────────────────────────────
     'guest.track.none': 'Henüz talep yok',

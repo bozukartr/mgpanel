@@ -59,10 +59,24 @@ service cloud.firestore {
     // oturum otomatik geçersiz olur — ayrı bir "temizlik" fonksiyonu gerekmez.
     // Eşleşmezse/oturum yoksa null döner; null hiçbir gerçek oda değeriyle
     // ASLA eşleşmez (guestOrders.create'de kullanılışına bakın).
+    //
+    // ODA DEĞİŞİKLİĞİ: oturum, doğrulama anındaki odayı saklar. Resepsiyon
+    // misafiri başka odaya taşırsa (guestDirectory.room değişir) oturum eski
+    // odayı döndürmeye devam ediyordu — talepler (havlu, temizlik…) ESKİ
+    // odaya, belki yeni bir misafirin odasına gidiyordu. Artık dizindeki
+    // GÜNCEL oda oturumdakiyle aynı olmalı; değilse sipariş reddedilir ve
+    // misafir ekranı doğrulamayı yeniden ister (yeni odayı alır).
+    // DURUM ALANI YOK: verifyGuestIdentity status'u hiç yazılmamış eski/PMS
+    // kayıtlarını konaklayan sayıyor (CRM de öyle gösteriyor), bu kural ise
+    // reddediyordu — misafir doğrulanıyor ama HİÇBİR talep gönderemiyor,
+    // her denemede doğrulama ekranına geri düşüyordu. İkisi artık tutarlı:
+    // durum yoksa konaklıyor sayılır; checkout her zaman 'checked_out' yazar.
     function verifiedSessionRoom(tid) {
       let s = get(/databases/$(database)/documents/verifiedGuestSessions/$(request.auth.uid));
+      let g = get(/databases/$(database)/documents/guestDirectory/$(s.data.guestId)).data;
       return (s.data.tenantId == tid
-        && get(/databases/$(database)/documents/guestDirectory/$(s.data.guestId)).data.get('status', '') == 'in_house')
+        && g.get('status', 'in_house') == 'in_house'
+        && string(g.get('room', '')).trim() == s.data.room)
         ? s.data.room : null;
     }
     // A room the hotel EXPLICITLY knows is closed (checked-out guest) can
@@ -112,6 +126,16 @@ service cloud.firestore {
     // olmadığından sabit indeks açılımı kullanılır (items zaten <=20).
     function validGuestOrderItem(it) {
       return it.name is string && it.name.size() > 0 && it.name.size() <= 120
+        // Bağlantı/iş akışı alanları YALNIZCA sunucu ve personel tarafından
+        // yazılır. Misafir bunları gönderebiliyordu: önceden doldurulmuş bir
+        // logId/resId köprüyü atlatıyor (talep personele hiç düşmüyor) ve
+        // sonraki iptal/düzenleme çağrıları misafirin seçtiği BAŞKA bir
+        // kaydı silebiliyor/değiştirebiliyordu. Kalem 'pending' doğar.
+        && !it.keys().hasAny(['logId', 'resId', 'rating', 'ratedAt', 'cancelReason', 'staffUpdatedAt'])
+        && it.get('status', 'pending') == 'pending'
+        // Birim fiyat: misafire gösterilen tutar. Negatif/dev değerle toplam
+        // bozulamasın (diğer sayısal alanlarla aynı aralık deseni).
+        && (it.get('price', 0) is number && it.get('price', 0) >= 0 && it.get('price', 0) <= 1000000)
         && (it.get('qty', 1) is number && it.get('qty', 1) >= 1 && it.get('qty', 1) <= 10)
         && (it.get('category', '') is string && it.get('category', '').size() <= 60)
         && (it.get('department', '') is string && it.get('department', '').size() <= 60)
@@ -676,6 +700,12 @@ service cloud.firestore {
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 20
         && validGuestOrderItems(request.resource.data.items)
+        // Kimlik/atama/iptal alanları sunucu (onGuestOrderCreate) ve personel
+        // içindir. Misafir guestId gönderirse sunucu kimlik damgalamasını
+        // atlıyor ve talep BAŞKA bir misafirin CRM profiline bağlanabiliyordu;
+        // assignedTo ile de talebi istediği personele atayabiliyordu.
+        && !request.resource.data.keys().hasAny(['guestId', 'stayId', 'assignedTo', 'assignedToName',
+             'bridgeError', 'bridgeErrorAt', 'cancelReason', 'cancelledBy', 'cancelledAt', 'throttled'])
         // Doğrulama artık TÜM oteller için ZORUNLU (eski opsiyonel
         // requireVerification anahtarı kaldırıldı): sipariş yalnızca,
         // misafirin verifyGuestIdentity ile SUNUCU tarafında doğrulanmış

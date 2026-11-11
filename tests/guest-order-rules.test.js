@@ -230,3 +230,76 @@ test('misafir kendi siparişini DOĞRUDAN .update({status:"cancelled"}) ile ipta
   const db = anonCtx(env, 'guest-1').firestore();
   await assertFails(updateDoc(doc(db, 'guestOrders', id), { status: 'cancelled' }));
 });
+
+// ── QR talep akışı denetimi (operasyonel) ──────────────────────────────
+// Misafirin gerçek istemcisinin gönderdiği TAM sipariş şekli kabul edilmeli
+// (fiyat, ikon, katalog kimliği, statusLog vb.) — yeni kısıtlar meşru
+// siparişi kırmamalı.
+test('gerçek istemci şekli (fiyat, ikon, statusLog, toplam) OLUŞTURULABİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertSucceeds(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', guestName: 'Ayşe Yılmaz', itemCount: 1, total: 120, currency: '₺', showPrices: true,
+    statusLog: [{ status: 'pending', at: 1, by: 'guest' }], createdAtMs: 1,
+    items: [{ id: 'i0_x', catalogId: 'c1', name: 'Meyve Tabağı', category: 'Oda Servisi', icon: '🍎', department: 'Yiyecek & İçecek',
+      price: 120, qty: 1, note: '', preferredTime: '', option: '', etaMin: 20, etaMax: 30, maxQty: 0, modifiers: [],
+      transferFrom: '', transferTo: '', transferDate: '', transferTime: '', status: 'pending' }]
+  })));
+});
+
+test('kalem önceden logId/resId taşıyorsa REDDEDİLİR (köprüyü atlatma / başka kaydı hedefleme)', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Su', qty: 1, logId: 'baska-bir-kayit' }]
+  })));
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Transfer', qty: 1, resId: 'baska-rezervasyon' }]
+  })));
+});
+
+test('kalem "pending" dışında bir durumla doğamaz', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Su', qty: 1, status: 'completed' }]
+  })));
+});
+
+test('negatif / sayı olmayan fiyat REDDEDİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Burger', qty: 1, price: -500 }]
+  })));
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({
+    room: '101', items: [{ id: 'i1', name: 'Burger', qty: 1, price: 'bedava' }]
+  })));
+});
+
+test('sipariş kimlik/atama alanı (guestId, assignedTo) taşıyorsa REDDEDİLİR', async () => {
+  const db = anonCtx(env, 'guest-1').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({ room: '101', guestId: 'baska-misafir' })));
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({ room: '101', assignedTo: 'personel-uid' })));
+});
+
+test('oda değişikliği: misafir başka odaya taşındıysa ESKİ odaya talep açılamaz', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    const { doc: d, setDoc: s } = require('firebase/firestore');
+    // Doğrulama 305'te yapıldı, sonra resepsiyon misafiri 410'a taşıdı.
+    await s(d(db, 'guestDirectory', 'guest-moved'), { tenantId: T, room: '410', status: 'in_house', name: 'Taşınan Misafir', birthYear: 1980 });
+    await s(d(db, 'verifiedGuestSessions', 'guest-5'), { tenantId: T, guestId: 'guest-moved', room: '305' });
+  });
+  const db = anonCtx(env, 'guest-5').firestore();
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({ sessionUid: 'guest-5', room: '305' })));
+  // Yeni odaya da (yeniden doğrulamadan) açılamaz — oturum 305'e bağlı.
+  await assertFails(addDoc(collection(db, 'guestOrders'), baseOrder({ sessionUid: 'guest-5', room: '410' })));
+});
+
+test('durum alanı hiç yazılmamış (eski/PMS) konaklayan kaydı talep açabilir — doğrulamayla tutarlı', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    const { doc: d, setDoc: s } = require('firebase/firestore');
+    await s(d(db, 'guestDirectory', 'guest-legacy'), { tenantId: T, room: '512', name: 'Eski Kayıt', birthYear: 1975 });
+    await s(d(db, 'verifiedGuestSessions', 'guest-6'), { tenantId: T, guestId: 'guest-legacy', room: '512' });
+  });
+  const db = anonCtx(env, 'guest-6').firestore();
+  await assertSucceeds(addDoc(collection(db, 'guestOrders'), baseOrder({ sessionUid: 'guest-6', room: '512' })));
+});

@@ -150,17 +150,17 @@
 
     // Durum etiketleri artık ÇEVİRİ ANAHTARI taşır. `label`/`sub` birer
     // GETTER: mevcut tüm çağrı yerleri (st.label, st.sub) hiç değişmeden
-    // çalışır, ama metin OKUNDUĞU AN aktif dilden çözülür. Emoji dilden
-    // bağımsızdır, olduğu gibi kalır.
-    function statusEntry(key, emoji) {
-        return { emoji: emoji, get label() { return t(key); }, get sub() { return t(key + 'Sub'); } };
+    // çalışır, ama metin OKUNDUĞU AN aktif dilden çözülür. (Durum ikonları
+    // aşağıdaki STATUS_IC çizgi ikonlarıdır — emoji kullanılmaz.)
+    function statusEntry(key) {
+        return { get label() { return t(key); }, get sub() { return t(key + 'Sub'); } };
     }
     const STATUS = {
-        pending:     statusEntry('guest.status.pending', '⏳'),
-        confirmed:   statusEntry('guest.status.confirmed', '✅'),
-        in_progress: statusEntry('guest.status.inProgress', '🛎️'),
-        completed:   statusEntry('guest.status.completed', '🎉'),
-        cancelled:   statusEntry('guest.status.cancelled', '✖️')
+        pending:     statusEntry('guest.status.pending'),
+        confirmed:   statusEntry('guest.status.confirmed'),
+        in_progress: statusEntry('guest.status.inProgress'),
+        completed:   statusEntry('guest.status.completed'),
+        cancelled:   statusEntry('guest.status.cancelled')
     };
     const FLOW = ['pending', 'confirmed', 'in_progress', 'completed'];
     // Durum ikonları (emoji yerine çizgi ikon; renk .go-st-* sınıfından gelir).
@@ -186,7 +186,7 @@
         return `<svg viewBox="0 0 24 24" width="${size || 22}" height="${size || 22}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
     }
     // Arayüz ikonları — emoji yerine tutarlı çizgi ikonlar (minimal tasarım).
-    // Katalog kalemlerinin emojileri OTELE ait içeriktir, onlar olduğu gibi kalır.
+    // Katalog kalemleri de emoji yerine itemIcon() ile çizgi ikon gösterir.
     const IC = {
         plus: '<path d="M12 5v14M5 12h14"/>',
         minus: '<path d="M5 12h14"/>',
@@ -221,6 +221,12 @@
     };
     function icon(k, size, sw) {
         return `<svg viewBox="0 0 24 24" width="${size || 20}" height="${size || 20}" fill="none" stroke="currentColor" stroke-width="${sw || 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k] || ''}</svg>`;
+    }
+    // Hizmet kalemi ikonu: otelin katalogda girdiği emoji yerine tek tip çizgi
+    // ikon (js/core/service-icons.js — ad/emoji/kategori/departmandan çözülür).
+    // Firestore'daki `icon` verisi değişmez; yalnızca gösterim.
+    function itemIcon(it, size) {
+        return (window.ServiceIcon && typeof ServiceIcon.svg === 'function') ? ServiceIcon.svg(it, size || 24) : icon('bell', size || 24, 1.8);
     }
     // Boş/hata durumu: emoji yerine ikonlu tek tip blok.
     function emptyHtml(ic, title, text, cta) {
@@ -612,12 +618,24 @@
     }
     function catCount(c) { return catalog.filter(i => (i.category || t('common.other')) === c).length; }
 
+    // Otelin yerel saati (dakika). Saat penceresi telefonun saat dilimine göre
+    // hesaplanıyordu: telefonu kendi ülkesinin saatinde kalan bir misafir
+    // "Oda Temizliği (09:00–16:00)" için yanlış saatte "şu an kapalı" görüyordu.
+    function hotelMinutes() {
+        try {
+            const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+            const h = parseInt((parts.find(p => p.type === 'hour') || {}).value, 10);
+            const m = parseInt((parts.find(p => p.type === 'minute') || {}).value, 10);
+            if (isFinite(h) && isFinite(m)) return (h % 24) * 60 + m;
+        } catch (e) { /* eski tarayıcı — cihaz saatine düş */ }
+        const now = new Date(); return now.getHours() * 60 + now.getMinutes();
+    }
     // Availability window (HH:MM). Empty = always available.
     function availInfo(item) {
         const f = (item && item.availFrom || '').trim(), t = (item && item.availTo || '').trim();
         if (!f || !t) return { limited: false, available: true, window: '' };
         const toMin = s => { const p = String(s).split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); };
-        const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
+        const nm = hotelMinutes();
         const fm = toMin(f), tm = toMin(t);
         const ok = (fm <= tm) ? (nm >= fm && nm < tm) : (nm >= fm || nm < tm);
         return { limited: true, available: ok, window: f + '–' + t };
@@ -1372,7 +1390,7 @@
         const tags = itemTags(item, av, false);
         const line = cart.find(l => l.catalogId === item.id);
         return `<div class="go-item ${av.available ? '' : 'go-item-unavail'}" data-id="${esc(item.id)}" data-open-item="${esc(item.id)}">
-            <div class="go-item-emoji" aria-hidden="true">${esc(item.icon || '🛎️')}</div>
+            <div class="go-item-ic" aria-hidden="true">${itemIcon(item)}</div>
             <div class="go-item-main">
                 <div class="go-item-name">${esc(item.name)}</div>
                 ${item.description ? `<div class="go-item-desc">${esc(item.description)}</div>` : ''}
@@ -1494,7 +1512,7 @@
         }
         $('goItemSheetBody').innerHTML = `
             <div class="go-isheet-head">
-                <div class="go-item-emoji" aria-hidden="true">${esc(item.icon || '🛎️')}</div>
+                <div class="go-item-ic" aria-hidden="true">${itemIcon(item)}</div>
                 <div class="go-isheet-tx">
                     <h2 id="goItemTitle">${esc(item.name)}</h2>
                     <span class="go-isheet-cat">${esc(catOf(item))}</span>
@@ -1782,7 +1800,7 @@
                 ? `<button class="go-cline-del" data-del="${i}" aria-label="${esc(t('guest.item.removeFromCart'))}: ${esc(l.name)}">${icon('trash', 17, 2)}</button>`
                 : `<div class="go-step"><button data-cdec="${i}" aria-label="${esc(l.qty === 1 ? t('guest.item.removeFromCart') : t('guest.item.decrease'))}">${icon(l.qty === 1 ? 'trash' : 'minus', 17, 2.2)}</button><b>${l.qty}</b><button data-cinc="${i}" aria-label="${esc(t('guest.item.increase'))}">${icon('plus', 17, 2.4)}</button></div>`;
             return `<div class="go-cline" data-i="${i}">
-                <div class="go-item-emoji" aria-hidden="true">${esc(l.icon || '🛎️')}</div>
+                <div class="go-item-ic" aria-hidden="true">${itemIcon(l)}</div>
                 <div class="go-cline-main" data-editline="${i}" role="button" tabindex="0">
                     <div class="go-cline-name">${esc(l.name)}</div>
                     ${det.length ? `<div class="go-cline-det">${esc(det.join(' · '))}</div>` : ''}
@@ -1850,13 +1868,20 @@
         let until = 0; try { until = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0', 10); } catch (e) {}
         return Math.max(0, until - Date.now());
     }
-    function hasPending() { return myOrders.some(o => o.status === 'pending'); }
+    // Yanıt bekleyen talep sınırı. Eskiden TEK bir bekleyen talep bile yeni
+    // talebi engelliyordu: sabah istenen havlu henüz üstlenilmediyse misafir
+    // "sıcak su yok" ya da "klima çalışmıyor" bildiremiyordu; yarın akşamki
+    // restoran rezervasyonu Concierge'te onay beklerken hiçbir şey isteyemiyordu.
+    // Kötüye kullanıma karşı asıl koruma gönderim arası bekleme (COOLDOWN_MS)
+    // ve sunucudaki pencere sınırıdır (onGuestOrderCreate).
+    const MAX_OPEN_PENDING = 3;
+    function hasPending() { return myOrders.filter(o => o.status === 'pending').length >= MAX_OPEN_PENDING; }
 
     function submitOrder() {
         if (!cart.length || !sessionUid) return;
         const cd = cooldownLeft();
         if (cd > 0) { toast(t('guest.cart.tooFast', { n: Math.ceil(cd / 1000) }), true); return; }
-        if (hasPending()) { toast(t('guest.cart.pendingExists'), true); showTab('orders'); return; }
+        if (hasPending()) { toast(t('guest.cart.pendingExists', { n: MAX_OPEN_PENDING }), true); showTab('orders'); return; }
         if (!isVerified()) { openGate(); return; }
         if (!ROOM) { openGate(); return; }
 
@@ -2195,7 +2220,7 @@
                     <div class="go-titem-edit-acts"><button class="go-btn" id="goTECancel">${esc(t('common.dismiss'))}</button><button class="go-cta" id="goTESave">${esc(t('common.save'))}</button></div>
                 </div>` : '';
             return `<div class="go-titem">
-                <div class="go-item-emoji" aria-hidden="true">${esc(it.icon || '🛎️')}</div>
+                <div class="go-item-ic" aria-hidden="true">${itemIcon(it)}</div>
                 <div class="go-titem-main">
                     <div class="go-titem-top"><div class="go-titem-name">${esc(it.name)}</div><span class="go-statepill go-st-${esc(it.status || 'pending')}">${esc(ist.label)}</span></div>
                     ${metaTxt ? `<div class="go-titem-meta">${esc(metaTxt)}</div>` : ''}
@@ -2338,7 +2363,7 @@
             if (name) setGuestName(name);
             btn.disabled = false; lbl.textContent = t('guest.gate.submit');
             closeGate(); applyConfig(); renderAll();
-            toast(guestName ? (t('guest.home.welcome') + ' ' + guestName.split(' ')[0] + ' 👋') : t('guest.gate.verified'));
+            toast(guestName ? (t('guest.home.welcome') + ' ' + guestName.split(' ')[0]) : t('guest.gate.verified'));
         };
         try {
             if (DEMO) { await new Promise(r => setTimeout(r, 500)); ok(ROOM || '101', titleCase(surname)); return; }

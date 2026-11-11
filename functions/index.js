@@ -112,6 +112,10 @@ exports.onNotificationCreate = onDocumentCreated(
 // so this trigger fans out an in-app notification to every staff member of the
 // tenant. That makes the bell light up in the persistent App Shell (no matter
 // which tab is open) AND triggers onNotificationCreate for a web-push.
+// Aynı misafir oturumundan 10 dakikada en fazla 6 talep (istemci zaten
+// gönderimler arasında 60 sn bekletiyor; gerçek kullanım bunun çok altında).
+const GUEST_ORDER_WINDOW_MS = 10 * 60 * 1000;
+const GUEST_ORDER_MAX_PER_WINDOW = 6;
 exports.onGuestOrderCreate = onDocumentCreated(
   // retry: platform bu olayı hata/zaman aşımı durumunda YENİDEN dener.
   // Eskiden kapalıydı: köprü veya bildirim adımı zaman aşımına uğrarsa
@@ -137,6 +141,38 @@ exports.onGuestOrderCreate = onDocumentCreated(
     const items = Array.isArray(o.items) ? o.items : [];
     const count = items.length;
 
+    // Sunucu tarafı hız sınırı. İstemcideki 60 sn bekleme yalnızca arayüzdeydi:
+    // doğrulanmış bir oturum Firestore'a doğrudan yazarak dakikada yüzlerce
+    // talep açabilir, her biri TÜM personele push bildirimi + oda kaydı
+    // üretirdi. Aynı oturumdan pencere içinde sınırı aşan talep köprülenmez,
+    // bildirim gönderilmez; misafir nedenini görür (iptal + açıklama).
+    // Yeniden denemede (retry) sipariş artık 'pending' olmadığından yukarıdaki
+    // kontrol zaten çıkar — idempotent.
+    const sessionUid = String(o.sessionUid || '');
+    if (sessionUid) {
+      try {
+        const since = Date.now() - GUEST_ORDER_WINDOW_MS;
+        const mine = await db.collection('guestOrders')
+          .where('sessionUid', '==', sessionUid).where('tenantId', '==', tenantId).get();
+        const recent = mine.docs.filter((d) => {
+          const x = d.data() || {};
+          if (x.throttled) return false;
+          const t = (x.createdAt && x.createdAt.toMillis) ? x.createdAt.toMillis() : (Number(x.createdAtMs) || 0);
+          return t >= since;
+        }).length;
+        if (recent > GUEST_ORDER_MAX_PER_WINDOW) {
+          console.warn('guest order throttled', { tenantId, recent });
+          await snap.ref.update({
+            status: 'cancelled', throttled: true,
+            cancelReason: 'Kısa sürede çok sayıda talep gönderildi. Acil bir durum varsa lütfen resepsiyonu arayın.',
+            items: items.map((it) => Object.assign({}, it, { status: 'cancelled' })),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          return;
+        }
+      } catch (e) { console.error('guest order throttle check failed', e); /* kontrol yapılamazsa talep normal akar */ }
+    }
+
     // Kimlik (kimlik migrasyonu): anonim misafir istemcisi guestDirectory'yi
     // okuyamaz (kurallar personele kilitli), bu yüzden guestId/stayId sipariş
     // OLUŞTURULURKEN eklenemiyor — burada, Admin SDK ile sunucu tarafında
@@ -157,7 +193,9 @@ exports.onGuestOrderCreate = onDocumentCreated(
           const activeStayId = (occ.data() || {}).activeStayId;
           if (activeStayId) upd.stayId = activeStayId;
           await snap.ref.update(upd);
-          stamped = { guestId: occ.id, stayId: activeStayId || '', guestName: stamped.guestName || (occ.data() || {}).name || '' };
+          // Ad dizinden (kanonik) alınır; misafirin cihazından gelen ad
+          // yalnızca yedektir — istemci alanı serbestçe yazılabiliyordu.
+          stamped = { guestId: occ.id, stayId: activeStayId || '', guestName: String((occ.data() || {}).name || '').trim() || stamped.guestName };
         }
       } catch (e) { console.error('guest order identity stamp failed', e); }
     }
@@ -1581,6 +1619,16 @@ function canCancelItem(cur, linkedData) {
   if (cur.resId) return !linkedData || linkedData.status === 'Pending';
   return true;
 }
+// Bağlı kayıt (guestLogs/reservations) GERÇEKTEN bu siparişin mi? Kalemin
+// logId/resId alanı eskiden misafirin kendi yazdığı sipariş dokümanından
+// geldiği için güvenilir değildi (firestore.rules artık bu alanları
+// oluşturmada reddediyor; bu kontrol mevcut veri ve derinlemesine savunma
+// içindir): eşleşmiyorsa kayıt YOK sayılır — silinmez, değiştirilmez.
+function linkedBelongs(linkedData, order, orderId) {
+  if (!linkedData) return false;
+  return String(linkedData.orderId || '') === String(orderId || '')
+    && String(linkedData.tenantId || '') === String((order && order.tenantId) || '');
+}
 function computeOrderTotal(items) {
   return items.reduce((s, it) =>
     s + ((it.status || 'pending') === 'cancelled' ? 0 : (Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
@@ -1650,7 +1698,7 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
       if (cur.logId) {
         logRef = db.collection('guestLogs').doc(cur.logId);
         const logSnap = await tx.get(logRef);
-        logExists = logSnap.exists;
+        logExists = logSnap.exists && linkedBelongs(logSnap.data(), order, orderId);
         if (!canCancelItem(cur, logExists ? logSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
         }
@@ -1659,7 +1707,7 @@ exports.updateGuestOrderItem = onCall({ region: REGION }, async (request) => {
       if (cur.resId) {
         resRef = db.collection('reservations').doc(cur.resId);
         const resSnap = await tx.get(resRef);
-        resExists = resSnap.exists;
+        resExists = resSnap.exists && linkedBelongs(resSnap.data(), order, orderId);
         resSnapData = resExists ? resSnap.data() : null;
         if (!canCancelItem(cur, resExists ? resSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık düzenlenemez (personel üstlendi).');
@@ -1737,17 +1785,18 @@ exports.cancelGuestOrderItem = onCall({ region: REGION }, async (request) => {
       if (cur.logId) {
         logRef = db.collection('guestLogs').doc(cur.logId);
         const logSnap = await tx.get(logRef);
-        if (!canCancelItem(cur, logSnap.exists ? logSnap.data() : null)) {
+        const logOurs = logSnap.exists && linkedBelongs(logSnap.data(), order, orderId);
+        if (!canCancelItem(cur, logOurs ? logSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
         }
-        if (logSnap.exists) deleteLog = true;
+        if (logOurs) deleteLog = true;
       }
       let resRef = null;
       let resExists = false;
       if (cur.resId) {
         resRef = db.collection('reservations').doc(cur.resId);
         const resSnap = await tx.get(resRef);
-        resExists = resSnap.exists;
+        resExists = resSnap.exists && linkedBelongs(resSnap.data(), order, orderId);
         if (!canCancelItem(cur, resExists ? resSnap.data() : null)) {
           throw new HttpsError('failed-precondition', 'Bu kalem artık iptal edilemez (personel üstlendi).');
         }
@@ -1819,16 +1868,17 @@ exports.cancelGuestOrder = onCall({ region: REGION }, async (request) => {
 
       pendingIdx.forEach(({ it, i }, k) => {
         const snap = linkedSnaps[k];
-        const linkedData = snap.exists ? snap.data() : null;
+        const ours = snap.exists && linkedBelongs(snap.data(), order, orderId);
+        const linkedData = ours ? snap.data() : null;
         if (!canCancelItem(it, linkedData)) return; // personel zaten üstlenmiş — dokunma
         items[i] = Object.assign({}, it, { status: 'cancelled' });
         if (it.logId) {
-          if (snap.exists) tx.delete(snap.ref);
+          if (ours) tx.delete(snap.ref);
         } else if (it.resId) {
           // snap.exists guard'ı YOKTU — silinmiş bir rezervasyona tx.update()
           // TÜM transaction'ı NOT_FOUND ile geri alıyordu (bkz. logId dalındaki
           // AYNI koruma deseni hemen yukarıda).
-          if (snap.exists) {
+          if (ours) {
             tx.update(snap.ref, { status: 'Cancelled', cancelledBy: 'guest', cancelledAt: admin.firestore.FieldValue.serverTimestamp() });
             notifications.push({ tenantId: order.tenantId, room: order.room, guestName: order.guestName, resName: (linkedData || {}).resName, orderId, itemId: it.id || String(i) });
           }
