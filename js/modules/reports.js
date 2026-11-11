@@ -117,7 +117,10 @@
     const RES_CUR_SYM = { EUR: '€', TRY: '₺', USD: '$' };
     const resCur = r => r.currency || 'EUR';
     const resCurSym = r => RES_CUR_SYM[resCur(r)] || '€';
-    const RES_STATUS = { Pending: 'Bekliyor', Confirmed: 'Onaylı', Cancelled: 'İptal' };
+    // 'Done' EKSİKTİ: Concierge'te "Tamamlandı" yapılan rezervasyonlar raporda
+    // "Bekliyor" görünüyor ve bekleyen sayısını şişiriyordu.
+    const RES_STATUS = { Pending: 'Bekliyor', Confirmed: 'Onaylı', Done: 'Tamamlandı', Cancelled: 'İptal' };
+    const RES_TONE = { Pending: 'warn', Confirmed: 'info', Done: 'ok', Cancelled: 'bad' };
     const resStatus = r => RES_STATUS[r.status] || 'Bekliyor';
     // Where / details, per service type (dynamic fields stored on the reservation).
     function resDetail(r) {
@@ -131,7 +134,10 @@
             default: return '';
         }
     }
-    const ORD_STATUS = { pending: 'Bekliyor', completed: 'Tamamlandı', cancelled: 'İptal', accepted: 'Onaylandı' };
+    // QR sipariş durumları: 'confirmed' ve 'in_progress' haritada YOKTU — raporda
+    // İngilizce ham değer ("confirmed", "in_progress") olarak görünüyordu.
+    const ORD_STATUS = { pending: 'Bekliyor', confirmed: 'Onaylandı', accepted: 'Onaylandı', in_progress: 'İşlemde', completed: 'Tamamlandı', cancelled: 'İptal' };
+    const ORD_TONE = { pending: 'warn', confirmed: 'info', accepted: 'info', in_progress: 'info', completed: 'ok', cancelled: 'bad' };
     const ordStatus = r => ORD_STATUS[r.status] || (r.status || 'Bekliyor');
     const DIR_STATUS = { in_house: 'Otelde', pre_arrival: 'Ön Geliş', checked_out: 'Çıkış Yaptı' };
     const dirStatus = r => DIR_STATUS[r.status] || (r.status || '—');
@@ -191,19 +197,23 @@
                 facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
                 facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
             ],
+            // Sıralama: önce "ne, kim, ne durumda" — Durum ve Süre eskiden en
+            // sondaydı ve masaüstünde bile ekranın dışında kalıyordu.
             columns: [
                 { label: 'Tarih', get: r => fmtDateTR(r.date) },
                 { label: 'Oda', get: r => r.room || '—' },
                 { label: 'Misafir', get: r => r.guestName || '—' },
                 { label: 'Tür', get: glType },
+                { label: 'Durum', get: r => glStatus(r.status) + (glOverdue(r) ? ' (gecikti)' : ''),
+                  tone: r => glOverdue(r) ? 'bad' : ({ Solved: 'ok', InProgress: 'info' }[r.status] || 'warn'),
+                  pillText: r => glStatus(r.status) + (glOverdue(r) ? ' · gecikti' : '') },
+                { label: 'Süre', get: r => fmtDuration(glDuration(r)), c: true },
                 { label: 'Departman', get: r => canonicalDept(r.department) || '—' },
-                { label: 'Konu', get: r => (r.type || 'complaint') === 'complaint' ? (r.topic || 'Genel') : '—' },
-                { label: 'Açıklama', get: r => r.complaint || '', wide: true },
-                { label: 'Çözüm', get: r => (r.type || 'complaint') === 'request' ? '' : (r.solution || ''), wide: true },
-                { label: 'Kaydı Giren', get: r => r.staffInitial || '—' },
                 { label: 'Üstlenen', get: glWorker },
-                { label: 'Durum', get: r => glStatus(r.status) + (glOverdue(r) ? ' ⚠' : '') },
-                { label: 'Süre', get: r => fmtDuration(glDuration(r)) }
+                { label: 'Açıklama', get: r => r.complaint || '', wide: true },
+                { label: 'Konu', get: r => (r.type || 'complaint') === 'complaint' ? (r.topic || 'Genel') : '—' },
+                { label: 'Çözüm', get: r => (r.type || 'complaint') === 'request' ? '' : (r.solution || ''), wide: true },
+                { label: 'Kaydı Giren', get: r => r.staffInitial || '—' }
             ],
             summary: rows => {
                 let c = 0, rq = 0, w = 0, p = 0, s = 0, od = 0;
@@ -228,7 +238,7 @@
             facets: [
                 facet({ key: 'type', label: 'Hizmet', kind: 'chips', valueOf: resType }),
                 facet({ key: 'detail', label: 'Detay / Yer', kind: 'text', valueOf: resDetail }),
-                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Onaylı', 'İptal'], valueOf: resStatus }),
+                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Onaylı', 'Tamamlandı', 'İptal'], valueOf: resStatus }),
                 facet({ key: 'currency', label: 'Para Birimi', kind: 'chips', fixed: ['EUR', 'TRY', 'USD'], valueOf: resCur }),
                 facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
                 facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
@@ -241,7 +251,7 @@
                 { label: 'Kişi', get: r => r.pax || '—', c: true },
                 { label: 'Misafir', get: r => r.guestName || '—' },
                 { label: 'Oda', get: r => r.room || '—' },
-                { label: 'Durum', get: resStatus },
+                { label: 'Durum', get: resStatus, tone: r => RES_TONE[r.status] || 'warn' },
                 { label: 'Fiyat', get: r => resCurSym(r) + money(r.totalPrice), c: true },
                 { label: 'Kapora', get: r => resCurSym(r) + money(r.deposit), c: true },
                 { label: 'Bakiye', get: r => resCurSym(r) + money((Number(r.totalPrice) || 0) - (Number(r.deposit) || 0)), c: true },
@@ -252,10 +262,10 @@
             // summarizeFinance() ile aynı ilke) — EUR ve TRY ciroları tek bir
             // sayıda toplanmaz, ayrı ayrı gösterilir.
             summary: rows => {
-                let conf = 0, pend = 0, canc = 0;
+                let conf = 0, pend = 0, canc = 0, done = 0;
                 const byCur = {};
                 rows.forEach(r => {
-                    if (r.status === 'Confirmed') conf++; else if (r.status === 'Cancelled') canc++; else pend++;
+                    if (r.status === 'Confirmed') conf++; else if (r.status === 'Cancelled') canc++; else if (r.status === 'Done') done++; else pend++;
                     if (r.status !== 'Cancelled') {
                         const cur = resCur(r);
                         const g = byCur[cur] || (byCur[cur] = { rev: 0, dep: 0 });
@@ -265,7 +275,7 @@
                 const curs = Object.keys(byCur);
                 const line = key => curs.length ? curs.map(c => RES_CUR_SYM[c] + money(byCur[c][key])).join(' · ') : '€0';
                 const lineBal = () => curs.length ? curs.map(c => RES_CUR_SYM[c] + money(byCur[c].rev - byCur[c].dep)).join(' · ') : '€0';
-                return [['Toplam', rows.length, 'i'], ['Onaylı', conf, 's'], ['Bekleyen', pend, 'w'], ['İptal', canc, 'o'],
+                return [['Toplam', rows.length, 'i'], ['Onaylı', conf, 's'], ['Tamamlandı', done, 's'], ['Bekleyen', pend, 'w'], ['İptal', canc, 'o'],
                 ['Ciro', line('rev'), 'k'], ['Kapora', line('dep'), 'p'], ['Kalan', lineBal(), 'c']];
             },
             groupAgg: rows => {
@@ -281,7 +291,7 @@
             collection: 'guestOrders', order: ['createdAt', 'desc'], tsBound: 'createdAt',
             dateOf: r => normDate(r.createdAt),
             facets: [
-                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Tamamlandı', 'İptal'], valueOf: ordStatus }),
+                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Onaylandı', 'İşlemde', 'Tamamlandı', 'İptal'], valueOf: ordStatus }),
                 facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
                 facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
             ],
@@ -292,7 +302,7 @@
                 { label: 'Ürünler', get: ordItems, wide: true },
                 { label: 'Adet', get: r => r.itemCount || (Array.isArray(r.items) ? r.items.reduce((s, i) => s + (i.qty || 1), 0) : 0), c: true },
                 { label: 'Tutar', get: r => money(r.total) + (r.currency ? ' ' + r.currency : ''), c: true },
-                { label: 'Durum', get: ordStatus }
+                { label: 'Durum', get: ordStatus, tone: r => ORD_TONE[r.status] || 'warn' }
             ],
             summary: rows => {
                 let pend = 0, done = 0, canc = 0, qty = 0, rev = 0;
@@ -301,7 +311,7 @@
                     qty += r.itemCount || 0;
                     if (r.status !== 'cancelled') rev += Number(r.total) || 0;
                 });
-                return [['Toplam', rows.length, 'i'], ['Bekleyen', pend, 'w'], ['Tamamlanan', done, 's'], ['İptal', canc, 'o'],
+                return [['Toplam', rows.length, 'i'], ['Açık', pend, 'w'], ['Tamamlanan', done, 's'], ['İptal', canc, 'o'],
                 ['Ürün Adedi', qty, 'p'], ['Ciro', money(rev), 'k']];
             },
             groupAgg: rows => {
@@ -323,7 +333,9 @@
                         category: it.category || 'Diğer', department: it.department || '—',
                         name: it.name || '—', qty: it.qty || 1, price: Number(it.price) || 0,
                         lineTotal: (Number(it.price) || 0) * (it.qty || 1),
-                        ostatus: o.status, currency: o.currency || ''
+                        // Kalem bazlı durum (kalemler ayrı ayrı onaylanır/iptal edilir);
+                        // eski kayıtlarda kalem durumu yoksa sipariş durumu.
+                        ostatus: it.status || o.status, currency: o.currency || ''
                     }));
                 });
                 return out;
@@ -333,7 +345,7 @@
                 facet({ key: 'category', label: 'Kategori', kind: 'chips', valueOf: r => r.category || 'Diğer' }),
                 facet({ key: 'product', label: 'Ürün', kind: 'text', valueOf: r => r.name || '' }),
                 facet({ key: 'department', label: 'Departman', kind: 'chips', valueOf: r => canonicalDept(r.department) || '—' }),
-                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Tamamlandı', 'İptal'], valueOf: r => ORD_STATUS[r.ostatus] || 'Bekliyor' }),
+                facet({ key: 'status', label: 'Durum', kind: 'chips', fixed: ['Bekliyor', 'Onaylandı', 'İşlemde', 'Tamamlandı', 'İptal'], valueOf: r => ORD_STATUS[r.ostatus] || 'Bekliyor' }),
                 facet({ key: 'room', label: 'Oda', kind: 'text', valueOf: r => r.room || '' }),
                 facet({ key: 'guest', label: 'Misafir', kind: 'text', valueOf: r => r.guestName || '' })
             ],
@@ -347,7 +359,7 @@
                 { label: 'Birim', get: r => money(r.price), c: true },
                 { label: 'Tutar', get: r => money(r.lineTotal), c: true },
                 { label: 'Departman', get: r => canonicalDept(r.department) || '—' },
-                { label: 'Durum', get: r => ORD_STATUS[r.ostatus] || 'Bekliyor' }
+                { label: 'Durum', get: r => ORD_STATUS[r.ostatus] || 'Bekliyor', tone: r => ORD_TONE[r.ostatus] || 'warn' }
             ],
             summary: rows => {
                 let qty = 0, rev = 0; const prod = new Set();
@@ -503,6 +515,114 @@
     };
     const DOMAIN_ORDER = ['guestLogs', 'reservations', 'guestOrders', 'orderItems', 'serviceRatings', 'guestDirectory', 'restSales', 'restItems'];
 
+    // ── Menü + özet + grafik tanımları (rapor türü başına) ──────────
+    // module: bu raporun ait olduğu modül — otelde/kullanıcıda kapalıysa menüde
+    // görünmez (eskiden restoranı olmayan bir otel de "Restoran Satışları"nı
+    // görüyordu). kpis: özet kartları {l, v, s, tone, icon}. trend: zaman
+    // serisi ölçüsü. breakdowns: sıralı dağılım çubukları; `facet` verilirse
+    // satıra tıklamak o filtreyi uygular.
+    const sumBy = (rows, f) => rows.reduce((a, r) => a + (Number(f(r)) || 0), 0);
+    const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+    function glTimes(rows) {
+        let ackSum = 0, ackN = 0, solSum = 0, solN = 0;
+        rows.forEach(r => {
+            const cr = tsToDate(r.createdAt), ack = tsToDate(r.acknowledgedAt), done = tsToDate(r.completedAt);
+            if (cr && ack && ack >= cr) { ackSum += ack - cr; ackN++; }
+            if ((r.status || '') === 'Solved' && cr && done && done >= cr) { solSum += done - cr; solN++; }
+        });
+        return { ack: ackN ? ackSum / ackN : null, ackN, sol: solN ? solSum / solN : null, solN };
+    }
+    const fromSummary = rows => D.summary(rows).map(([l, v, c]) => ({ l, v, tone: (c === 'o' && Number(v) > 0) ? 'bad' : '' }));
+    const META = {
+        guestLogs: {
+            nav: 'Talep ve şikayetler', group: 'Misafir hizmetleri', icon: 'clipboard', module: 'guestIssues',
+            title: 'Talep ve şikayetler',
+            kpis: rows => {
+                let c = 0, rq = 0, w = 0, p = 0, s = 0, od = 0;
+                rows.forEach(r => {
+                    if ((r.type || 'complaint') === 'request') rq++; else c++;
+                    const st = r.status || 'Following';
+                    if (st === 'Solved') s++; else { if (st === 'InProgress') p++; else w++; if (glOverdue(r)) od++; }
+                });
+                const t = glTimes(rows);
+                return [
+                    { l: 'Toplam kayıt', v: rows.length, s: c + ' şikayet · ' + rq + ' talep' },
+                    { l: 'Çözüm oranı', v: '%' + pct(s, rows.length), s: s + ' tamamlandı' },
+                    { l: 'Açık', v: w + p, s: w + ' bekliyor · ' + p + ' işlemde' },
+                    { l: 'Geciken', v: od, s: od ? OVERDUE_MIN + ' dk’yı aşan açık kayıt' : 'Geciken kayıt yok', tone: od ? 'bad' : '', icon: od ? 'alert' : '' },
+                    { l: 'Ort. üstlenme süresi', v: t.ack == null ? '—' : fmtDuration(t.ack), s: t.ackN ? t.ackN + ' kayıtta ölçüldü' : 'Ölçülecek kayıt yok' },
+                    { l: 'Ort. çözüm süresi', v: t.sol == null ? '—' : fmtDuration(t.sol), s: t.solN ? t.solN + ' tamamlanan kayıt' : 'Tamamlanan kayıt yok' }
+                ];
+            },
+            trend: { title: 'Kayıt sayısı' },
+            breakdowns: [
+                { title: 'Departmana göre', facet: 'dept' },
+                { title: 'Konuya göre (şikayet)', facet: 'topic', only: r => (r.type || 'complaint') === 'complaint' }
+            ]
+        },
+        reservations: {
+            nav: 'Concierge rezervasyonları', group: 'Concierge', icon: 'concierge', module: 'concierge',
+            title: 'Concierge rezervasyonları',
+            kpis: rows => {
+                const sm = Object.fromEntries(D.summary(rows).map(([l, v]) => [l, v]));
+                return [
+                    { l: 'Rezervasyon', v: rows.length, s: sm['Onaylı'] + ' onaylı · ' + sm['Tamamlandı'] + ' tamamlandı' },
+                    { l: 'Bekleyen', v: sm['Bekleyen'], s: 'Onay bekliyor' },
+                    { l: 'İptal', v: sm['İptal'], s: '%' + pct(sm['İptal'], rows.length) + ' iptal oranı' },
+                    { l: 'Ciro', v: sm['Ciro'], s: 'İptaller hariç' },
+                    { l: 'Kapora', v: sm['Kapora'], s: 'Alınan ön ödeme' },
+                    { l: 'Kalan bakiye', v: sm['Kalan'], s: 'Tahsil edilecek' }
+                ];
+            },
+            trend: { title: 'Rezervasyon sayısı' },
+            breakdowns: [{ title: 'Hizmete göre', facet: 'type' }, { title: 'Duruma göre', facet: 'status' }]
+        },
+        guestOrders: {
+            nav: 'QR siparişleri', group: 'Misafir hizmetleri', icon: 'receipt', module: 'guestOrders',
+            title: 'QR siparişleri', kpis: fromSummary,
+            trend: { title: 'Sipariş sayısı' },
+            breakdowns: [{ title: 'Duruma göre', facet: 'status' }, { title: 'En çok sipariş veren odalar', by: r => r.room ? 'Oda ' + r.room : '—' }]
+        },
+        orderItems: {
+            nav: 'Sipariş edilen ürünler', group: 'Misafir hizmetleri', icon: 'layers', module: 'guestOrders',
+            title: 'Sipariş edilen ürünler', kpis: fromSummary,
+            trend: { title: 'Ürün adedi', measure: r => r.qty || 0 },
+            breakdowns: [{ title: 'En çok istenen ürünler', by: r => r.name || '—', measure: r => r.qty || 0, unit: 'adet' },
+                         { title: 'Kategoriye göre', facet: 'category', measure: r => r.qty || 0, unit: 'adet' }]
+        },
+        serviceRatings: {
+            nav: 'Hizmet puanları', group: 'Misafir hizmetleri', icon: 'sparkles', module: 'guestOrders',
+            title: 'Hizmet puanları', kpis: rows => fromSummary(rows).map(k => k.l === 'Ortalama'
+                ? Object.assign(k, { tone: ratingTint(parseFloat(String(k.v))) === 's' ? 'good' : (ratingTint(parseFloat(String(k.v))) === 'o' ? 'bad' : '') }) : k),
+            trend: { title: 'Değerlendirme sayısı' },
+            breakdowns: [{ title: 'Puan dağılımı', facet: 'stars', order: ['5', '4', '3', '2', '1'], labelOf: v => v + ' yıldız' },
+                         { title: 'Departmana göre', facet: 'department' }]
+        },
+        guestDirectory: {
+            nav: 'Misafir rehberi', group: 'Misafirler', icon: 'users', module: 'crm',
+            title: 'Misafir rehberi', kpis: fromSummary,
+            trend: { title: 'Girişler (check-in)' },
+            breakdowns: [{ title: 'Duruma göre', facet: 'status' }]
+        },
+        restSales: {
+            nav: 'Restoran adisyonları', group: 'Restoran', icon: 'utensils', module: 'restaurant',
+            title: 'Restoran adisyonları', kpis: fromSummary,
+            trend: { title: 'Ciro', measure: r => r.total || 0, money: true },
+            breakdowns: [{ title: 'Ödeme türüne göre (ciro)', facet: 'payment', measure: r => r.total || 0, money: true },
+                         { title: 'Garsona göre (ciro)', facet: 'waiter', measure: r => r.total || 0, money: true }]
+        },
+        restItems: {
+            nav: 'Restoran ürün satışları', group: 'Restoran', icon: 'chart', module: 'restaurant',
+            title: 'Restoran ürün satışları', kpis: fromSummary,
+            trend: { title: 'Ciro', measure: r => r.lineTotal || 0, money: true },
+            breakdowns: [{ title: 'En çok satan ürünler', by: r => r.name || '—', measure: r => r.qty || 0, unit: 'adet' },
+                         { title: 'Kategoriye göre (ciro)', facet: 'category', measure: r => r.lineTotal || 0, money: true }]
+        }
+    };
+    const domainOn = k => !META[k].module || typeof moduleEnabled !== 'function' || moduleEnabled(META[k].module);
+    // Menü sırası gruplara göre (DOMAIN_ORDER veri/geri uyum sırası olarak kalır).
+    const NAV_ORDER = ['guestLogs', 'guestOrders', 'orderItems', 'serviceRatings', 'reservations', 'guestDirectory', 'restSales', 'restItems'];
+
     // ── State ──────────────────────────────────────────────────
     let domainKey = 'guestLogs';
     let D = DOMAINS.guestLogs;
@@ -603,8 +723,7 @@
 
     // ── Dynamic chip values (kademeli filtre) ──────────────────
     // Yalnızca DİĞER filtrelerle + tarihle eşleşen veride MEVCUT değerleri göster.
-    // Örn: Tür=Şikayet seçilince Departman'da yalnızca şikayet verisi olan
-    // departmanlar görünür. Hâlihazırda seçili değerler her zaman görünür kalır.
+    // Hâlihazırda seçili değerler her zaman görünür kalır.
     function facetHasValue(f, r, v) { return f.match ? f.match(r, new Set([v])) : (f.valueOf(r) === v); }
     function chipValues(f) {
         const base = filteredExcept(f.key);
@@ -621,76 +740,325 @@
         }
         return present.sort((a, b) => String(a).localeCompare(String(b), 'tr'));
     }
+    const ic = (n) => (typeof window.UIcon === 'function' ? window.UIcon(n) : '');
+    function activeCount() {
+        return D.facets.reduce((n, f) => n + (f.kind === 'chips' ? sel[f.key].size : ((sel[f.key] || '').trim() ? 1 : 0)), 0);
+    }
 
-    // ── Render sidebar facets ──────────────────────────────────
+    // ── Rapor türleri menüsü ───────────────────────────────────
+    function renderNav() {
+        const nav = $('repNav');
+        let html = '<div class="rep-nav-h">Raporlar</div>', lastGroup = '';
+        NAV_ORDER.filter(domainOn).forEach(k => {
+            const m = META[k];
+            if (m.group !== lastGroup) { html += `<div class="rep-nav-g">${esc(m.group)}</div>`; lastGroup = m.group; }
+            html += `<button class="rep-nav-i${k === domainKey ? ' active' : ''}" data-domain="${k}"${k === domainKey ? ' aria-current="page"' : ''}>${ic(m.icon)}<span>${esc(m.nav)}</span></button>`;
+        });
+        nav.innerHTML = html;
+        nav.querySelectorAll('[data-domain]').forEach(b => { b.onclick = () => { if (b.dataset.domain !== domainKey) setDomain(b.dataset.domain); }; });
+        const act = nav.querySelector('.rep-nav-i.active');
+        if (act && act.scrollIntoView && window.innerWidth <= 960) act.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }
+
+    // ── Filtreler çekmecesi ────────────────────────────────────
     function renderFacets() {
         const host = $('repFacets');
         host.innerHTML = D.facets.map(f => {
             if (f.kind === 'chips') {
                 const vals = chipValues(f);
+                const n = sel[f.key].size;
                 const inner = vals.length
-                    ? vals.map(v => `<button data-facet="${esc(f.key)}" data-v="${esc(v)}"${sel[f.key].has(v) ? ' class="active"' : ''}>${esc(v)}</button>`).join('')
-                    : '<span class="rep-none">Veri yok</span>';
-                return `<div class="rep-f"><label class="rep-l">${esc(f.label)}</label><div class="rep-chips">${inner}</div></div>`;
+                    ? vals.map(v => `<button type="button" data-facet="${esc(f.key)}" data-v="${esc(v)}" aria-pressed="${sel[f.key].has(v)}"${sel[f.key].has(v) ? ' class="active"' : ''}>${esc(v)}</button>`).join('')
+                    : '<span class="rep-none">Bu aralıkta veri yok</span>';
+                return `<div class="rep-f"><div class="rep-l">${esc(f.label)}${n ? `<small>${n} seçili</small>` : ''}</div><div class="rep-chips">${inner}</div></div>`;
             }
-            return `<div class="rep-f"><label class="rep-l">${esc(f.label)}</label><input type="text" class="rep-in" data-facet="${esc(f.key)}" value="${esc(sel[f.key] || '')}" placeholder="${esc(f.label)} ile filtrele"></div>`;
+            return `<div class="rep-f"><label class="rep-l" for="rf-${esc(f.key)}">${esc(f.label)}</label><input type="text" class="rep-in" id="rf-${esc(f.key)}" data-facet="${esc(f.key)}" value="${esc(sel[f.key] || '')}" placeholder="${esc(f.label)} ara"></div>`;
         }).join('');
         host.querySelectorAll('button[data-facet]').forEach(b => {
             b.onclick = () => {
-                const s = sel[b.getAttribute('data-facet')], v = b.getAttribute('data-v');
-                if (s.has(v)) s.delete(v); else s.add(v);
-                refresh(); // diğer facet'lerin "veri olan" seçenekleri güncellensin
+                const s2 = sel[b.getAttribute('data-facet')], v = b.getAttribute('data-v');
+                if (s2.has(v)) s2.delete(v); else s2.add(v);
+                refresh(); // diğer filtrelerin "veri olan" seçenekleri güncellensin
             };
         });
         host.querySelectorAll('input[data-facet]').forEach(inp => {
             inp.oninput = () => { sel[inp.getAttribute('data-facet')] = inp.value; render(); };
         });
-        // group-by options
+        // Gruplama seçenekleri — eskiden "Departmane göre", "Durume göre" gibi
+        // hatalı Türkçe ek üretiliyordu; artık yalnızca alan adı (etiket "Gruplama").
         const gb = $('repGroupBy');
-        const opts = ['<option value="none">Gruplama Yok (düz liste)</option>']
-            .concat(D.facets.filter(f => f.kind === 'chips').map(f => `<option value="${esc(f.key)}">${esc(f.label)}e göre</option>`))
-            .concat(['<option value="__date__">Güne göre</option>', '<option value="__week__">Haftaya göre</option>',
-                     '<option value="__month__">Aya göre</option>', '<option value="__year__">Yıla göre</option>']);
+        const opts = ['<option value="none">Yok</option>']
+            .concat(D.facets.filter(f => f.kind === 'chips').map(f => `<option value="${esc(f.key)}">${esc(f.label)}</option>`))
+            .concat(['<option value="__date__">Gün</option>', '<option value="__week__">Hafta</option>',
+                     '<option value="__month__">Ay</option>', '<option value="__year__">Yıl</option>']);
         gb.innerHTML = opts.join('');
         gb.value = groupBy;
+        const n = activeCount();
+        $('repFilterCount').textContent = n; $('repFilterCount').hidden = !n;
+    }
+    function openDrawer(id) {
+        $('repScrim').hidden = false; $(id).hidden = false;
+        const first = $(id).querySelector('button, input'); if (first) setTimeout(() => first.focus(), 30);
+    }
+    function closeDrawers() { ['repDrawer', 'repDetail'].forEach(id => { $(id).hidden = true; }); $('repScrim').hidden = true; }
+
+    // Uygulanan filtreler — ana alanda görünür ve tek tıkla kaldırılabilir
+    // (eskiden yalnızca uzun yan paneli tarayarak anlaşılabiliyordu).
+    function renderActive() {
+        const host = $('repActive');
+        const chips = [];
+        D.facets.forEach(f => {
+            if (f.kind === 'chips') sel[f.key].forEach(v => chips.push({ k: f.key, v, t: f.label, kind: 'chips' }));
+            else if ((sel[f.key] || '').trim()) chips.push({ k: f.key, v: sel[f.key].trim(), t: f.label, kind: 'text' });
+        });
+        host.hidden = !chips.length;
+        if (!chips.length) { host.innerHTML = ''; return; }
+        host.innerHTML = chips.map((c, i) => `<span class="rep-chip">${esc(c.t)}: <b>${esc(c.v)}</b><button type="button" data-rm="${i}" aria-label="${esc(c.t + ' filtresini kaldır')}">${ic('x')}</button></span>`).join('')
+            + '<button type="button" class="rep-clear" id="repClearAll">Tümünü temizle</button>';
+        host.querySelectorAll('[data-rm]').forEach(b => {
+            b.onclick = () => {
+                const c = chips[+b.dataset.rm];
+                if (c.kind === 'chips') sel[c.k].delete(c.v); else sel[c.k] = '';
+                refresh();
+            };
+        });
+        $('repClearAll').onclick = () => { D.facets.forEach(f => { sel[f.key] = (f.kind === 'chips') ? new Set() : ''; }); refresh(); };
     }
 
-    // Facet seçenekleri + tablo birlikte tazelensin (kademeli filtre).
+    // Facet seçenekleri + içerik birlikte tazelensin (kademeli filtre).
     function refresh() { renderFacets(); render(); }
 
-    // ── Render preview ─────────────────────────────────────────
-    function render() {
-        const rows = filtered();
-        const cols = D.columns;
-        $('repTitle').textContent = D.label;
-        const gName = $('repGroupBy').selectedOptions[0] ? $('repGroupBy').selectedOptions[0].textContent : '';
-        $('repRangeLabel').textContent = rangeLabel() + (groupBy !== 'none' ? ' · ' + gName : '') + ' · ' + rows.length + ' kayıt';
+    // ── Özet kartları ──────────────────────────────────────────
+    function renderKpis(rows) {
+        const m = META[domainKey];
+        const list = m.kpis ? m.kpis(rows) : fromSummary(rows);
+        // Çok para birimli değerler ("₺1.060 · €3.300") kırpılmasın: uzun değer
+        // daha küçük puntoda ve satır kırarak gösterilir.
+        $('repStats').innerHTML = list.map(k =>
+            `<div class="rep-kpi${k.tone ? ' ' + k.tone : ''}${String(k.v).length > 11 ? ' long' : ''}"><span class="l">${k.icon ? ic(k.icon) : ''}${esc(k.l)}</span><span class="v" title="${esc(k.v)}">${esc(k.v)}</span>${k.s ? `<span class="s" title="${esc(k.s)}">${esc(k.s)}</span>` : ''}</div>`).join('');
+    }
 
-        $('repStats').innerHTML = D.summary(rows).map(([l, v, c]) =>
-            `<div class="rep-stat s-${c}"><span class="v">${esc(v)}</span><span class="l">${esc(l)}</span></div>`).join('');
+    // ── Trend (zaman serisi) ───────────────────────────────────
+    // Kova: aralık ≤ 45 gün → gün, ≤ 26 hafta → hafta, üstü → ay. Boş günler
+    // sıfır olarak doldurulur (eksen kesintisiz). Tek seri, tek renk.
+    const MON = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    function addDays(s, n) { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return ymd(d); }
+    function trendSeries(rows) {
+        const tr = META[domainKey].trend || {};
+        const measure = tr.measure || (() => 1);
+        const dates = rows.map(r => D.dateOf(r)).filter(Boolean).sort();
+        const w = dateWindow();
+        let from = w.from || dates[0], to = w.to || dates[dates.length - 1];
+        if (!from || !to) return null;
+        if (to > todayStr() && !w.to) to = todayStr();
+        const spanDays = Math.round((new Date(to + 'T12:00:00') - new Date(from + 'T12:00:00')) / 86400000) + 1;
+        const unit = spanDays <= 45 ? 'day' : (spanDays <= 26 * 7 ? 'week' : 'month');
+        const keyOf = unit === 'day' ? (d => d) : (unit === 'week' ? isoWeekKey : monthKey);
+        const keys = [];
+        if (unit === 'day') { for (let d = from; d <= to && keys.length < 400; d = addDays(d, 1)) keys.push(d); }
+        else if (unit === 'week') { for (let d = from; d <= to && keys.length < 60; d = addDays(d, 7)) { const k = isoWeekKey(d); if (keys.indexOf(k) === -1) keys.push(k); } const lk = isoWeekKey(to); if (keys.indexOf(lk) === -1) keys.push(lk); }
+        else { let y = +from.slice(0, 4), mo = +from.slice(5, 7); const ey = +to.slice(0, 4), em = +to.slice(5, 7); while ((y < ey || (y === ey && mo <= em)) && keys.length < 120) { keys.push(y + '-' + pad(mo)); mo++; if (mo > 12) { mo = 1; y++; } } }
+        const val = new Map(keys.map(k => [k, 0]));
+        rows.forEach(r => { const d = D.dateOf(r); if (!d) return; const k = keyOf(d); if (val.has(k)) val.set(k, val.get(k) + (Number(measure(r)) || 0)); });
+        const label = k => {
+            if (unit === 'day') { const p = k.split('-'); return (+p[2]) + ' ' + MON[+p[1] - 1]; }
+            if (unit === 'week') return k.replace(/^(\d{4})-W(\d+)$/, (m0, yy, ww) => (+ww) + '. hafta');
+            const p = k.split('-'); return MON[+p[1] - 1] + ' ' + p[0];
+        };
+        return { unit, points: keys.map(k => ({ k, label: label(k), v: val.get(k) })), money: !!tr.money, title: tr.title || 'Kayıt' };
+    }
+    function niceMax(v) {
+        if (v <= 0) return 1;
+        const p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+        return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+    }
+    const fmtNum = (v, isMoney) => isMoney ? money(Math.round(v)) : (Number.isInteger(v) ? v.toLocaleString('tr-TR') : v.toLocaleString('tr-TR', { maximumFractionDigits: 1 }));
+    const compact = v => v >= 10000 ? (v / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 0 }) + 'B' : v.toLocaleString('tr-TR');
+    function trendSvg(ser, width) {
+        const H = 190, padL = 34, padB = 22, padT = 10, padR = 4;
+        const n = ser.points.length, max = niceMax(Math.max(...ser.points.map(p => p.v)));
+        const plotW = Math.max(40, width - padL - padR), plotH = H - padB - padT;
+        const slot = plotW / n, bw = Math.max(2, Math.min(24, slot - 2));
+        const y = v => padT + plotH - (v / max) * plotH;
+        let g = '';
+        // Sayımlarda kesirli ara değer ("2,5 kayıt") gösterilmez.
+        const ticks = (ser.money || Number.isInteger(max / 2)) ? [0, max / 2, max] : [0, max];
+        ticks.forEach(t => {
+            g += `<line class="grid" x1="${padL}" x2="${width - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/>`;
+            g += `<text class="tick" x="${padL - 6}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end">${esc(compact(t))}</text>`;
+        });
+        const step = Math.max(1, Math.ceil(n / 6));
+        ser.points.forEach((p, i) => {
+            const x = padL + i * slot + (slot - bw) / 2, top = y(p.v), h = padT + plotH - top;
+            const r = Math.min(4, bw / 2, h);
+            const bar = h <= 0 ? '' : `<path class="col" d="M${x.toFixed(1)},${(padT + plotH).toFixed(1)}V${(top + r).toFixed(1)}q0,-${r} ${r},-${r}h${(bw - 2 * r).toFixed(1)}q${r},0 ${r},${r}V${(padT + plotH).toFixed(1)}Z"/>`;
+            g += `<rect class="hit" x="${(padL + i * slot).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH}" tabindex="0" data-i="${i}" aria-label="${esc(p.label + ': ' + fmtNum(p.v, ser.money))}"/>` + bar;
+            if (i % step === 0 || i === n - 1) {
+                if (i === n - 1 && i % step !== 0 && (n - 1) % step < step / 2) return; // son etiket çakışmasın
+                g += `<text class="tick" x="${(padL + i * slot + slot / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(p.label)}</text>`;
+            }
+        });
+        return `<svg viewBox="0 0 ${width} ${H}" width="${width}" height="${H}" role="img" aria-label="${esc(ser.title)}">${g}</svg>`;
+    }
+    function bindTip(root, items, fmt) {
+        const tip = $('repTip');
+        const show = (el, x, yy) => {
+            const p = items[+el.dataset.i]; if (!p) return;
+            tip.innerHTML = ''; const b = document.createElement('b'); b.textContent = fmt(p); const sp = document.createElement('span'); sp.textContent = p.label;
+            tip.appendChild(b); tip.appendChild(sp); tip.hidden = false;
+            const r = tip.getBoundingClientRect();
+            tip.style.left = Math.min(window.innerWidth - r.width - 8, Math.max(8, x - r.width / 2)) + 'px';
+            tip.style.top = Math.max(8, yy - r.height - 12) + 'px';
+        };
+        root.querySelectorAll('[data-i]').forEach(el => {
+            el.addEventListener('pointermove', e => show(el, e.clientX, e.clientY));
+            el.addEventListener('focus', () => { const b = el.getBoundingClientRect(); show(el, b.left + b.width / 2, b.top + 20); });
+            el.addEventListener('pointerleave', () => { tip.hidden = true; });
+            el.addEventListener('blur', () => { tip.hidden = true; });
+        });
+    }
 
+    // ── Dağılım: sıralı yatay çubuklar ─────────────────────────
+    function breakdownData(rows, bd) {
+        const f = bd.facet ? D.facets.find(x => x.key === bd.facet) : null;
+        const keyOf = bd.by || (f ? f.valueOf : null); if (!keyOf) return [];
+        const measure = bd.measure || (() => 1);
+        const map = new Map();
+        rows.forEach(r => {
+            if (bd.only && !bd.only(r)) return;
+            const k = keyOf(r); if (!k || k === '—') return;
+            map.set(k, (map.get(k) || 0) + (Number(measure(r)) || 0));
+        });
+        let arr = [...map.entries()].map(([k, v]) => ({ k, v }));
+        if (bd.order) arr.sort((a, b) => bd.order.indexOf(a.k) - bd.order.indexOf(b.k));
+        else arr.sort((a, b) => b.v - a.v || String(a.k).localeCompare(String(b.k), 'tr'));
+        const TOP = 6;
+        if (!bd.order && arr.length > TOP + 1) {
+            const rest = arr.slice(TOP).reduce((s2, x) => s2 + x.v, 0);
+            arr = arr.slice(0, TOP).concat([{ k: 'Diğer', v: rest, other: true }]);
+        }
+        return arr;
+    }
+    function breakdownHtml(bd, data) {
+        if (!data.length) return '<div class="rep-nodata">Bu aralıkta veri yok</div>';
+        const total = data.reduce((s2, x) => s2 + x.v, 0), max = Math.max(...data.map(x => x.v)) || 1;
+        const f = bd.facet ? D.facets.find(x => x.key === bd.facet) : null;
+        const clickable = !!(f && f.kind === 'chips');
+        return '<ul class="rep-bars">' + data.map(x => {
+            const on = clickable && !x.other && sel[f.key].has(x.k);
+            const name = bd.labelOf ? bd.labelOf(x.k) : x.k;
+            const val = (bd.money ? money(Math.round(x.v)) : fmtNum(x.v)) + (bd.unit ? ' ' + bd.unit : '');
+            const attrs = clickable && !x.other ? ` class="click${on ? ' on' : ''}" tabindex="0" role="button" aria-pressed="${on}" data-bf="${esc(f.key)}" data-bv="${esc(x.k)}" title="${esc(name)} — filtrele"` : '';
+            return `<li${attrs}><span class="n">${esc(name)}</span><span class="v">${esc(val)}<small>%${pct(x.v, total)}</small></span><span class="t"><i style="width:${Math.max(1, x.v / max * 100).toFixed(1)}%"></i></span></li>`;
+        }).join('') + '</ul>';
+    }
+    function renderInsights(rows) {
+        const host = $('repInsights'), m = META[domainKey];
+        if (!rows.length) { host.innerHTML = ''; return; }
+        const ser = trendSeries(rows);
+        let html = '';
+        if (ser && ser.points.length > 1) {
+            const unitTxt = { day: 'günlük', week: 'haftalık', month: 'aylık' }[ser.unit];
+            const total = ser.points.reduce((s2, p) => s2 + p.v, 0);
+            html += `<section class="rep-card rep-trend"><div class="rep-card-h"><h2>${esc(ser.title)} <span>· ${unitTxt}</span></h2></div>`
+                + `<div class="rep-card-sub">Toplam ${esc(fmtNum(total, ser.money))} · en yüksek ${esc(fmtNum(Math.max(...ser.points.map(p => p.v)), ser.money))}</div>`
+                + `<div class="rep-card-b" id="repTrendBox"></div></section>`;
+        }
+        (m.breakdowns || []).forEach((bd, i) => {
+            html += `<section class="rep-card"><div class="rep-card-h"><h2>${esc(bd.title)}</h2></div><div class="rep-card-b">${breakdownHtml(bd, breakdownData(rows, bd))}</div></section>`;
+        });
+        host.innerHTML = html;
+        const box = $('repTrendBox');
+        if (box && ser) {
+            box.innerHTML = trendSvg(ser, Math.max(260, Math.floor(box.clientWidth)));
+            bindTip(box, ser.points, p => fmtNum(p.v, ser.money) + (ser.money ? '' : ' ' + ser.title.toLocaleLowerCase('tr-TR')));
+        }
+        host.querySelectorAll('[data-bf]').forEach(li => {
+            const act = () => { const s2 = sel[li.dataset.bf]; if (s2.has(li.dataset.bv)) s2.delete(li.dataset.bv); else s2.add(li.dataset.bv); refresh(); };
+            li.onclick = act;
+            li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } };
+        });
+    }
+
+    // ── Tablo + sütun seçimi + satır ayrıntısı ─────────────────
+    const COLS_KEY = k => 'rep_cols_' + TENANT_ID + '_' + k;
+    function hiddenCols() { try { return new Set(JSON.parse(localStorage.getItem(COLS_KEY(domainKey)) || '[]')); } catch (e) { return new Set(); } }
+    function visibleCols() { const h = hiddenCols(); const v = D.columns.filter(c => !h.has(c.label)); return v.length ? v : D.columns; }
+    function renderColsPop() {
+        const h = hiddenCols();
+        $('repColsPop').innerHTML = D.columns.map((c, i) => `<label><input type="checkbox" data-col="${i}"${h.has(c.label) ? '' : ' checked'}>${esc(c.label)}</label>`).join('')
+            + '<p>Excel ve yazdırma tüm sütunları içerir.</p>';
+        $('repColsPop').querySelectorAll('[data-col]').forEach(cb => {
+            cb.onchange = () => {
+                const set = hiddenCols(), lbl = D.columns[+cb.dataset.col].label;
+                if (cb.checked) set.delete(lbl); else set.add(lbl);
+                if (set.size >= D.columns.length) { set.delete(lbl); cb.checked = true; }
+                try { localStorage.setItem(COLS_KEY(domainKey), JSON.stringify([...set])); } catch (e) {}
+                render();
+            };
+        });
+    }
+    let rowRefs = [];
+    function cellHtml(c, r) {
+        const val = c.get(r);
+        if (c.tone) return `<td><span class="rep-pill ${esc(c.tone(r))}">${esc(c.pillText ? c.pillText(r) : val)}</span></td>`;
+        return `<td class="${c.wide ? 'rep-w' : ''}${c.c ? ' rep-c' : ''}" title="${esc(val)}">${esc(val)}</td>`;
+    }
+    function renderTable(rows) {
+        const cols = visibleCols();
         const groups = grouped(rows);
         const MAX = 400; let shown = 0, truncated = false, html = '';
+        rowRefs = [];
+        $('repRowCount').textContent = '· ' + rows.length.toLocaleString('tr-TR');
         if (!rows.length) {
-            html = `<div class="rep-empty">Seçili filtrelerle kayıt bulunamadı.</div>`;
+            html = `<div class="rep-empty">Seçili tarih ve filtrelerle kayıt bulunamadı.<br>Tarih aralığını genişletmeyi ya da filtreleri temizlemeyi deneyin.</div>`;
         } else {
-            html = `<table class="rep-table"><thead><tr>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>`;
+            html = `<table class="rep-table"><thead><tr>${cols.map(c => `<th${c.c ? ' class="rep-c"' : ''}>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>`;
             for (const g of groups) {
                 if (g.key !== '') html += `<tr class="rep-grp"><td colspan="${cols.length}">${esc(g.label)} <span>${esc(D.groupAgg ? D.groupAgg(g.rows) : g.rows.length + ' kayıt')}</span></td></tr>`;
                 for (const r of g.rows) {
                     if (shown >= MAX) { truncated = true; break; }
-                    html += '<tr>' + cols.map(c => {
-                        const val = c.get(r);
-                        return `<td class="${c.wide ? 'rep-w' : ''}${c.c ? ' rep-c' : ''}" title="${esc(val)}">${esc(val)}</td>`;
-                    }).join('') + '</tr>';
-                    shown++;
+                    html += `<tr class="row" tabindex="0" data-row="${rowRefs.length}">` + cols.map(c => cellHtml(c, r)).join('') + '</tr>';
+                    rowRefs.push(r); shown++;
                 }
                 if (truncated) break;
             }
             html += '</tbody></table>';
-            if (truncated) html += `<div class="rep-more">Önizlemede ilk ${MAX} kayıt · Excel/Yazdır tüm ${rows.length} kaydı içerir.</div>`;
+            if (truncated) html += `<div class="rep-more">Önizlemede ilk ${MAX} kayıt gösteriliyor · Excel ve yazdırma tüm ${rows.length.toLocaleString('tr-TR')} kaydı içerir.</div>`;
         }
-        $('repTableScroll').innerHTML = html;
+        const box = $('repTableScroll');
+        box.innerHTML = html;
+        box.querySelectorAll('tr[data-row]').forEach(tr => {
+            const open = () => openDetail(rowRefs[+tr.dataset.row]);
+            tr.onclick = open;
+            tr.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); open(); } };
+        });
+    }
+    // Satır ayrıntısı: tablodaki kırpılmış metinlerin (açıklama, çözüm, not)
+    // tamamı ve gizli sütunlar dahil tüm alanlar.
+    function openDetail(r) {
+        if (!r) return;
+        const body = $('repDetailBody');
+        body.innerHTML = '<dl>' + D.columns.map(c => `<div class="dr"><dt>${esc(c.label)}</dt><dd>${esc(c.get(r) || '—')}</dd></div>`).join('') + '</dl>';
+        $('repDetailTitle').textContent = META[domainKey].title;
+        openDrawer('repDetail');
+    }
+
+    // ── Render ─────────────────────────────────────────────────
+    function render() {
+        const rows = filtered();
+        $('repTitle').textContent = META[domainKey].title;
+        const gOpt = $('repGroupBy').selectedOptions[0];
+        $('repRangeLabel').textContent = rangeLabel() + ' · ' + rows.length.toLocaleString('tr-TR') + ' kayıt'
+            + (groupBy !== 'none' && gOpt ? ' · Gruplama: ' + gOpt.textContent : '');
+        $('repScroll').classList.toggle('is-loading', !ready);
+        renderKpis(rows);
+        renderInsights(rows);
+        renderActive();
+        renderTable(rows);
+        const n = activeCount();
+        $('repFilterCount').textContent = n; $('repFilterCount').hidden = !n;
+        $('repDrawerApply').textContent = 'Sonuçları göster (' + rows.length.toLocaleString('tr-TR') + ')';
     }
 
     // ── Filter description (exports) ───────────────────────────
@@ -834,32 +1202,51 @@
         });
     }
 
+    function syncDateUI() {
+        $('repDateSeg').querySelectorAll('[data-preset]').forEach(b => {
+            const on = b.dataset.preset === preset;
+            b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        $('repCustomDates').hidden = preset !== 'custom';
+    }
     function setDomain(key) {
-        if (!DOMAINS[key]) return;
+        if (!DOMAINS[key] || !domainOn(key)) return;
         domainKey = key; D = DOMAINS[key];
         resetFilters();
-        $('repDatePreset').value = '30'; $('repCustomDates').style.display = 'none';
+        syncDateUI();
         $('repFrom').value = ''; $('repTo').value = '';
         records = cache[key] || [];
-        renderFacets(); render();
+        try { history.replaceState(null, '', '#' + key); } catch (e) {}
+        renderNav(); renderColsPop(); renderFacets(); render();
         subscribe();
     }
 
     // ── Wire ───────────────────────────────────────────────────
     function wire() {
-        $('repDomain').innerHTML = DOMAIN_ORDER.map(k => `<option value="${k}">${esc(DOMAINS[k].label)}</option>`).join('');
-        $('repDomain').onchange = e => setDomain(e.target.value);
-        // Tarih aralığı değişince, sunucu sınırlaması olan domain'lerde sorguyu
+        // Tarih aralığı değişince, sunucu sınırlaması olan raporlarda sorguyu
         // yeni aralıkla yeniden kur (snapshot render eder); diğerlerinde istemci
         // tarafında yeniden filtrele.
-        const applyDateChange = () => { if (D.tsBound) { renderFacets(); subscribe(); } else { refresh(); } };
-        $('repDatePreset').onchange = e => { preset = e.target.value; $('repCustomDates').style.display = (preset === 'custom') ? '' : 'none'; applyDateChange(); };
+        const applyDateChange = () => { if (D.tsBound) { renderFacets(); render(); subscribe(); } else { refresh(); } };
+        $('repDateSeg').querySelectorAll('[data-preset]').forEach(b => {
+            b.onclick = () => { preset = b.dataset.preset; syncDateUI(); if (preset === 'custom') { $('repFrom').focus(); return; } applyDateChange(); };
+        });
         $('repFrom').onchange = e => { cFrom = e.target.value; applyDateChange(); };
         $('repTo').onchange = e => { cTo = e.target.value; applyDateChange(); };
         $('repGroupBy').onchange = e => { groupBy = e.target.value; render(); };
         $('repReset').onclick = () => { setDomain(domainKey); };
         $('repExcel').onclick = exportExcel;
         $('repPrint').onclick = printReport;
+        $('repFiltersBtn').onclick = () => openDrawer('repDrawer');
+        $('repDrawerClose').onclick = closeDrawers;
+        $('repDrawerApply').onclick = closeDrawers;
+        $('repDetailClose').onclick = closeDrawers;
+        $('repScrim').onclick = closeDrawers;
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawers(); $('repColsPop').hidden = true; } });
+        $('repColsBtn').onclick = e => { e.stopPropagation(); $('repColsPop').hidden = !$('repColsPop').hidden; };
+        document.addEventListener('click', e => { if (!e.target.closest('.rep-cols')) $('repColsPop').hidden = true; });
+        // Trend grafiği kapsayıcı genişliğine göre çizilir — boyut değişince yeniden.
+        let rt = null;
+        window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (ready) renderInsights(filtered()); }, 150); });
     }
 
     function start() {
@@ -869,7 +1256,16 @@
             IssueConfig.listen(() => { if (domainKey === 'guestLogs' && ready) renderFacets(); });
             IssueConfig.listenTopics(() => { if (domainKey === 'guestLogs' && ready) renderFacets(); });
         }
-        setDomain('guestLogs');
+        // İlk rapor: adres çubuğundaki #rapor ya da erişilebilen ilk rapor
+        // (ör. yalnızca restoran modülü olan F&B girişinde restoran raporları).
+        const want = (location.hash || '').replace('#', '');
+        const first = NAV_ORDER.filter(domainOn);
+        if (!first.length) {
+            $('repTitle').textContent = 'Raporlar';
+            $('repScroll').innerHTML = '<div class="rep-empty">Hesabınız için görüntülenebilecek rapor yok.</div>';
+            return;
+        }
+        setDomain(first.indexOf(want) !== -1 ? want : first[0]);
     }
     function boot() {
         if (typeof auth !== 'undefined' && auth.onAuthStateChanged) auth.onAuthStateChanged(u => { if (u) start(); });

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Raporlar · Hotizy</title>
-    <link rel="stylesheet" href="css/modules/reports.css">
+    <link rel="stylesheet" href="css/modules/reports.css?v=20261111g">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,88 +14,105 @@
 </head>
 
 <body class="rep-body">
-    <main class="rep-wrap">
-        <!-- ── Filters (compact builder) ── -->
-        <aside class="rep-side">
-            <div class="rep-side-head">
-                <h1>Raporlar</h1>
-                <p>Kaynağı seçip filtreleri birleştirin; istediğiniz raporu oluşturun.</p>
-            </div>
+    <div class="rep-app">
+        <!-- ── Rapor kaynakları (masaüstü: sol menü · mobil: yatay şerit) ── -->
+        <nav class="rep-nav" id="repNav" aria-label="Rapor türleri"><!-- reports.js --></nav>
 
-            <div class="rep-f">
-                <label class="rep-l">Rapor Kaynağı</label>
-                <select id="repDomain" class="rep-in"></select>
-            </div>
-
-            <div class="rep-f">
-                <label class="rep-l">Tarih Aralığı</label>
-                <select id="repDatePreset" class="rep-in">
-                    <option value="all">Tüm Zamanlar</option>
-                    <option value="today">Bugün</option>
-                    <option value="yesterday">Dün</option>
-                    <option value="7">Son 7 Gün</option>
-                    <option value="30">Son 30 Gün</option>
-                    <option value="thismonth">Bu Ay</option>
-                    <option value="lastmonth">Geçen Ay</option>
-                    <option value="custom">Özel Aralık</option>
-                </select>
-                <div class="rep-row" id="repCustomDates" style="display:none;">
-                    <input type="date" id="repFrom" class="rep-in">
-                    <input type="date" id="repTo" class="rep-in">
-                </div>
-            </div>
-
-            <!-- Domain-specific facets injected here -->
-            <div id="repFacets"></div>
-
-            <div class="rep-f">
-                <label class="rep-l">Gruplama</label>
-                <select id="repGroupBy" class="rep-in"></select>
-            </div>
-
-            <button class="rep-reset" id="repReset">Filtreleri Sıfırla</button>
-        </aside>
-
-        <!-- ── Result / preview ── -->
-        <section class="rep-main">
-            <div class="rep-top">
-                <div class="rep-top-l">
-                    <div class="rep-title" id="repTitle">Tüm Kayıtlar</div>
-                    <div class="rep-sub" id="repRangeLabel">Tüm Zamanlar</div>
+        <main class="rep-main">
+            <header class="rep-head">
+                <div class="rep-head-l">
+                    <h1 id="repTitle">Raporlar</h1>
+                    <p id="repRangeLabel"></p>
                 </div>
                 <div class="rep-actions">
-                    <button class="rep-btn ghost" id="repPrint">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                        Yazdır
-                    </button>
-                    <button class="rep-btn primary" id="repExcel">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="12" y1="12" x2="12" y2="18"/></svg>
-                        Excel İndir
-                    </button>
+                    <button class="rep-btn ghost" id="repPrint"><span data-ic="printer"></span>Yazdır</button>
+                    <button class="rep-btn primary" id="repExcel"><span data-ic="sheet"></span>Excel</button>
+                </div>
+            </header>
+
+            <!-- Filtre satırı: tarih önce, sonra filtreler ve gruplama (hepsi aşağıdaki her şeyi kapsar) -->
+            <div class="rep-bar">
+                <div class="rep-seg" id="repDateSeg" role="group" aria-label="Tarih aralığı">
+                    <button data-preset="today">Bugün</button>
+                    <button data-preset="yesterday">Dün</button>
+                    <button data-preset="7">7 gün</button>
+                    <button data-preset="30">30 gün</button>
+                    <button data-preset="thismonth">Bu ay</button>
+                    <button data-preset="lastmonth">Geçen ay</button>
+                    <button data-preset="all">Tümü</button>
+                    <button data-preset="custom">Özel</button>
+                </div>
+                <div class="rep-custom" id="repCustomDates" hidden>
+                    <input type="date" id="repFrom" class="rep-in" aria-label="Başlangıç">
+                    <span>–</span>
+                    <input type="date" id="repTo" class="rep-in" aria-label="Bitiş">
+                </div>
+                <div class="rep-bar-r">
+                    <button class="rep-btn ghost" id="repFiltersBtn" aria-haspopup="dialog"><span data-ic="layers"></span>Filtreler<span class="rep-count" id="repFilterCount" hidden></span></button>
+                    <label class="rep-group">
+                        <span>Gruplama</span>
+                        <select id="repGroupBy" class="rep-in"></select>
+                    </label>
                 </div>
             </div>
+            <div class="rep-active" id="repActive" hidden></div>
 
-            <div class="rep-stats" id="repStats"></div>
+            <div class="rep-scroll" id="repScroll">
+                <section class="rep-kpis" id="repStats" aria-label="Özet"></section>
+                <section class="rep-insights" id="repInsights" aria-label="Grafikler"></section>
 
-            <div class="rep-tablewrap">
-                <div class="rep-table-scroll" id="repTableScroll"></div>
+                <section class="rep-card rep-tablecard">
+                    <div class="rep-card-h">
+                        <h2>Kayıtlar <span id="repRowCount"></span></h2>
+                        <div class="rep-cols">
+                            <button class="rep-btn ghost sm" id="repColsBtn" aria-haspopup="true"><span data-ic="gear"></span>Sütunlar</button>
+                            <div class="rep-pop" id="repColsPop" hidden></div>
+                        </div>
+                    </div>
+                    <div class="rep-table-scroll" id="repTableScroll"></div>
+                </section>
             </div>
-        </section>
-    </main>
+        </main>
+    </div>
 
-    <div id="toast" class="rep-toast"></div>
+    <!-- Filtreler çekmecesi -->
+    <div class="rep-scrim" id="repScrim" hidden></div>
+    <aside class="rep-drawer" id="repDrawer" role="dialog" aria-modal="true" aria-labelledby="repDrawerTitle" hidden>
+        <div class="rep-drawer-h">
+            <h2 id="repDrawerTitle">Filtreler</h2>
+            <button class="rep-x" id="repDrawerClose" aria-label="Kapat"><span data-ic="x"></span></button>
+        </div>
+        <div class="rep-drawer-b" id="repFacets"><!-- reports.js --></div>
+        <div class="rep-drawer-f">
+            <button class="rep-btn ghost" id="repReset">Filtreleri sıfırla</button>
+            <button class="rep-btn primary" id="repDrawerApply">Sonuçları göster</button>
+        </div>
+    </aside>
+
+    <!-- Satır ayrıntısı -->
+    <aside class="rep-drawer rep-detail" id="repDetail" role="dialog" aria-modal="true" aria-labelledby="repDetailTitle" hidden>
+        <div class="rep-drawer-h">
+            <h2 id="repDetailTitle">Kayıt ayrıntısı</h2>
+            <button class="rep-x" id="repDetailClose" aria-label="Kapat"><span data-ic="x"></span></button>
+        </div>
+        <div class="rep-drawer-b" id="repDetailBody"></div>
+    </aside>
+
+    <div class="rep-tip" id="repTip" role="tooltip" hidden></div>
+    <div id="toast" class="rep-toast" role="status" aria-live="polite"></div>
 
     <!-- Firebase + app -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js" crossorigin="anonymous"></script>
     <script src="js/core/firebase-config.js"></script>
+    <script src="js/core/ui-icons.js?v=20261111d"></script>
     <script src="js/core/pwa.js"></script>
     <script src="js/core/monitor.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
     <script src="js/core/modules.js"></script>
     <script src="js/core/issue-config.js"></script>
-    <script src="js/modules/reports.js"></script>
+    <script src="js/modules/reports.js?v=20261111g"></script>
 </body>
 
 </html>
