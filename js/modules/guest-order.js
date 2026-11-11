@@ -110,31 +110,43 @@
         { name: 'Oda Servisi Menüsü', pdfUrl: 'https://www.orimi.com/pdf-test.pdf' },
         { name: 'Spa & Wellness', pdfUrl: 'https://www.orimi.com/pdf-test.pdf' }
     ];
-    // Para birimi başına ayrı grup (gerçek getGuestStay yanıtıyla aynı şekil) —
-    // TRY (restoran) ve EUR (concierge) kalemlerinin ASLA karışmadığını
-    // demo modunda da göstermek için bilerek iki farklı para birimi var.
-    const DEMO_STAY = {
-        checkIn: '2026-06-28', checkOut: '2026-07-04',
-        folio: [
-            {
-                currency: 'TRY', total: 420, count: 2,
-                items: [
-                    { amount: 240, source: 'restaurant', tableName: 'Masa 12', createdAt: Date.now() - 3600000 },
-                    { amount: 180, source: 'restaurant', tableName: 'Masa 4', createdAt: Date.now() - 90000000 }
-                ]
-            },
-            {
-                currency: 'EUR', total: 60, count: 1,
-                items: [
-                    { amount: 60, source: 'concierge', tableName: '', createdAt: Date.now() - 7200000 }
-                ]
-            }
-        ],
-        reservations: [
-            { type: 'Restaurant', date: '2026-07-01', time: '20:00', status: 'Confirmed', resName: 'Lobi Restoran', pax: '2' },
-            { type: 'Transfer', date: '2026-07-04', time: '11:00', status: 'Pending', from: 'Otel', to: 'Havalimanı', vehicle: 'VIP Araç' }
-        ]
-    };
+    // Demo konaklama — gerçek getGuestStay yanıtıyla AYNI şekil (bkz.
+    // functions/guest-stay.js). Tarihler bugüne göre üretilir ki ilerleme,
+    // "Yarın" ve "Yaklaşan/Geçmiş" ayrımı demoda da doğru görünsün. TRY
+    // (restoran) ve EUR (concierge) bilerek iki ayrı para birimi.
+    function demoStay() {
+        const p2 = n => String(n).padStart(2, '0');
+        const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); };
+        const at = (n, h, m) => { const d = new Date(); d.setDate(d.getDate() + n); d.setHours(h, m, 0, 0); return d.getTime(); };
+        return {
+            checkIn: day(-2), checkOut: day(3),
+            folio: [
+                {
+                    currency: 'TRY', total: 1084, count: 2,
+                    items: [
+                        { amount: 504, source: 'restaurant', tableName: 'Masa 12', createdAt: at(0, 13, 40),
+                          check: { checkNo: '128', tableName: 'Masa 12', moreLines: 0, subtotal: 466.67, vat: 93.33, discount: 56, total: 504,
+                                   lines: [{ name: 'Izgara Köfte', qty: 2, amount: 480, ikram: false }, { name: 'Ayran', qty: 2, amount: 80, ikram: false }, { name: 'Künefe', qty: 1, amount: 0, ikram: true }] } },
+                        { amount: 580, source: 'restaurant', tableName: 'Havuz Bar', createdAt: at(-1, 21, 5),
+                          check: { checkNo: '117', tableName: 'Havuz Bar', moreLines: 0, subtotal: 483.33, vat: 96.67, discount: 0, total: 580,
+                                   lines: [{ name: 'Mojito', qty: 2, amount: 440, ikram: false }, { name: 'Patates Kızartması', qty: 1, amount: 140, ikram: false }] } }
+                    ]
+                },
+                {
+                    currency: 'EUR', total: 100, count: 1,
+                    items: [
+                        { amount: 100, source: 'concierge', tableName: '', createdAt: at(-1, 10, 15),
+                          res: { type: 'Transfer', date: day(3), time: '11:00', from: 'Otel', to: 'Havalimanı (IST)', resName: '', otherType: '', vessel: '' } }
+                    ]
+                }
+            ],
+            reservations: [
+                { type: 'Restaurant', date: day(1), time: '20:00', status: 'Confirmed', resName: 'Lobi Restoran', pax: '2', voucherNo: 'LR-2041', currency: 'EUR', total: 0, deposit: 0, balance: 0 },
+                { type: 'Transfer', date: day(3), time: '11:00', status: 'Confirmed', from: 'Otel', to: 'Havalimanı (IST)', vehicle: 'Mercedes Vito · TK 1984', pax: '2', voucherNo: 'VX-88', currency: 'EUR', total: 150, deposit: 50, balance: 100, folioApplied: true, folioAmount: 100 },
+                { type: 'Boat', date: day(-1), time: '10:00', status: 'Done', vessel: 'Gün Batımı Turu', provider: 'Mavi Tekne', pax: '2', voucherNo: 'BT-310', currency: 'EUR', total: 90, deposit: 90, balance: 0 }
+            ]
+        };
+    }
 
     // Durum etiketleri artık ÇEVİRİ ANAHTARI taşır. `label`/`sub` birer
     // GETTER: mevcut tüm çağrı yerleri (st.label, st.sub) hiç değişmeden
@@ -198,6 +210,13 @@
         compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.1 4.9-4.9 2.1 2.1-4.9z"/>',
         wrench: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-7.9 7.9l-6.3 6.3a2.1 2.1 0 0 1-3-3l6.3-6.3a6 6 0 0 1 7.9-7.9z"/>',
         utensils: '<path d="M3 2v7c0 1.1.9 2 2 2a2 2 0 0 0 2-2V2"/><path d="M5 11v11"/><path d="M19 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>',
+        car: '<path d="M5 17h14"/><path d="M3 17v-4l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 19 8l2 5v4"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/><path d="M3 13h18"/>',
+        sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+        anchor: '<circle cx="12" cy="5" r="2"/><path d="M12 7v15"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/>',
+        flower: '<path d="M12 22V12"/><circle cx="12" cy="8" r="4"/><path d="M12 16c-3 0-5-2-5-4"/><path d="M12 16c3 0 5-2 5-4"/>',
+        cake: '<path d="M4 21h16"/><path d="M5 21v-7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7"/><path d="M5 16c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0"/><path d="M12 12V8"/><path d="M12 5.5v.01"/>',
+        calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+        chevDown: '<polyline points="6 9 12 15 18 9"/>',
         grid: '<rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/>'
     };
     function icon(k, size, sw) {
@@ -946,31 +965,53 @@
     }
     function closeMenus() { closeSheet('goMenusSheet', 'goMenusBackdrop'); }
 
-    // ── Konaklama (Profil içinde: tarihler + Oda Hesabım + rezervasyonlar) ─
+    // ── Konaklama (Profil içinde: konaklama kartı + Oda Hesabım + rezervasyonlar) ─
     // Tek bir sunucu-taraflı doğrulanmış çağrı (getGuestStay) ile gelir; soyadı
     // gate'te girildiğinde saklanır (SURNAME_KEY). Doğrulama yoksa "doğrulama
-    // gerekli" gösterilir ve tek dokunuşla kapı açılır.
+    // gerekli" gösterilir ve tek dokunuşla kapı açılır. Sunucu ekstreyi adisyon
+    // ve rezervasyon ayrıntısıyla döndürür (functions/guest-stay.js); eski bir
+    // sunucu sürümü bu alanları döndürmezse arayüz ayrıntısız da çalışır.
     let stayData = null, stayState = 'idle'; // idle | loading | error
     const RES_TYPE_KEY = { Restaurant: 'restaurant', Beach: 'beach', Transfer: 'transfer', Flower: 'flower', Cake: 'cake', Boat: 'boat', Tour: 'tour' };
+    const RES_TYPE_IC = { Restaurant: 'utensils', Beach: 'sun', Transfer: 'car', Flower: 'flower', Cake: 'cake', Boat: 'anchor', Tour: 'compass' };
+    // Rezervasyon durumu → etiket + rozet rengi (concierge.js: Pending/Confirmed/Done/Cancelled).
+    const RES_STATUS = {
+        Pending: { key: 'pending', cls: 'go-st-pending' },
+        Confirmed: { key: 'confirmed', cls: 'go-st-completed' },
+        Done: { key: 'done', cls: 'go-st-cancelled' },
+        Cancelled: { key: 'cancelled', cls: 'go-st-danger' }
+    };
     function resTypeLabel(type) { const k = RES_TYPE_KEY[type]; return k ? t('guest.res.' + k) : (type === 'Other' ? t('common.other') : (type || t('guest.res.generic'))); }
-    function resDetailText(r) {
-        if (r.type === 'Restaurant' || r.type === 'Beach') return [r.resName, r.pax ? r.pax + ' ' + t('common.people') : ''].filter(Boolean).join(' · ');
-        if (r.type === 'Transfer') return [r.from, r.to].filter(Boolean).join(' → ') + (r.vehicle ? ' · ' + r.vehicle : '');
-        if (r.type === 'Boat' || r.type === 'Tour') return [r.vessel, r.provider].filter(Boolean).join(' · ');
-        // Other + Flower/Cake (+ bilinmeyen tür)
-        return r.otherType || r.resName || '';
+    function resStatus(r) { const s = RES_STATUS[r && r.status] || RES_STATUS.Pending; return { cls: s.cls, label: t('guest.res.status.' + s.key) }; }
+    // Kartın başlığı: tür + mekân/hizmet ("Restoran · Lobi Restoran").
+    function resTitle(r) {
+        const place = r.resName || r.vessel || r.otherType || '';
+        return place ? resTypeLabel(r.type) + ' · ' + place : resTypeLabel(r.type);
     }
-    function reservationRow(r, i) {
-        const detail = resDetailText(r);
-        return `<button class="go-row go-stay-res" data-i="${i}" aria-expanded="false">
-            <span class="go-row-ic">${icon('clock', 18, 1.9)}</span>
-            <span class="go-row-main">
-                <span class="go-row-tl">${esc(resTypeLabel(r.type))}</span>
-                <span class="go-row-sub go-num">${esc(fmtDateTR(r.date))}${r.time ? ' · ' + esc(r.time) : ''}</span>
-                <span class="go-stay-res-detail">${detail ? esc(detail) : esc(t('guest.stay.noDetail'))}</span>
-            </span>
-            <span class="go-chev">${icon('chev', 18)}</span>
-        </button>`;
+    function resSummary(r) {
+        const bits = [];
+        if (r.time) bits.push(r.time);
+        if (r.type === 'Transfer' && (r.from || r.to)) bits.push([r.from, r.to].filter(Boolean).join(' → '));
+        if (r.pax) bits.push(t('guest.res.paxCount', { n: r.pax }));
+        if (!bits.length && r.provider) bits.push(r.provider);
+        return bits.join(' · ');
+    }
+    function parseDay(s) {
+        const p = String(s || '').slice(0, 10).split('-');
+        if (p.length !== 3) return null;
+        const d = new Date(+p[0], +p[1] - 1, +p[2]);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    function dayDiff(s) {
+        const d = parseDay(s); if (!d) return null;
+        const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+        return Math.round((d - t0) / 86400000);
+    }
+    function relDay(diff) { return diff === 0 ? t('common.today') : diff === 1 ? t('common.tomorrow') : diff === -1 ? t('common.yesterday') : ''; }
+    function fmtDay(s, opts) {
+        const d = parseDay(s); if (!d) return s ? String(s) : '—';
+        try { return d.toLocaleDateString(I18n.locale(), opts || { weekday: 'short', day: '2-digit', month: 'short' }); }
+        catch (e) { return fmtDateTR(s); }
     }
     function fmtDateTR(iso) {
         if (!iso) return '—';
@@ -982,10 +1023,81 @@
         const n = Math.round((db2 - da) / 86400000);
         return isFinite(n) && n > 0 ? n : 0;
     }
+    // Geçmiş: tarihi geçmiş ya da tamamlanmış/iptal edilmiş rezervasyon.
+    function resIsPast(r) {
+        if (r.status === 'Done' || r.status === 'Cancelled') return true;
+        const n = dayDiff(r.date);
+        return n !== null && n < 0;
+    }
     function canLoadStay() { return DEMO || (!!fns && !!ROOM && !!loadSurname()); }
+
+    // Konaklama kartı: giriş → çıkış, gece sayısı ve konaklamanın ilerleyişi.
+    function stayCardHtml(s) {
+        if (!s.checkIn && !s.checkOut) return '';
+        const nights = (s.checkIn && s.checkOut) ? nightsBetween(s.checkIn, s.checkOut) : 0;
+        // dayDiff geçmiş tarih için NEGATİF döner → girişten bu yana geçen gün = −fark.
+        const dIn = dayDiff(s.checkIn), toOut = dayDiff(s.checkOut);
+        const sinceIn = dIn === null ? null : -dIn;
+        const outTime = String(config.checkoutTime || '').trim();
+        let prog = '';
+        if (nights && sinceIn !== null && toOut !== null && sinceIn >= 0 && toOut >= 0) {
+            const nightNo = Math.min(nights, sinceIn + 1);
+            const pct = Math.round(Math.min(1, Math.max(0.04, (sinceIn + 0.5) / nights)) * 100);
+            const label = toOut === 0 ? t('guest.stay.checkoutToday') : t('guest.stay.nightOf', { n: nightNo, total: nights });
+            prog = `<div class="go-stayprog">
+                <div class="go-stayprog-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
+                <div class="go-stayprog-tx"><span>${esc(label)}</span><span>${esc([toOut > 0 ? t('guest.stay.daysLeft', { n: toOut }) : '', outTime ? t('guest.stay.checkoutBy', { time: outTime }) : ''].filter(Boolean).join(' · '))}</span></div>
+            </div>`;
+        }
+        return `<div class="go-staycard">
+            <div class="go-staycard-row">
+                <div class="go-staycard-col"><small>${esc(t('guest.stay.checkIn'))}</small><b>${esc(fmtDay(s.checkIn, { day: '2-digit', month: 'short' }))}</b><span>${esc(fmtDay(s.checkIn, { weekday: 'long' }))}</span></div>
+                <div class="go-staycard-mid">${icon('bed', 18, 1.8)}${nights ? esc(t('guest.stay.nights', { n: nights })) : ''}</div>
+                <div class="go-staycard-col end"><small>${esc(t('guest.stay.checkOut'))}</small><b>${esc(fmtDay(s.checkOut, { day: '2-digit', month: 'short' }))}</b><span>${esc(fmtDay(s.checkOut, { weekday: 'long' }))}</span></div>
+            </div>
+            ${prog}
+        </div>`;
+    }
+    // Oda hesabı özet kartı: para birimi başına bakiye (ASLA tek tutarda
+    // toplanmaz), harcama sayısı, son harcamanın zamanı.
+    function folioCardHtml(groups) {
+        if (!groups.length) {
+            return `<div class="go-foliocard is-empty"><div class="go-foliocard-h"><span class="go-row-ic">${icon('receipt', 18, 1.9)}</span><b>${esc(t('guest.stay.folio'))}</b></div>
+                <div class="go-foliocard-sub">${esc(t('guest.stay.noExtras'))}</div></div>`;
+        }
+        const count = groups.reduce((n, g) => n + (Number(g.count) || 0), 0);
+        const last = groups.reduce((m, g) => Math.max(m, ...(g.items || []).map(it => it.createdAt || 0)), 0);
+        return `<button class="go-foliocard" id="goFolioCard">
+            <div class="go-foliocard-h"><span class="go-row-ic">${icon('receipt', 18, 1.9)}</span><b>${esc(t('guest.stay.folio'))}</b><span class="go-chev">${icon('chev', 18)}</span></div>
+            <div class="go-foliocard-amts">${groups.map(g => `<strong>${esc(fmtCur(g.total, g.currency))}</strong>`).join('')}</div>
+            <div class="go-foliocard-sub">${esc(t('guest.stay.chargesCount', { n: count }))}${last ? ' · ' + esc(t('guest.stay.lastCharge', { when: whenLabel(last) })) : ''}</div>
+        </button>`;
+    }
+    // "Bugün 14:20" / "Dün 21:05" / "08 Kas 21:05"
+    function whenLabel(ms) {
+        const d = new Date(ms); const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        const rel = relDay(dayDiff(iso));
+        return (rel || fmtDay(iso, { day: '2-digit', month: 'short' })) + ' ' + clock(ms);
+    }
+    function resCardHtml(r, i) {
+        const st = resStatus(r);
+        const d = parseDay(r.date);
+        const past = resIsPast(r);
+        const rel = past ? '' : relDay(dayDiff(r.date));
+        const sub = [rel || fmtDay(r.date, { weekday: 'short' }), resSummary(r)].filter(Boolean).join(' · ');
+        return `<button class="go-rescard ${past ? 'is-past' : ''}" data-res="${i}">
+            <span class="go-caldate" aria-hidden="true"><small>${esc(d ? d.toLocaleDateString(I18n.locale(), { month: 'short' }).replace('.', '') : '—')}</small><b>${d ? d.getDate() : '?'}</b></span>
+            <span class="go-rescard-main">
+                <span class="go-rescard-tl">${icon(RES_TYPE_IC[r.type] || 'spark', 16, 2)}<span>${esc(resTitle(r))}</span></span>
+                <span class="go-rescard-sub">${esc(sub)}</span>
+                <span class="go-statepill ${st.cls}">${esc(st.label)}</span>
+            </span>
+            <span class="go-chev">${icon('chev', 18)}</span>
+        </button>`;
+    }
     function renderStay() {
         const body = $('goStayBody'); if (!body) return;
-        if (DEMO && !stayData) stayData = DEMO_STAY;
+        if (DEMO && !stayData) stayData = demoStay();
         if (!stayData) {
             if (!canLoadStay()) {
                 body.innerHTML = `<div class="go-listcard">${rowBtnHtml('data-stay="verify"', icon('lock', 18, 1.9), t('guest.gate.required'), t('guest.gate.requiredHint'))}</div>`;
@@ -1001,36 +1113,23 @@
             };
             return;
         }
-        const nights = (stayData.checkIn && stayData.checkOut) ? nightsBetween(stayData.checkIn, stayData.checkOut) : 0;
-        const dateRow = (stayData.checkIn || stayData.checkOut) ? `
-            <div class="go-stay-dates">
-                <div class="go-stay-date"><small>${esc(t('guest.stay.checkIn'))}</small><b>${esc(fmtDateTR(stayData.checkIn))}</b></div>
-                <div class="go-stay-date"><small>${esc(t('guest.stay.checkOut'))}</small><b>${esc(fmtDateTR(stayData.checkOut))}</b></div>
-            </div>
-            ${nights ? `<div class="go-stay-nights">${esc(t('guest.stay.nights', { n: nights }))}</div>` : ''}` : '';
-        // Oda hesabı PARA BİRİMİ BAŞINA ayrı satır — ör. Concierge'in €150'lik
-        // ekstrası ile restoranın ₺2.400'lük adisyonu ASLA tek tutarda toplanmaz.
-        const folioGroups = stayData.folio || [];
-        const folioRows = folioGroups.length
-            ? folioGroups.map((g, i) => `<button class="go-row" data-folio-i="${i}">
-                <span class="go-row-ic">${icon('receipt', 18, 1.9)}</span>
-                <span class="go-row-main"><span class="go-row-tl">${esc(t('guest.stay.folio'))}</span><span class="go-row-sub">${esc(t('guest.stay.folioCount', { n: g.count, cur: g.currency }))}</span></span>
-                <span class="go-row-val go-num">${esc(fmtCur(g.total, g.currency))}</span>
-                <span class="go-chev">${icon('chev', 18)}</span></button>`).join('')
-            : `<div class="go-row"><span class="go-row-ic">${icon('receipt', 18, 1.9)}</span><span class="go-row-main"><span class="go-row-tl">${esc(t('guest.stay.folio'))}</span><span class="go-row-sub">${esc(t('guest.stay.noExtras'))}</span></span></div>`;
-        const resList = stayData.reservations || [];
-        const resHtml = `<div class="go-caption">${esc(t('guest.stay.reservations'))}</div>` + (resList.length
-            ? `<div class="go-listcard">${resList.map(reservationRow).join('')}</div>`
-            : `<div class="go-listcard"><div class="go-row"><span class="go-row-main"><span class="go-row-sub">${esc(t('guest.stay.noReservations'))}</span></span></div></div>`);
-        body.innerHTML = `${dateRow}<div class="go-listcard" style="margin-top:12px">${folioRows}</div>${resHtml}`;
+        const groups = stayData.folio || [];
+        const resList = (stayData.reservations || []).map((r, i) => Object.assign({ _i: i }, r));
+        const upcoming = resList.filter(r => !resIsPast(r)).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+        const past = resList.filter(resIsPast).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+        const resBlock = (title, list) => list.length
+            ? `<div class="go-caption">${esc(title)}</div><div class="go-listcard">${list.map(r => resCardHtml(r, r._i)).join('')}</div>` : '';
+        const resHtml = resList.length
+            ? resBlock(t('guest.res.upcoming'), upcoming) + resBlock(t('guest.res.past'), past)
+            : `<div class="go-caption">${esc(t('guest.stay.reservations'))}</div><div class="go-listcard"><div class="go-row"><span class="go-row-ic">${icon('calendar', 18, 1.9)}</span><span class="go-row-main"><span class="go-row-sub">${esc(t('guest.stay.noReservations'))}</span></span></div></div>`;
+        body.innerHTML = stayCardHtml(stayData) + folioCardHtml(groups) + resHtml;
         body.onclick = e => {
-            const f = e.target.closest('[data-folio-i]'); if (f) { openFolio(folioGroups[+f.dataset.folioI]); return; }
-            const r = e.target.closest('.go-stay-res');
-            if (r) { const open = !r.classList.contains('open'); r.classList.toggle('open', open); r.setAttribute('aria-expanded', String(open)); }
+            if (e.target.closest('#goFolioCard')) { openFolio(0); return; }
+            const r = e.target.closest('[data-res]'); if (r) openReservation(+r.dataset.res);
         };
     }
     function loadStay() {
-        if (DEMO) { stayData = DEMO_STAY; renderStay(); return; }
+        if (DEMO) { stayData = demoStay(); renderStay(); return; }
         if (stayData || stayState === 'loading' || !canLoadStay()) { renderStay(); return; }
         stayState = 'loading'; renderStay();
         fns.httpsCallable('getGuestStay')({ tenant: TENANT, room: ROOM, surname: loadSurname() }).then(res => {
@@ -1039,30 +1138,143 @@
             renderStay();
         }).catch(() => { stayState = 'error'; renderStay(); });
     }
-    // Ana sayfadaki "Konaklamam" kısayolu Profil sekmesine götürür (konaklama
-    // bilgileri artık ayrı bir sheet değil, Profil'in bir bölümü).
+    // Ana sayfadaki "Konaklama" kısayolu Profil sekmesine götürür (konaklama
+    // bilgileri ayrı bir sheet değil, Profil'in bir bölümü).
     function openStay() { showTab('profile'); }
 
-    // ── Oda Hesabım detayı (Profil'den drill-down) ─────────────
-    // NOT: burada HER ZAMAN grubun KENDİ para birimi kullanılır, fmtPrice()
-    // (guestConfig.currency) değil — Concierge kalemleri EUR olabilir.
+    // ── Oda Hesabım — ekstre ───────────────────────────────────
+    // Para birimi başına ayrı sekme (₺ ve € ASLA tek toplamda birleşmez);
+    // harcamalar güne göre gruplanır; restoran harcaması adisyon kalemleri,
+    // KDV ve indirimiyle açılır; concierge harcaması rezervasyonuyla eşlenir.
+    // NOT: tutarlar HER ZAMAN grubun KENDİ para birimiyle (fmtCur) yazılır.
     const CUR_SYM_MAP = { EUR: '€', TRY: '₺', USD: '$' };
-    function fmtCur(amount, currency) { return (CUR_SYM_MAP[currency] || config.currency) + Number(amount || 0).toLocaleString('tr-TR'); }
-    function folioSourceLabel(src) { return src === 'restaurant' || src === 'concierge' ? t('guest.stay.src.' + src) : (src || t('guest.stay.folioShort')); }
-    function folioRow(it, currency) {
-        const meta = [it.tableName || '', it.createdAt ? new Date(it.createdAt).toLocaleDateString(I18n.locale()) : ''].filter(Boolean).join(' · ');
-        return `<div class="go-folio-row">
-            <div><div class="go-folio-row-src">${esc(folioSourceLabel(it.source))}</div>${meta ? `<div class="go-folio-row-meta">${esc(meta)}</div>` : ''}</div>
-            <div class="go-folio-row-amt">${esc(fmtCur(it.amount, currency))}</div></div>`;
+    function fmtCur(amount, currency) {
+        const n = Number(amount || 0);
+        return (CUR_SYM_MAP[currency] || config.currency) + n.toLocaleString('tr-TR', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
     }
-    function openFolio(group) {
-        const body = $('goFolioBody'); if (!body || !group) return;
-        const rows = (group.items || []).map(it => folioRow(it, group.currency)).join('');
-        body.innerHTML = `${rows || emptyHtml('receipt', t('guest.stay.noItems'), '')}
-            <div class="go-folio-total"><b>${esc(t('guest.stay.total', { cur: group.currency }))}</b><span>${esc(fmtCur(group.total || 0, group.currency))}</span></div>`;
+    function folioSourceLabel(src) { return src === 'restaurant' || src === 'concierge' ? t('guest.stay.src.' + src) : (src || t('guest.stay.folioShort')); }
+    let folioTab = 0;
+    function txnHtml(it, currency, key) {
+        const isRest = it.source === 'restaurant';
+        const ch = it.check, rs = it.res;
+        let title = folioSourceLabel(it.source), sub = '';
+        if (isRest) {
+            title = [t('guest.stay.src.restaurant'), it.tableName || (ch && ch.tableName) || ''].filter(Boolean).join(' · ');
+            sub = [ch && ch.checkNo ? t('guest.stay.checkNo', { no: ch.checkNo }) : '', it.createdAt ? clock(it.createdAt) : ''].filter(Boolean).join(' · ');
+        } else if (rs) {
+            title = resTitle(rs);
+            const route = rs.type === 'Transfer' ? [rs.from, rs.to].filter(Boolean).join(' → ') : '';
+            sub = [route, rs.date ? fmtDay(rs.date, { day: '2-digit', month: 'short' }) + (rs.time ? ' ' + rs.time : '') : ''].filter(Boolean).join(' · ');
+        } else if (it.createdAt) {
+            sub = clock(it.createdAt);
+        }
+        const lines = ch && ch.lines && ch.lines.length ? `<div class="go-txn-lines" id="goTxnL${key}">
+                ${ch.lines.map(l => `<div class="go-line"><span><b>${l.qty}×</b> ${esc(l.name)}</span><span>${l.ikram ? `<em class="ikram">${esc(t('guest.stay.ikram'))}</em>` : esc(fmtCur(l.amount, currency))}</span></div>`).join('')}
+                ${ch.moreLines ? `<div class="go-line"><span>${esc(t('guest.stay.moreLines', { n: ch.moreLines }))}</span><span></span></div>` : ''}
+                ${ch.subtotal ? `<div class="go-line sum"><span>${esc(t('guest.stay.subtotal'))}</span><span>${esc(fmtCur(ch.subtotal, currency))}</span></div>` : ''}
+                ${ch.vat ? `<div class="go-line"><span>${esc(t('guest.stay.vat'))}</span><span>${esc(fmtCur(ch.vat, currency))}</span></div>` : ''}
+                ${ch.discount ? `<div class="go-line"><span>${esc(t('guest.stay.discount'))}</span><span>−${esc(fmtCur(ch.discount, currency))}</span></div>` : ''}
+                ${ch.total ? `<div class="go-line total"><span>${esc(t('guest.stay.checkTotal'))}</span><span>${esc(fmtCur(ch.total, currency))}</span></div>` : ''}
+                ${(ch.total && Math.abs(ch.total - it.amount) > 0.009) ? `<div class="go-line"><span>${esc(t('guest.stay.chargedToRoom'))}</span><span>${esc(fmtCur(it.amount, currency))}</span></div>` : ''}
+            </div>` : '';
+        const ic = isRest ? 'utensils' : (rs ? (RES_TYPE_IC[rs.type] || 'compass') : 'receipt');
+        return `<div class="go-txn">
+            <button class="go-txn-row" ${lines ? `data-txn="${key}" aria-expanded="false" aria-controls="goTxnL${key}"` : 'disabled'}>
+                <span class="go-row-ic">${icon(ic, 18, 1.9)}</span>
+                <span class="go-row-main"><span class="go-row-tl">${esc(title)}</span>${sub ? `<span class="go-row-sub">${esc(sub)}</span>` : ''}</span>
+                <span class="go-txn-amt">${esc(fmtCur(it.amount, currency))}</span>
+                ${lines ? `<span class="go-chev go-txn-chev">${icon('chevDown', 18)}</span>` : ''}
+            </button>
+            ${lines}
+        </div>`;
+    }
+    function renderFolio() {
+        const body = $('goFolioBody'); if (!body || !stayData) return;
+        const groups = stayData.folio || [];
+        if (!groups.length) { body.innerHTML = emptyHtml('receipt', t('guest.stay.noItems'), t('guest.stay.noExtras')); return; }
+        if (folioTab >= groups.length) folioTab = 0;
+        const g = groups[folioTab];
+        const meta = [hotelName(), ROOM ? t('guest.home.room', { room: ROOM }) : '', guestName || ''].filter(Boolean).join(' · ');
+        const dates = (stayData.checkIn || stayData.checkOut) ? fmtDay(stayData.checkIn, { day: '2-digit', month: 'short' }) + ' – ' + fmtDay(stayData.checkOut, { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+        // Güne göre gruplama (en yeni üstte)
+        const days = [];
+        (g.items || []).forEach((it, i) => {
+            const d = it.createdAt ? new Date(it.createdAt) : null;
+            const iso = d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : '';
+            let day = days.find(x => x.iso === iso);
+            if (!day) { day = { iso, items: [] }; days.push(day); }
+            day.items.push({ it, key: folioTab + '_' + i });
+        });
+        const dayLabel = iso => iso ? (relDay(dayDiff(iso)) || fmtDay(iso, { weekday: 'long', day: '2-digit', month: 'long' })) : t('common.other');
+        const ph = phoneDigits();
+        body.innerHTML = `
+            <p class="go-stmt-meta">${esc(meta)}${dates ? '<br>' + esc(dates) : ''}</p>
+            ${groups.length > 1 ? `<div class="go-seg" id="goFolioTabs" role="tablist">${groups.map((x, i) => `<button role="tab" aria-selected="${i === folioTab}" class="${i === folioTab ? 'active' : ''}" data-ftab="${i}">${esc(x.currency)} · ${esc(fmtCur(x.total, x.currency))}</button>`).join('')}</div>` : ''}
+            <div class="go-stmt-total">
+                <small>${esc(t('guest.stay.balance', { cur: g.currency }))}</small>
+                <strong>${esc(fmtCur(g.total, g.currency))}</strong>
+                <span>${esc(t('guest.stay.chargesCount', { n: g.count || (g.items || []).length }))}</span>
+            </div>
+            ${days.map(d => `<div class="go-stmt-day">${esc(dayLabel(d.iso))}</div>
+                <div class="go-listcard">${d.items.map(x => txnHtml(x.it, g.currency, x.key)).join('')}</div>`).join('')}
+            <p class="go-stmt-note">${esc(t('guest.stay.stmtNote'))}</p>
+            ${ph ? `<a class="go-btn" href="tel:${esc(ph)}">${svg(INFO_ICONS.phone, 18)}${esc(t('guest.home.callReception'))}</a>` : ''}`;
+        body.onclick = e => {
+            const tb = e.target.closest('[data-ftab]'); if (tb) { folioTab = +tb.dataset.ftab; renderFolio(); return; }
+            const tx = e.target.closest('[data-txn]');
+            if (tx) { const box = tx.parentElement; const open = !box.classList.contains('open'); box.classList.toggle('open', open); tx.setAttribute('aria-expanded', String(open)); }
+        };
+    }
+    function openFolio(i) {
+        folioTab = typeof i === 'number' ? i : 0;
+        renderFolio();
+        const b = $('goFolioBody'); if (b) b.scrollTop = 0;
         openSheet('goFolioSheet', 'goFolioBackdrop');
     }
     function closeFolio() { closeSheet('goFolioSheet', 'goFolioBackdrop'); }
+
+    // ── Rezervasyon ayrıntısı ──────────────────────────────────
+    function openReservation(i) {
+        const r = stayData && (stayData.reservations || [])[i]; if (!r) return;
+        const st = resStatus(r);
+        const diff = dayDiff(r.date);
+        const rel = (!resIsPast(r) && relDay(diff)) ? ' (' + relDay(diff) + ')' : '';
+        const kv = (k, v) => v ? `<div class="go-row"><span class="go-row-main"><span class="go-row-tl">${esc(k)}</span></span><span class="go-row-val">${esc(v)}</span></div>` : '';
+        const cur = r.currency || 'EUR';
+        const total = Number(r.total) || 0, deposit = Number(r.deposit) || 0;
+        const balance = r.balance != null ? Number(r.balance) || 0 : Math.max(0, total - deposit);
+        const sub = r.type === 'Transfer' ? [r.from, r.to].filter(Boolean).join(' → ') : (r.resName || r.vessel || r.otherType || '');
+        const ph = phoneDigits();
+        $('goResTitle').textContent = t('guest.res.detailTitle');
+        $('goResBody').innerHTML = `
+            <div class="go-resd-head">
+                <span class="go-resd-ic">${icon(RES_TYPE_IC[r.type] || 'spark', 22, 1.8)}</span>
+                <div><h3>${esc(resTypeLabel(r.type))}</h3>${sub ? `<p>${esc(sub)}</p>` : ''}<span class="go-statepill ${st.cls}">${esc(st.label)}</span></div>
+            </div>
+            <div class="go-listcard go-kv">
+                ${kv(t('guest.res.date'), fmtDay(r.date, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }))}
+                ${kv(t('guest.res.time'), r.time ? r.time + rel : '')}
+                ${r.type === 'Transfer' ? kv(t('guest.res.route'), [r.from, r.to].filter(Boolean).join(' → ')) : kv(t('guest.res.venue'), r.resName)}
+                ${kv(t('guest.res.tourName'), r.vessel)}
+                ${kv(t('guest.res.service'), r.otherType)}
+                ${kv(t('guest.res.vehicle'), r.vehicle)}
+                ${kv(t('guest.res.provider'), r.provider)}
+                ${kv(t('guest.res.pax'), r.pax)}
+                ${kv(t('guest.res.voucher'), r.voucherNo)}
+            </div>
+            ${total > 0 ? `<div class="go-caption">${esc(t('guest.res.payment'))}</div>
+            <div class="go-listcard go-kv">
+                ${kv(t('guest.res.total'), fmtCur(total, cur))}
+                ${deposit > 0 ? kv(t('guest.res.deposit'), fmtCur(deposit, cur)) : ''}
+                <div class="go-row total"><span class="go-row-main"><span class="go-row-tl">${esc(t('guest.res.balance'))}</span></span><span class="go-row-val">${esc(fmtCur(balance, cur))}</span></div>
+            </div>` : ''}
+            ${r.folioApplied ? `<div class="go-folioflag">${icon('check', 16, 2.4)}<span>${esc(t('guest.res.chargedToRoom'))}${r.folioAmount ? ' · ' + esc(fmtCur(r.folioAmount, cur)) : ''}</span></div>` : ''}
+            <p class="go-stmt-note">${esc(t('guest.res.changeNote'))}</p>`;
+        $('goResFoot').innerHTML = ph ? `<a class="go-cta go-cta-block" href="tel:${esc(ph)}">${svg(INFO_ICONS.phone, 18)}${esc(t('guest.home.callReception'))}</a>` : '';
+        const b = $('goResBody'); if (b) b.scrollTop = 0;
+        openSheet('goResSheet', 'goResBackdrop');
+    }
+    function closeReservation() { closeSheet('goResSheet', 'goResBackdrop'); }
 
     // ════════════════════════════════════════════════════════════
     //  HİZMETLER
@@ -2246,6 +2458,8 @@
         const fb = $('goFolioBackdrop'); if (fb) fb.onclick = closeFolio;
         const ic = $('goInfoClose'); if (ic) ic.onclick = closeInfo;
         const ib = $('goInfoBackdrop'); if (ib) ib.onclick = closeInfo;
+        const rc = $('goResClose'); if (rc) rc.onclick = closeReservation;
+        const rb = $('goResBackdrop'); if (rb) rb.onclick = closeReservation;
         const mc = $('goMenusClose'); if (mc) mc.onclick = closeMenus;
         const mb = $('goMenusBackdrop'); if (mb) mb.onclick = closeMenus;
         // Escape: en üstteki açık sheet'i kapatır (klavye/erişilebilirlik).
@@ -2253,6 +2467,7 @@
             if (e.key !== 'Escape') return;
             if ($('goConfirm').classList.contains('show')) { $('goConfirmNo').click(); return; }
             if ($('goItemSheet').classList.contains('show')) { closeItemSheet(); return; }
+            if ($('goResSheet').classList.contains('show')) { closeReservation(); return; }
             if ($('goFolioSheet').classList.contains('show')) { closeFolio(); return; }
             if ($('goInfoSheet').classList.contains('show')) { closeInfo(); return; }
             if ($('goMenusSheet').classList.contains('show')) { closeMenus(); return; }
