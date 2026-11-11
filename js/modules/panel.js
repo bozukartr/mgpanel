@@ -2,6 +2,8 @@ function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+// Arayüz ikonu (js/core/ui-icons.js) — dosya önbellekten eski gelirse boş döner, sayfa kırılmaz.
+const ic = (n) => (typeof window.UIcon === 'function' ? window.UIcon(n) : '');
 
 // Maintenance enforcement — also runs here so it works even if a cached page
 // didn't load the guard script.
@@ -1289,13 +1291,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
                 return ta - tb; // oldest (most overdue) first
             }).slice(0, 6);
-        if (!od.length) { box.innerHTML = '<div class="gi-od-empty">Geciken iş yok 🎉</div>'; return; }
+        if (!od.length) { box.innerHTML = '<div class="gi-od-empty">' + ic('check') + ' Geciken iş yok</div>'; return; }
         box.innerHTML = od.map(r => {
             const created = tsToDate(r.createdAt);
             const dur = created ? fmtDuration(Date.now() - created) : '';
             return `<div class="gi-od-item" data-id="${esc(r.id)}">
                 <b>${esc(r.guestName)} · Oda ${esc(r.room)}</b>
-                <div class="gi-od-meta"><span>${esc(r.department || '')}</span><span class="gi-od-dur">⌛ ${dur}</span></div>
+                <div class="gi-od-meta"><span>${esc(r.department || '')}</span><span class="gi-od-dur">${ic('hourglass')} ${dur}</span></div>
             </div>`;
         }).join('');
         box.querySelectorAll('.gi-od-item').forEach(it => it.addEventListener('click', () => {
@@ -1309,7 +1311,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!dateStr) return '';
         const date = new Date(dateStr);
         const options = { day: '2-digit', month: 'short', year: '2-digit' };
-        return date.toLocaleDateString('en-GB', options).replace(/ /g, ' ');
+        // Türkçe ay adı ("11 Kas 26") — eskiden en-GB ile "11 Nov 26" yazıyordu.
+        return date.toLocaleDateString('tr-TR', options);
     }
 
     // Helper: SLA aşıldı mı (departman SLA'sına göre)
@@ -1414,7 +1417,7 @@ document.addEventListener('DOMContentLoaded', () => {
             recordsTableBody.innerHTML = `
                 <tr class="gi-empty-row"><td colspan="7">
                     <div class="gi-empty">
-                        <span class="gi-empty-ico">🛎️</span>
+                        <span class="gi-empty-ico">${ic('clipboard')}</span>
                         <span>Kayıt bulunamadı</span>
                     </div>
                 </td></tr>`;
@@ -1427,23 +1430,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const statusClass = status.toLowerCase();
             const statusLabel = statusLabelOf(status);
             const noteCount = record.updates ? record.updates.length : 0;
-            const noteIndicator = noteCount > 0 ? `<span class="note-indicator" title="${noteCount} güncelleme">💬 ${noteCount}</span>` : '';
+            const noteIndicator = noteCount > 0 ? `<span class="note-indicator" title="${noteCount} güncelleme">${ic('message')} ${noteCount}</span>` : '';
             const ss = slaState(record);
             const lateBadgeStatus = status !== 'Solved' && ss.state === 'breached';
             let lateBadge = '';
             if (status !== 'Solved') {
-                if (ss.state === 'breached') lateBadge = `<span class="late-warning" title="SLA (${ss.sla} dk) aşıldı">⚠️ Gecikti · ${Math.round(-ss.remaining)}dk</span>`;
-                else if (ss.state === 'soon') lateBadge = `<span class="sla-soon" title="SLA (${ss.sla} dk) yaklaşıyor">⏳ ${Math.max(0, Math.round(ss.remaining))}dk kaldı</span>`;
+                if (ss.state === 'breached') lateBadge = `<span class="late-warning" title="SLA (${ss.sla} dk) aşıldı">${ic('alert')} Gecikti · ${Math.round(-ss.remaining)}dk</span>`;
+                else if (ss.state === 'soon') lateBadge = `<span class="sla-soon" title="SLA (${ss.sla} dk) yaklaşıyor">${ic('hourglass')} ${Math.max(0, Math.round(ss.remaining))}dk kaldı</span>`;
             }
-            const escBadge = record.escalated === true ? '<span class="esc-badge" title="Yöneticiye eskale edildi">🚨 Eskale</span>' : '';
+            const escBadge = record.escalated === true ? '<span class="esc-badge" title="Yöneticiye eskale edildi">' + ic('siren') + ' Eskale</span>' : '';
 
             const gStatus = getGuestStatus(record.guestName);
-            const gStatusLabel = gStatus === 'in_house' ? 'OTELDE' : 'ÇIKIŞ YAPTI';
+            const gStatusLabel = gStatus === 'in_house' ? 'Otelde' : 'Çıkış yaptı';
             const gStatusClass = gStatus === 'in_house' ? 'in-house-badge' : 'checked-out-badge';
 
             const recurCount = recurringRelated(record, recurIdx).length;
             const recurBadge = recurCount >= 1
-                ? `<span class="recurring-badge" title="Bu odada son ${RECUR_WINDOW_DAYS} günde aynı departmanda ${recurCount + 1} kayıt">🔁 Tekrarlayan</span>`
+                ? `<span class="recurring-badge" title="Bu odada son ${RECUR_WINDOW_DAYS} günde aynı departmanda ${recurCount + 1} kayıt">${ic('repeat')} Tekrarlayan</span>`
                 : '';
 
             // Duration cell: final total for completed work, live elapsed otherwise.
@@ -1452,11 +1455,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const done = tsToDate(record.completedAt);
             let durHtml = '<span class="dur-chip dur-none">—</span>';
             if (status === 'Solved') {
-                if (created && done) durHtml = `<span class="dur-chip dur-done" title="Oluşturmadan tamamlanmaya toplam süre">✓ ${fmtDuration(done - created)}</span>`;
+                if (created && done) durHtml = `<span class="dur-chip dur-done" title="Oluşturmadan tamamlanmaya toplam süre">${ic('check')} ${fmtDuration(done - created)}</span>`;
             } else if (status === 'InProgress' && acked) {
-                durHtml = `<span class="dur-chip dur-active" title="İş üstlenileli geçen süre">⏱ ${fmtDuration(now - acked)}</span>`;
+                durHtml = `<span class="dur-chip dur-active" title="İş üstlenileli geçen süre">${ic('timer')} ${fmtDuration(now - acked)}</span>`;
             } else if (created) {
-                durHtml = `<span class="dur-chip dur-wait" title="Talep oluşturulalı geçen süre">⌛ ${fmtDuration(now - created)}</span>`;
+                durHtml = `<span class="dur-chip dur-wait" title="Talep oluşturulalı geçen süre">${ic('hourglass')} ${fmtDuration(now - created)}</span>`;
             }
 
             // Mobil kartlarda tek dokunuşla iş akışı: bekleyen kaydı kendi
@@ -1465,13 +1468,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Masaüstünde bu hücre hiç görünmez.
             let quickAct = '';
             if (status === 'Following' && canTakeRecord(record)) {
-                quickAct = `<button class="qa-btn take" data-qa="take">🔧 İşi Üstlen</button>`;
+                quickAct = `<button class="qa-btn take" data-qa="take">${ic('wrench')} İşi Üstlen</button>`;
             } else if (status === 'InProgress' && canCompleteRecord(record)) {
-                quickAct = `<button class="qa-btn complete" data-qa="complete">✓ Tamamlandı</button>`;
+                quickAct = `<button class="qa-btn complete" data-qa="complete">${ic('check')} Tamamlandı</button>`;
             }
             // Üstlenilmiş iş her ekranda sahibiyle görünür — iş karışıklığı önlenir.
             const ownerBadge = (status === 'InProgress' && record.acknowledgedBy)
-                ? `<span class="owner-badge">🔧 ${esc(record.acknowledgedBy)} üstlendi</span>` : '';
+                ? `<span class="owner-badge">${ic('wrench')} ${esc(record.acknowledgedBy)} üstlendi</span>` : '';
 
             const row = document.createElement('tr');
             row.classList.add('st-' + statusClass); // mobil kartta sol durum şeridi
@@ -1481,15 +1484,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="date-cell">${formatDateShort(record.date)}</td>
                 <td class="room-cell"><span>${esc(record.room)}</span></td>
                 <td class="guest-cell">
-                    <div style="display:flex; flex-direction:column;">
-                        <strong>${esc(record.guestName)}${record.type === 'request' ? '<span class="req-type-badge">TALEP</span>' : ''} ${noteIndicator}</strong>
-                        <span class="${gStatusClass}" style="font-size:9px; font-weight:800; width:fit-content; margin-top:2px;">${gStatusLabel}</span>
-                        ${record.type === 'request' && record.assignedToName ? `<span style="font-size:10px;color:var(--primary);font-weight:600;margin-top:2px;">↳ ${esc(record.assignedToName)}</span>` : ''}
-                        ${ownerBadge}
+                    <!-- Satır 1: ad + tür + not sayısı. Satır 2: tüm durum
+                         rozetleri tek, kaydırmalı satırda (eskiden alt alta
+                         5-6 rozet satırı uzatıyordu). -->
+                    <div class="gc-top">
+                        <strong>${esc(record.guestName)}</strong>
+                        <span class="kind-badge ${record.type === 'request' ? 'req' : 'cmp'}">${record.type === 'request' ? 'Talep' : 'Şikayet'}</span>
+                        ${noteIndicator}
                     </div>
-                    ${recurBadge}
-                    ${lateBadge}
-                    ${escBadge}
+                    <div class="gc-meta">
+                        <span class="gstat ${gStatusClass}">${gStatusLabel}</span>
+                        ${record.type === 'request' && record.assignedToName ? `<span class="gc-assign">↳ ${esc(record.assignedToName)}</span>` : ''}
+                        ${ownerBadge}${recurBadge}${lateBadge}${escBadge}
+                    </div>
                 </td>
                 <td><span class="dept-badge">${esc(record.department)}</span></td>
                 <td class="staff-cell">${esc(record.staffInitial)}</td>
@@ -1546,7 +1553,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
             modalDesc.innerHTML += `
                 <div class="recur-box">
-                    <div class="recur-head">🔁 Tekrarlayan sorun · ${esc(record.room)} · ${esc(record.department)}${(record.topic && record.topic !== 'Genel') ? ' · ' + esc(record.topic) : ''}
+                    <div class="recur-head">${ic('repeat')} Tekrarlayan sorun · ${esc(record.room)} · ${esc(record.department)}${(record.topic && record.topic !== 'Genel') ? ' · ' + esc(record.topic) : ''}
                         <span class="recur-count">son ${RECUR_WINDOW_DAYS} günde ${related.length + 1} kayıt</span></div>
                     ${items}
                 </div>`;
@@ -1941,6 +1948,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTimeline(record) {
         timelineFeed.innerHTML = '';
         const updates = record.updates || [];
+        timelineFeed.classList.toggle('is-empty', updates.length === 0);
+        if (!updates.length) {
+            timelineFeed.innerHTML = '<div class="timeline-empty">Henüz not yok. Ekip için bir not bırakın.</div>';
+        }
         updates.forEach((note, index) => {
             const item = document.createElement('div');
             item.className = 'timeline-item' + (note.isSystem ? ' system' : '');

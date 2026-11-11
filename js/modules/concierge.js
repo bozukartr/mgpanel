@@ -218,16 +218,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ── CONFIG ────────────────────────────────────────────────
-    const SERVICE_ICONS = {
-        'Restaurant': '🍽️',
-        'Beach': '🏖️',
-        'Transfer': '🚗',
-        'Flower': '🌸',
-        'Cake': '🎂',
-        'Boat': '🛥️',
-        'Tour': '🗺️',
-        'Other': '✨'
-    };
+    // Hizmet türü → çizgi ikon (js/core/ui-icons.js) + Türkçe ad. Emoji
+    // ikonlar platforma göre farklı çiziliyordu; tür adları ise İngilizce
+    // ("Restaurant", "Boat") personele aynen gösteriliyordu.
+    const SERVICE_IC = { Restaurant: 'utensils', Beach: 'beach', Transfer: 'car', Flower: 'flower', Cake: 'cake', Boat: 'boat', Tour: 'map', Other: 'sparkles' };
+    const TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
+    const svcIcon = (type) => (typeof window.UIcon === 'function' ? window.UIcon(SERVICE_IC[type] || 'sparkles') : '');
+    const typeTr = (type) => TYPE_TR[type] || type || '';
+    const ic = (n) => (typeof window.UIcon === 'function' ? window.UIcon(n) : '');
+    const SERVICE_ICONS = new Proxy({}, { get: (_, k) => svcIcon(k) });
+    // Kart alt satırı: oda · saat · tür (+ kısa ayrıntı) · kişi —
+    // eskiden yalnızca "Room 1204 • 11:30" yazıyordu.
+    function resCardLine(r) {
+        const room = (r.room && r.room !== 'Pre-Arrival') ? 'Oda ' + r.room : 'Ön geliş';
+        let detail = '';
+        if (r.type === 'Transfer' && (r.from || r.to)) detail = [r.from, r.to].filter(Boolean).join(' → ');
+        else detail = r.resName || r.vessel || r.otherType || '';
+        return [room, r.time || '', typeTr(r.type) + (detail ? ': ' + detail : ''), r.pax ? r.pax + ' kişi' : ''].filter(Boolean).join(' · ');
+    }
 
     // ── STATE ─────────────────────────────────────────────────
     let reservations = [];
@@ -568,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Yeni Rezervasyon modalı — sağdaki "Misafir Özeti" panelini doldur.
-    const RES_ICON = { Restaurant: '🍽️', Beach: '🏖️', Transfer: '🚗', Flower: '🌸', Cake: '🎂', Boat: '🛥️', Tour: '🗺️', Other: '✨' };
+    const RES_ICON = SERVICE_ICONS;
     function renderGuestSummary(name) {
         const host = document.getElementById('rs-guestSummary');
         if (!host) return;
@@ -594,8 +602,8 @@ document.addEventListener('DOMContentLoaded', () => {
             html += list.slice(0, 6).map(function (r) {
                 const p = r.status === 'Confirmed' ? ['confirmed', 'Onaylı'] : (r.status === 'Cancelled' ? ['cancelled', 'İptal'] : ['pending', 'Bekliyor']);
                 const d = (r.date && /^\d{4}-\d{2}-\d{2}/.test(r.date)) ? r.date.split('-').reverse().join('.') : (r.date || '—');
-                return '<div class="rs-sum-item"><div class="rs-sum-ico">' + (RES_ICON[r.type] || '✨') + '</div>'
-                    + '<div class="it-main"><div class="it-t">' + esc(r.type || '') + (r.time ? ' · ' + esc(r.time) : '') + '</div>'
+                return '<div class="rs-sum-item"><div class="rs-sum-ico">' + svcIcon(r.type) + '</div>'
+                    + '<div class="it-main"><div class="it-t">' + esc(typeTr(r.type)) + (r.time ? ' · ' + esc(r.time) : '') + '</div>'
                     + '<div class="it-d">' + esc(d) + '</div></div><span class="rs-sum-pill ' + p[0] + '">' + p[1] + '</span></div>';
             }).join('');
             if (list.length > 6) html += '<div class="rs-sum-more">+' + (list.length - 6) + ' daha</div>';
@@ -610,11 +618,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const typeVal = typeSel ? typeSel.value : '';
         let typeLabel = typeVal;
         if (typeSel && typeSel.selectedOptions[0]) {
-            const parts = typeSel.selectedOptions[0].textContent.trim().split(' ');
-            typeLabel = parts.length > 1 ? parts.slice(1).join(' ') : parts[0];
+            // Seçenek metninden emoji kaldırıldı — ad olduğu gibi alınır.
+            typeLabel = typeSel.selectedOptions[0].textContent.trim();
         }
         const set = (id, val) => { const el = gid(id); if (el) el.textContent = val; };
-        set('rsPvIcon', RES_ICON[typeVal] || '✨');
+        { const pv = gid('rsPvIcon'); if (pv) pv.innerHTML = svcIcon(typeVal); }
         set('rsPvType', typeLabel || 'Hizmet');
         const date = (gid('rs-date') || {}).value || '';
         const time = (gid('rs-time') || {}).value || '';
@@ -998,7 +1006,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let warn = host.querySelector('.c-stat-overdue');
                 if (overdue > 0) {
                     if (!warn) { warn = document.createElement('span'); warn.className = 'c-stat-overdue'; host.appendChild(warn); }
-                    warn.textContent = '⚠️ ' + overdue + ' gecikti';
+                    warn.innerHTML = ic('alert') + ' ' + overdue + ' gecikti';
                     warn.title = 'Planlanan saati/tarihi geçmiş, hâlâ bekleyen kayıtlar';
                 } else if (warn) { warn.remove(); }
             }
@@ -1127,10 +1135,31 @@ document.addEventListener('DOMContentLoaded', () => {
             feed.appendChild(anyEl);
         }
 
+        // Ardışık BOŞ saatler tek satırda toplanır ("12:00 – 15:00 · Boş").
+        // Eskiden her boş saat ayrı bir "Müsait" satırıydı: dolu bir gün bile
+        // ekranın çoğunu boş satırlara harcıyor, rezervasyonlar kayboluyordu.
+        const fmtSlot = (hourVal) => (hourVal >= 24 ? (hourVal - 24) : hourVal).toString().padStart(2, '0') + ':00' + (hourVal >= 24 ? ' (+1)' : '');
+        let gapStart = null, gapEnd = null;
+        const flushGap = () => {
+            if (gapStart === null) return;
+            const gapEl = document.createElement('div');
+            gapEl.className = 'agenda-slot agenda-gap';
+            const label = gapEnd > gapStart ? fmtSlot(gapStart) + ' – ' + fmtSlot(gapEnd + 1) : fmtSlot(gapStart);
+            gapEl.innerHTML = `<div class="slot-time">${fmtSlot(gapStart)}</div><div class="slot-content"><div class="empty-slot-msg">${label} · Boş</div></div>`;
+            feed.appendChild(gapEl);
+            gapStart = gapEnd = null;
+        };
         slots.forEach(slot => {
             const items = grouped[slot];
             const isCore = parseInt(slot) >= 8 && parseInt(slot) <= 23;
             if (!isCore && items.length === 0) return; // Don't show empty non-core slots
+            if (items.length === 0) {
+                const hv = parseInt(slot);
+                if (gapStart === null) gapStart = hv;
+                gapEnd = hv;
+                return;
+            }
+            flushGap();
 
             const slotEl = document.createElement('div');
             slotEl.className = 'agenda-slot' + (items.length > 0 ? ' has-items' : '');
@@ -1154,6 +1183,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             feed.appendChild(slotEl);
         });
+        flushGap();
     }
 
     // Gecikmiş rezervasyon: hâlâ "Bekleyen" ama planlanan an geçmiş.
@@ -1180,13 +1210,13 @@ document.addEventListener('DOMContentLoaded', () => {
         card.setAttribute('onclick', `openDetailById('${r.id}')`);
 
         const isVirtual = r.isNextDayVirtual;
-        const nextDayBadge = isVirtual ? ' <span style="font-size:9px; background:#f97316; color:white; padding:1px 4px; border-radius:3px; font-weight:700; margin-left:4px;">+1 DAY</span>' : '';
+        const nextDayBadge = isVirtual ? ' <span style="font-size:9px; background:#f97316; color:white; padding:1px 4px; border-radius:3px; font-weight:700; margin-left:4px;">+1 gün</span>' : '';
         // Statik r.seriesTotal yalnızca oluşturma anındaki seri boyutunu taşır;
         // seriden bazı tarihler silinince bu sayı bayatlar (ör. "3/5" kalan
         // yalnızca 2 kayıt olsa bile). Rozet, aynı seriesId'yi paylaşan ve HÂLÂ
         // var olan kayıt sayısını canlı olarak sayar.
         const seriesCount = r.seriesId ? reservations.filter(x => x.seriesId === r.seriesId).length : 0;
-        const seriesBadge = (r.seriesId && seriesCount > 1) ? ` <span class="series-badge" title="Tekrarlayan rezervasyon serisi">🔁 Seri (${seriesCount})</span>` : '';
+        const seriesBadge = (r.seriesId && seriesCount > 1) ? ` <span class="series-badge" title="Tekrarlayan rezervasyon serisi">${ic('repeat')} Seri (${seriesCount})</span>` : '';
         // Gecikmiş: saati/tarihi geçmiş ama hâlâ Bekleyen. Bu kayıt "Yaklaşan"
         // kutusundan da düştüğü için (renderUpcoming yalnızca geleceğe bakar)
         // eskiden personelin baktığı HİÇBİR yerde işaretlenmiyordu.
@@ -1197,13 +1227,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const srcBadge = r.source === 'guest-order' ? ' <span class="res-src-badge" title="Misafirin QR ekranından geldi">QR</span>' : '';
 
         card.innerHTML = `
-            <div class="res-card-icon">${SERVICE_ICONS[r.type] || '✨'}</div>
+            <div class="res-card-icon">${svcIcon(r.type)}</div>
             <div class="res-card-info">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="res-card-guest">${esc(r.guestName)}${nextDayBadge}${seriesBadge}${srcBadge}${overdueBadge}</span>
-                    <span style="font-size:9px; color:var(--text-muted);">${fmtDate(r.date)}</span>
-                </div>
-                <span class="res-card-room">Room ${esc(r.room)} ${r.time ? '• ' + esc(r.time) : ''}</span>
+                <span class="res-card-guest">${esc(r.guestName)}${nextDayBadge}${seriesBadge}${srcBadge}${overdueBadge}</span>
+                <span class="res-card-room">${esc(resCardLine(r))}</span>
             </div>
             <div class="res-card-status">
                 <span class="status-badge ${esc((r.status || 'Pending').toLowerCase())}">${esc(({Pending:'Bekliyor',Confirmed:'Onaylı',Done:'Tamamlandı',Cancelled:'İptal'})[r.status] || r.status || 'Pending')}</span>
@@ -1239,36 +1266,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'Restaurant') {
             html = `
                 <div class="field-row">
-                    <div class="field-group"><label>Restaurant Name</label><input type="text" id="rs-resName"></div>
-                    <div class="field-group"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
+                    <div class="field-group"><label>Restoran adı</label><input type="text" id="rs-resName"></div>
+                    <div class="field-group"><label>Kişi</label><input type="number" id="rs-pax" inputmode="numeric"></div>
                 </div>`;
         } else if (type === 'Beach') {
             html = `
         <div class="field-row">
-            <div class="field-group"><label>Beach / Venue Name</label><input type="text" id="rs-resName"></div>
-            <div class="field-group"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
+            <div class="field-group"><label>Plaj / mekân adı</label><input type="text" id="rs-resName"></div>
+            <div class="field-group"><label>Kişi</label><input type="number" id="rs-pax" inputmode="numeric"></div>
         </div>`;
         } else if (type === 'Transfer') {
             html = `
                 <div class="field-row">
-                    <div class="field-group"><label>From</label><input type="text" id="rs-from"></div>
-                    <div class="field-group"><label>To</label><input type="text" id="rs-to"></div>
+                    <div class="field-group"><label>Nereden</label><input type="text" id="rs-from"></div>
+                    <div class="field-group"><label>Nereye</label><input type="text" id="rs-to"></div>
                 </div>
                 <div class="field-row">
-                    <div class="field-group"><label>Vehicle / Flight No</label><input type="text" id="rs-vehicle"></div>
-                    <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
+                    <div class="field-group"><label>Araç / uçuş no</label><input type="text" id="rs-vehicle"></div>
+                    <div class="field-group" style="max-width: 80px;"><label>Kişi</label><input type="number" id="rs-pax" inputmode="numeric"></div>
                 </div>`;
         } else if (type === 'Boat' || type === 'Tour') {
             html = `
-                <div class="field-group"><label>Vessel / Tour Name</label><input type="text" id="rs-vessel"></div>
+                <div class="field-group"><label>Tekne / tur adı</label><input type="text" id="rs-vessel"></div>
                 <div class="field-row">
-                    <div class="field-group"><label>Provider / Guide</label><input type="text" id="rs-provider"></div>
-                    <div class="field-group" style="max-width: 80px;"><label>Pax</label><input type="number" id="rs-pax" inputmode="numeric"></div>
+                    <div class="field-group"><label>Sağlayıcı / rehber</label><input type="text" id="rs-provider"></div>
+                    <div class="field-group" style="max-width: 80px;"><label>Kişi</label><input type="number" id="rs-pax" inputmode="numeric"></div>
                 </div>`;
         } else if (type === 'Other' || type === 'Flower' || type === 'Cake') {
             html = `
                 <div class="field-row">
-                    <div class="field-group"><label>Service Name</label><input type="text" id="rs-otherType" placeholder="e.g. Spa, Rent a Car, Babysitter"></div>
+                    <div class="field-group"><label>Hizmet adı</label><input type="text" id="rs-otherType" placeholder="Örn. Spa, araç kiralama, bebek bakıcısı"></div>
                 </div>`;
         }
         dynamicFields.innerHTML = html;
@@ -1501,8 +1528,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateDetail(r) {
         const sym = curSym(r.currency || 'EUR');
         document.getElementById('d-guest').textContent = r.guestName;
-        document.getElementById('d-room').textContent = 'Room ' + r.room;
-        document.getElementById('d-type').textContent = r.type;
+        document.getElementById('d-room').textContent = (r.room && r.room !== 'Pre-Arrival') ? 'Oda ' + r.room : 'Ön geliş (oda atanmadı)';
+        document.getElementById('d-type').textContent = typeTr(r.type);
         document.getElementById('d-date').textContent = fmtDate(r.date);
         document.getElementById('d-time').textContent = r.time || '—';
         // Number() ile güvenli dönüşüm — totalPrice/deposit eksik/tanımsız bir
@@ -1529,7 +1556,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('d-staff').textContent = r.staffInitial;
         document.getElementById('d-voucher').textContent = r.voucherNo || '—';
-        document.getElementById('d-notes').textContent = r.notes || 'No notes.';
+        document.getElementById('d-notes').textContent = r.notes || 'Not yok.';
 
         // ── İptal nedeni / kim iptal etti ────────────────────────────────
         // Personelden ZORUNLU olarak istenen iptal nedeni (ve misafirin kendi
@@ -1547,7 +1574,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (r.status === 'Done') {
                 html = `<div class="d-banner done"><b>Tamamlandı</b>${r.completedBy ? '<span>' + esc(r.completedBy) + '</span>' : ''}</div>`;
             } else if (isOverdueRes(r)) {
-                html = `<div class="d-banner overdue"><b>⚠️ Gecikti</b><span>Planlanan an geçti, kayıt hâlâ bekliyor.</span></div>`;
+                html = `<div class="d-banner overdue"><b>${ic('alert')} Gecikti</b><span>Planlanan an geçti, kayıt hâlâ bekliyor.</span></div>`;
             }
             if (html) {
                 if (!banner) {
@@ -1564,9 +1591,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         let dynHtml = '';
-        if (r.type === 'Restaurant' || r.type === 'Beach') dynHtml = `<p><strong>${esc(r.resName || '—')}</strong> (${esc(r.pax || '?')} Pax)</p>`;
-        else if (r.type === 'Transfer') dynHtml = `<p><strong>${esc(r.from || '?')} ➔ ${esc(r.to || '?')}</strong><br><small>${esc(r.vehicle || '')} (${esc(r.pax || '?')} Pax)</small></p>`;
-        else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${esc(r.vessel || '')}</strong><br><small>Provider: ${esc(r.provider || '')} (${esc(r.pax || '?')} Pax)</small></p>`;
+        const paxTxt = r.pax ? esc(r.pax) + ' kişi' : '';
+        if (r.type === 'Restaurant' || r.type === 'Beach') dynHtml = `<p><strong>${esc(r.resName || '—')}</strong>${paxTxt ? ' · ' + paxTxt : ''}</p>`;
+        else if (r.type === 'Transfer') dynHtml = `<p><strong>${esc(r.from || '?')} → ${esc(r.to || '?')}</strong><br><small>${[esc(r.vehicle || ''), paxTxt].filter(Boolean).join(' · ')}</small></p>`;
+        else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${esc(r.vessel || '')}</strong><br><small>${[r.provider ? 'Sağlayıcı: ' + esc(r.provider) : '', paxTxt].filter(Boolean).join(' · ')}</small></p>`;
         // 'Other' + Flower/Cake (+ herhangi bilinmeyen tür) — önceden yalnızca
         // 'Other' bir catch-all dalıydı, Flower/Cake tamamen BOŞ kalıyordu
         // (bkz. QR Concierge paneli denetimi).
@@ -1610,7 +1638,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (String(e && e.code).includes('not-found') && !det.errCode) showToast('Servis henüz yüklenmemiş (deploy eksik) — yöneticinizle iletişime geçin.', true);
             else showToast('Yansıtılamadı: ' + ((e && e.message) || 'hata'), true);
         } finally {
-            if (btn) { btn.disabled = false; btn.textContent = '🧾 Kalan Bakiyeyi Oda Hesabına Yansıt'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = ic('receipt') + ' Kalan Bakiyeyi Oda Hesabına Yansıt'; }
         }
     }
     const applyFolioBtn = document.getElementById('d-applyFolioBtn');
@@ -1815,8 +1843,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (guestMap[val]) {
             const guestItems = reservations.filter(r => r.guestName === val && r.status !== 'Cancelled' && r.status !== 'Done');
             document.getElementById('iti-sel-guest').textContent = val;
-            document.getElementById('iti-sel-room').textContent = 'Room ' + guestMap[val];
-            document.getElementById('iti-sel-count').textContent = `${guestItems.length} active reservation(s)`;
+            document.getElementById('iti-sel-room').textContent = 'Oda ' + guestMap[val];
+            document.getElementById('iti-sel-count').textContent = `${guestItems.length} aktif rezervasyon`;
             box.style.display = 'block';
         } else {
             box.style.display = 'none';
@@ -1831,9 +1859,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         selOptions.innerHTML = guestItems.map(item => `
             <label class="sel-item-row">
-                <div class="sel-item-icon-wrap">${SERVICE_ICONS[item.type] || '✨'}</div>
+                <div class="sel-item-icon-wrap">${svcIcon(item.type)}</div>
                 <div class="sel-item-info">
-                    <span class="sel-item-type">${esc(item.type)}</span>
+                    <span class="sel-item-type">${esc(typeTr(item.type))}</span>
                     <span class="sel-item-date">${fmtDate(item.date)} ${esc(item.time || '')}</span>
                     ${item.resName ? `<span class="sel-item-sub">${esc(item.resName)}</span>` : ''}
                 </div>

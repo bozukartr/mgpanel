@@ -26,8 +26,9 @@
     function fmtDur(v) {
         if (v == null) return '—';
         const h = v / 3600000;
-        if (h >= 24) return (h / 24).toFixed(1).replace('.0', '') + ' gün';
-        if (h >= 1) return h.toFixed(1).replace('.0', '') + ' sa';
+        // Türkçe ondalık ayırıcı virgül: "1.9 sa" değil "1,9 sa".
+        if (h >= 24) return (h / 24).toFixed(1).replace('.0', '').replace('.', ',') + ' gün';
+        if (h >= 1) return h.toFixed(1).replace('.0', '').replace('.', ',') + ' sa';
         return Math.max(1, Math.round(v / 60000)) + ' dk';
     }
 
@@ -40,7 +41,7 @@
         const name = USERNAME ? (USERNAME.charAt(0).toUpperCase() + USERNAME.slice(1)) : 'Ekip';
         const hour = new Date().getHours();
         const greet = hour < 6 ? 'İyi geceler' : hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar';
-        $('dashGreet').textContent = `${greet}, ${name} 👋`;
+        $('dashGreet').textContent = `${greet}, ${name}`;
         $('dashDate').textContent = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
         $('dashUser').textContent = name;
         $('dashRole').textContent = ROLE ? (ROLE.charAt(0).toUpperCase() + ROLE.slice(1)) : 'Personel';
@@ -98,6 +99,15 @@
     }
 
     // ── Aktivite akışı ─────────────────────────────────────────
+    // Rezervasyon türü personele TÜRKÇE gösterilir (veride İngilizce anahtar).
+    const TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
+    // "2026-11-11" → "11 Kas"
+    function fmtDay(iso) {
+        const p = String(iso || '').slice(0, 10).split('-');
+        if (p.length !== 3) return String(iso || '');
+        const d = new Date(+p[0], +p[1] - 1, +p[2]);
+        return isNaN(d) ? String(iso) : d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    }
     function renderFeed() {
         const items = [];
         logs.forEach(l => items.push({
@@ -105,23 +115,25 @@
             t: ms(l.createdAt),
             title: l.type === 'complaint' ? (l.complaint || 'Şikayet') : (l.complaint || (l.department || 'Talep')),
             meta: `Oda ${l.room || '—'} · ${l.guestName || ''}`.trim(),
-            pill: l.status === 'Solved' ? ['done', 'Tamamlandı'] : ['open', 'Açık']
+            // Durum 3 değerli: eskiden İşlemde kayıtlar da "Açık" görünüyordu.
+            pill: l.status === 'Solved' ? ['done', 'Tamamlandı'] : (l.status === 'InProgress' ? ['progress', 'İşlemde'] : ['open', 'Bekliyor'])
         }));
         reservations.forEach(r => items.push({
             kind: 'res',
             t: ms(r.createdAt),
-            title: `${r.type || 'Rezervasyon'}${r.guestName ? ' · ' + r.guestName : ''}`,
-            meta: `Oda ${r.room || '—'}${r.date ? ' · ' + r.date : ''}${r.time ? ' ' + r.time : ''}`,
-            pill: r.status === 'Confirmed' ? ['confirmed', 'Onaylı'] : (r.status === 'Cancelled' ? ['open', 'İptal'] : ['pending', 'Bekliyor'])
+            title: `${TYPE_TR[r.type] || r.type || 'Rezervasyon'}${r.guestName ? ' · ' + r.guestName : ''}`,
+            meta: `Oda ${r.room && r.room !== 'Pre-Arrival' ? r.room : '—'}${r.date ? ' · ' + fmtDay(r.date) : ''}${r.time ? ' ' + r.time : ''}`,
+            pill: r.status === 'Confirmed' ? ['confirmed', 'Onaylı'] : (r.status === 'Cancelled' ? ['cancel', 'İptal'] : (r.status === 'Done' ? ['done', 'Tamamlandı'] : ['pending', 'Bekliyor']))
         }));
         items.sort((a, b) => b.t - a.t);
         const top = items.slice(0, 8);
         const wrap = $('feedList');
         if (!top.length) { wrap.innerHTML = '<div class="dash-empty">Henüz aktivite yok.</div>'; return; }
-        const ic = { req: '🔔', cmp: '⚠️', res: '🛎️' };
+        const ICN = { req: 'bell', cmp: 'alert', res: 'concierge' };
+        const icon = (k) => (typeof window.UIcon === 'function' ? window.UIcon(ICN[k]) : '');
         wrap.innerHTML = top.map(i => `
             <div class="feed-item">
-                <div class="feed-ico ${i.kind}">${ic[i.kind]}</div>
+                <div class="feed-ico ${i.kind}">${icon(i.kind)}</div>
                 <div class="feed-body">
                     <div class="feed-title">${esc(i.title)}</div>
                     <div class="feed-meta">${esc(i.meta)}</div>
@@ -156,7 +168,7 @@
         const reqCount = logs.filter(l => l.type !== 'complaint').length;
         const cmpCount = logs.filter(l => l.type === 'complaint').length;
         const escCount = logs.filter(l => l.escalated === true).length;
-        if (quick) quick.textContent = `${reqCount} Talep · ${cmpCount} Şikayet` + (escCount ? ` · 🚨 ${escCount} eskale` : '');
+        if (quick) quick.textContent = `${reqCount} Talep · ${cmpCount} Şikayet` + (escCount ? ` · ${escCount} eskale` : '');
 
         // Durum dağılımı (talep + şikayet birlikte)
         const statusCounts = { Following: 0, InProgress: 0, Solved: 0 };
