@@ -536,6 +536,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeAddGuest = () => { addGuestModal.style.display = 'none'; };
     document.getElementById('addGuestBtn')?.addEventListener('click', openAddGuest);
     document.getElementById('agCancel')?.addEventListener('click', closeAddGuest);
+    // PMS'ten doldur: entegrasyon açıksa ad/oda yazarken PMS önerisi gelir;
+    // seçilen kayıt giriş/çıkış tarihlerini ve doğum yılını da doldurur (doğum
+    // yılı misafirin QR doğrulaması için zorunlu, çoğu PMS profilinde var).
+    // Eskiden CRM PMS'i hiç kullanmıyordu — her misafir elle yazılıyordu.
+    if (window.PMS) {
+        const toTr = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '');
+        PMS.attach({
+            nameInput: document.getElementById('agName'),
+            roomInput: document.getElementById('agRoom'),
+            onPick: (g) => {
+                const ci = toTr(g.checkIn), co = toTr(g.checkOut);
+                if (ci) document.getElementById('agCheckIn').value = ci;
+                if (co) document.getElementById('agCheckOut').value = co;
+                if (g.birthYear) document.getElementById('agBirthYear').value = g.birthYear;
+            }
+        });
+    }
     addGuestModal?.addEventListener('click', (e) => { if (e.target === addGuestModal) closeAddGuest(); });
     ['agCheckIn', 'agCheckOut'].forEach(id => {
         document.getElementById(id)?.addEventListener('blur', (e) => { e.target.value = smartExpandDate(e.target.value.trim()); });

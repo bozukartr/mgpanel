@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#0b1120">
 <link rel="icon" href="logo.png">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/modules/superadmin.css">
+<link rel="stylesheet" href="css/modules/superadmin.css?v=20261111c">
 <link rel="stylesheet" href="css/core/modal.css">
 <link rel="stylesheet" href="css/core/mobile-sheet.css">
 </head>
@@ -859,7 +859,7 @@
         <div class="modal-head"><h3>PMS Entegrasyonu</h3><p id="pmsHotel">—</p></div>
         <div class="modal-body">
             <label class="pms-switch-row">
-                <span><b>Entegrasyonu Etkinleştir</b><small>Açıkken Concierge ve Misafir Kayıtları, misafir/oda yazarken bu otelin PMS'inden veri çeker.</small></span>
+                <span><b>Entegrasyonu Etkinleştir</b><small>Açıkken Concierge, Misafir Kayıtları ve CRM'deki "Misafir Ekle", misafir/oda yazarken bu otelin PMS'inden öneri getirir (yalnızca okuma).</small></span>
                 <input type="checkbox" id="pmsEnabledChk">
             </label>
 
@@ -887,6 +887,8 @@
                         <input id="pmsResultsPath" placeholder="data.guests (boş = kök dizi)">
                     </div>
                 </div>
+                <label>Oda Arama Yolu <small>(opsiyonel — sorgu oda numarası gibiyse bu kullanılır)</small></label>
+                <input id="pmsRoomSearchPath" placeholder="/reservations?roomId={q}">
 
                 <div id="pmsApiKeyFields">
                     <label>API Anahtarı</label>
@@ -909,9 +911,10 @@
                     </div>
                     <div>
                         <label>Auth Öneki</label>
-                        <input id="pmsAuthPrefix" placeholder="Bearer ">
+                        <input id="pmsAuthPrefix" placeholder="ör. Bearer">
                     </div>
                 </div>
+                <div class="hint">Önek boşsa: OAuth2'de "Bearer" kullanılır, API anahtarı öneksiz gönderilir. Önekten sonraki boşluk otomatik eklenir.</div>
 
                 <label>Ek Header'lar <small>(sağlayıcının gerektirdiği sabit header'lar, ör. OPERA'nın x-app-key'i — değerler şifreli saklanır, kaydedildikten sonra bu forma geri okunmaz)</small></label>
                 <div class="field-row">
@@ -924,8 +927,9 @@
                 </div>
 
                 <label>Alan Eşlemesi (yanıttaki alan yolları)</label>
+                <div class="hint">Boş bırakılan alan için yaygın adlar denenir (name, roomNumber, arrival…). İç içe alan: <code>profile.lastName</code>, dizi: <code>phones[0].number</code>, birleştirme: <code>firstName + lastName</code>. "Bağlantıyı Test Et" yanıttaki alan yollarını listeler.</div>
                 <div class="field-row">
-                    <div><label class="sub">İsim</label><input id="pmsMapName" placeholder="name"></div>
+                    <div><label class="sub">İsim</label><input id="pmsMapName" placeholder="firstName + lastName"></div>
                     <div><label class="sub">Oda</label><input id="pmsMapRoom" placeholder="room"></div>
                 </div>
                 <div class="field-row">
@@ -936,11 +940,15 @@
                     <div><label class="sub">Telefon</label><input id="pmsMapPhone" placeholder="phone"></div>
                     <div><label class="sub">E-posta</label><input id="pmsMapEmail" placeholder="email"></div>
                 </div>
+                <div class="field-row">
+                    <div><label class="sub">VIP</label><input id="pmsMapVip" placeholder="vipCode"></div>
+                    <div><label class="sub">Doğum tarihi / yılı</label><input id="pmsMapBirth" placeholder="birthDate"></div>
+                </div>
             </div>
 
             <div class="pms-test">
                 <div class="field-row" style="align-items:flex-end;">
-                    <div style="flex:1;"><label>Test Sorgusu</label><input id="pmsTestQuery" placeholder="örn. ahmet veya 204" value="a"></div>
+                    <div style="flex:1;"><label>Test Sorgusu</label><input id="pmsTestQuery" placeholder="Gerçek bir soyadı veya oda no (en az 2 karakter)"></div>
                     <button class="btn-ghost" id="pmsTestBtn" style="white-space:nowrap;">Bağlantıyı Test Et</button>
                 </div>
                 <div class="pms-test-out" id="pmsTestOut"></div>
@@ -1006,7 +1014,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js" crossorigin="anonymous"></script>
 <script src="js/core/firebase-config.js"></script>
 <script src="js/core/monitor.js"></script>
-<script src="js/modules/superadmin.js"></script>
+<script src="js/modules/superadmin.js?v=20261111c"></script>
 <script src="js/utils/modal-guard.js"></script>
 </body>
 </html>

@@ -828,10 +828,11 @@
         // Defaults
         $('pmsEnabledChk').checked = false;
         $('pmsProvider').value = 'mock';
-        ['pmsBaseUrl', 'pmsSearchPath', 'pmsResultsPath', 'pmsApiKey', 'pmsAuthHeader', 'pmsAuthPrefix',
+        ['pmsBaseUrl', 'pmsSearchPath', 'pmsRoomSearchPath', 'pmsResultsPath', 'pmsApiKey', 'pmsAuthHeader', 'pmsAuthPrefix',
             'pmsOAuthTokenUrl', 'pmsOAuthClientId', 'pmsOAuthClientSecret', 'pmsOAuthScope',
             'pmsExtraHeader1Key', 'pmsExtraHeader1Val', 'pmsExtraHeader2Key', 'pmsExtraHeader2Val',
-            'pmsMapName', 'pmsMapRoom', 'pmsMapCheckIn', 'pmsMapCheckOut', 'pmsMapPhone', 'pmsMapEmail'].forEach(x => pmsSetField(x, ''));
+            'pmsMapName', 'pmsMapRoom', 'pmsMapCheckIn', 'pmsMapCheckOut', 'pmsMapPhone', 'pmsMapEmail',
+            'pmsMapVip', 'pmsMapBirth', 'pmsTestQuery'].forEach(x => pmsSetField(x, ''));
         currentPmsLastTest = null;
         pmsHasExistingOAuthSecret = false;
         try {
@@ -841,6 +842,7 @@
                 $('pmsEnabledChk').checked = !!c.enabled;
                 $('pmsProvider').value = pmsPresetIdFor(c);
                 pmsSetField('pmsBaseUrl', c.baseUrl); pmsSetField('pmsSearchPath', c.searchPath);
+                pmsSetField('pmsRoomSearchPath', c.roomSearchPath);
                 pmsSetField('pmsResultsPath', c.resultsPath);
                 // apiKey/oauth2.clientSecret ARTIK forma geri okunmuyor — sunucuda
                 // şifreli saklanıyor (bkz. functions/index.js pmsEncrypt) ve bu
@@ -868,6 +870,7 @@
                 pmsSetField('pmsMapName', m.name); pmsSetField('pmsMapRoom', m.room);
                 pmsSetField('pmsMapCheckIn', m.checkIn); pmsSetField('pmsMapCheckOut', m.checkOut);
                 pmsSetField('pmsMapPhone', m.phone); pmsSetField('pmsMapEmail', m.email);
+                pmsSetField('pmsMapVip', m.vip); pmsSetField('pmsMapBirth', m.birthDate);
                 currentPmsLastTest = c._lastTest || null;
                 renderPmsLastTest(c._lastTest);
             } else {
@@ -916,6 +919,7 @@
             authType: preset.authType,
             baseUrl: $('pmsBaseUrl').value.trim(),
             searchPath: $('pmsSearchPath').value.trim(),
+            roomSearchPath: $('pmsRoomSearchPath').value.trim(),
             resultsPath: $('pmsResultsPath').value.trim(),
             apiKey: preset.authType === 'oauth2' ? '' : $('pmsApiKey').value.trim(),
             oauth2: preset.authType === 'oauth2' ? {
@@ -930,30 +934,61 @@
             map: {
                 name: $('pmsMapName').value.trim(), room: $('pmsMapRoom').value.trim(),
                 checkIn: $('pmsMapCheckIn').value.trim(), checkOut: $('pmsMapCheckOut').value.trim(),
-                phone: $('pmsMapPhone').value.trim(), email: $('pmsMapEmail').value.trim()
+                phone: $('pmsMapPhone').value.trim(), email: $('pmsMapEmail').value.trim(),
+                vip: $('pmsMapVip').value.trim(), birthDate: $('pmsMapBirth').value.trim()
             }
         };
     }
+    // Test sonucu + yanıt teşhisi. Teşhis yalnızca ALAN YOLLARINI içerir
+    // (değer değil): gerçek bir PMS'i dokümansız yapılandırırken Sonuç Yolu ve
+    // Alan Eşlemesi'ni doğru girebilmek için.
+    function renderPmsDiag(d) {
+        if (!d) return '';
+        const rows = [];
+        rows.push('HTTP ' + esc(String(d.status)) + (d.byRoom ? ' · oda arama yolu kullanıldı' : ''));
+        if (d.insecure) rows.push('<span style="color:var(--red);">Uyarı: adres http:// — anahtar/token şifresiz iletilir, https kullanın.</span>');
+        if (d.resultsPath && !d.resultsPathFound) {
+            rows.push('<span style="color:var(--red);">Sonuç Yolu "' + esc(d.resultsPath) + '" yanıtta bir liste değil.</span>');
+        }
+        if (d.topKeys && d.topKeys.length) rows.push('Yanıtın üst alanları: <code>' + d.topKeys.map(esc).join(', ') + '</code>');
+        rows.push('Gelen kayıt: ' + esc(String(d.rawCount)) + ' · eşlenen: ' + esc(String(d.kept)));
+        if (d.rawCount > 0 && d.kept === 0) rows.push('<span style="color:var(--red);">Kayıtlar geldi ama isim/oda eşlenemedi — Alan Eşlemesi\'ni aşağıdaki yollara göre doldurun.</span>');
+        if (d.emptyFields && d.emptyFields.length) {
+            const tr = { name: 'İsim', room: 'Oda', checkIn: 'Giriş', checkOut: 'Çıkış' };
+            rows.push('Boş gelen alanlar: ' + d.emptyFields.map(f => tr[f] || f).join(', '));
+        }
+        if (d.itemKeys && d.itemKeys.length) rows.push('İlk kaydın alan yolları: <code>' + d.itemKeys.map(esc).join(', ') + '</code>');
+        return '<div class="pms-diag">' + rows.map(r => '<div>' + r + '</div>').join('') + '</div>';
+    }
     function renderPmsResults(data) {
         const out = $('pmsTestOut');
+        const diag = renderPmsDiag(data && data.diag);
         if (!data || !data.results || !data.results.length) {
-            out.innerHTML = '<div class="pms-test-msg ok">Bağlantı başarılı — sonuç bulunamadı (sorguyu değiştirin).</div>';
+            out.innerHTML = '<div class="pms-test-msg ok">PMS yanıt verdi — eşleşen misafir yok.</div>' + diag;
             return;
         }
-        out.innerHTML = '<div class="pms-test-msg ok">' + data.results.length + ' sonuç (' + (data.source || '') + '):</div>' +
+        out.innerHTML = '<div class="pms-test-msg ok">' + data.results.length + ' sonuç (' + esc(data.source === 'mock' ? 'demo veri' : 'PMS') + '):</div>' +
             data.results.slice(0, 6).map(g => `
             <div class="pms-guest">
                 <span><b>${esc(g.name || '—')}</b>${g.vip ? '<span class="vip">VIP</span>' : ''}</span>
-                <span>Oda ${esc(g.room || '—')}${g.checkIn ? ' · ' + esc(g.checkIn) + '→' + esc(g.checkOut || '') : ''}</span>
-            </div>`).join('');
+                <span>Oda ${esc(g.room || '—')}${g.checkIn ? ' · ' + esc(g.checkIn) + '→' + esc(g.checkOut || '') : ''}${g.birthYear ? ' · d. ' + esc(String(g.birthYear)) : ''}</span>
+            </div>`).join('') + diag;
     }
     async function testPms() {
         const btn = $('pmsTestBtn'); const out = $('pmsTestOut');
+        const q = $('pmsTestQuery').value.trim();
+        // Eskiden boşsa 'a' gönderiliyordu ve sunucu 2 karakterden kısa
+        // sorguda PMS'e hiç bağlanmadan "başarılı" dönüyordu.
+        if (q.length < 2) {
+            out.innerHTML = '<div class="pms-test-msg err">Gerçek bir soyadı veya oda numarası girin (en az 2 karakter) — test PMS\'e bu sorguyla bağlanır.</div>';
+            $('pmsTestQuery').focus();
+            return;
+        }
         btn.disabled = true; btn.textContent = 'Test ediliyor…'; out.innerHTML = '';
         const nowShim = { toDate: () => new Date() };
         try {
             const call = firebase.app().functions('us-central1').httpsCallable('pmsTestConfig');
-            const res = await call({ config: readPmsConfig(), query: $('pmsTestQuery').value.trim() || 'a', tenantId: currentPmsTenant });
+            const res = await call({ config: readPmsConfig(), query: q, tenantId: currentPmsTenant });
             renderPmsResults(res.data);
             currentPmsLastTest = { ok: true, count: res.data.results.length, at: nowShim };
             renderPmsLastTest(currentPmsLastTest);
@@ -980,7 +1015,13 @@
         // sessizce etkinleştirmek, personelin haftalarca fark etmeden kırık
         // bir entegrasyonla kalmasına yol açabiliyordu (bkz. tutarlılık
         // denetimi) — kaydetmeden önce açık bir onay isteniyor.
-        if (cfg.enabled && (!currentPmsLastTest || currentPmsLastTest.ok !== true)) {
+        // Demo sağlayıcı açıkken personel, uydurma misafirleri (Ahmet Yılmaz,
+        // Oda 204…) GERÇEK PMS önerisi gibi görür ve CRM'e kaydedebilir.
+        if (cfg.enabled && cfg.provider === 'mock'
+            && !confirm('Demo (Mock) sağlayıcı etkinleştirilecek.\n\nPersonel, misafir ararken UYDURMA demo misafirler görecek (öneri listesinde "DEMO VERİ" etiketiyle). Yalnızca deneme için kullanın.\n\nDevam edilsin mi?')) {
+            return;
+        }
+        if (cfg.enabled && cfg.provider !== 'mock' && (!currentPmsLastTest || currentPmsLastTest.ok !== true)) {
             const msg = currentPmsLastTest
                 ? 'Son bağlantı testi BAŞARISIZ oldu: "' + (currentPmsLastTest.message || '') + '"\n\nYine de etkinleştirilsin mi? Personel PMS önerisi görmeyebilir.'
                 : 'Bu yapılandırma hiç test edilmedi.\n\nYine de etkinleştirilsin mi? Önce "Bağlantıyı Test Et" ile doğrulamanız önerilir.';
