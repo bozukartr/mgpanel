@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f6f6f7">
     <!-- ?v=: JS/CSS 10 dk önbellekli (firebase.json), HTML değil — yeni HTML eski
          stil/JS ile karışmasın diye değişen dosyalar sürümlenir. -->
-    <link rel="stylesheet" href="css/modules/admin.css?v=20261111d">
+    <link rel="stylesheet" href="css/modules/admin.css?v=20261111f">
     <link rel="stylesheet" href="css/core/modal.css">
     <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -700,6 +700,32 @@
         </div>
     </div>
 
+    <!-- Varsayılanları kaldır — her zaman açılır, silinecekleri seçtirir -->
+    <div id="catUnseedModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Varsayılan hizmetleri kaldır</h3>
+                <button class="close-modal" id="closeCatUnseedModal" aria-label="Kapat">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="card-sub" id="unseedIntro" style="margin:0 0 12px;">Hazır listeden gelen hizmetler aşağıda. İşaretlenenler kalıcı olarak silinir ve misafirlerin sepetinden de çıkarılır.</p>
+                <div class="us-tools" id="unseedTools">
+                    <span id="unseedCount"></span>
+                    <span>
+                        <button type="button" class="btn-link" id="unseedAll">Tümünü seç</button>
+                        <button type="button" class="btn-link" id="unseedNone">Seçimi temizle</button>
+                    </span>
+                </div>
+                <div class="us-list" id="unseedList"></div>
+                <div class="list-empty" id="unseedEmpty" style="display:none;">Listenizde hazır listeden gelen bir hizmet yok; kaldırılacak bir şey bulunmuyor.<br>Kendi eklediğiniz hizmetleri satırına tıklayıp tek tek silebilirsiniz.</div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="action-btn danger-btn" id="unseedConfirm">Sil</button>
+                <button type="button" class="action-btn secondary" id="unseedCancel">Vazgeç</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Hızlı toplu ekleme -->
     <div id="catBulkModal" class="modal">
         <div class="modal-content" style="max-width:760px;">
@@ -846,7 +872,7 @@
     <script src="js/modules/admin.js?v=20261111d"></script>
     <!-- qrcodejs artık eager değil — QR üretimi anında tembel yüklenir. -->
     <script src="js/core/lazy-load.js"></script>
-    <script src="js/modules/request-catalog.js?v=20261111e"></script>
+    <script src="js/modules/request-catalog.js?v=20261111f"></script>
     <script src="js/modules/issue-config-admin.js?v=20261111d"></script>
     <script src="js/modules/notify-config-admin.js"></script>
     <script src="js/modules/menus-admin.js?v=20261111d"></script>
