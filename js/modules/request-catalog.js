@@ -479,7 +479,11 @@
             }, d));
             n++;
         });
-        if (!n) { toast('Eklenecek yeni hizmet yok — varsayılanların hepsi zaten listede.'); return; }
+        if (!n) {
+            // Eskiden yalnızca kısa bir bildirim çıkıyordu — tıklama boşa gitmiş sanılıyordu.
+            await AppDialog.info({ title: 'Varsayılanları yükle', message: 'Eklenecek yeni hizmet yok: hazır listedeki hizmetlerin hepsi zaten kataloğunuzda.' });
+            return;
+        }
         batch.commit().then(() => toast(n + ' hizmet eklendi.')).catch(err => { console.error(err); toast('Yüklenemedi.', true); });
     }
 
@@ -514,25 +518,74 @@
             && !(Array.isArray(it.modifiers) && it.modifiers.length)
             && !!sameEta;
     }
-    async function unseedDefaults() {
-        const sameName = items.filter(i => DEFAULT_BY_NAME.has(lc(i.name)));
-        const matches = sameName.filter(isUntouchedDefault);
-        const kept = sameName.length - matches.length;
-        if (!matches.length) {
-            toast(kept ? 'Kaldırılacak varsayılan hizmet yok — aynı adlı ' + kept + ' hizmet düzenlenmiş olduğu için korunuyor.' : 'Kaldırılacak varsayılan hizmet yok.');
-            return;
-        }
-        const ok = await AppDialog.confirm({
-            title: 'Varsayılanları kaldır', danger: true, confirmText: 'Kaldır',
-            message: matches.length + ' varsayılan hizmet kalıcı olarak silinecek (hiç düzenlenmemiş olanlar).'
-                + (kept ? '\n\nVarsayılanla aynı adı taşıyan ama sizin düzenlediğiniz ya da kendiniz eklediğiniz ' + kept + ' hizmet KORUNACAK; gerekirse tek tek silebilirsiniz.' : '')
-                + '\n\nMisafirlerin sepetindeki bu hizmetler de çıkarılır. Devam edilsin mi?'
-        });
-        if (!ok) return;
+    // "Varsayılanları kaldır" — HER ZAMAN bir pencere açar. Eskiden silinecek
+    // dokunulmamış varsayılan yoksa (ya da listede hiç varsayılan yoksa)
+    // yalnızca ekranın altında 3 sn'lik bir bildirim çıkıyordu; tıklamanın
+    // işe yaramadığı sanılıyordu. Pencere, hazır listeyle aynı adı taşıyan
+    // TÜM hizmetleri gösterir: dokunulmamışlar işaretli gelir; düzenlenmiş ya
+    // da otelin kendi eklediği aynı adlı hizmetler işaretsiz ve etiketlidir —
+    // yönetici isterse onları da seçip silebilir (bilinçli seçim).
+    let unseedRows = [];
+    function openUnseedModal() {
+        const cur = (cfg && cfg.currency) || '₺';
+        unseedRows = items.filter(i => DEFAULT_BY_NAME.has(lc(i.name)))
+            .map(i => ({ item: i, untouched: isUntouchedDefault(i) }))
+            .sort((a, b) => (b.untouched - a.untouched) || byOrder(a.item, b.item));
+        const list = $('unseedList');
+        const has = unseedRows.length > 0;
+        $('unseedEmpty').style.display = has ? 'none' : 'block';
+        $('unseedTools').style.display = has ? 'flex' : 'none';
+        $('unseedIntro').style.display = has ? 'block' : 'none';
+        $('unseedConfirm').style.display = has ? '' : 'none';
+        $('unseedCancel').textContent = has ? 'Vazgeç' : 'Kapat';
+        list.innerHTML = unseedRows.map((r, idx) => {
+            const i = r.item;
+            const meta = [i.category || '', i.department || '', i.price ? cur + Number(i.price).toLocaleString('tr-TR') : 'Ücretsiz']
+                .filter(Boolean).join(' · ');
+            return `<label class="us-row${r.untouched ? '' : ' is-edited'}">
+                <input type="checkbox" data-us="${idx}" ${r.untouched ? 'checked' : ''}>
+                <span class="us-ic" aria-hidden="true">${svcIcon(i, 18)}</span>
+                <span class="us-main"><b>${esc(i.name)}</b><small>${esc(meta)}</small></span>
+                <span class="us-tag">${r.untouched ? 'Hazır listeyle aynı' : 'Düzenlenmiş'}</span>
+            </label>`;
+        }).join('');
+        list.querySelectorAll('input[data-us]').forEach(cb => cb.addEventListener('change', syncUnseedCount));
+        syncUnseedCount();
+        $('catUnseedModal').style.display = 'flex';
+    }
+    function closeUnseedModal() { $('catUnseedModal').style.display = 'none'; }
+    function unseedSelected() {
+        return Array.from($('unseedList').querySelectorAll('input[data-us]:checked'))
+            .map(cb => unseedRows[+cb.dataset.us]).filter(Boolean);
+    }
+    function syncUnseedCount() {
+        const sel = unseedSelected();
+        const edited = sel.filter(r => !r.untouched).length;
+        $('unseedCount').textContent = unseedRows.length + ' hizmetten ' + sel.length + ' seçili'
+            + (edited ? ' · ' + edited + ' düzenlenmiş hizmet dahil' : '');
+        const btn = $('unseedConfirm');
+        btn.disabled = !sel.length;
+        btn.textContent = sel.length ? sel.length + ' hizmeti sil' : 'Silinecek hizmet seçin';
+    }
+    function unseedSetAll(on) {
+        $('unseedList').querySelectorAll('input[data-us]').forEach(cb => { cb.checked = on; });
+        syncUnseedCount();
+    }
+    function confirmUnseed() {
+        const sel = unseedSelected();
+        if (!sel.length) return;
+        const btn = $('unseedConfirm');
+        btn.disabled = true; btn.textContent = 'Siliniyor…';
         const batch = db.batch();
-        matches.forEach(i => batch.delete(db.collection(COL).doc(i.id)));
-        batch.commit().then(() => toast(matches.length + ' varsayılan hizmet kaldırıldı.' + (kept ? ' ' + kept + ' düzenlenmiş hizmet korundu.' : '')))
-            .catch(err => { console.error(err); toast('Kaldırılamadı.', true); });
+        sel.forEach(r => batch.delete(db.collection(COL).doc(r.item.id)));
+        batch.commit().then(() => {
+            closeUnseedModal();
+            toast(sel.length + ' varsayılan hizmet kaldırıldı.');
+        }).catch(err => {
+            console.error(err);
+            toast('Kaldırılamadı.', true);
+            syncUnseedCount();
+        });
     }
 
     // ── Guest page settings (guestConfig) ──────────────────────
@@ -920,7 +973,13 @@
         $('catSearch') && $('catSearch').addEventListener('input', (e) => { searchTerm = e.target.value; render(); });
         $('catAddBtn') && ($('catAddBtn').onclick = () => openModal(null));
         $('catSeedBtn') && ($('catSeedBtn').onclick = seedDefaults);
-        $('catUnseedBtn') && ($('catUnseedBtn').onclick = unseedDefaults);
+        $('catUnseedBtn') && ($('catUnseedBtn').onclick = openUnseedModal);
+        $('closeCatUnseedModal') && ($('closeCatUnseedModal').onclick = closeUnseedModal);
+        $('unseedCancel') && ($('unseedCancel').onclick = closeUnseedModal);
+        $('unseedConfirm') && ($('unseedConfirm').onclick = confirmUnseed);
+        $('unseedAll') && ($('unseedAll').onclick = () => unseedSetAll(true));
+        $('unseedNone') && ($('unseedNone').onclick = () => unseedSetAll(false));
+        $('catUnseedModal') && $('catUnseedModal').addEventListener('click', (e) => { if (e.target === $('catUnseedModal')) closeUnseedModal(); });
         $('catExportBtn') && ($('catExportBtn').onclick = exportCsv);
         $('catImportBtn') && ($('catImportBtn').onclick = () => $('catImportInput').click());
         $('catImportInput') && ($('catImportInput').onchange = (e) => {

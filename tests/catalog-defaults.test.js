@@ -24,7 +24,7 @@ const cat = read('js/modules/request-catalog.js');
 const code = [
     slice(cat, '    const DEFAULTS = [', '\n\n    function esc('),
     slice(cat, '    function parseEtaText(txt) {', '    function minsToHHMM('),
-    slice(cat, "    const lc = (v) =>", '    async function unseedDefaults() {')
+    slice(cat, "    const lc = (v) =>", '    // "Varsayılanları kaldır" — HER ZAMAN')
 ].join('\n') + '\n;this.isUntouchedDefault = isUntouchedDefault; this.DEFAULTS = DEFAULTS;';
 const ctx = {};
 vm.runInNewContext(code, ctx);
@@ -57,10 +57,21 @@ test('düzenlenmiş varsayılan veya otelin kendi eklediği aynı adlı kalem KO
     assert.equal(isUntouchedDefault({ name: 'Spa Randevusu', category: 'Spa' }), false);
 });
 
-test('onay mesajı korunacak kalemleri ayrıca belirtir; isimle toplu silme yok', () => {
-    const fn = slice(cat, '    async function unseedDefaults() {', '    // ── Guest page settings');
-    assert.match(fn, /filter\(isUntouchedDefault\)/);
-    assert.match(fn, /KORUNACAK/);
+test('"Varsayılanları kaldır" her zaman pencere açar; dokunulmamışlar işaretli, düzenlenmişler işaretsiz gelir', () => {
+    const fn = slice(cat, '    function openUnseedModal() {', '    function closeUnseedModal()');
+    // Erken dönüş (yalnızca bildirim gösterip pencere açmama) yok.
+    assert.doesNotMatch(fn, /return;/);
+    assert.match(fn, /\$\('catUnseedModal'\)\.style\.display = 'flex'/);
+    assert.match(fn, /isUntouchedDefault\(i\)/);
+    assert.match(fn, /r\.untouched \? 'checked' : ''/);
+    assert.match(cat, /\$\('catUnseedBtn'\)\.onclick = openUnseedModal/);
+    // Silme yalnızca SEÇİLENLERE uygulanır.
+    const del = slice(cat, '    function confirmUnseed() {', '    // ── Guest page settings');
+    assert.match(del, /unseedSelected\(\)/);
+    const html = fs.readFileSync(path.join(__dirname, '..', 'admin.html'), 'utf8');
+    for (const id of ['catUnseedModal', 'unseedList', 'unseedConfirm', 'unseedCancel', 'unseedEmpty', 'unseedAll', 'unseedNone']) {
+        assert.match(html, new RegExp('id="' + id + '"'), id);
+    }
     assert.doesNotMatch(cat, /kendi eklediğiniz\/adını değiştirdiğiniz talepler etkilenmez/);
 });
 
