@@ -924,7 +924,8 @@ const TENANT_FIELD_COLLECTIONS = [
   // Restoran sertleştirme + kimlik migrasyonu koleksiyonları — tenant
   // silmede bunlar da temizlenmeli (bkz. restoran denetimi Z10): aksi
   // halde slug yeniden kullanıldığında hayalet masa kilitleri kalıyordu.
-  'restTables', 'restSessions', 'restOps', 'restAudit', 'stays', 'migrationReview'
+  'restTables', 'restSessions', 'restOps', 'restAudit', 'stays', 'migrationReview',
+  'webauthnCredentials' // Face ID cihaz kayıtları (tenantId taşır)
 ];
 const TENANT_DOC_COLLECTIONS = [
   'maintenance', 'financeConfig', 'pmsConfig', 'pmsOAuthCache', 'guestConfig',
@@ -1002,6 +1003,7 @@ exports.deleteUser = onCall({ region: REGION }, async (request) => {
   // yetim kalıyordu (artık var olmayan bir uid'e push denemesi/bildirim listesi).
   await deleteByQuery(db.collection('pushTokens').where('uid', '==', uid));
   await deleteByQuery(db.collection('notifications').where('toUid', '==', uid));
+  await pkDeleteForUser(uid); // Face ID cihaz kayıtları
   return { deleted: true };
 });
 
@@ -1054,6 +1056,9 @@ exports.resetUserPassword = onCall({ region: REGION }, async (request) => {
     mustChangePassword: true,
     passwordResetAt: admin.firestore.FieldValue.serverTimestamp()
   });
+  // Şifre sıfırlama genelde "hesap başkasının elinde olabilir" anlamına gelir:
+  // Face ID cihaz kayıtları da kaldırılır, kişi yeni şifreyle girip yeniden açar.
+  await pkDeleteForUser(targetUid);
   return { tempPassword };
 });
 
@@ -2446,6 +2451,193 @@ exports.restRepairTableLocks = onCall({ region: REGION }, async (request) => {
 //  Süperadmin "Stres" sekmesi: dış servis izleme + kendi sağlık kontrolü
 //  + izole yük testi. Hiçbiri kiracı (otel) verisine dokunmaz.
 // ═══════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════
+// FACE ID / TOUCH ID İLE GİRİŞ (passkey · WebAuthn)
+// Yönetici kullanıcı bazında açar (systemUsers.faceIdAllowed) — kişisel
+// telefon kullanan personel için; ortak kullanılan hesaplarda kapalı kalır.
+// Kriptografi ve doğrulama functions/passkey-core.js'te. Kayıtlar
+// webauthnCredentials, tek kullanımlık doğrulama dizeleri webauthnChallenges
+// koleksiyonunda (firestore.rules: istemciye tamamen kapalı).
+// Başarılı girişte Firebase özel token'ı üretilir → istemci normal giriş
+// akışına (otel, modüller, abonelik, zorunlu şifre değişimi) aynen devam eder.
+// KURULUM: özel token imzalamak için Cloud Functions servis hesabına
+// "Service Account Token Creator" rolü gerekir (docs/face-id-kurulum.md).
+// ═══════════════════════════════════════════════════════════════════
+const passkeyCore = require('./passkey-core');
+const PK_CRED = 'webauthnCredentials';
+const PK_CHAL = 'webauthnChallenges';
+const PK_REG_TTL_MS = 5 * 60 * 1000;
+const PK_AUTH_TTL_MS = 5 * 60 * 1000;
+// IP başına, 10 dakikalık pencerede. Bir oteldeki tüm cihazlar çoğu zaman
+// tek bir internet çıkışını (IP) paylaşır → sınırlar buna göre geniş; imza
+// doğrulaması kaba kuvvetle aşılamaz, sınır maliyet/kötüye kullanım içindir.
+const PK_OPT_MAX_PER_IP = 300;
+const PK_VER_MAX_PER_IP = 120;
+
+function pkRp(request) {
+  const h = (request.rawRequest && request.rawRequest.headers) || {};
+  const rp = passkeyCore.rpFromOrigin(h.origin || '', process.env.GCLOUD_PROJECT || '');
+  if (!rp) throw new HttpsError('failed-precondition', 'Face ID bu adreste kullanılamaz.');
+  return rp;
+}
+function pkHttpsError(e, fallback) {
+  if (e instanceof HttpsError) return e;
+  if (e && e.isPasskeyError) {
+    if (e.detail) console.warn('[passkey]', e.code, e.detail);
+    return new HttpsError(e.code, e.message);
+  }
+  console.error('[passkey]', fallback, e);
+  return new HttpsError('internal', fallback);
+}
+async function pkDeleteForUser(uid) {
+  if (!uid) return 0;
+  const snap = await db.collection(PK_CRED).where('uid', '==', uid).get();
+  if (snap.empty) return 0;
+  const batch = db.batch();
+  snap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
+  return snap.size;
+}
+
+// 1) Kayıt seçenekleri — oturum açmış personel, YALNIZCA yönetici izin verdiyse.
+exports.passkeyRegisterOptions = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const uid = request.auth.uid;
+  const userSnap = await db.collection('systemUsers').doc(uid).get();
+  if (!userSnap.exists) throw new HttpsError('permission-denied', 'Kullanıcı bulunamadı.');
+  const user = userSnap.data() || {};
+  if (user.faceIdAllowed !== true) throw new HttpsError('permission-denied', 'Bu hesap için Face ID ile giriş yöneticiniz tarafından açılmamış.');
+  const rp = pkRp(request);
+  try {
+    const existing = (await db.collection(PK_CRED).where('uid', '==', uid).get()).docs.map((d) => d.data());
+    const opts = await passkeyCore.registrationOptions(rp, { uid, username: user.username || uid }, existing);
+    await db.collection(PK_CHAL).doc('reg_' + uid).set({
+      type: 'reg', uid, challenge: opts.challenge, rpID: rp.rpID, origin: rp.origin, expiresAt: Date.now() + PK_REG_TTL_MS
+    });
+    return opts;
+  } catch (e) { throw pkHttpsError(e, 'Face ID kaydı başlatılamadı.'); }
+});
+
+// 2) Kaydı doğrula ve sakla.
+exports.passkeyRegisterVerify = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const uid = request.auth.uid;
+  const userSnap = await db.collection('systemUsers').doc(uid).get();
+  const user = userSnap.exists ? (userSnap.data() || {}) : null;
+  if (!user || user.faceIdAllowed !== true) throw new HttpsError('permission-denied', 'Bu hesap için Face ID ile giriş açık değil.');
+  const rp = pkRp(request);
+  const chRef = db.collection(PK_CHAL).doc('reg_' + uid);
+  const ch = await db.runTransaction(async (tx) => { const s = await tx.get(chRef); if (!s.exists) return null; tx.delete(chRef); return s.data(); });
+  if (!ch || ch.type !== 'reg' || ch.expiresAt < Date.now() || ch.rpID !== rp.rpID) {
+    throw new HttpsError('failed-precondition', 'Kayıt süresi doldu, lütfen tekrar deneyin.');
+  }
+  try {
+    const info = await passkeyCore.verifyRegistration(rp, request.data && request.data.response, ch.challenge);
+    const ua = (request.rawRequest && request.rawRequest.headers && request.rawRequest.headers['user-agent']) || '';
+    const label = passkeyCore.deviceLabel(ua);
+    await db.collection(PK_CRED).doc(passkeyCore.credDocId(info.credId)).set(Object.assign({}, info, {
+      uid, tenantId: user.tenantId || '', username: user.username || '', rpID: rp.rpID, deviceLabel: label,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(), lastUsedAt: null
+    }));
+    return { ok: true, deviceLabel: label };
+  } catch (e) { throw pkHttpsError(e, 'Face ID kaydı tamamlanamadı.'); }
+});
+
+// 3) Giriş seçenekleri — oturum gerektirmez (giriş ekranı), IP başına sınırlı.
+exports.passkeyLoginOptions = onCall({ region: REGION }, async (request) => {
+  const rp = pkRp(request);
+  if (!(await withinRateLimit('pk_opt_' + callerIp(request).replace(/[^\w.:-]/g, '_'), PK_OPT_MAX_PER_IP))) {
+    throw new HttpsError('resource-exhausted', 'Çok fazla deneme. Lütfen birkaç dakika sonra tekrar deneyin.');
+  }
+  try {
+    const opts = await passkeyCore.authenticationOptions(rp);
+    const ref = db.collection(PK_CHAL).doc();
+    await ref.set({ type: 'auth', challenge: opts.challenge, rpID: rp.rpID, origin: rp.origin, expiresAt: Date.now() + PK_AUTH_TTL_MS });
+    // Kullanılmadan süresi dolan doğrulama dizelerini fırsat buldukça temizle
+    // (giriş ekranı açık bırakılırsa birikmesinler). Best-effort.
+    try {
+      const old = await db.collection(PK_CHAL).where('expiresAt', '<', Date.now() - 60 * 1000).limit(50).get();
+      if (!old.empty) { const b = db.batch(); old.docs.forEach((d) => b.delete(d.ref)); await b.commit(); }
+    } catch (e) { /* temizlik başarısızsa girişi etkilemez */ }
+    return { challengeId: ref.id, options: opts };
+  } catch (e) { throw pkHttpsError(e, 'Face ID girişi başlatılamadı.'); }
+});
+
+// 4) Girişi doğrula → Firebase özel token'ı.
+exports.passkeyLoginVerify = onCall({ region: REGION }, async (request) => {
+  const rp = pkRp(request);
+  if (!(await withinRateLimit('pk_ver_' + callerIp(request).replace(/[^\w.:-]/g, '_'), PK_VER_MAX_PER_IP))) {
+    throw new HttpsError('resource-exhausted', 'Çok fazla deneme. Lütfen birkaç dakika sonra tekrar deneyin.');
+  }
+  const d = request.data || {};
+  const challengeId = String(d.challengeId || '').slice(0, 64);
+  const response = d.response;
+  if (!challengeId || !response || typeof response.id !== 'string') throw new HttpsError('invalid-argument', 'Eksik bilgi.');
+  // Tek kullanımlık: okunur ve aynı işlemde silinir (yeniden oynatılamaz).
+  const chRef = db.collection(PK_CHAL).doc(challengeId);
+  const ch = await db.runTransaction(async (tx) => { const s = await tx.get(chRef); if (!s.exists) return null; tx.delete(chRef); return s.data(); });
+  if (!ch || ch.type !== 'auth' || ch.expiresAt < Date.now() || ch.rpID !== rp.rpID) {
+    throw new HttpsError('failed-precondition', 'Süre doldu, lütfen tekrar deneyin.');
+  }
+  const credRef = db.collection(PK_CRED).doc(passkeyCore.credDocId(response.id));
+  const credSnap = await credRef.get();
+  if (!credSnap.exists) throw new HttpsError('not-found', 'Bu cihazın Face ID kaydı bulunamadı (kaldırılmış olabilir). Şifrenizle giriş yapın.');
+  const stored = credSnap.data();
+  const userSnap = await db.collection('systemUsers').doc(stored.uid).get();
+  const user = userSnap.exists ? (userSnap.data() || {}) : null;
+  if (!user) throw new HttpsError('permission-denied', 'Hesap bulunamadı.');
+  if (user.faceIdAllowed !== true) throw new HttpsError('permission-denied', 'Bu hesap için Face ID ile giriş kapatılmış. Şifrenizle giriş yapın.');
+  let res;
+  try { res = await passkeyCore.verifyAuthentication(rp, response, ch.challenge, stored); }
+  catch (e) { throw pkHttpsError(e, 'Face ID doğrulanamadı.'); }
+  try {
+    const au = await admin.auth().getUser(stored.uid);
+    if (au.disabled) throw new HttpsError('permission-denied', 'Hesap devre dışı.');
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    throw new HttpsError('permission-denied', 'Hesap bulunamadı.');
+  }
+  await credRef.update({ counter: res.newCounter, lastUsedAt: admin.firestore.FieldValue.serverTimestamp() });
+  try {
+    const token = await admin.auth().createCustomToken(stored.uid);
+    return { token };
+  } catch (e) {
+    // En olası neden: servis hesabında "Service Account Token Creator" rolü yok.
+    console.error('[passkey] createCustomToken failed', e && e.message);
+    throw new HttpsError('failed-precondition', 'Face ID girişi sunucuda henüz etkin değil (kurulum eksik). Şifrenizle giriş yapın.');
+  }
+});
+
+// 5) Kayıtlı cihazları listele / kaldır. Kişi kendi kayıtlarını; otel
+//    yöneticisi (veya platform operatörü) kendi otelindeki bir kullanıcınınkileri.
+exports.passkeyManage = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Giriş gerekli.');
+  const d = request.data || {};
+  const targetUid = String(d.uid || request.auth.uid);
+  if (targetUid !== request.auth.uid) await requireTenantAdminFor(request, targetUid);
+  const action = String(d.action || 'list');
+  if (action === 'list') {
+    const snap = await db.collection(PK_CRED).where('uid', '==', targetUid).get();
+    const ms = (t) => (t && t.toMillis ? t.toMillis() : null);
+    return {
+      devices: snap.docs.map((x) => {
+        const c = x.data();
+        return { id: x.id, deviceLabel: c.deviceLabel || 'Cihaz', rpID: c.rpID || '', createdAt: ms(c.createdAt), lastUsedAt: ms(c.lastUsedAt) };
+      }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    };
+  }
+  if (action === 'revokeAll') return { removed: await pkDeleteForUser(targetUid) };
+  if (action === 'revoke') {
+    const id = String(d.id || '').slice(0, 80);
+    const ref = db.collection(PK_CRED).doc(id);
+    const s = await ref.get();
+    if (!s.exists || s.data().uid !== targetUid) throw new HttpsError('not-found', 'Cihaz kaydı bulunamadı.');
+    await ref.delete();
+    return { removed: 1 };
+  }
+  throw new HttpsError('invalid-argument', 'Geçersiz işlem.');
+});
 
 // Herkese açık, kimliksiz, minimal canlılık ucu — yalnız Cloud Functions'ın
 // kendi gecikmesini/soğuk başlangıcını ölçmek için. Gizli bilgi döndürmez.

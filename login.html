@@ -9,7 +9,7 @@
     <link rel="icon" href="/favicon.ico" sizes="48x48">
     <link rel="icon" type="image/png" sizes="192x192" href="/logo-192.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="css/core/style.css">
+    <link rel="stylesheet" href="css/core/style.css?v=20261111h">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -45,6 +45,11 @@
 
                 <!-- Otel Login Form -->
                 <form id="loginForm" class="login-pane active" data-pane="hotel">
+                    <!-- Face ID / Touch ID: yalnızca bu cihazda daha önce açıldıysa görünür -->
+                    <div id="faceIdBox" hidden>
+                        <button type="button" class="login-btn login-btn-face" id="faceIdBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M3 17v2a2 2 0 0 0 2 2h2"/><path d="M9 9v1M15 9v1"/><path d="M12 9v4h-1"/><path d="M9.5 16a3.5 3.5 0 0 0 5 0"/></svg><span id="faceIdLabel">Face ID ile giriş</span></button>
+                        <div class="login-or"><span>ya da şifreyle</span></div>
+                    </div>
                     <label class="f-label" for="username">Kullanıcı Adı</label>
                     <input class="f-input" type="text" id="username" required placeholder="kullanici.adi"
                            autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
@@ -83,6 +88,18 @@
                     <button type="submit" class="login-btn">Şifreyi Kaydet</button>
                     <div id="pwError" class="error-message"></div>
                 </form>
+            </div>
+
+            <!-- Şifreli girişten sonra: bu cihazda Face ID açılsın mı? -->
+            <div class="login-card" id="faceIdOfferCard" style="display:none;">
+                <div class="fid-offer">
+                    <div class="fid-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M3 17v2a2 2 0 0 0 2 2h2"/><path d="M9 9v1M15 9v1"/><path d="M12 9v4h-1"/><path d="M9.5 16a3.5 3.5 0 0 0 5 0"/></svg></div>
+                    <h2 id="fidOfferTitle">Face ID ile hızlı giriş</h2>
+                    <p>Bu cihazda bir dahaki sefere şifre yazmadan <b id="fidOfferLabel">Face ID</b> ile girebilirsiniz. Yüz veya parmak izi bilginiz cihazınızdan hiç çıkmaz.</p>
+                    <button type="button" class="login-btn" id="fidOfferYes" disabled>Face ID ile girişi aç</button>
+                    <button type="button" class="login-link" id="fidOfferNo">Şimdi değil</button>
+                    <div id="fidOfferErr" class="error-message"></div>
+                </div>
             </div>
 
             <p class="help">Giriş sorunu mu yaşıyorsunuz? Otel yöneticinize başvurun.</p>
@@ -134,6 +151,7 @@
     })();
     </script>
 
-    <script src="js/modules/app.js"></script>
+    <script src="js/core/passkey.js?v=20261111h"></script>
+    <script src="js/modules/app.js?v=20261111h"></script>
 </body>
 </html>

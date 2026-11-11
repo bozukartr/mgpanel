@@ -565,6 +565,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // --- Face ID / passkey kayıtları ve tek kullanımlık doğrulama dizeleri.
+    //     Yalnızca Cloud Functions (Admin SDK) okur/yazar: istemci — kayıt
+    //     sahibi, otel yöneticisi ya da superadmin dahil — hiçbir zaman
+    //     doğrudan erişemez (açık anahtarı değiştirip başkasının hesabına
+    //     girmek ya da doğrulama dizesini önceden okumak engellenir). Listeleme
+    //     ve kaldırma passkeyManage callable'ı üzerinden yetki kontrolüyle. ---
+    match /webauthnCredentials/{id} {
+      allow read, write: if false;
+    }
+    match /webauthnChallenges/{id} {
+      allow read, write: if false;
+    }
+
     // Misafirin doğrulanmış oturumu (bkz. verifiedSessionRoom() yukarıda) —
     // yalnızca functions/index.js:verifyGuestIdentity tarafından Admin SDK
     // ile yazılır (kurallardan bağımsız). İstemciye (misafir veya personel

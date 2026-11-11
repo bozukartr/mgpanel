@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f6f6f7">
     <!-- ?v=: JS/CSS 10 dk önbellekli (firebase.json), HTML değil — yeni HTML eski
          stil/JS ile karışmasın diye değişen dosyalar sürümlenir. -->
-    <link rel="stylesheet" href="css/modules/admin.css?v=20261111f">
+    <link rel="stylesheet" href="css/modules/admin.css?v=20261111h">
     <link rel="stylesheet" href="css/core/modal.css">
     <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -576,6 +576,19 @@
                         </div>
                         <p class="mod-hint">İşaretlenmeyen modüller kullanıcının menüsünde görünmez. Panel ve (admin ise) Ayarlar her zaman açıktır. Değişiklik kullanıcının bir sonraki girişinde geçerli olur.</p>
                     </div>
+                    <!-- Face ID: kişiye özel hesap ↔ ortak kullanım hesabı ayrımı (yönetici kararı) -->
+                    <div class="form-group span2" id="adminFaceIdGroup">
+                        <label>Giriş yöntemi</label>
+                        <label class="switch-row">
+                            <input type="checkbox" id="adminUserFaceId">
+                            <span>Face ID / Touch ID ile girebilir <small>— kişiye özel hesap: kişi kendi telefonunda şifre yazmadan girer. Resepsiyon tableti gibi ortak kullanılan hesaplarda kapalı bırakın.</small></span>
+                        </label>
+                        <div class="fid-devices" id="adminUserFaceIdDevices" hidden>
+                            <span data-ic="phone"></span>
+                            <span class="fid-devices-t" id="adminUserFaceIdList"></span>
+                            <button type="button" class="link-btn" id="adminUserFaceIdRevoke">Cihazları kaldır</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-actions">
                     <button type="submit" class="action-btn save-btn">Kaydet</button>
@@ -869,7 +882,7 @@
     <script src="js/core/issue-config.js"></script>
     <script src="js/utils/toast.js"></script>
     <script src="js/utils/app-dialog.js"></script>
-    <script src="js/modules/admin.js?v=20261111d"></script>
+    <script src="js/modules/admin.js?v=20261111h"></script>
     <!-- qrcodejs artık eager değil — QR üretimi anında tembel yüklenir. -->
     <script src="js/core/lazy-load.js"></script>
     <script src="js/modules/request-catalog.js?v=20261111f"></script>
