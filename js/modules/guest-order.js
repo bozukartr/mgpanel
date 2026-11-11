@@ -737,12 +737,30 @@
             if (first) { first = false; onFirst(); } else { applyConfig(); renderAll(); }
         }, err => { console.error('config listen failed', err); if (first) { first = false; onFirst(); } });
     }
+    // Otel bir hizmeti sildiğinde ya da pasife aldığında (ör. Ayarlar →
+    // "Varsayılanları kaldır") misafirin cihazındaki sepette o kalem kalıyor ve
+    // GÖNDERİLEBİLİYORDU: personele artık sunulmayan bir hizmet talebi
+    // düşüyordu. Katalog sunucudan BAŞARIYLA geldiğinde (catalogLive) sepet
+    // ona göre temizlenir; bağlantı hatasında boş katalogla sepet silinmez.
+    let catalogLive = false;
+    function pruneCart() {
+        if (!catalogLive || DEMO || !cart.length) return false;
+        const ids = new Set(catalog.map(i => i.id));
+        const gone = cart.filter(l => l && l.catalogId && !ids.has(l.catalogId));
+        if (!gone.length) return false;
+        cart = cart.filter(l => gone.indexOf(l) === -1);
+        saveCart(); renderCartUI();
+        toast(t('guest.cart.unavailableRemoved', { names: gone.map(l => l.name).join(', ') }), true);
+        return true;
+    }
     function listenCatalog(onFirst) {
         let first = true;
         db.collection('requestCatalog').where('tenantId', '==', TENANT).onSnapshot(snap => {
             catalog = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
                 .filter(i => i.active !== false)
                 .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || (a.name || '').localeCompare(b.name || '', 'tr'));
+            catalogLive = true;
+            pruneCart();
             if (first) { first = false; onFirst(); } else { renderAll(); }
         }, err => { console.error('catalog listen failed', err); catalog = catalog || []; if (first) { first = false; onFirst(); } });
     }
@@ -1878,6 +1896,9 @@
     function hasPending() { return myOrders.filter(o => o.status === 'pending').length >= MAX_OPEN_PENDING; }
 
     function submitOrder() {
+        // Gönderimden hemen önce: sunulmayan kalem varsa çıkar ve misafir
+        // güncel sepeti görsün diye dur.
+        if (pruneCart()) { renderCart(); return; }
         if (!cart.length || !sessionUid) return;
         const cd = cooldownLeft();
         if (cd > 0) { toast(t('guest.cart.tooFast', { n: Math.ceil(cd / 1000) }), true); return; }

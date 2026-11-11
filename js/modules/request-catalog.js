@@ -451,7 +451,7 @@
 
     async function remove() {
         if (!editingId) return;
-        const ok = await AppDialog.confirm({ title: 'Talebi sil', danger: true, confirmText: 'Sil', message: 'Bu talebi silmek istediğinize emin misiniz?' });
+        const ok = await AppDialog.confirm({ title: 'Hizmeti sil', danger: true, confirmText: 'Sil', message: 'Bu hizmet kalıcı olarak silinecek ve misafirlerin sepetinden çıkarılacak. Emin misiniz?' });
         if (!ok) return;
         db.collection(COL).doc(editingId).delete()
             .then(() => { toast('Hizmet silindi.'); closeModal(); })
@@ -460,7 +460,7 @@
 
     async function seedDefaults() {
         if (items.length) {
-            const ok = await AppDialog.confirm({ title: 'Varsayılanları yükle', confirmText: 'Ekle', message: 'Mevcut listeye varsayılan talepler eklensin mi? (Aynı isimdekiler atlanır)' });
+            const ok = await AppDialog.confirm({ title: 'Varsayılanları yükle', confirmText: 'Ekle', message: 'Mevcut listeye varsayılan hizmetler eklensin mi? (Aynı adda olanlar atlanır)' });
             if (!ok) return;
         }
         const existingNames = new Set(items.map(i => (i.name || '').toLowerCase()));
@@ -479,26 +479,60 @@
             }, d));
             n++;
         });
-        if (!n) { toast('Eklenecek yeni talep yok.'); return; }
+        if (!n) { toast('Eklenecek yeni hizmet yok — varsayılanların hepsi zaten listede.'); return; }
         batch.commit().then(() => toast(n + ' hizmet eklendi.')).catch(err => { console.error(err); toast('Yüklenemedi.', true); });
     }
 
-    // seedDefaults()'ın tersi: isim eşleşmesiyle (case-insensitive) eklenmiş
-    // varsayılan talepleri toplu siler. Yalnızca varsayılan LİSTESİNDEKİ
-    // isimlerle eşleşenleri hedefler — admin'in kendi eklediği/isim
-    // değiştirdiği talepler dokunulmadan kalır.
+    // seedDefaults()'ın tersi.
+    //
+    // HATA DÜZELTMESİ: eskiden YALNIZCA isim eşleşmesine bakılıyordu. Onay
+    // mesajı "kendi eklediğiniz talepler etkilenmez" dese de, otelin kendi
+    // eklediği "Su", "Terlik", "Askı" gibi aynı adlı kalemler ve varsayılandan
+    // yüklenip SONRA fiyatı/departmanı/seçenekleri/açıklaması düzenlenmiş
+    // kalemler de kalıcı olarak siliniyordu.
+    // Artık yalnızca varsayılanla İÇERİK OLARAK AYNI duran (hiç düzenlenmemiş)
+    // kalemler silinir; aynı adı taşıyan ama farklılaşmış kalemler korunur ve
+    // onay penceresinde sayısı ayrıca belirtilir.
+    const lc = (v) => String(v == null ? '' : v).trim().toLocaleLowerCase('tr-TR');
+    const DEFAULT_BY_NAME = new Map(DEFAULTS.map(d => [lc(d.name), d]));
+    const sameDeptName = (a, b) => (typeof sameDept === 'function') ? sameDept(a || '', b || '') : lc(a) === lc(b);
+    function isUntouchedDefault(it) {
+        const d = DEFAULT_BY_NAME.get(lc(it && it.name));
+        if (!d) return false;
+        const etaA = etaOf(it), etaB = etaOf(d);
+        const sameEta = (!etaA && !etaB) || (etaA && etaB && etaA.min === etaB.min && etaA.max === etaB.max);
+        return lc(it.category) === lc(d.category)
+            && !String(it.subcategory || '').trim()
+            && sameDeptName(it.department, d.department)
+            && String(it.icon || '').trim() === String(d.icon || '').trim()
+            && !String(it.description || '').trim()
+            && (Number(it.price) || 0) === (Number(d.price) || 0)
+            && (Number(it.maxQty) || 0) === (Number(d.maxQty) || 0)
+            && String(it.availFrom || '') === String(d.availFrom || '')
+            && String(it.availTo || '') === String(d.availTo || '')
+            && !(Array.isArray(it.options) && it.options.length)
+            && !(Array.isArray(it.modifiers) && it.modifiers.length)
+            && !!sameEta;
+    }
     async function unseedDefaults() {
-        const defaultNames = new Set(DEFAULTS.map(d => d.name.toLowerCase()));
-        const matches = items.filter(i => defaultNames.has((i.name || '').toLowerCase()));
-        if (!matches.length) { toast('Kaldırılacak varsayılan talep yok.'); return; }
+        const sameName = items.filter(i => DEFAULT_BY_NAME.has(lc(i.name)));
+        const matches = sameName.filter(isUntouchedDefault);
+        const kept = sameName.length - matches.length;
+        if (!matches.length) {
+            toast(kept ? 'Kaldırılacak varsayılan hizmet yok — aynı adlı ' + kept + ' hizmet düzenlenmiş olduğu için korunuyor.' : 'Kaldırılacak varsayılan hizmet yok.');
+            return;
+        }
         const ok = await AppDialog.confirm({
             title: 'Varsayılanları kaldır', danger: true, confirmText: 'Kaldır',
-            message: matches.length + ' varsayılan talep silinecek (isim eşleşmesiyle bulundu; kendi eklediğiniz/adını değiştirdiğiniz talepler etkilenmez). Devam edilsin mi?'
+            message: matches.length + ' varsayılan hizmet kalıcı olarak silinecek (hiç düzenlenmemiş olanlar).'
+                + (kept ? '\n\nVarsayılanla aynı adı taşıyan ama sizin düzenlediğiniz ya da kendiniz eklediğiniz ' + kept + ' hizmet KORUNACAK; gerekirse tek tek silebilirsiniz.' : '')
+                + '\n\nMisafirlerin sepetindeki bu hizmetler de çıkarılır. Devam edilsin mi?'
         });
         if (!ok) return;
         const batch = db.batch();
         matches.forEach(i => batch.delete(db.collection(COL).doc(i.id)));
-        batch.commit().then(() => toast(matches.length + ' varsayılan talep kaldırıldı.')).catch(err => { console.error(err); toast('Kaldırılamadı.', true); });
+        batch.commit().then(() => toast(matches.length + ' varsayılan hizmet kaldırıldı.' + (kept ? ' ' + kept + ' düzenlenmiş hizmet korundu.' : '')))
+            .catch(err => { console.error(err); toast('Kaldırılamadı.', true); });
     }
 
     // ── Guest page settings (guestConfig) ──────────────────────
