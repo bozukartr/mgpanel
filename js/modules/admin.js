@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.style.cursor = 'pointer';
                 tr.innerHTML = `
                     <td><strong>${esc(user.username)}</strong></td>
-                    <td><span class="role-badge">${esc(roleLabel(user.role))}</span></td>
+                    <td><span class="role-badge">${esc(roleLabel(user.role))}</span>${user.faceIdAllowed === true ? '<span class="tag tag-fid" title="Kişiye özel hesap — Face ID / Touch ID ile girebilir">Face ID</span>' : ''}</td>
                     <td>${esc(user.department)}</td>
                     <td>
                         <button class="reset-pw-btn">Şifre Sıfırla</button>
@@ -144,6 +144,51 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hint) hint.style.display = locked ? '' : 'none';
     }
 
+    // ── Face ID / Touch ID ile giriş (kişiye özel hesap) ─────────
+    // Yönetici kullanıcı bazında açar; ortak kullanılan hesaplarda (resepsiyon
+    // tableti vb.) kapalı kalır. Kapatılınca o kullanıcının cihaz kayıtları da
+    // silinir (sunucu ayrıca faceIdAllowed=false iken girişi reddeder).
+    // F&B personeli kodla girer → seçenek gizli.
+    const faceIdCb = document.getElementById('adminUserFaceId');
+    const faceIdGroup = document.getElementById('adminFaceIdGroup');
+    const faceIdDev = document.getElementById('adminUserFaceIdDevices');
+    const faceIdRevokeBtn = document.getElementById('adminUserFaceIdRevoke');
+    const passkeyManage = (data) => firebase.app().functions('us-central1').httpsCallable('passkeyManage')(data);
+    let faceIdWas = false;
+    function setFaceIdSel(on) {
+        if (faceIdCb) faceIdCb.checked = !!on;
+        faceIdWas = !!on;
+        if (faceIdDev) faceIdDev.hidden = true;
+    }
+    async function loadFaceIdDevices(uid) {
+        if (!faceIdDev || !uid) return;
+        try {
+            const r = await passkeyManage({ action: 'list', uid });
+            if (currentEditingUserId !== uid) return; // modal başka kullanıcıya geçti
+            const list = (r.data && r.data.devices) || [];
+            if (!list.length) return;
+            const names = [...new Set(list.map(d => d.deviceLabel || 'Cihaz'))].join(', ');
+            document.getElementById('adminUserFaceIdList').textContent = list.length + ' cihazda açık · ' + names;
+            faceIdDev.hidden = false;
+        } catch (e) { /* sunucu henüz yayınlanmadıysa sessiz geç */ }
+    }
+    if (faceIdRevokeBtn) faceIdRevokeBtn.onclick = async () => {
+        const uid = currentEditingUserId;
+        if (!uid) return;
+        const ok = await AppDialog.confirm({
+            title: 'Face ID cihazlarını kaldır', danger: true, confirmText: 'Kaldır',
+            message: 'Bu kullanıcının Face ID / Touch ID açtığı tüm cihazlar kaldırılacak. Kişi bir sonraki girişte şifresini kullanır; izin açık kaldıkça yeniden açabilir.'
+        });
+        if (!ok) return;
+        faceIdRevokeBtn.disabled = true;
+        try {
+            await passkeyManage({ action: 'revokeAll', uid });
+            faceIdDev.hidden = true;
+            showToast('Face ID cihazları kaldırıldı.');
+        } catch (e) { showToast('Kaldırılamadı: ' + ((e && e.message) || 'bilinmeyen hata'), true); }
+        faceIdRevokeBtn.disabled = false;
+    };
+
     const openEditUser = (id, data) => {
         currentEditingUserId = id;
         currentEditingUserRole = (data.role || '').toLowerCase();
@@ -154,8 +199,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setRoleSelect(data.role);
         deptOptions(data.department);
         setUserModuleSel(data.modules);
+        setFaceIdSel(data.faceIdAllowed === true);
         applyDeptPwUI();
         userModal.style.display = 'flex';
+        loadFaceIdDevices(id);
     };
 
     userForm.onsubmit = async (e) => {
@@ -164,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const role = document.getElementById('adminUserRole').value;
         const department = document.getElementById('adminUserDept').value;
         const passwordInput = document.getElementById('adminNewPassword');
+        const faceIdOn = !isFnbDept(department) && !!(faceIdCb && faceIdCb.checked);
 
         try {
             if (currentEditingUserId) {
@@ -180,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const upd = {
                     department: department,
                     modules: getUserModuleSel(),
+                    faceIdAllowed: faceIdOn,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 // Yalnızca harf büyüklüğü farkı rol değişikliği sayılmaz;
@@ -196,6 +245,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const revoke = firebase.app().functions('us-central1').httpsCallable('revokeUserSessions');
                         await revoke({ uid: currentEditingUserId });
                     } catch (e) { console.error('revokeUserSessions failed', e); }
+                }
+                // Face ID kapatıldı → cihaz kayıtlarını da sil (best-effort; sunucu
+                // zaten faceIdAllowed=false iken Face ID girişini reddeder).
+                if (faceIdWas && !faceIdOn) {
+                    try { await passkeyManage({ action: 'revokeAll', uid: currentEditingUserId }); }
+                    catch (e) { console.error('passkey revokeAll failed', e); }
                 }
                 showToast(usernameRaw + ' için yetkiler güncellendi.');
             } else {
@@ -249,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     role: role,
                     department: department,
                     modules: getUserModuleSel(),
+                    faceIdAllowed: faceIdOn,
                     tenantId: TENANT_ID,
                     mustChangePassword: !isFnb,   // F&B sabit kodla girer, değişim istenmez
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -301,11 +357,13 @@ document.addEventListener('DOMContentLoaded', () => {
             pw.placeholder = '5 haneli kod';
             if (label) label.textContent = '5 Haneli Kod (F&B)';
             if (hint) hint.style.display = '';
+            if (faceIdGroup) faceIdGroup.style.display = 'none';
         } else {
             pw.removeAttribute('inputmode'); pw.removeAttribute('maxlength'); pw.removeAttribute('pattern');
             pw.placeholder = '';
             if (label) label.textContent = 'Şifre';
             if (hint) hint.style.display = 'none';
+            if (faceIdGroup) faceIdGroup.style.display = '';
         }
     }
     document.getElementById('adminUserDept').addEventListener('change', applyDeptPwUI);
@@ -318,6 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setUsernameLocked(false);
         setRoleSelect('Staff');
         setUserModuleSel(null); // new users default to full access (all checked)
+        setFaceIdSel(false);    // varsayılan: ortak kullanım (yalnızca şifre)
         document.getElementById('adminNewPassword').disabled = false;
         deptOptions('');
         applyDeptPwUI();

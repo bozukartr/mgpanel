@@ -120,6 +120,213 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingUserData = null;
     let pendingUserInput = '';
 
+    let pendingViaFaceId = false;
+    const offerCard = document.getElementById('faceIdOfferCard');
+    const fnCall = (name) => firebase.app().functions('us-central1').httpsCallable(name);
+    const fnCode = (e) => String((e && e.code) || '').replace(/^functions\//, '');
+
+    function showLoginError(msg) {
+        mainCard.classList.add('shake');
+        errorMessage.textContent = msg;
+        errorMessage.classList.add('show');
+        setTimeout(() => mainCard.classList.remove('shake'), 500);
+    }
+
+    // ── Ortak giriş sonrası akış (şifre ve Face ID aynı yoldan geçer) ──
+    // Otel (tenant) yapılandırması → abonelik → zorunlu şifre değişimi →
+    // (şifreyle girildiyse) Face ID önerisi → panel.
+    async function continueAfterSignIn(user, userInput, viaFaceId) {
+        const uid = user.uid;
+
+        // Resolve the user's hotel (tenant). Falls back to the default during transition.
+        const userDoc = await db.collection('systemUsers').doc(uid).get();
+        const userData = userDoc.exists ? userDoc.data() : null;
+        const tenantId = (userData && userData.tenantId) ? userData.tenantId : resolveTenant();
+        // Persist the active hotel so every page stamps writes with the right tenant.
+        localStorage.setItem('hotelTenantId', tenantId);
+
+        // Load hotel plan/modules/limits so every page can gate features.
+        try {
+            const tSnap = await db.collection('tenants').doc(tenantId).get();
+            applyTenantConfig(tSnap.exists ? tSnap.data() : null);
+        } catch (e) { applyTenantConfig(null); }
+
+        // Check this hotel's subscription (tenant document first, legacy config as fallback).
+        const subActive = await isSubscriptionActive(tenantId);
+        if (!subActive) {
+            showPaymentOverlay();
+            return;
+        }
+
+        // Admin requested a password reset: force a new password before continuing.
+        if (userData && userData.mustChangePassword === true) {
+            pendingPwUser = user;
+            pendingPwUid = uid;
+            pendingUserData = userData;
+            pendingUserInput = userInput;
+            pendingViaFaceId = !!viaFaceId;
+            mainCard.style.display = 'none';
+            forcePwCard.style.display = 'block';
+            return;
+        }
+
+        await completeLogin(userData, userInput, uid, viaFaceId);
+    }
+
+    async function completeLogin(userData, userInput, uid, viaFaceId) {
+        if (window.Passkey && viaFaceId) Passkey.markDevice(uid);
+        else if (await shouldOfferFaceId(userData, uid)) { showFaceIdOffer(userData, userInput, uid); return; }
+        finishLogin(userData, userInput);
+    }
+
+    // ── Face ID önerisi: yalnızca yönetici bu kullanıcıya izin verdiyse ──
+    // (systemUsers.faceIdAllowed — kişisel telefon kullanan personel; ortak
+    // hesaplarda kapalı). "Şimdi değil" bu cihazda 14 gün sormaz.
+    const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
+    const snoozeKey = (uid) => 'hz_pk_snooze_' + uid;
+    async function shouldOfferFaceId(userData, uid) {
+        if (!window.Passkey || !userData || userData.faceIdAllowed !== true || loginContext !== 'hotel') return false;
+        try { if (Date.now() - Number(localStorage.getItem(snoozeKey(uid)) || 0) < SNOOZE_MS) return false; } catch (e) {}
+        if (!(await Passkey.available())) return false;
+        if (Passkey.userHasKeyHere(uid)) {
+            // Yerel işaret var; ama kayıt sunucuda silinmiş olabilir (şifre
+            // sıfırlama ya da yönetici kaldırdı) — o zaman yeniden öner.
+            try {
+                const r = await fnCall('passkeyManage')({ action: 'list' });
+                const here = ((r.data && r.data.devices) || []).some((d) => d.rpID === location.hostname);
+                if (here) return false;
+                Passkey.forgetUser(uid);
+            } catch (e) { return false; }
+        }
+        return true;
+    }
+
+    let offerCtx = null, regOpts = null, regTimer = null;
+    const fidYes = document.getElementById('fidOfferYes');
+    const fidNo = document.getElementById('fidOfferNo');
+    const fidErr = document.getElementById('fidOfferErr');
+    function offerError(msg) { fidErr.textContent = msg; fidErr.classList.add('show'); }
+    // Seçenekler önceden alınır: Safari, Face ID penceresini yalnızca dokunuşla
+    // AYNI anda istenirse açar (arada ağ isteği olursa reddeder).
+    async function prefetchRegistration() {
+        try {
+            const r = await fnCall('passkeyRegisterOptions')({});
+            regOpts = r.data;
+            fidYes.disabled = false;
+        } catch (e) {
+            regOpts = null;
+            fidYes.disabled = true;
+            offerError((e && e.message) || 'Face ID şu an açılamıyor.');
+        }
+    }
+    function showFaceIdOffer(userData, userInput, uid) {
+        offerCtx = { userData, userInput, uid };
+        const lbl = Passkey.label();
+        document.getElementById('fidOfferTitle').textContent = lbl + ' ile hızlı giriş';
+        document.getElementById('fidOfferLabel').textContent = lbl;
+        fidYes.textContent = lbl + ' ile girişi aç';  // Türkçe ek sorunu yok (Face ID'yi / Windows Hello'yu)
+        fidYes.disabled = true;
+        fidErr.classList.remove('show');
+        mainCard.style.display = 'none';
+        forcePwCard.style.display = 'none';
+        offerCard.style.display = 'block';
+        prefetchRegistration();
+        let n = 0;  // doğrulama dizesi 5 dk geçerli; kart açık kaldıkça (en çok 30 dk) yenile
+        regTimer = setInterval(() => { if (++n > 7) { clearInterval(regTimer); return; } prefetchRegistration(); }, 4 * 60 * 1000);
+    }
+    function leaveOffer() {
+        clearInterval(regTimer);
+        finishLogin(offerCtx.userData, offerCtx.userInput);
+    }
+    fidYes.addEventListener('click', async () => {
+        if (!regOpts || !offerCtx) return;
+        const opts = regOpts;
+        regOpts = null;
+        fidYes.disabled = true;
+        fidErr.classList.remove('show');
+        let att;
+        try { att = await Passkey.create(opts); }
+        catch (e) {
+            if (e && e.name === 'InvalidStateError') { Passkey.markDevice(offerCtx.uid); leaveOffer(); return; } // zaten kayıtlı
+            offerError(Passkey.isCancel(e) ? 'İptal edildi. İsterseniz tekrar deneyin.' : (Passkey.label() + ' açılamadı. Tekrar deneyin.'));
+            prefetchRegistration();
+            return;
+        }
+        try {
+            await fnCall('passkeyRegisterVerify')({ response: att });
+            Passkey.markDevice(offerCtx.uid);
+            const ok = document.createElement('div');
+            ok.className = 'fid-ok';
+            ok.textContent = Passkey.label() + ' açıldı. Bir dahaki girişte kullanabilirsiniz.';
+            fidErr.after(ok);
+            setTimeout(leaveOffer, 900);
+        } catch (e) {
+            offerError((e && e.message) || 'Face ID kaydı tamamlanamadı.');
+            prefetchRegistration();
+        }
+    });
+    fidNo.addEventListener('click', () => {
+        try { localStorage.setItem(snoozeKey(offerCtx.uid), String(Date.now())); } catch (e) {}
+        leaveOffer();
+    });
+
+    // ── Face ID ile giriş düğmesi: bu cihazda daha önce açıldıysa görünür ──
+    const fidBox = document.getElementById('faceIdBox');
+    const fidBtn = document.getElementById('faceIdBtn');
+    let authOpts = null, authOptsAt = 0;
+    const OPTS_FRESH_MS = 4 * 60 * 1000;   // sunucuda 5 dk geçerli
+    async function prefetchLogin() {
+        try { const r = await fnCall('passkeyLoginOptions')({}); authOpts = r.data; authOptsAt = Date.now(); }
+        catch (e) { authOpts = null; }
+    }
+    (async function initFaceIdLogin() {
+        if (!window.Passkey || !fidBox || !Passkey.deviceHasKey()) return;
+        if (!(await Passkey.available())) return;
+        document.getElementById('faceIdLabel').textContent = Passkey.label() + ' ile giriş';
+        fidBox.hidden = false;
+        prefetchLogin();
+        // Seçenekler taze tutulur (Safari dokunuş anında hazır ister) — ama
+        // açık bırakılmış bir giriş ekranı sürekli istek atmasın: 30 dk sonra
+        // durur; sonrasında dokunuşta yenilenir.
+        let n = 0;
+        const t = setInterval(() => { if (++n > 7) { clearInterval(t); return; } if (!document.hidden) prefetchLogin(); }, OPTS_FRESH_MS);
+    })();
+    if (fidBtn) fidBtn.addEventListener('click', async () => {
+        errorMessage.classList.remove('show');
+        if (!authOpts || Date.now() - authOptsAt > OPTS_FRESH_MS) await prefetchLogin();   // yedek yol (bayat / bağlantı geç geldiyse)
+        if (!authOpts) { showLoginError('Bağlantı kurulamadı. Şifrenizle giriş yapın.'); return; }
+        const o = authOpts;
+        authOpts = null;
+        fidBtn.disabled = true;
+        let assertion;
+        try { assertion = await Passkey.get(o.options); }
+        catch (e) {
+            fidBtn.disabled = false;
+            prefetchLogin();
+            if (!Passkey.isCancel(e)) showLoginError(Passkey.label() + ' ile giriş yapılamadı. Şifrenizle deneyin.');
+            return;
+        }
+        try {
+            const r = await fnCall('passkeyLoginVerify')({ challengeId: o.challengeId, response: assertion });
+            const cred = await auth.signInWithCustomToken(r.data.token);
+            loginContext = 'hotel';
+            await continueAfterSignIn(cred.user, '', true);
+            fidBtn.disabled = false;
+        } catch (e) {
+            const code = fnCode(e);
+            if (code === 'not-found') {
+                // Kayıt sunucuda yok (kaldırılmış) — düğmeyi gizle, cihaza bildir.
+                Passkey.forgetDevice();
+                Passkey.signalUnknown(assertion.id);
+                fidBox.hidden = true;
+            }
+            showLoginError((e && e.message) || (Passkey.label() + ' ile giriş yapılamadı.'));
+            try { if (auth.currentUser) await auth.signOut(); } catch (e2) {}
+            fidBtn.disabled = false;
+            prefetchLogin();
+        }
+    });
+
     function finishLogin(userData, userInput) {
         if (userData) {
             localStorage.setItem('hotelUsername', userData.username);
@@ -133,6 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('loginContext', loginContext);
         mainCard.classList.add('fade-hide');
         forcePwCard.classList.add('fade-hide');
+        if (offerCard) offerCard.classList.add('fade-hide');
         setTimeout(() => {
             window.location.href = 'app';
         }, 250);
@@ -156,50 +364,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
-            const uid = userCredential.user.uid;
-
-            // Resolve the user's hotel (tenant). Falls back to the default during transition.
-            const userDoc = await db.collection('systemUsers').doc(uid).get();
-            const userData = userDoc.exists ? userDoc.data() : null;
-            const tenantId = (userData && userData.tenantId) ? userData.tenantId : resolveTenant();
-            // Persist the active hotel so every page stamps writes with the right tenant.
-            localStorage.setItem('hotelTenantId', tenantId);
-
-            // Load hotel plan/modules/limits so every page can gate features.
-            try {
-                const tSnap = await db.collection('tenants').doc(tenantId).get();
-                applyTenantConfig(tSnap.exists ? tSnap.data() : null);
-            } catch (e) { applyTenantConfig(null); }
-
-            // Check this hotel's subscription (tenant document first, legacy config as fallback).
-            const subActive = await isSubscriptionActive(tenantId);
-            if (!subActive) {
-                showPaymentOverlay();
-                return;
-            }
-
-            // Admin requested a password reset: force a new password before continuing.
-            if (userData && userData.mustChangePassword === true) {
-                pendingPwUser = userCredential.user;
-                pendingPwUid = uid;
-                pendingUserData = userData;
-                pendingUserInput = userInput;
-                mainCard.style.display = 'none';
-                forcePwCard.style.display = 'block';
-                return;
-            }
-
-            finishLogin(userData, userInput);
-
+            await continueAfterSignIn(userCredential.user, userInput, false);
         } catch (error) {
             console.error("Login Error:", error.message);
-            mainCard.classList.add('shake');
-            errorMessage.textContent = "Kullanıcı adı veya şifre yanlış";
-            errorMessage.classList.add('show');
-
-            setTimeout(() => {
-                mainCard.classList.remove('shake');
-            }, 500);
+            showLoginError("Kullanıcı adı veya şifre yanlış");
         }
     });
 
@@ -215,10 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (forgotPwBtn) forgotPwBtn.addEventListener('click', async () => {
         const userInput = (document.getElementById('username').value || '').trim().replace(/İ/g, 'i').toLowerCase();
         if (!userInput || userInput.includes('@')) {
-            mainCard.classList.add('shake');
-            errorMessage.textContent = 'Önce kullanıcı adınızı yazın';
-            errorMessage.classList.add('show');
-            setTimeout(() => mainCard.classList.remove('shake'), 500);
+            showLoginError('Önce kullanıcı adınızı yazın');
             return;
         }
         forgotPwBtn.disabled = true;
@@ -327,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection('systemUsers').doc(pendingPwUid).update({
                 mustChangePassword: false
             });
-            finishLogin(pendingUserData, pendingUserInput);
+            await completeLogin(pendingUserData, pendingUserInput, pendingPwUid, pendingViaFaceId);
         } catch (error) {
             console.error("Password update error:", error.message);
             pwError.textContent = "Şifre güncellenemedi. Lütfen tekrar giriş yapın.";
