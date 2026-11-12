@@ -96,6 +96,8 @@
         f.addEventListener('load', function () {
             f.__ready = true;
             if (frames[currentRoute] === f && loading) loading.classList.remove('show');
+            // Kısayollar odak çerçevenin içindeyken de çalışsın (aynı köken).
+            try { f.contentWindow.addEventListener('keydown', onKey, true); } catch (e) {}
         });
         if (!f.parentNode) host.insertBefore(f, loading);
         f.src = def.page + '?embed=1&v=' + SHELL_V + (query ? '&' + query : '');
@@ -238,6 +240,37 @@
             navigate('concierge', orderId ? 'order=' + encodeURIComponent(orderId) : '');
         });
     }
+
+    // ── Klavye kısayolları ────────────────────────────────────────
+    // Odak çoğu zaman bir modül çerçevesinin içindedir; keydown üst pencereye
+    // kabarmaz. Bu yüzden her çerçevenin penceresine de bağlanır (createFrame).
+    // İşleyici true dönerse olay tüketilir.
+    var keyHandlers = [];
+    function isTyping(t) {
+        if (!t || !t.tagName) return false;
+        var tag = t.tagName.toLowerCase();
+        if (tag === 'textarea' || tag === 'select' || t.isContentEditable) return true;
+        if (tag !== 'input') return false;
+        var ty = (t.type || 'text').toLowerCase();
+        return ['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file'].indexOf(ty) === -1;
+    }
+    function onKey(e) {
+        if (e.defaultPrevented || e.isComposing) return;
+        var typing = isTyping(e.target);
+        for (var i = 0; i < keyHandlers.length; i++) {
+            if (keyHandlers[i](e, typing) === true) { e.preventDefault(); e.stopPropagation(); return; }
+        }
+    }
+    window.addEventListener('keydown', onKey, true);
+
+    // Diğer kabuk betikleri (genel arama, kısayollar…) için küçük arayüz.
+    window.Shell = {
+        navigate: navigate,
+        route: function () { return currentRoute; },
+        frame: function (r) { return frames[r || currentRoute] || null; },
+        ctx: CTX,
+        addKeyHandler: function (fn) { keyHandlers.push(fn); }
+    };
 
     // Header
     function init() {

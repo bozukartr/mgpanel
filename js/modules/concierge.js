@@ -490,6 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (dateFilterFp) dateFilterFp.redraw();
         renderReservations();
+        if (window.__openPendingRes) window.__openPendingRes();
         if (window.selectedReservation) {
             const up = reservations.find(r => r.id === window.selectedReservation.id);
             if (up) {
@@ -1524,6 +1525,25 @@ document.addEventListener('DOMContentLoaded', () => {
         populateDetail(r);
         openSheet(detailSheet, detailBackdrop);
     };
+    // Genel aramadan rezervasyon aç (?res=ID ya da kabuğun deepLink mesajı).
+    // Canlı pencerede (son 90 gün + gelecek) yoksa doğrudan okunur.
+    function openReservationById(id) {
+        const r = reservations.find(x => x.id === id);
+        if (r) { openDetail(r); return true; }
+        db.collection('reservations').doc(id).get().then(d => {
+            if (d.exists && (d.data().tenantId || '') === TENANT_ID) openDetail({ id: d.id, ...d.data() });
+        }).catch(() => {});
+        return true;
+    }
+    window.addEventListener('message', (e) => {
+        const d = e.data;
+        if (!d || !d.__mgShell || d.type !== 'deepLink' || e.source !== window.parent) return;
+        const id = new URLSearchParams(d.query || '').get('res');
+        if (id) openReservationById(id);
+    });
+    let pendingResId = null;
+    try { pendingResId = new URLSearchParams(location.search).get('res'); } catch (e) {}
+    window.__openPendingRes = () => { if (pendingResId && reservations.length) { const id = pendingResId; pendingResId = null; openReservationById(id); } };
 
     function populateDetail(r) {
         const sym = curSym(r.currency || 'EUR');
