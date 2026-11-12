@@ -606,11 +606,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }).catch(() => {});
     }
     // App Shell: modül açıkken gelen derin bağlantı (sayfa yeniden yüklenmez).
+    //   open=ID                         → kaydı aç
+    //   new=request|complaint&room=&guest= → oda/misafir dolu yeni kayıt formu (genel arama)
     window.addEventListener('message', (e) => {
         const d = e.data;
         if (!d || !d.__mgShell || d.type !== 'deepLink' || e.source !== window.parent) return;
-        const id = new URLSearchParams(d.query || '').get('open');
-        if (id) openRecordById(id);
+        const p = new URLSearchParams(d.query || '');
+        if (p.get('open')) openRecordById(p.get('open'));
+        else if (p.get('new')) openNewIssueFor(p.get('new'), p.get('room'), p.get('guest'));
     });
     fetchRecords();
     document.getElementById('loadOlderBtn')?.addEventListener('click', loadOlder);
@@ -814,6 +817,20 @@ document.addEventListener('DOMContentLoaded', () => {
         newIssueModal.style.display = 'flex';
         document.getElementById('guestName')?.focus();
     }
+    // Genel aramadan "Bu oda için yeni talep/şikayet": oda ve misafir dolu açılır.
+    function openNewIssueFor(type, room, guest) {
+        document.querySelectorAll('.modal').forEach(m => { if (m !== newIssueModal && m.style.display === 'flex') m.style.display = 'none'; });
+        openNewIssue(type === 'request' ? 'request' : 'complaint');
+        const r = document.getElementById('room'), g = document.getElementById('guestName');
+        if (r && room) r.value = room;
+        if (g && guest) g.value = guest;
+        const next = guest ? (document.getElementById('topic') || document.getElementById('complaint')) : g;
+        setTimeout(() => { try { (next || g || r).focus(); } catch (e) {} }, 30);
+    }
+    try {
+        const p0 = new URLSearchParams(location.search);
+        if (p0.get('new')) setTimeout(() => openNewIssueFor(p0.get('new'), p0.get('room'), p0.get('guest')), 0);
+    } catch (e) {}
     document.getElementById('giFabNew')?.addEventListener('click', () => openNewIssue('complaint'));
     document.getElementById('newIssueBtn')?.addEventListener('click', () => openNewIssue('complaint'));
 

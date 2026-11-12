@@ -524,6 +524,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── EVENT LISTENERS ────────────────────────────────────────
     document.getElementById('mergeSearch')?.addEventListener('input', (e) => populateMergeOptions(e.target.value));
     document.getElementById('guestSearch')?.addEventListener('input', renderGuestList);
+    // Genel aramadan "CRM'de aç": arama kutusunu doldurup listeyi süz.
+    function applySearch(q) {
+        const el = document.getElementById('guestSearch');
+        if (!el || !q) return;
+        el.value = q;
+        renderGuestList();
+        try { el.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    }
+    window.addEventListener('message', (e) => {
+        const d = e.data;
+        if (!d || !d.__mgShell || d.type !== 'deepLink' || e.source !== window.parent) return;
+        applySearch(new URLSearchParams(d.query || '').get('q'));
+    });
+    try { const q0 = new URLSearchParams(location.search).get('q'); if (q0) setTimeout(() => applySearch(q0), 0); } catch (e) {}
 
     // ── Manual guest add (works without a PMS) ─────────────────
     const addGuestModal = document.getElementById('addGuestModal');

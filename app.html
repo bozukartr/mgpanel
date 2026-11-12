@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#ffffff">
     <title>Hotizy</title>
-    <link rel="stylesheet" href="css/core/app-shell.css?v=20261112a">
+    <link rel="stylesheet" href="css/core/app-shell.css?v=20261112c">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -29,6 +29,11 @@
                 <button class="sh-tab sh-orders" data-action="orders" data-ctx="hotel">Talepler</button>
                 <a class="sh-tab admin-only" id="shAdmin" href="admin" style="display:none;">Ayarlar</a>
             </nav>
+            <!-- Genel arama: oda numarası / misafir (js/core/shell-search.js) -->
+            <button class="sh-search" id="shSearchBtn" data-ctx="hotel" hidden aria-label="Oda veya misafir ara">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <span>Oda veya misafir ara</span><kbd>Ctrl K</kbd>
+            </button>
             <div class="sh-user">
                 <div id="rt-bell"></div>
                 <div class="sh-chip">
@@ -97,6 +102,7 @@
     <script src="js/core/realtime.js"></script>
     <script src="js/core/pwa.js"></script>
     <script src="js/core/push.js"></script>
-    <script src="js/core/app-shell.js?v=20261112a"></script>
+    <script src="js/core/app-shell.js?v=20261112b"></script>
+    <script src="js/core/shell-search.js?v=20261112c"></script>
 </body>
 </html>

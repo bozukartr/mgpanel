@@ -56,7 +56,7 @@ test('modüller derin bağlantı mesajını işler (yeniden yüklemeden kayıt a
   const panel = read('js/modules/panel.js');
   assert.match(panel, /function openRecordById\(openId\)/);
   assert.match(panel, /d\.type !== 'deepLink' \|\| e\.source !== window\.parent/);
-  assert.match(panel, /get\('open'\);\s*if \(id\) openRecordById\(id\)/);
+  assert.match(panel, /if \(p\.get\('open'\)\) openRecordById\(p\.get\('open'\)\)/);
   const go = read('js/modules/guest-orders.js');
   assert.match(go, /d\.type === 'deepLink'[\s\S]{0,200}focusOrder\(q\.get\('order'\)\)[\s\S]{0,80}openDrawer\(\)/);
 });
