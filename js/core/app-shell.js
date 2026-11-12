@@ -37,12 +37,14 @@
     // fark bilinçlidir, kabuk kromu daha erken sıkışır).
     var MOB = window.matchMedia ? window.matchMedia('(max-width: 880px)') : null;
     function isMobileShell() { return !!(MOB && MOB.matches); }
-    // Mobilde açılış "Misafir Kayıtları"dır: panel orada saha personeline
-    // büyük butonlu ana menüyü gösterir (bkz. js/modules/panel.js mobView).
-    // Masaüstünde ve F&B bağlamında davranış değişmez.
+    // Açılış ekranı role göre: Panel (özet kartları, analiz) yöneticiler
+    // içindir. Saha personeli (admin/yönetici değil) ve mobil her zaman
+    // "Misafir Kayıtları"nda açılır — orada önce kendi İŞ KUYRUĞU (üzerindeki
+    // ve departmanında sırada bekleyen işler) görünür (panel.js renderMyQueue).
+    function isManagerRole() { return ROLE === 'admin' || ROLE === 'manager' || USERNAME.toLowerCase() === 'admin'; }
     function defaultRoute() {
         if (CTX === 'fnb') return 'restoran';
-        if (isMobileShell() && moduleOn('guestIssues')) return 'kayitlar';
+        if ((isMobileShell() || !isManagerRole()) && moduleOn('guestIssues')) return 'kayitlar';
         return 'dashboard';
     }
     function applyContext() {

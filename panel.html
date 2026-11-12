@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Misafir Kayıtları · Hotizy</title>
-    <link rel="stylesheet" href="css/modules/panel.css?v=20261111a">
+    <link rel="stylesheet" href="css/modules/panel.css?v=20261112f">
     <link rel="stylesheet" href="css/core/modal.css">
     <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -72,6 +72,8 @@
                     <b id="mhHello">Merhaba</b>
                     <span id="mhSub">—</span>
                 </div>
+                <!-- İş kuyruğum: üzerimdekiler + departmanımda sırada bekleyenler (panel.js renderMyQueue) -->
+                <div class="mq-wrap" id="mhQueue"></div>
                 <div class="mh-grid">
                     <button class="mh-card" data-mob="requests">
                         <span class="mh-ico" data-ic="clipboard"></span>
@@ -224,6 +226,7 @@
 
                     <!-- RIGHT: day summary + overdue list -->
                     <aside class="cz-right desk-only">
+                        <div class="cz-card mq-card" id="giMyQueue"></div>
                         <div class="cz-card">
                             <h4>Günün Özeti</h4>
                             <div class="cz-sum-row"><span>Toplam Talep</span><b id="sumTotal">0</b></div>
@@ -499,7 +502,7 @@
          butonla açılamayan bir modaldı; kayıt raporları Raporlar sayfasında. -->
 
     <script src="js/modules/pms.js?v=20261111c"></script>
-    <script src="js/modules/panel.js?v=20261112b"></script>
+    <script src="js/modules/panel.js?v=20261112e"></script>
     <script src="js/modules/room-access.js"></script>
     <script src="js/core/service-icons.js?v=20261111b"></script>
     <script src="js/modules/guest-orders.js?v=20261112a"></script>
