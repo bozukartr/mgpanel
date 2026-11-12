@@ -229,3 +229,34 @@ a { text-decoration: none; color: inherit; }
 .ss-close:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .sk-note { margin: 0; padding: 10px 20px 16px; font-size: 12px; color: var(--faint); }
 @media (max-width: 640px) { .sk-body { grid-template-columns: 1fr; } }
+
+/* ── Mobil alt sekme çubuğu (≤880px) — app-shell.js buildBottomBar ── */
+.sh-bottom { display: none; }
+@media (max-width: 880px) {
+    .sh-app.has-bottom .sh-bottom {
+        display: flex; flex: 0 0 auto; align-items: stretch;
+        height: calc(60px + var(--safe-bottom)); padding: 0 4px var(--safe-bottom);
+        background: rgba(255, 255, 255, .96); backdrop-filter: saturate(180%) blur(14px);
+        border-top: 1px solid var(--border); z-index: 10;
+    }
+    .sh-bt {
+        flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+        border: 0; background: none; padding: 6px 2px 4px; color: var(--muted);
+        font-family: inherit; font-size: 11px; font-weight: 600; letter-spacing: .01em;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .sh-bt svg { width: 23px; height: 23px; stroke-width: 2; }
+    .sh-bt span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sh-bt:active { background: #f1f5f9; border-radius: 12px; }
+    .sh-bt.active, .sh-bt.open { color: var(--primary-dark); }
+    .sh-bt.active svg { stroke-width: 2.3; }
+    /* Çubukta Menü ve Ara var: başlıktaki hamburger ve arama simgesi gereksiz. */
+    .sh-app.has-bottom .sh-menu { display: none; }
+    .sh-app.has-bottom .sh-search { display: none; }
+    .sh-app.has-bottom .sh-header { padding-left: 16px; }
+    .sh-app.has-bottom .sh-user { margin-left: auto; }
+    /* Klavye açıkken içerik öne. */
+    .sh-app.has-bottom.kb-open .sh-bottom { display: none; }
+    /* Çekmece çubuğun üstünde kalsın (alttan erişim). */
+    .sh-app.has-bottom .sh-drawer { padding-bottom: calc(76px + var(--safe-bottom)); }
+}

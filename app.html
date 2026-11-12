@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#ffffff">
     <title>Hotizy</title>
-    <link rel="stylesheet" href="css/core/app-shell.css?v=20261112e">
+    <link rel="stylesheet" href="css/core/app-shell.css?v=20261112h">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -48,6 +48,9 @@
             <iframe id="shFrame" class="sh-frame" title="İçerik"></iframe>
             <div class="sh-loading" id="shLoading"><div class="sh-spin"></div></div>
         </div>
+        <!-- Mobil alt sekme çubuğu (≤880px): role göre en sık 4 hedef + Menü.
+             app-shell.js buildBottomBar doldurur; F&B girişinde gösterilmez. -->
+        <nav class="sh-bottom" id="shBottom" aria-label="Hızlı geçiş"></nav>
 
         <!-- Mobil modül çekmecesi (alt nav bar'ın yerine).
              Satırlar kabuk sekmeleriyle AYNI data-route/data-module/data-ctx
@@ -102,7 +105,7 @@
     <script src="js/core/realtime.js"></script>
     <script src="js/core/pwa.js"></script>
     <script src="js/core/push.js"></script>
-    <script src="js/core/app-shell.js?v=20261112e"></script>
+    <script src="js/core/app-shell.js?v=20261112g"></script>
     <script src="js/core/shell-search.js?v=20261112c"></script>
     <script src="js/core/shell-keys.js?v=20261112d"></script>
 </body>
