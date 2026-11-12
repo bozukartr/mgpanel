@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Misafir Kayıtları · Hotizy</title>
-    <link rel="stylesheet" href="css/modules/panel.css?v=20261112f">
+    <link rel="stylesheet" href="css/modules/panel.css?v=20261112h">
     <link rel="stylesheet" href="css/core/modal.css">
     <link rel="stylesheet" href="css/core/mobile-sheet.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -203,7 +203,7 @@
                                 <table id="recordsTable">
                                     <thead>
                                         <tr>
-                                            <th>Tarih</th>
+                                            <th><label class="sel-box" title="Görünenlerin tümünü seç"><input type="checkbox" id="selAll" aria-label="Görünenlerin tümünü seç"></label>Tarih</th>
                                             <th>Oda</th>
                                             <th>Misafir</th>
                                             <th>Departman</th>
@@ -243,6 +243,17 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Toplu işlem çubuğu (masaüstü; seçim varken) — panel.js syncBulkBar -->
+    <div class="bulk-bar" id="bulkBar" hidden role="region" aria-label="Toplu işlem">
+        <span class="bb-count" id="bulkCount">0 kayıt seçildi</span>
+        <button type="button" class="bb-btn complete" id="bulkComplete"><span data-ic="check"></span>Tamamlandı</button>
+        <div class="bb-assign" id="bulkAssignWrap" hidden>
+            <button type="button" class="bb-btn" id="bulkAssignBtn"><span data-ic="user"></span>Ata</button>
+            <div class="bb-pop" id="bulkAssignPop" hidden></div>
+        </div>
+        <button type="button" class="bb-x" id="bulkClear">Seçimi kaldır</button>
     </div>
 
     <!-- New Issue Modal (Concierge-style creation flow) -->
@@ -502,7 +513,7 @@
          butonla açılamayan bir modaldı; kayıt raporları Raporlar sayfasında. -->
 
     <script src="js/modules/pms.js?v=20261111c"></script>
-    <script src="js/modules/panel.js?v=20261112e"></script>
+    <script src="js/modules/panel.js?v=20261112h"></script>
     <script src="js/modules/room-access.js"></script>
     <script src="js/core/service-icons.js?v=20261111b"></script>
     <script src="js/modules/guest-orders.js?v=20261112a"></script>

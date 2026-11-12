@@ -897,7 +897,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 uid: d.id,
                 username: (d.data().username || d.id),
                 role: (d.data().role || '').toLowerCase(),
-                department: ((d.data().department || '')).trim().toLowerCase()
+                department: ((d.data().department || '')).trim().toLowerCase(),
+                departmentLabel: (d.data().department || '').trim()   // gösterim (toplu atama listesi)
             }));
             staffCacheAt = Date.now();
         } catch (e) { staffCache = staffCache || []; }
@@ -1592,7 +1593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (lateBadgeStatus) row.classList.add('urgent-row');
 
             row.innerHTML = `
-                <td class="date-cell">${formatDateShort(record.date)}</td>
+                <td class="date-cell"><label class="sel-box" title="Seç"><input type="checkbox" data-sel="${esc(record.id)}"${selIds.has(record.id) ? ' checked' : ''} aria-label="Kaydı seç"></label>${formatDateShort(record.date)}</td>
                 <td class="room-cell"><span>${esc(record.room)}</span></td>
                 <td class="guest-cell">
                     <!-- Satır 1: ad + tür + not sayısı. Satır 2: tüm durum
@@ -1615,11 +1616,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="dur-cell">${durHtml}</td>
                 <td class="act-cell">${quickAct}</td>
             `;
-            row.onclick = () => openModal(record);
+            row.onclick = () => { if (!row.__swiped) openModal(record); };
             const qa = row.querySelector('[data-qa]');
             if (qa) qa.onclick = (e) => { e.stopPropagation(); quickTransition(record, qa.dataset.qa, qa); };
+            const sb = row.querySelector('.sel-box');
+            if (sb) sb.onclick = (e) => {
+                e.stopPropagation();
+                const cb = sb.querySelector('input');
+                if (e.target !== cb) return;   // label tıklaması input'a iletilir
+                cb.checked ? selIds.add(record.id) : selIds.delete(record.id);
+                syncBulkBar();
+            };
+            if (MOB_MQ.matches) attachSwipe(row, record,
+                status === 'Following' && canTakeRecord(record) ? 'take'
+                    : (status === 'InProgress' && canCompleteRecord(record) ? 'complete' : null));
             recordsTableBody.appendChild(row);
         });
+        syncBulkBar(new Set(finalFiltered.map(r => r.id)));
 
         // Update Stats Dashboard UI
         if (document.getElementById('statTotal')) document.getElementById('statTotal').textContent = stats.total;
@@ -1915,6 +1928,277 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
     function canCompleteRecord(record) { return completeBlockReason(record) == null; }
+    // ── Geri al (tamamlama) ─────────────────────────────────────
+    // Yanlış karta "Tamamlandı" demek geri alınamıyordu. Tamamlamadan sonra
+    // 6 sn "Geri al" sunulur: kayıt ÖNCEKİ durumuna (İşlemde / Bekliyor)
+    // döner, tamamlama notu zaman çizelgesinden çıkarılır, QR kalemi geri
+    // açılır. Yalnızca tamamlayan kişi ve kayıt bu arada değişmediyse.
+    let undoEl = null, undoTimer = null;
+    function showUndoToast(msg, onUndo) {
+        if (!undoEl) {
+            undoEl = document.createElement('div');
+            undoEl.className = 'undo-toast';
+            undoEl.setAttribute('role', 'status');
+            document.body.appendChild(undoEl);
+        }
+        clearTimeout(undoTimer);
+        undoEl.innerHTML = `<span class="ut-msg">${esc(msg)}</span><button type="button" class="ut-btn">Geri al</button><i class="ut-bar"></i>`;
+        undoEl.classList.remove('show');
+        void undoEl.offsetWidth;   // çubuk animasyonu baştan başlasın
+        undoEl.classList.add('show');
+        const btn = undoEl.querySelector('.ut-btn');
+        btn.onclick = async () => {
+            btn.disabled = true;
+            clearTimeout(undoTimer);
+            try { await onUndo(); } finally { undoEl.classList.remove('show'); }
+        };
+        undoTimer = setTimeout(() => undoEl.classList.remove('show'), 6000);
+    }
+    async function undoComplete(r, res) {
+        const ref = db.collection('guestLogs').doc(r.id);
+        const out = await db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists) return 'gone';
+            const c = snap.data();
+            if (c.status !== 'Solved' || c.completedBy !== loggedUsername) return 'changed';
+            tx.update(ref, {
+                status: res.prevStatus || 'InProgress',
+                completedAt: null,
+                completedBy: null,
+                updates: firebase.firestore.FieldValue.arrayRemove(res.note)
+            });
+            return 'ok';
+        });
+        if (out !== 'ok') return out;
+        r.status = res.prevStatus || 'InProgress';
+        r.completedAt = null; r.completedBy = null;
+        r.updates = (r.updates || []).filter(n => !(n && res.note && n.timestamp === res.note.timestamp && n.text === res.note.text));
+        if (r.source === 'guest-order' && r.orderId && r.itemId) syncOrderItem(r.orderId, r.itemId, 'reopen');
+        if (selectedRecord && selectedRecord.id === r.id) { updateStatusBadge(r.status); renderWorkflow(r); renderTimeline(r); }
+        return 'ok';
+    }
+    function offerUndo(entries, msg) {
+        showUndoToast(msg, async () => {
+            let ok = 0, fail = 0;
+            for (const e of entries) {
+                try { (await undoComplete(e.r, e.res)) === 'ok' ? ok++ : fail++; } catch (err) { fail++; }
+            }
+            triggerSearch();
+            if (fail && !ok) showToast('Geri alınamadı — kayıt bu arada değişti.', true);
+            else showToast(ok > 1 ? ok + ' kayıt geri alındı' : 'Geri alındı' + (fail ? ' · ' + fail + ' kayıt değiştiği için alınamadı' : ''));
+        });
+    }
+
+    // ── Toplu işlem (masaüstü) ──────────────────────────────────
+    // Çoklu seçim: Tamamlandı (yetkili olunan kayıtlar) ve Ata (yönetici:
+    // bekleyen kayıtları bir personele). Her kayıt kendi transaction'ından
+    // geçer; yetkisiz / bu arada değişmiş kayıtlar atlanır ve sayısı söylenir.
+    const selIds = new Set();
+    const isManagerRole = () => { const role = (localStorage.getItem('hotelRole') || '').toLowerCase(); return role === 'admin' || role === 'manager' || loggedUsername.toLowerCase() === 'admin'; };
+    function syncBulkBar(visibleIds) {
+        if (visibleIds) Array.from(selIds).forEach(id => { if (!visibleIds.has(id)) selIds.delete(id); });
+        const bar = document.getElementById('bulkBar');
+        if (!bar) return;
+        const n = selIds.size;
+        bar.hidden = n === 0;
+        const c = document.getElementById('bulkCount'); if (c) c.textContent = n + ' kayıt seçildi';
+        const ab = document.getElementById('bulkAssignWrap'); if (ab) ab.hidden = !isManagerRole();
+        const all = document.getElementById('selAll');
+        if (all) {
+            const boxes = recordsTableBody.querySelectorAll('[data-sel]');
+            const checked = recordsTableBody.querySelectorAll('[data-sel]:checked').length;
+            all.checked = boxes.length > 0 && checked === boxes.length;
+            all.indeterminate = checked > 0 && checked < boxes.length;
+        }
+        if (!n) { const pop = document.getElementById('bulkAssignPop'); if (pop) pop.hidden = true; }
+    }
+    function selectedRecs() { return records.filter(r => selIds.has(r.id)); }
+    async function bulkComplete() {
+        const list = selectedRecs();
+        const eligible = list.filter(r => (r.status || 'Following') !== 'Solved' && canCompleteRecord(r));
+        const skipped = list.length - eligible.length;
+        if (!eligible.length) { showToast('Seçilenlerin hiçbirini tamamlama yetkiniz yok ya da hepsi zaten tamamlanmış.', true); return; }
+        const btn = document.getElementById('bulkComplete'); if (btn) btn.disabled = true;
+        const done = [];
+        let stale = 0;
+        for (const r of eligible) {
+            try {
+                const res = await runTransitionTx(r.id, 'complete');
+                if (res && res.ok) {
+                    done.push({ r, res });
+                    if (r.source === 'guest-order' && r.orderId && r.itemId) syncOrderItem(r.orderId, r.itemId, 'completed');
+                } else stale++;
+            } catch (e) { stale++; }
+        }
+        if (btn) btn.disabled = false;
+        selIds.clear();
+        triggerSearch();
+        const extra = (skipped + stale) ? ' · ' + (skipped + stale) + ' kayıt atlandı' : '';
+        if (done.length) offerUndo(done, done.length + ' kayıt tamamlandı' + extra);
+        else showToast('Hiçbir kayıt tamamlanamadı' + extra, true);
+    }
+    async function openBulkAssign() {
+        const pop = document.getElementById('bulkAssignPop');
+        if (!pop) return;
+        if (!pop.hidden) { pop.hidden = true; return; }
+        pop.hidden = false;
+        pop.innerHTML = '<div class="bp-load">Yükleniyor…</div>';
+        const staff = (await getStaff()).filter(u => u && u.uid && u.username);
+        const depts = Array.from(new Set(selectedRecs().map(r => deptOf(r.department)).filter(Boolean)));
+        const same = (u) => depts.length === 1 && sameDept(u.department, depts[0]);
+        staff.sort((a, b) => (same(b) - same(a)) || String(a.username).localeCompare(String(b.username), 'tr'));
+        pop.innerHTML = '<div class="bp-h">Kime atansın? <small>Yalnızca bekleyen kayıtlar</small></div>' + (staff.length ? staff.map(u => `
+            <button type="button" class="bp-user" data-uid="${esc(u.uid)}" data-name="${esc(u.username)}">
+                <span class="av">${esc(String(u.username).slice(0, 2).toUpperCase())}</span>
+                <span class="bp-n">${esc(u.username)}<small>${esc(u.departmentLabel || u.department || '')}</small></span>
+            </button>`).join('') : '<div class="bp-load">Personel bulunamadı.</div>');
+    }
+    async function bulkAssign(uid, name) {
+        const list = selectedRecs().filter(r => (r.status || 'Following') === 'Following');
+        const skipped = selIds.size - list.length;
+        document.getElementById('bulkAssignPop').hidden = true;
+        if (!list.length) { showToast('Seçilenler arasında bekleyen kayıt yok — yalnızca bekleyenler atanabilir.', true); return; }
+        let ok = 0, stale = 0;
+        for (const r of list) {
+            const ref = db.collection('guestLogs').doc(r.id);
+            try {
+                const done = await db.runTransaction(async (tx) => {
+                    const snap = await tx.get(ref);
+                    if (!snap.exists || (snap.data().status || 'Following') !== 'Following') return false;
+                    tx.update(ref, {
+                        assignedTo: uid, assignedToName: name,
+                        updates: firebase.firestore.FieldValue.arrayUnion(workflowNote('👤 ' + name + ' kişisine atandı'))
+                    });
+                    return true;
+                });
+                if (!done) { stale++; continue; }
+                ok++;
+                if (window.RT && uid !== ((firebase.auth().currentUser || {}).uid)) {
+                    RT.sendNotification({ toUid: uid, toUsername: name, type: r.type === 'complaint' ? 'complaint' : 'request',
+                        title: 'Size iş atandı', body: `Oda ${r.room || '—'} · ${(r.topic || r.complaint || '').slice(0, 60)}`, recordId: r.id }).catch(() => {});
+                }
+            } catch (e) { stale++; }
+        }
+        selIds.clear();
+        triggerSearch();
+        showToast(ok + ' kayıt ' + name + ' kişisine atandı' + ((skipped + stale) ? ' · ' + (skipped + stale) + ' kayıt atlandı' : ''));
+    }
+    document.getElementById('bulkComplete')?.addEventListener('click', bulkComplete);
+    document.getElementById('bulkAssignBtn')?.addEventListener('click', openBulkAssign);
+    document.getElementById('bulkAssignPop')?.addEventListener('click', (e) => {
+        const u = e.target.closest('.bp-user');
+        if (u) bulkAssign(u.dataset.uid, u.dataset.name);
+    });
+    document.getElementById('bulkClear')?.addEventListener('click', () => { selIds.clear(); recordsTableBody.querySelectorAll('[data-sel]').forEach(c => { c.checked = false; }); syncBulkBar(); });
+    document.getElementById('selAll')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const on = e.target.checked;
+        recordsTableBody.querySelectorAll('[data-sel]').forEach(c => { c.checked = on; on ? selIds.add(c.dataset.sel) : selIds.delete(c.dataset.sel); });
+        syncBulkBar();
+    });
+
+    // ── Mobil: kartı sağa kaydırarak Üstlen / Tamamla ───────────
+    // Bekleyen kart (üstlenme yetkisi varsa) → Üstlen; işlemdeki kart
+    // (tamamlama yetkisi varsa) → Tamamla. Eşiği geçmeden bırakılırsa geri
+    // döner. Dikey kaydırma tarayıcıda kalır (touch-action: pan-y).
+    function attachSwipe(row, record, action) {
+        if (!action) return;
+        const label = action === 'take' ? 'Üstlen' : 'Tamamla';
+        let x0 = 0, y0 = 0, dx = 0, active = false, decided = false, ov = null;
+        const W = () => row.getBoundingClientRect().width || 300;
+        row.classList.add('swipeable');
+        row.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
+            x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; active = false; decided = false;
+        }, { passive: true });
+        row.addEventListener('touchmove', (e) => {
+            const t = e.touches[0];
+            const mx = t.clientX - x0, my = t.clientY - y0;
+            if (!decided) {
+                if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+                decided = true;
+                active = mx > 0 && Math.abs(mx) > Math.abs(my) * 1.3;
+                if (active) {
+                    ov = document.createElement('div');
+                    ov.className = 'swipe-ov ' + action;
+                    ov.innerHTML = `${ic(action === 'take' ? 'wrench' : 'check')}<span>${label}</span>`;
+                    row.appendChild(ov);
+                }
+            }
+            if (!active) return;
+            dx = Math.max(0, Math.min(mx, W() * 0.6));
+            const p = Math.min(1, dx / (W() * 0.35));
+            row.style.transform = `translateX(${dx}px)`;
+            ov.style.opacity = String(0.35 + p * 0.65);
+            ov.classList.toggle('ready', p >= 1);
+        }, { passive: true });
+        const end = () => {
+            if (!active) return;
+            const fire = dx >= W() * 0.35;
+            row.style.transition = 'transform .18s ease';
+            row.style.transform = '';
+            setTimeout(() => { row.style.transition = ''; if (ov) { ov.remove(); ov = null; } }, 200);
+            row.__swiped = true; setTimeout(() => { row.__swiped = false; }, 350);
+            active = false;
+            if (fire) { try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} quickTransition(record, action, null); }
+        };
+        row.addEventListener('touchend', end);
+        row.addEventListener('touchcancel', end);
+    }
+
+    // Tek kaydın iş akışı geçişi (take / complete / reopen) — transaction,
+    // sunucudaki güncel durumu doğrulayarak. Arayüzden bağımsız: modal,
+    // hızlı düğme, kaydırma, toplu işlem aynı çekirdeği kullanır.
+    async function runTransitionTx(id, action) {
+        const TS = firebase.firestore.FieldValue.serverTimestamp();
+        const nowDate = new Date();
+        const ref = db.collection('guestLogs').doc(id);
+        return db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists) return { error: 'not-found' };
+            const cur = snap.data();
+            const curStatus = cur.status || 'Following';
+
+            if (action === 'take' && curStatus !== 'Following') return { error: 'stale', data: cur };
+            if (action === 'complete' && curStatus === 'Solved') return { error: 'stale', data: cur };
+            if (action === 'reopen' && curStatus !== 'Solved') return { error: 'stale', data: cur };
+
+            const payload = {};
+            let note, toastMsg;
+            if (action === 'take') {
+                payload.status = 'InProgress';
+                payload.acknowledgedAt = TS;
+                payload.acknowledgedBy = loggedUsername;
+                // Üstlenenin departmanı raporlama için kayda işlenir
+                // (kaydın departmanıyla eşleşmesi canTakeRecord ile garanti;
+                // manager/admin üstlenmişse kendi departmanı görünür).
+                payload.acknowledgedDept = (localStorage.getItem('hotelDept') || '').trim();
+                note = workflowNote('🔧 İşi üstlendi — süre başladı');
+                toastMsg = 'İş üstlenildi, süre başladı';
+            } else if (action === 'complete') {
+                payload.status = 'Solved';
+                payload.completedAt = TS;
+                payload.completedBy = loggedUsername;
+                const acked = tsToDate(cur.acknowledgedAt), created = tsToDate(cur.createdAt);
+                const durText = acked ? fmtDuration(nowDate - acked) : (created ? fmtDuration(nowDate - created) + ' (toplam)' : '');
+                note = workflowNote('✅ Tamamlandı' + (durText ? ` — ${durText}` : ''));
+                toastMsg = 'Talep tamamlandı' + (durText ? ` · ${durText}` : '');
+            } else if (action === 'reopen') {
+                payload.status = 'Following';
+                payload.completedAt = null;
+                payload.completedBy = null;
+                note = workflowNote('↩️ Talep yeniden açıldı');
+                toastMsg = 'Talep yeniden açıldı';
+            } else return { error: 'invalid-action' };
+
+            // arrayUnion: sunucu tarafında atomik ekleme — istemcinin okuduğu
+            // (bayat olabilecek) `updates` dizisini tam olarak geri yazmak, aynı
+            // kayda eşzamanlı eklenen başka bir notu sessizce ezebilirdi.
+            payload.updates = firebase.firestore.FieldValue.arrayUnion(note);
+            tx.update(ref, payload);
+            return { ok: true, status: payload.status, note, toastMsg, prevStatus: curStatus };
+        });
+    }
     async function transitionRecordImpl(action) {
         const r = selectedRecord;
         if (action === 'take') {
@@ -1925,56 +2209,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const reason = completeBlockReason(r);
             if (reason) { showToast(reason, true); return; }
         }
-        const TS = firebase.firestore.FieldValue.serverTimestamp();
         const nowDate = new Date();
-        const ref = db.collection('guestLogs').doc(editingId);
-
         try {
-            const result = await db.runTransaction(async (tx) => {
-                const snap = await tx.get(ref);
-                if (!snap.exists) return { error: 'not-found' };
-                const cur = snap.data();
-                const curStatus = cur.status || 'Following';
-
-                if (action === 'take' && curStatus !== 'Following') return { error: 'stale', data: cur };
-                if (action === 'complete' && curStatus === 'Solved') return { error: 'stale', data: cur };
-                if (action === 'reopen' && curStatus !== 'Solved') return { error: 'stale', data: cur };
-
-                const payload = {};
-                let note, toastMsg;
-                if (action === 'take') {
-                    payload.status = 'InProgress';
-                    payload.acknowledgedAt = TS;
-                    payload.acknowledgedBy = loggedUsername;
-                    // Üstlenenin departmanı raporlama için kayda işlenir
-                    // (kaydın departmanıyla eşleşmesi canTakeRecord ile garanti;
-                    // manager/admin üstlenmişse kendi departmanı görünür).
-                    payload.acknowledgedDept = (localStorage.getItem('hotelDept') || '').trim();
-                    note = workflowNote('🔧 İşi üstlendi — süre başladı');
-                    toastMsg = 'İş üstlenildi, süre başladı';
-                } else if (action === 'complete') {
-                    payload.status = 'Solved';
-                    payload.completedAt = TS;
-                    payload.completedBy = loggedUsername;
-                    const acked = tsToDate(cur.acknowledgedAt), created = tsToDate(cur.createdAt);
-                    const durText = acked ? fmtDuration(nowDate - acked) : (created ? fmtDuration(nowDate - created) + ' (toplam)' : '');
-                    note = workflowNote('✅ Tamamlandı' + (durText ? ` — ${durText}` : ''));
-                    toastMsg = 'Talep tamamlandı' + (durText ? ` · ${durText}` : '');
-                } else if (action === 'reopen') {
-                    payload.status = 'Following';
-                    payload.completedAt = null;
-                    payload.completedBy = null;
-                    note = workflowNote('↩️ Talep yeniden açıldı');
-                    toastMsg = 'Talep yeniden açıldı';
-                } else return { error: 'invalid-action' };
-
-                // arrayUnion: sunucu tarafında atomik ekleme — istemcinin okuduğu
-                // (bayat olabilecek) `updates` dizisini tam olarak geri yazmak, aynı
-                // kayda eşzamanlı eklenen başka bir notu sessizce ezebilirdi.
-                payload.updates = firebase.firestore.FieldValue.arrayUnion(note);
-                tx.update(ref, payload);
-                return { ok: true, status: payload.status, note, toastMsg };
-            });
+            const result = await runTransitionTx(editingId, action);
 
             if (result.error === 'not-found') { showToast('Kayıt bulunamadı — silinmiş olabilir.', true); return; }
             if (result.error === 'invalid-action') return;
@@ -2000,7 +2237,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatusBadge(r.status);
             renderWorkflow(r);
             renderTimeline(r);
-            showToast(result.toastMsg);
+            // Tamamlama yanlış karta yapılabilir: 6 sn "Geri al" sunulur.
+            if (action === 'complete') offerUndo([{ r, res: result }], result.toastMsg);
+            else showToast(result.toastMsg);
             // QR köprüsü senkronu: bu kayıt bir QR siparişinin kalemiyse,
             // üstlenince kalem "işlemde", tamamlanınca "tamamlandı" olur;
             // tüm kalemler bitince sipariş kapanır — misafir kendi ekranında
