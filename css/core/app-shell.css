@@ -252,9 +252,11 @@ a { text-decoration: none; color: inherit; }
     .sh-bt.active svg { stroke-width: 2.3; }
     /* Çubukta Menü ve Ara var: başlıktaki hamburger ve arama simgesi gereksiz. */
     .sh-app.has-bottom .sh-menu { display: none; }
-    .sh-app.has-bottom .sh-search { display: none; }
+    .sh-app.has-bottom-search .sh-search { display: none; }
     .sh-app.has-bottom .sh-header { padding-left: 16px; }
     .sh-app.has-bottom .sh-user { margin-left: auto; }
+    /* Çubukta "Ara" yoksa arama simgesi başlıkta kalır ve onu sağa iter. */
+    .sh-app.has-bottom:not(.has-bottom-search) .sh-user { margin-left: 0; }
     /* Klavye açıkken içerik öne. */
     .sh-app.has-bottom.kb-open .sh-bottom { display: none; }
     /* Çekmece çubuğun üstünde kalsın (alttan erişim). */

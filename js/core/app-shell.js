@@ -314,6 +314,9 @@
         }).join('') + '<button class="sh-bt" data-bt="menu" aria-expanded="false">' + svgOf('#shMenuBtn') + '<span>Menü</span></button>';
         bar.innerHTML = html;
         document.querySelector('.sh-app').classList.add('has-bottom');
+        // Başlıktaki arama simgesi yalnızca çubukta "Ara" varsa gizlenir
+        // (yönetici çubuğunda yok — arama başlıkta kalmalı).
+        document.querySelector('.sh-app').classList.toggle('has-bottom-search', picks.indexOf('@search') !== -1);
         bar.addEventListener('click', function (e) {
             var b = e.target.closest('.sh-bt');
             if (!b) return;
