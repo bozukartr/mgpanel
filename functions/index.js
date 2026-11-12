@@ -1046,6 +1046,23 @@ async function requireTenantAdminFor(request, targetUid) {
   if (targetSnap.data().tenantId !== callerSnap.data().tenantId) {
     throw new HttpsError('permission-denied', 'Bu kullanıcı sizin otelinize ait değil.');
   }
+  // GÜVENLİK (yetki yükseltme): systemUsers belgesi tek başına yeterli kanıt
+  // DEĞİL — otel yöneticisi istemci SDK'sıyla HERHANGİ bir uid için kendi
+  // oteline ait bir systemUsers belgesi yaratabiliyordu (ör. migrationReview.
+  // resolvedBy'dan okunan platform operatörü uid'i) ve ardından o hesabın
+  // şifresini sıfırlayıp (geçici şifre ona dönüyordu) platformu ele
+  // geçirebiliyordu. Platform operatörü hesapları ve gerçek bir personel
+  // hesabı olmayan kimlikler (anonim misafir, e-postasız) hedef alınamaz.
+  const targetSuper = await db.collection('superAdmins').doc(targetUid).get();
+  if (targetSuper.exists) {
+    throw new HttpsError('permission-denied', 'Platform operatörü hesapları otel yöneticisi tarafından yönetilemez.');
+  }
+  let au = null;
+  try { au = await admin.auth().getUser(targetUid); } catch (e) { au = null; }
+  const providers = au ? (au.providerData || []).map((p) => p.providerId) : [];
+  if (!au || !au.email || providers.indexOf('password') === -1) {
+    throw new HttpsError('permission-denied', 'Bu kimlik bir personel hesabı değil.');
+  }
   return targetSnap.data();
 }
 exports.resetUserPassword = onCall({ region: REGION }, async (request) => {
