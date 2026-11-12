@@ -79,8 +79,8 @@ test('modüller aramadan gelen derin bağlantıları işler', () => {
   assert.match(panel, /function openNewIssueFor\(type, room, guest\)/);
   const con = read('js/modules/concierge.js');
   assert.match(con, /function openReservationById\(id\)/);
-  assert.match(con, /get\('res'\);\s*if \(id\) openReservationById\(id\)/);
+  assert.match(con, /if \(p\.get\('res'\)\) openReservationById\(p\.get\('res'\)\);/);
   assert.match(con, /if \(window\.__openPendingRes\) window\.__openPendingRes\(\);/);
   const crm = read('js/modules/crm.js');
-  assert.match(crm, /applySearch\(new URLSearchParams\(d\.query \|\| ''\)\.get\('q'\)\)/);
+  assert.match(crm, /else applySearch\(p\.get\('q'\)\);/);
 });
