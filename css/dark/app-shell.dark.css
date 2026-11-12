@@ -35,21 +35,25 @@ html.theme-dark .sh-tab.active {
     color: var(--primary-dark);
     background: var(--primary-soft);
 }
+html.theme-dark .sh-chip {
+    border: 1px solid transparent;
+    background: none;
+    color: inherit;
+}
+html.theme-dark .sh-chip:hover,
+html.theme-dark .sh-chip[aria-expanded="true"] {
+    background: #191c23;
+    border-color: var(--border);
+}
+html.theme-dark .sh-chev {
+    color: var(--faint);
+}
 html.theme-dark .sh-chip .av {
     background: var(--primary-soft);
     color: var(--primary-dark);
 }
 html.theme-dark .sh-chip .meta span {
     color: var(--faint);
-}
-html.theme-dark .sh-logout {
-    background: #191c23;
-    border: none;
-    color: #9ca5ba;
-}
-html.theme-dark .sh-logout:hover {
-    background: #3c1b1b;
-    color: #ea8a8a;
 }
 html.theme-dark .sh-content {
     background: var(--bg);
@@ -273,11 +277,135 @@ html.theme-dark .sk-note {
         color: var(--primary-dark);
     }
 }
-html.theme-dark .sh-theme {
-    background: #191c23;
-    border: none;
-    color: #9ca5ba;
+html.theme-dark .pm {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.396);
 }
-html.theme-dark .sh-theme:hover {
+html.theme-dark .pm-head {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .pm-head .av {
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+}
+html.theme-dark .pm-who small {
+    color: var(--muted);
+}
+html.theme-dark .pm-sec {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .pm-label {
+    color: var(--faint);
+}
+html.theme-dark .pm-seg {
+    background: #191c23;
+}
+html.theme-dark .pm-seg button {
+    background: none;
+    color: var(--muted);
+}
+html.theme-dark .pm-seg button[aria-checked="true"] {
+    background: var(--surface);
     color: var(--text);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22);
+}
+html.theme-dark .pm-list {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .pm-item {
+    background: none;
+    color: var(--text);
+}
+html.theme-dark .pm-item:hover,
+html.theme-dark .pm-item:focus-visible {
+    background: #191c23;
+    outline: none;
+}
+html.theme-dark .pm-item svg {
+    color: var(--muted);
+}
+html.theme-dark .pm-item kbd {
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+html.theme-dark .pm-meta {
+    color: var(--muted);
+}
+html.theme-dark .pm-meta.on {
+    color: #81e9a8;
+}
+html.theme-dark .pm-meta.warn {
+    color: #e9b084;
+}
+html.theme-dark .pm-meta.bad {
+    color: #ea8686;
+}
+html.theme-dark .pm-out {
+    color: #ea8686;
+}
+html.theme-dark .pm-out svg {
+    color: #ea8686;
+}
+html.theme-dark .pm-out:hover {
+    background: #3c1b1b;
+}
+@media (max-width: 880px) {
+    html.theme-dark .sh-chip:hover,
+    html.theme-dark .sh-chip[aria-expanded="true"] {
+        background: none;
+        border-color: transparent;
+    }
+    html.theme-dark .pm-scrim {
+        background: rgba(57, 68, 94, 0.42);
+    }
+}
+html.theme-dark .pd-head {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .pd-body label {
+    color: var(--muted);
+}
+html.theme-dark .pd-body input[type="password"] {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+}
+html.theme-dark .pd-body input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+html.theme-dark .pd-note {
+    color: var(--muted);
+}
+html.theme-dark .pd-err {
+    color: #ea8686;
+}
+html.theme-dark .pd-ok {
+    color: #81e9a8;
+}
+html.theme-dark .pd-btn {
+    background: var(--primary);
+    color: #ffffff;
+}
+html.theme-dark .pd-btn.ghost {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+html.theme-dark .pd-dev {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .pd-dev small {
+    color: var(--muted);
+}
+html.theme-dark .pd-dev button {
+    background: none;
+    color: #ea8686;
+}
+html.theme-dark .pm-toast {
+    background: #39445e;
+    color: #ffffff;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.66);
 }
