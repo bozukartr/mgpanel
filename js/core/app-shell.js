@@ -338,16 +338,8 @@
         if (typeof moduleEnabled === 'function' && !moduleEnabled('guestOrders')) {
             document.querySelectorAll('.sh-orders').forEach(function (el) { el.style.display = 'none'; });
         }
+        // Çıkış artık profil menüsünde (yanlışlıkla basılan başlık düğmesi kalktı).
         $('shLogout').onclick = function () { this.disabled = true; hotelSignOut('login'); };
-        // Gece modu (theme.js): açık ↔ koyu. Kabuk değiştirince tüm modül
-        // çerçeveleri de anında güncellenir.
-        var tb = $('shThemeBtn');
-        if (tb && window.Theme) {
-            var syncTb = function () { var d = Theme.isDark(); tb.classList.toggle('is-dark', d); tb.title = d ? 'Gündüz modu' : 'Gece modu'; tb.setAttribute('aria-label', tb.title); };
-            syncTb();
-            tb.onclick = function () { Theme.set(Theme.isDark() ? 'light' : 'dark'); syncTb(); };
-            window.addEventListener('storage', function (e) { if (e.key === 'hz_theme') syncTb(); });
-        }
         buildBottomBar();
         fromHash();
     }

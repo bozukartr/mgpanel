@@ -6,12 +6,12 @@
     <meta name="theme-color" content="#ffffff">
     <title>Hotizy</title>
     <script src="js/core/theme.js?v=20261112i"></script>
-    <link rel="stylesheet" href="css/core/app-shell.css?v=20261112i">
+    <link rel="stylesheet" href="css/core/app-shell.css?v=20261112j">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/core/theme-dark-base.css?v=20261112i">
-    <link rel="stylesheet" href="css/dark/app-shell.dark.css?v=20261112i">
+    <link rel="stylesheet" href="css/dark/app-shell.dark.css?v=20261112j">
     <link rel="stylesheet" href="css/dark/realtime.dark.css?v=20261112i">
 </head>
 <body>
@@ -39,18 +39,38 @@
                 <span>Oda veya misafir ara</span><kbd>Ctrl K</kbd>
             </button>
             <div class="sh-user">
-                <button class="sh-theme" id="shThemeBtn" type="button" aria-label="Gece modu" title="Gece modu">
-                    <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-                    <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-                </button>
                 <div id="rt-bell"></div>
-                <div class="sh-chip">
-                    <div class="av" id="shAvatar">··</div>
-                    <div class="meta"><b id="shUser">—</b><span id="shRole">—</span></div>
-                </div>
-                <button class="sh-logout" id="shLogout" title="Çıkış" aria-label="Çıkış">⎋</button>
+                <!-- Profil menüsü (js/core/shell-profile.js): görünüm, şifre, Face ID,
+                     cihaz bildirimleri, kısayollar, çıkış -->
+                <button class="sh-chip" id="shProfileBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="shProfileMenu" title="Hesabım">
+                    <span class="av" id="shAvatar">··</span>
+                    <span class="meta"><b id="shUser">—</b><span id="shRole">—</span></span>
+                    <svg class="sh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
             </div>
         </header>
+        <div class="pm-scrim" id="shProfileScrim" hidden></div>
+        <div class="pm" id="shProfileMenu" role="menu" aria-label="Hesabım" hidden>
+            <div class="pm-head">
+                <span class="av" id="pmAv">··</span>
+                <span class="pm-who"><b id="pmName">—</b><small id="pmRole">—</small></span>
+            </div>
+            <div class="pm-sec">
+                <div class="pm-label">Görünüm</div>
+                <div class="pm-seg" role="radiogroup" aria-label="Görünüm">
+                    <button type="button" role="radio" data-theme="light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>Açık</span></button>
+                    <button type="button" role="radio" data-theme="dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span>Koyu</span></button>
+                    <button type="button" role="radio" data-theme="auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Sistem</span></button>
+                </div>
+            </div>
+            <div class="pm-list">
+                <button type="button" class="pm-item" role="menuitem" id="pmPassword"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Şifremi değiştir</span></button>
+                <button type="button" class="pm-item" role="menuitem" id="pmFaceId" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M3 17v2a2 2 0 0 0 2 2h2"/><path d="M9 9v1M15 9v1"/><path d="M12 9v4h-1"/><path d="M9.5 16a3.5 3.5 0 0 0 5 0"/></svg><span id="pmFaceIdLabel">Face ID</span><em class="pm-meta" id="pmFaceIdMeta"></em></button>
+                <button type="button" class="pm-item" role="menuitem" id="pmPush"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span>Cihaz bildirimleri</span><em class="pm-meta" id="pmPushMeta"></em></button>
+                <button type="button" class="pm-item pm-desk" role="menuitem" id="pmKeys"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg><span>Klavye kısayolları</span><kbd>?</kbd></button>
+            </div>
+            <button type="button" class="pm-item pm-out" role="menuitem" id="shLogout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg><span>Çıkış yap</span></button>
+        </div>
 
         <div class="sh-content">
             <iframe id="shFrame" class="sh-frame" title="İçerik"></iframe>
@@ -106,6 +126,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js" crossorigin="anonymous"></script>
     <script src="js/core/firebase-config.js"></script>
     <script src="js/core/monitor.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
@@ -113,8 +134,10 @@
     <script src="js/core/realtime.js"></script>
     <script src="js/core/pwa.js"></script>
     <script src="js/core/push.js"></script>
-    <script src="js/core/app-shell.js?v=20261112i"></script>
+    <script src="js/core/app-shell.js?v=20261112j"></script>
     <script src="js/core/shell-search.js?v=20261112c"></script>
     <script src="js/core/shell-keys.js?v=20261112d"></script>
+    <script src="js/core/passkey.js?v=20261112j"></script>
+    <script src="js/core/shell-profile.js?v=20261112j"></script>
 </body>
 </html>

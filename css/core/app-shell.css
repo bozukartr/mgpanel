@@ -38,14 +38,14 @@ a { text-decoration: none; color: inherit; }
 .sh-tab:hover { color: var(--text); background: #f1f5f9; }
 .sh-tab.active { color: var(--primary-dark); background: var(--primary-soft); }
 .sh-user { display: flex; align-items: center; gap: 12px; }
-.sh-chip { display: flex; align-items: center; gap: 9px; }
+.sh-chip { display: flex; align-items: center; gap: 9px; padding: 3px 8px 3px 3px; border: 1px solid transparent; border-radius: 13px; background: none; color: inherit; text-align: left; font: inherit; }
+.sh-chip:hover, .sh-chip[aria-expanded="true"] { background: #f1f5f9; border-color: var(--border); }
+.sh-chev { width: 15px; height: 15px; color: var(--faint); }
 .sh-chip .av { width: 34px; height: 34px; border-radius: 11px; background: var(--primary-soft); color: var(--primary-dark);
     display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; }
 .sh-chip .meta { line-height: 1.2; }
 .sh-chip .meta b { font-size: 13px; font-weight: 700; }
 .sh-chip .meta span { font-size: 11.5px; color: var(--faint); display: block; }
-.sh-logout { width: 36px; height: 36px; border-radius: 11px; background: #f1f5f9; border: none; color: #475569; font-size: 16px; }
-.sh-logout:hover { background: #fee2e2; color: #dc2626; }
 
 /* ── Content ──────────────────────────────────────────── */
 .sh-content { flex: 1; position: relative; min-height: 0; background: var(--bg); }
@@ -261,10 +261,81 @@ a { text-decoration: none; color: inherit; }
     .sh-app.has-bottom .sh-drawer { padding-bottom: calc(76px + var(--safe-bottom)); }
 }
 
-/* ── Gece modu düğmesi (theme.js) ── */
-.sh-theme { width: 36px; height: 36px; border-radius: 11px; background: #f1f5f9; border: none; color: #475569; display: flex; align-items: center; justify-content: center; }
-.sh-theme svg { width: 18px; height: 18px; }
-.sh-theme .i-sun { display: none; }
-.sh-theme.is-dark .i-sun { display: block; }
-.sh-theme.is-dark .i-moon { display: none; }
-.sh-theme:hover { color: var(--text); }
+
+/* ── Profil menüsü (js/core/shell-profile.js) ───────────────────── */
+.pm-scrim { position: fixed; inset: 0; z-index: 40; }
+.pm-scrim[hidden] { display: none; }
+.pm {
+    position: fixed; top: calc(var(--header-h) - 4px); right: 16px; z-index: 41; width: 300px;
+    padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, .18); animation: sspop2 .14s cubic-bezier(.2, .8, .2, 1);
+}
+.pm[hidden] { display: none; }
+@keyframes sspop2 { from { opacity: 0; transform: translateY(-4px); } }
+.pm-head { display: flex; align-items: center; gap: 11px; padding: 8px 8px 12px; border-bottom: 1px solid var(--border); }
+.pm-head .av { width: 40px; height: 40px; border-radius: 12px; background: var(--primary-soft); color: var(--primary-dark); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex: 0 0 40px; }
+.pm-who { display: flex; flex-direction: column; min-width: 0; }
+.pm-who b { font-size: 14.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-who small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-sec { padding: 10px 8px 8px; border-bottom: 1px solid var(--border); }
+.pm-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+.pm-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 3px; background: #f1f5f9; border-radius: 11px; }
+.pm-seg button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 4px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-size: 12px; font-weight: 600; }
+.pm-seg button svg { width: 17px; height: 17px; }
+.pm-seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(15, 23, 42, .1); }
+.pm-list { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.pm-item { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 42px; padding: 0 10px; border: 0; border-radius: 10px; background: none; color: var(--text); font-size: 13.5px; font-weight: 600; text-align: left; }
+.pm-item[hidden] { display: none; }
+.pm-item:hover, .pm-item:focus-visible { background: #f1f5f9; outline: none; }
+.pm-item svg { width: 18px; height: 18px; flex: 0 0 18px; color: var(--muted); }
+.pm-item > span { flex: 1; min-width: 0; }
+.pm-item kbd { font-family: inherit; font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; padding: 0 6px; }
+.pm-meta { font-style: normal; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.pm-meta.on { color: #15803d; }
+.pm-meta.warn { color: #b45309; }
+.pm-meta.bad { color: #b91c1c; }
+.pm-out { margin-top: 6px; color: #b91c1c; }
+.pm-out svg { color: #b91c1c; }
+.pm-out:hover { background: #fef2f2; }
+@media (pointer: coarse) { .pm-desk { display: none; } }
+@media (max-width: 880px) {
+    .sh-chev { display: none; }
+    .sh-chip { padding: 0; border: 0; }
+    .sh-chip:hover, .sh-chip[aria-expanded="true"] { background: none; border-color: transparent; }
+    .pm-scrim { background: rgba(15, 23, 42, .42); }
+    .pm {
+        top: auto; left: 0; right: 0; bottom: 0; width: auto; border-radius: 20px 20px 0 0;
+        padding: 10px 12px calc(14px + var(--safe-bottom)); animation: pmup .2s cubic-bezier(.32, .72, 0, 1);
+    }
+    .pm-item { min-height: 50px; font-size: 15px; }
+}
+@keyframes pmup { from { transform: translateY(100%); } }
+
+/* Profil menüsünden açılan küçük pencereler (şifre, Face ID) */
+.pd-panel { width: min(440px, calc(100vw - 32px)); }
+.pd-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 12px 20px; border-bottom: 1px solid var(--border); }
+.pd-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.pd-body { padding: 16px 20px 20px; overflow-y: auto; }
+.pd-body label { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); margin: 0 0 6px; }
+.pd-body input[type="password"] { width: 100%; height: 44px; padding: 0 12px; margin-bottom: 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--text); font: inherit; font-size: 15px; }
+.pd-body input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, .15); }
+.pd-note { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 0 0 14px; }
+.pd-err { min-height: 18px; font-size: 13px; font-weight: 600; color: #b91c1c; margin: 0 0 10px; }
+.pd-ok { font-size: 13px; font-weight: 600; color: #15803d; margin: 0 0 10px; }
+.pd-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 46px; border: 0; border-radius: 12px; background: var(--primary); color: #fff; font: inherit; font-size: 14.5px; font-weight: 700; }
+.pd-btn:disabled { opacity: .55; cursor: wait; }
+.pd-btn.ghost { background: none; border: 1px solid var(--border); color: var(--text); }
+.pd-dev { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.pd-dev:last-of-type { border-bottom: 0; }
+.pd-dev > span { flex: 1; min-width: 0; }
+.pd-dev small { display: block; font-size: 12px; color: var(--muted); }
+.pd-dev button { border: 0; background: none; color: #b91c1c; font: inherit; font-size: 13px; font-weight: 700; padding: 6px; }
+.pd-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+@media (max-width: 640px) { .pd-panel { width: 100%; } }
+.pm-toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 70; transform: translate(-50%, 16px); max-width: calc(100vw - 32px);
+    padding: 12px 18px; border-radius: 12px; background: #0f172a; color: #fff; font-size: 13.5px; font-weight: 600;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, .3); opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s;
+}
+.pm-toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (max-width: 880px) { .sh-app.has-bottom ~ .pm-toast { bottom: calc(76px + var(--safe-bottom)); } }
