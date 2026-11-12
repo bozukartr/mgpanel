@@ -28,5 +28,9 @@ test('F&B girişinde yok; klavye açıkken gizli; etkin sekme senkron', () => {
   const css = read('css/core/app-shell.css');
   assert.match(css, /\.sh-app\.has-bottom\.kb-open \.sh-bottom \{ display: none; \}/);
   assert.match(css, /\.sh-bottom \{ display: none; \}/); // masaüstünde yok
+  // Başlıktaki arama yalnızca çubukta "Ara" varken gizlenir (yönetici çubuğunda yok).
+  assert.match(css, /\.sh-app\.has-bottom-search \.sh-search \{ display: none; \}/);
+  assert.doesNotMatch(css, /\.sh-app\.has-bottom \.sh-search \{ display: none; \}/);
+  assert.match(bb, /classList\.toggle\('has-bottom-search', picks\.indexOf\('@search'\) !== -1\)/);
   assert.match(read('app.html'), /<nav class="sh-bottom" id="shBottom"/);
 });

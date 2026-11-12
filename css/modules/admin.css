@@ -615,3 +615,7 @@ html { -webkit-text-size-adjust: 100%; }
 .fid-devices .link-btn:hover { text-decoration: underline; }
 .fid-devices .link-btn[disabled] { opacity: .5; cursor: wait; }
 .tag.tag-fid { background: var(--accent-soft); color: var(--accent); border-color: #dcdcfb; margin-left: 6px; }
+.tag.tag-lock { margin-left: 6px; }
+.lock-row { display: grid; grid-template-columns: 1fr 180px; gap: 10px; }
+.lock-row input[disabled] { opacity: .5; }
+@media (max-width: 560px) { .lock-row { grid-template-columns: 1fr; } }

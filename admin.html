@@ -589,6 +589,21 @@
                             <button type="button" class="link-btn" id="adminUserFaceIdRevoke">Cihazları kaldır</button>
                         </div>
                     </div>
+                    <!-- Ortak cihaz ekran kilidi (js/core/shell-lock.js · screenLocks/{uid}) -->
+                    <div class="form-group span2" id="adminLockGroup">
+                        <label for="adminLockIdle">Ekran kilidi (ortak cihaz)</label>
+                        <div class="lock-row">
+                            <select id="adminLockIdle">
+                                <option value="0">Kapalı</option>
+                                <option value="2">2 dk işlem olmazsa kilitle</option>
+                                <option value="5">5 dk işlem olmazsa kilitle</option>
+                                <option value="10">10 dk işlem olmazsa kilitle</option>
+                                <option value="15">15 dk işlem olmazsa kilitle</option>
+                            </select>
+                            <input type="password" id="adminLockPin" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="PIN (4–6 rakam)" aria-label="Kilit PIN'i">
+                        </div>
+                        <p class="mod-hint" id="adminLockHint">Resepsiyon tableti gibi ortak cihazlar için: belirtilen süre işlem olmazsa ekran kilitlenir, ekip kısa PIN ile açar — misafir ekranı kullanamaz. PIN'i yalnızca bu hesabı kullanan ekiple paylaşın.</p>
+                    </div>
                 </div>
                 <div class="modal-actions">
                     <button type="submit" class="action-btn save-btn">Kaydet</button>

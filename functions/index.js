@@ -925,7 +925,8 @@ const TENANT_FIELD_COLLECTIONS = [
   // silmede bunlar da temizlenmeli (bkz. restoran denetimi Z10): aksi
   // halde slug yeniden kullanıldığında hayalet masa kilitleri kalıyordu.
   'restTables', 'restSessions', 'restOps', 'restAudit', 'stays', 'migrationReview',
-  'webauthnCredentials' // Face ID cihaz kayıtları (tenantId taşır)
+  'webauthnCredentials', // Face ID cihaz kayıtları (tenantId taşır)
+  'screenLocks'          // ortak cihaz ekran kilidi (PIN özeti)
 ];
 const TENANT_DOC_COLLECTIONS = [
   'maintenance', 'financeConfig', 'pmsConfig', 'pmsOAuthCache', 'guestConfig',
@@ -1004,6 +1005,7 @@ exports.deleteUser = onCall({ region: REGION }, async (request) => {
   await deleteByQuery(db.collection('pushTokens').where('uid', '==', uid));
   await deleteByQuery(db.collection('notifications').where('toUid', '==', uid));
   await pkDeleteForUser(uid); // Face ID cihaz kayıtları
+  await db.collection('screenLocks').doc(uid).delete().catch(() => {}); // ekran kilidi PIN'i
   return { deleted: true };
 });
 
