@@ -1538,8 +1538,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (e) => {
         const d = e.data;
         if (!d || !d.__mgShell || d.type !== 'deepLink' || e.source !== window.parent) return;
-        const id = new URLSearchParams(d.query || '').get('res');
-        if (id) openReservationById(id);
+        const p = new URLSearchParams(d.query || '');
+        if (p.get('res')) openReservationById(p.get('res'));
+        else if (p.get('new')) openNewRes();   // klavye kısayolu N
     });
     let pendingResId = null;
     try { pendingResId = new URLSearchParams(location.search).get('res'); } catch (e) {}

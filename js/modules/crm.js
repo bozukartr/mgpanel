@@ -535,7 +535,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('message', (e) => {
         const d = e.data;
         if (!d || !d.__mgShell || d.type !== 'deepLink' || e.source !== window.parent) return;
-        applySearch(new URLSearchParams(d.query || '').get('q'));
+        const p = new URLSearchParams(d.query || '');
+        if (p.get('new')) openAddGuest();   // klavye kısayolu N
+        else applySearch(p.get('q'));
     });
     try { const q0 = new URLSearchParams(location.search).get('q'); if (q0) setTimeout(() => applySearch(q0), 0); } catch (e) {}
 
