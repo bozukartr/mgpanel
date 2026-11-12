@@ -78,7 +78,7 @@
     var SHELL_V = Date.now().toString(36);
 
     function setActive(route) {
-        document.querySelectorAll('.sh-tab[data-route], .sh-dr[data-route]').forEach(function (el) {
+        document.querySelectorAll('.sh-tab[data-route], .sh-dr[data-route], .sh-bt[data-route]').forEach(function (el) {
             el.classList.toggle('active', el.getAttribute('data-route') === route);
         });
     }
@@ -203,6 +203,8 @@
         drawer.classList.toggle('show', open);
         if (scrim) scrim.classList.toggle('show', open);
         if (menuBtn) menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        var bm = document.querySelector('.sh-bt[data-bt="menu"]');
+        if (bm) { bm.setAttribute('aria-expanded', open ? 'true' : 'false'); bm.classList.toggle('open', open); }
     }
     if (menuBtn) menuBtn.addEventListener('click', function () { setDrawer(!drawer.classList.contains('show')); });
     if (scrim) scrim.addEventListener('click', function () { setDrawer(false); });
@@ -274,6 +276,54 @@
         addKeyHandler: function (fn) { keyHandlers.push(fn); }
     };
 
+    // ── Mobil alt sekme çubuğu ────────────────────────────────────
+    // Hamburger çekmecesinde en sık gidilen yerler iki dokunuş uzakta ve
+    // ekranın üstündeydi; personel telefonda tek elle çalışıyor. Başparmak
+    // bölgesine role göre en sık 4 hedef + "Menü" (çekmeceyi açar; Ayarlar
+    // vb. orada). Kapalı modüller atlanır. Klavye açıkken gizlenir. F&B
+    // girişinde (yalnızca Restoran + Raporlar, POS ekranı) gösterilmez.
+    var BT_LABEL = { dashboard: 'Panel', kayitlar: 'Kayıtlar', concierge: 'Concierge', crm: 'CRM', raporlar: 'Raporlar', '@orders': 'QR Talepler', '@search': 'Ara' };
+    function buildBottomBar() {
+        var bar = $('shBottom');
+        if (!bar || CTX === 'fnb') return;
+        var order = isManagerRole()
+            ? ['dashboard', 'kayitlar', 'concierge', '@orders', '@search', 'crm', 'raporlar']
+            : ['kayitlar', '@orders', '@search', 'concierge', 'crm', 'raporlar', 'dashboard'];
+        var ordersOn = typeof moduleEnabled !== 'function' || moduleEnabled('guestOrders');
+        var picks = order.filter(function (k) {
+            if (k === '@orders') return ordersOn && (moduleOn('concierge') || moduleOn('guestIssues'));
+            if (k === '@search') return true;
+            var d = ROUTES[k];
+            return d && moduleOn(d.module) && ctxAllows(k);
+        }).slice(0, 4);
+        function svgOf(sel) { var el = document.querySelector(sel + ' svg'); return el ? el.outerHTML : ''; }
+        var html = picks.map(function (k) {
+            var svg = k === '@orders' ? svgOf('.sh-dr.sh-orders') : (k === '@search' ? svgOf('#shSearchBtn') : svgOf('.sh-dr[data-route="' + k + '"]'));
+            var attr = k.charAt(0) === '@' ? 'data-bt="' + k.slice(1) + '"' : 'data-route="' + k + '"';
+            return '<button class="sh-bt" ' + attr + '>' + svg + '<span>' + BT_LABEL[k] + '</span></button>';
+        }).join('') + '<button class="sh-bt" data-bt="menu" aria-expanded="false">' + svgOf('#shMenuBtn') + '<span>Menü</span></button>';
+        bar.innerHTML = html;
+        document.querySelector('.sh-app').classList.add('has-bottom');
+        bar.addEventListener('click', function (e) {
+            var b = e.target.closest('.sh-bt');
+            if (!b) return;
+            var r = b.getAttribute('data-route'), a = b.getAttribute('data-bt');
+            if (r) { setDrawer(false); navigate(r); }
+            else if (a === 'orders') { setDrawer(false); openOrders(); }
+            else if (a === 'search') { setDrawer(false); if (window.ShellSearch) ShellSearch.open(''); }
+            else if (a === 'menu') setDrawer(!drawer.classList.contains('show'));
+        });
+        // Klavye açıkken (yazı alanı odakta) çubuk içeriğin önüne geçmesin.
+        if (window.visualViewport) {
+            var kb = function () {
+                var open = window.visualViewport.height < window.innerHeight * 0.78;
+                document.querySelector('.sh-app').classList.toggle('kb-open', open);
+            };
+            window.visualViewport.addEventListener('resize', kb);
+        }
+        if (currentRoute) setActive(currentRoute);
+    }
+
     // Header
     function init() {
         applyContext();
@@ -289,6 +339,7 @@
             document.querySelectorAll('.sh-orders').forEach(function (el) { el.style.display = 'none'; });
         }
         $('shLogout').onclick = function () { this.disabled = true; hotelSignOut('login'); };
+        buildBottomBar();
         fromHash();
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
