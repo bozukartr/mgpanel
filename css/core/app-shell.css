@@ -49,7 +49,11 @@ a { text-decoration: none; color: inherit; }
 
 /* ── Content ──────────────────────────────────────────── */
 .sh-content { flex: 1; position: relative; min-height: 0; background: var(--bg); }
-.sh-frame { width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+/* Her modül kendi çerçevesinde açık kalır (app-shell.js); yalnızca etkin
+   olan görünür. visibility (display değil): gizliyken de boyutları doğru
+   kalır, grafikler gösterildiğinde yeniden ölçülmek zorunda kalmaz. */
+.sh-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: var(--bg); visibility: hidden; }
+.sh-frame.on { visibility: visible; }
 .sh-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0; transition: opacity .2s; }
 .sh-loading.show { opacity: 1; }
 .sh-spin { width: 30px; height: 30px; border: 3px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: shspin .8s linear infinite; }

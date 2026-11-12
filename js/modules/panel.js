@@ -574,36 +574,44 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Deep-link from a notification: ?open=<recordId> opens it once.
-            // Pencere dışındaki (eski) bir kayda işaret ediyorsa doğrudan getir.
             if (!openHandled) {
+                openHandled = true;
                 const openId = new URLSearchParams(location.search).get('open');
-                if (openId) {
-                    const rec = records.find(r => r.id === openId);
-                    if (rec) { openHandled = true; openModal(rec); }
-                    else {
-                        openHandled = true;
-                        db.collection('guestLogs').doc(openId).get().then(d => {
-                            if (d.exists) {
-                                const data = { id: d.id, ...d.data() };
-                                if ((data.tenantId || '') === TENANT_ID) {
-                                    // Sayfalanan pencere dışından tek bir kayıt — loadOlder()'ın
-                                    // cursor hesabından hariç tutulur (bkz. __deepLinked filtresi),
-                                    // aksi halde bu kayıt yanlışlıkla yeni "en eski" sayılıp
-                                    // gerçek pencere sınırı ile bu kayıt arasındaki tarih aralığı
-                                    // sonraki "Daha eskisini yükle" tıklamalarında atlanırdı.
-                                    data.__deepLinked = true;
-                                    olderRecords.push(data); mergeRecords();
-                                    updateView(globalSearch.value, dateSearch.value);
-                                    openModal(data);
-                                }
-                            }
-                        }).catch(() => {});
-                    }
-                }
+                if (openId) openRecordById(openId);
             }
         });
     };
     let openHandled = false;
+    // Kaydı kimliğiyle aç. Pencere dışındaki (eski) bir kayda işaret ediyorsa
+    // doğrudan getirilir. Hem ?open= (ilk yükleme) hem kabuğun "deepLink"
+    // mesajı (modül zaten açıkken bildirimden gelen) bunu kullanır.
+    function openRecordById(openId) {
+        const rec = records.find(r => r.id === openId);
+        if (rec) { openModal(rec); return; }
+        db.collection('guestLogs').doc(openId).get().then(d => {
+            if (!d.exists) return;
+            const data = { id: d.id, ...d.data() };
+            if ((data.tenantId || '') !== TENANT_ID) return;
+            // Sayfalanan pencere dışından tek bir kayıt — loadOlder()'ın
+            // cursor hesabından hariç tutulur (bkz. __deepLinked filtresi),
+            // aksi halde bu kayıt yanlışlıkla yeni "en eski" sayılıp
+            // gerçek pencere sınırı ile bu kayıt arasındaki tarih aralığı
+            // sonraki "Daha eskisini yükle" tıklamalarında atlanırdı.
+            if (!records.some(r => r.id === data.id)) {
+                data.__deepLinked = true;
+                olderRecords.push(data); mergeRecords();
+                updateView(globalSearch.value, dateSearch.value);
+            }
+            openModal(data);
+        }).catch(() => {});
+    }
+    // App Shell: modül açıkken gelen derin bağlantı (sayfa yeniden yüklenmez).
+    window.addEventListener('message', (e) => {
+        const d = e.data;
+        if (!d || !d.__mgShell || d.type !== 'deepLink' || e.source !== window.parent) return;
+        const id = new URLSearchParams(d.query || '').get('open');
+        if (id) openRecordById(id);
+    });
     fetchRecords();
     document.getElementById('loadOlderBtn')?.addEventListener('click', loadOlder);
 

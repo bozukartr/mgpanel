@@ -820,7 +820,15 @@
         if (window.RT && RT.registerOpener) RT.registerOpener('guestOrder', focusOrder);
         // App Shell'deki "Talepler" sekmesi (postMessage) veya ?orders=1 ile çekmeceyi aç.
         window.addEventListener('message', function (e) {
-            if (e.data && e.data.__mgShell && e.data.type === 'openOrders') openDrawer();
+            const d = e.data;
+            if (!d || !d.__mgShell) return;
+            if (d.type === 'openOrders') openDrawer();
+            // Modül zaten açıkken kabuktan gelen derin bağlantı (?order= / ?orders=1).
+            if (d.type === 'deepLink') {
+                const q = new URLSearchParams(d.query || '');
+                if (q.get('order')) focusOrder(q.get('order'));
+                else if (q.get('orders') === '1') openDrawer();
+            }
         });
         try { const oid = new URLSearchParams(location.search).get('order'); if (oid) pendingFocus = oid; } catch (e) {}
         try { if (new URLSearchParams(location.search).get('orders') === '1') setTimeout(openDrawer, 80); } catch (e) {}
