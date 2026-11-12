@@ -56,9 +56,20 @@
         }
     }
 
-    var frame = $('shFrame');
+    // ── Modül çerçeveleri: açılan her modül kendi iframe'inde AÇIK kalır ──
+    // Önceden tek bir iframe vardı; her sekme tıklaması sayfayı baştan
+    // yüklüyor, filtreler / kaydırma konumu / yarım kalan form kayboluyor ve
+    // her seferinde yükleniyor simgesi dönüyordu. Artık geçiş anlık: gizli
+    // çerçeveler canlı dinleyicileriyle güncel kalır. Bellek için en çok
+    // MAX_FRAMES çerçeve tutulur (en uzun süredir bakılmayan kapanır);
+    // STALE_MS'ten uzun süre bakılmayan çerçeve gösterilirken tazelenir.
+    var host = document.querySelector('.sh-content');
     var loading = $('shLoading');
+    var seedFrame = $('shFrame');          // app.html'deki ilk iframe yeniden kullanılır
+    var frames = {};                       // route → iframe
     var currentRoute = null;
+    var MAX_FRAMES = isMobileShell() ? 3 : 6;
+    var STALE_MS = 30 * 60 * 1000;
     // Per-session cache-buster: ensures the iframe always loads the freshly
     // deployed page and never an entry left in a stale (legacy) cache under the
     // plain "?embed=1" URL. Stable within a session; new on each app load.
@@ -69,48 +80,108 @@
             el.classList.toggle('active', el.getAttribute('data-route') === route);
         });
     }
-
-    // route: hedef görünüm · query: iframe'e geçirilecek ek parametre · force: aynı route olsa da yeniden yükle
-    function loadRoute(route, query, force) {
+    function routeOfWindow(win) {
+        for (var r in frames) { if (frames[r].contentWindow === win) return r; }
+        return null;
+    }
+    function createFrame(route, query) {
         var def = ROUTES[route];
-        if (!def || !moduleOn(def.module) || !ctxAllows(route)) { route = defaultRoute(); def = ROUTES[route]; }
-        var src = def.page + '?embed=1&v=' + SHELL_V + (query ? '&' + query : '');
-        if (force || query || route !== currentRoute) {
-            if (loading) loading.classList.add('show');
-            frame.src = src;
+        var f = seedFrame || document.createElement('iframe');
+        seedFrame = null;
+        f.removeAttribute('id');
+        f.className = 'sh-frame';
+        f.title = 'İçerik';
+        f.setAttribute('data-route', route);
+        f.__ready = false;
+        f.addEventListener('load', function () {
+            f.__ready = true;
+            if (frames[currentRoute] === f && loading) loading.classList.remove('show');
+        });
+        if (!f.parentNode) host.insertBefore(f, loading);
+        f.src = def.page + '?embed=1&v=' + SHELL_V + (query ? '&' + query : '');
+        frames[route] = f;
+        return f;
+    }
+    function dropFrame(route) {
+        var f = frames[route];
+        if (!f) return;
+        delete frames[route];
+        try { f.src = 'about:blank'; } catch (e) {}
+        if (f.parentNode) f.parentNode.removeChild(f);
+    }
+    function showFrame(route) {
+        Object.keys(frames).forEach(function (r) {
+            var f = frames[r], on = (r === route);
+            if (!on && f.classList.contains('on')) f.__hiddenAt = Date.now();
+            f.classList.toggle('on', on);
+            if (on) { f.removeAttribute('inert'); f.removeAttribute('aria-hidden'); f.__hiddenAt = 0; }
+            else { f.setAttribute('inert', ''); f.setAttribute('aria-hidden', 'true'); }
+        });
+        if (loading) loading.classList.toggle('show', !!(frames[route] && !frames[route].__ready));
+    }
+    function evict() {
+        var keys = Object.keys(frames).filter(function (r) { return r !== currentRoute; });
+        var extra = Object.keys(frames).length - MAX_FRAMES;
+        if (extra <= 0) return;
+        keys.sort(function (a, b) { return (frames[a].__hiddenAt || 0) - (frames[b].__hiddenAt || 0); })
+            .slice(0, extra).forEach(dropFrame);
+    }
+
+    // route: hedef görünüm · query: modüle iletilecek derin bağlantı (ör.
+    // open=ID) · reload: çerçeveyi baştan yükle.
+    function loadRoute(route, query, reload) {
+        var def = ROUTES[route];
+        if (!def || !moduleOn(def.module) || !ctxAllows(route)) { route = defaultRoute(); query = ''; }
+        var f = frames[route];
+        var stale = f && route !== currentRoute && f.__hiddenAt && (Date.now() - f.__hiddenAt > STALE_MS);
+        if (f && (reload || stale || (query && !f.__ready))) { dropFrame(route); f = null; }
+        if (!f) {
+            createFrame(route, query);
+        } else if (query) {
+            // Modül zaten açık: yeniden yüklemeden derin bağlantıyı ilet.
+            try { f.contentWindow.postMessage({ __mgShell: 1, type: 'deepLink', query: query }, '*'); } catch (e) {}
         }
         currentRoute = route;
         setActive(route);
+        showFrame(route);
+        evict();
+    }
+    // Görünüme git: adres çubuğundaki hash'i günceller (geri tuşu çalışsın)
+    // ve görünümü yükler — hashchange'i beklemeden, çift yükleme olmadan.
+    function navigate(route, query) {
+        if (location.hash !== '#' + route) {
+            try { history.pushState(null, '', '#' + route); } catch (e) { /* yok say */ }
+        }
+        loadRoute(route, query || '');
     }
 
-    // Hash değişimi → görünüm yükle. Hash'te bir sorgu olabilir
-    // (ör. app#concierge?order=ID veya #kayitlar?open=ID); bunu iframe'e
-    // ilet ki bildirimle gelen kayıt odaklansın.
+    // Hash değişimi (geri/ileri tuşu, dışarıdan gelen bağlantı) → görünüm
+    // yükle. Hash'te bir sorgu olabilir (ör. app#concierge?order=ID veya
+    // #kayitlar?open=ID); bunu modüle ilet ki bildirimle gelen kayıt odaklansın.
     function fromHash() {
         var raw = (location.hash || '').replace(/^#/, '');
         var qi = raw.indexOf('?');
         var h = qi >= 0 ? raw.slice(0, qi) : raw;
         var q = qi >= 0 ? raw.slice(qi + 1) : '';
-        loadRoute(h || defaultRoute(), q, !!q);
+        loadRoute(h || defaultRoute(), q);
+        // Sorgu bir kez iletildi; adres çubuğunda kalırsa yenilemede kayıt tekrar açılırdı.
+        if (q) { try { history.replaceState(null, '', '#' + currentRoute); } catch (e) {} }
     }
     window.addEventListener('hashchange', fromHash);
 
-    // Nav tıklamaları → hash güncelle
+    // Nav tıklamaları
     document.querySelectorAll('.sh-tab[data-route], .sh-dr[data-route]').forEach(function (el) {
-        el.addEventListener('click', function () {
-            var r = el.getAttribute('data-route');
-            if (('#' + r) === location.hash) loadRoute(r); else location.hash = '#' + r;
-        });
+        el.addEventListener('click', function () { navigate(el.getAttribute('data-route')); });
     });
 
     // "Talepler" — misafir QR talep/sipariş çekmecesini açar (Concierge/Kayıtlar'da
     // gömülü guest-orders.js çalışır). Başka görünümdeysek Concierge'e geçip açar.
     function openOrders() {
-        if (currentRoute === 'concierge' || currentRoute === 'kayitlar') {
-            try { frame.contentWindow.postMessage({ __mgShell: 1, type: 'openOrders' }, '*'); } catch (e) {}
+        var f = frames[currentRoute];
+        if ((currentRoute === 'concierge' || currentRoute === 'kayitlar') && f && f.__ready) {
+            try { f.contentWindow.postMessage({ __mgShell: 1, type: 'openOrders' }, '*'); } catch (e) {}
         } else {
-            location.hash = '#concierge';
-            loadRoute('concierge', 'orders=1', true);
+            navigate('concierge', 'orders=1');
         }
     }
     document.querySelectorAll('[data-action="orders"]').forEach(function (el) {
@@ -138,27 +209,33 @@
     // Rota değişince (bildirim/derin bağlantı dâhil) çekmece açık kalmasın.
     window.addEventListener('hashchange', function () { setDrawer(false); });
 
-    // iframe kendi içinde başka panele giderse (ör. hızlı aksiyon) → aktif sekmeyi senkronla
+    // Bir çerçeve kendi içinde başka bir modüle geçerse (ör. hızlı aksiyon ya
+    // da kapalı modülden yönlendirme) o çerçeve artık o modülündür: yeniden
+    // yüklemeden yeni rotaya taşınır, aktif sekme senkronlanır.
     window.addEventListener('message', function (e) {
         var d = e.data;
         if (!d || !d.__mgShell || d.type !== 'route' || !d.route) return;
-        if (d.route === currentRoute) { setActive(d.route); return; }
-        currentRoute = d.route;          // iframe zaten o sayfada; yeniden yükleme
-        setActive(d.route);
-        try { history.replaceState(null, '', '#' + d.route); } catch (err) {}
+        var owner = routeOfWindow(e.source);
+        if (!owner || owner === d.route || !ROUTES[d.route]) return;
+        var f = frames[owner];
+        if (frames[d.route]) dropFrame(d.route);
+        delete frames[owner];
+        frames[d.route] = f;
+        f.setAttribute('data-route', d.route);
+        if (currentRoute === owner) {
+            currentRoute = d.route;
+            setActive(d.route);
+            try { history.replaceState(null, '', '#' + d.route); } catch (err) {}
+        }
     });
-
-    frame.addEventListener('load', function () { if (loading) loading.classList.remove('show'); });
 
     // Bildirim (zil) tıklamaları kabuk içinde doğru görünüme yönlensin.
     if (window.RT) {
         RT.onOpen = function (recordId) {
-            location.hash = '#kayitlar';
-            loadRoute('kayitlar', recordId ? 'open=' + encodeURIComponent(recordId) : '', true);
+            navigate('kayitlar', recordId ? 'open=' + encodeURIComponent(recordId) : '');
         };
         if (RT.registerOpener) RT.registerOpener('guestOrder', function (orderId) {
-            location.hash = '#concierge';
-            loadRoute('concierge', orderId ? 'order=' + encodeURIComponent(orderId) : '', true);
+            navigate('concierge', orderId ? 'order=' + encodeURIComponent(orderId) : '');
         });
     }
 

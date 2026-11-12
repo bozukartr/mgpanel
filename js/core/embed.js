@@ -23,6 +23,8 @@
         if (f === 'concierge') return 'concierge';
         if (f === 'panel') return 'kayitlar';
         if (f === 'crm') return 'crm';
+        if (f === 'reports') return 'raporlar';
+        if (f === 'restaurant') return 'restoran';
         return '';
     }
     function notify() {
