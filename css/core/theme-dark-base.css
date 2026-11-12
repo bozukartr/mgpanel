@@ -1,0 +1,18 @@
+/* Hotizy — gece modu: elle yazılmış taban (üretilen css/dark/*.dark.css'i
+ * tamamlar). Yalnızca html.theme-dark altında etkili. */
+html.theme-dark { color-scheme: dark; }
+html.theme-dark body { background-color: #181b22; }
+/* Koyu logo yazısı koyu zeminde kaybolmasın: açığa çevir, turuncu nokta korunur. */
+html.theme-dark .sh-logo img,
+html.theme-dark .logo img,
+html.theme-dark img.logo,
+html.theme-dark .brand img,
+html.theme-dark .header-logo img { filter: invert(1) hue-rotate(180deg) brightness(1.05); }
+/* Form alanları: tarayıcı varsayılanı + yer tutucular */
+html.theme-dark input::placeholder,
+html.theme-dark textarea::placeholder { color: #6b7488; }
+html.theme-dark input[type="date"]::-webkit-calendar-picker-indicator,
+html.theme-dark input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(.85); }
+/* Kaydırma çubukları */
+html.theme-dark ::-webkit-scrollbar-thumb { background-color: #3a4152; }
+html.theme-dark ::-webkit-scrollbar-track { background-color: transparent; }

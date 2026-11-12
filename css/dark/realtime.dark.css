@@ -1,0 +1,84 @@
+/* OTOMATİK ÜRETİLDİ — elle düzenlemeyin. Kaynak değişince: node tools/dark-theme.js */
+html.theme-dark .rt-bell-btn {
+    background: #191c23;
+    border: none;
+    color: #9ca5ba;
+}
+html.theme-dark .rt-bell-btn:hover {
+    background: #282c37;
+    color: #c3c8d5;
+}
+html.theme-dark .rt-badge {
+    background: #ef4444;
+    color: #ffffff;
+}
+html.theme-dark .rt-panel {
+    background: #1f232b;
+    border: 1px solid #343a48;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.396);
+}
+html.theme-dark .rt-panel-head {
+    border-bottom: 1px solid #303642;
+}
+html.theme-dark .rt-panel-head b {
+    color: #c3c8d5;
+}
+html.theme-dark .rt-readall {
+    background: none;
+    border: none;
+    color: #6366f1;
+}
+html.theme-dark .rt-item {
+    border-bottom: 1px solid #2e3440;
+}
+html.theme-dark .rt-item:hover {
+    background: #171a20;
+}
+html.theme-dark .rt-item.unread {
+    background: #1b213c;
+}
+html.theme-dark .rt-item.unread:hover {
+    background: #1b233c;
+}
+html.theme-dark .rt-ico {
+    background: #1b233c;
+    color: #6366f1;
+}
+html.theme-dark .rt-item-title {
+    color: #c3c8d5;
+}
+html.theme-dark .rt-item-text {
+    color: #828da5;
+}
+html.theme-dark .rt-item-time {
+    color: #838fa9;
+}
+html.theme-dark .rt-dot {
+    background: #6366f1;
+}
+html.theme-dark .rt-empty {
+    color: #838fa9;
+}
+html.theme-dark .rt-toast {
+    background: #3f4b68;
+    color: #ffffff;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(43, 48, 59, 0.08);
+}
+html.theme-dark .rt-toast .rt-ico {
+    background: rgba(99, 102, 241, 0.25);
+    color: #c7d2fe;
+}
+html.theme-dark .rt-toast span {
+    color: #64718f;
+}
+html.theme-dark .rt-push {
+    border-top: 1px solid #303642;
+    color: #828da5;
+    background: #171a20;
+}
+html.theme-dark .rt-push-btn {
+    border: 1px solid #2b3664;
+    background: #1b233c;
+    color: #9892e2;
+}

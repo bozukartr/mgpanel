@@ -1,0 +1,203 @@
+/* OTOMATİK ÜRETİLDİ — elle düzenlemeyin. Kaynak değişince: node tools/dark-theme.js */
+html.theme-dark .gos-btn {
+    background: #191c23;
+    border: none;
+    color: #9ca5ba;
+}
+html.theme-dark .gos-btn:hover {
+    background: #282c37;
+    color: #c3c8d5;
+}
+html.theme-dark .gos-badge {
+    background: #f59e0b;
+    color: #ffffff;
+}
+html.theme-dark .gos-backdrop {
+    background: rgba(57, 68, 94, 0.45);
+}
+html.theme-dark .gos-drawer {
+    background: #181b22;
+    box-shadow: none;
+}
+html.theme-dark .gos-drawer.show {
+    box-shadow: -18px 0 50px rgba(15, 23, 42, 0.396);
+}
+html.theme-dark .gos-head {
+    background: #1f232b;
+    border-bottom: 1px solid #323846;
+}
+html.theme-dark .gos-head h2 {
+    color: #c3c8d5;
+}
+html.theme-dark .gos-head p {
+    color: #828da5;
+}
+html.theme-dark .gos-close {
+    background: #1a1d24;
+    border: none;
+    color: #9ca5ba;
+}
+html.theme-dark .gos-fchip {
+    background: #1f232b;
+    border: 1px solid #343a48;
+    color: #828da5;
+}
+html.theme-dark .gos-fchip.active {
+    background: #3f4b68;
+    color: #ffffff;
+    border-color: #97a0b4;
+}
+html.theme-dark .gos-empty {
+    color: #838fa9;
+}
+html.theme-dark .gos-empty .e {
+    color: #64718f;
+}
+html.theme-dark .gos-card {
+    background: #1f232b;
+    border: 1px solid #323846;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.088);
+}
+html.theme-dark .gos-card:hover {
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.22);
+    border-color: #363d4b;
+}
+html.theme-dark .gos-chev {
+    color: #64718f;
+}
+html.theme-dark .gos-card.gos-new {
+    border-color: #fcd34d;
+}
+html.theme-dark .gos-room {
+    background: #1b233c;
+    color: #938eeb;
+}
+html.theme-dark .gos-meta .gos-guest {
+    color: #c3c8d5;
+}
+html.theme-dark .gos-meta .gos-sub {
+    color: #838fa9;
+}
+html.theme-dark .gos-ostat.pending {
+    background: #3c2d1b;
+    color: #eab886;
+}
+html.theme-dark .gos-ostat.confirmed {
+    background: #1b293c;
+    color: #8ba9eb;
+}
+html.theme-dark .gos-ostat.in_progress {
+    background: #3c391b;
+    color: #e9bf83;
+}
+html.theme-dark .gos-ostat.completed {
+    background: #1b3c25;
+    color: #84e9a9;
+}
+html.theme-dark .gos-ostat.cancelled {
+    background: #3c1b1b;
+    color: #ea8a8a;
+}
+html.theme-dark .gos-item {
+    border-top: 1px solid #2f3441;
+}
+html.theme-dark .gos-item .gos-ico {
+    background: #181b22;
+    color: #9ca5ba;
+}
+html.theme-dark .gos-item .gos-iname {
+    color: #c3c8d5;
+}
+html.theme-dark .gos-item .gos-imeta {
+    color: #838fa9;
+}
+html.theme-dark .gos-item.gos-item-res {
+    background: #171a20;
+    border-left: 3px solid #6366f1;
+}
+html.theme-dark .gos-item .gos-resbadge {
+    background: #1b233c;
+    color: #938eeb;
+}
+html.theme-dark .gos-item .gos-reshint {
+    color: #6366f1;
+}
+html.theme-dark .gos-item.gos-item-locked {
+    background: #16191f;
+}
+html.theme-dark .gos-item .gos-deptbadge {
+    background: #191c23;
+    color: #828da5;
+}
+html.theme-dark .gos-item .gos-blockhint {
+    color: #e9b084;
+}
+html.theme-dark .gos-scopehint {
+    color: #e9b084;
+}
+html.theme-dark .gos-item .gos-istat.pending {
+    background: #3c2d1b;
+    color: #eab886;
+}
+html.theme-dark .gos-item .gos-istat.confirmed {
+    background: #1b293c;
+    color: #8ba9eb;
+}
+html.theme-dark .gos-item .gos-istat.in_progress {
+    background: #3c391b;
+    color: #e9bf83;
+}
+html.theme-dark .gos-item .gos-istat.completed {
+    background: #1b3c25;
+    color: #84e9a9;
+}
+html.theme-dark .gos-iadv {
+    border: 1px solid #343a48;
+    background: #1f232b;
+    color: #938eeb;
+}
+html.theme-dark .gos-actions {
+    border-top: 1px solid #2f3441;
+}
+html.theme-dark .gos-act {
+    border: none;
+}
+html.theme-dark .gos-act.primary {
+    background: #6366f1;
+    color: #ffffff;
+}
+html.theme-dark .gos-act.ok {
+    background: #16a34a;
+    color: #ffffff;
+}
+html.theme-dark .gos-act.step {
+    background: #1b233c;
+    color: #938eeb;
+}
+html.theme-dark .gos-act.ghost {
+    background: #191c23;
+    color: #828da5;
+}
+html.theme-dark .gos-assign select {
+    border: 1px solid #343a48;
+    color: #c3c8d5;
+    background: #16191f;
+}
+html.theme-dark .gos-assigned {
+    color: #84e9a9;
+}
+html.theme-dark .gos-mback {
+    background: rgba(57, 68, 94, 0.5);
+}
+html.theme-dark .gos-modal {
+    background: #1f232b;
+    box-shadow: 0 30px 80px rgba(15, 23, 42, 0.75);
+}
+html.theme-dark .gos-mhead .gos-mtitle {
+    color: #838fa9;
+}
+html.theme-dark .gos-mclose {
+    background: #191c23;
+    border: none;
+    color: #828da5;
+}

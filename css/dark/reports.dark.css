@@ -1,0 +1,371 @@
+/* OTOMATİK ÜRETİLDİ — elle düzenlemeyin. Kaynak değişince: node tools/dark-theme.js */
+html.theme-dark {
+    --rep-bg: #181b22;
+    --rep-card: #1f232b;
+    --rep-ink: #d1d5df;
+    --rep-ink-2: #aeb5c7;
+    --rep-mut: #a4acbd;
+    --rep-faint: #838fa9;
+    --rep-line: #343a48;
+    --rep-line-2: #303643;
+    --rep-hover: #181b21;
+    --rep-accent: #4f46e5;
+    --rep-accent-soft: #1b1f3c;
+    --rep-bar: #6366f1;
+    --rep-track: #1b1f3c;
+    --rep-ok: #59e48d;
+    --rep-ok-bg: #1b3c28;
+    --rep-warn: #f0934c;
+    --rep-warn-bg: #3c301b;
+    --rep-bad: #e65757;
+    --rep-bad-bg: #3c1b1b;
+    --rep-info: #6e66d6;
+    --rep-info-bg: #1b1f3c;
+}
+html.theme-dark .rep-body {
+    background: var(--rep-bg);
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-nav {
+    background: var(--rep-card);
+    border-right: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-nav-g {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-nav-i {
+    background: none;
+    color: var(--rep-ink-2);
+}
+html.theme-dark .rep-nav-i .ui-ic {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-nav-i:hover {
+    background: var(--rep-hover);
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-nav-i.active {
+    background: var(--rep-accent-soft);
+    color: var(--rep-accent);
+}
+html.theme-dark .rep-nav-i.active .ui-ic {
+    color: var(--rep-accent);
+}
+html.theme-dark .rep-nav-i:focus-visible {
+    outline: 2px solid var(--rep-accent);
+}
+html.theme-dark .rep-head {
+    background: var(--rep-card);
+}
+html.theme-dark .rep-head p {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-btn {
+    border: 1px solid var(--rep-line);
+    background: #1f232b;
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-btn.ghost:hover {
+    background: var(--rep-hover);
+}
+html.theme-dark .rep-btn.primary {
+    background: var(--rep-accent);
+    border-color: var(--rep-accent);
+    color: #ffffff;
+}
+html.theme-dark .rep-btn.primary:hover {
+    background: #4338ca;
+}
+html.theme-dark .rep-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.22);
+}
+html.theme-dark .rep-count {
+    background: var(--rep-accent);
+    color: #ffffff;
+}
+html.theme-dark .rep-bar {
+    background: var(--rep-card);
+    border-bottom: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-seg {
+    background: #191c23;
+}
+html.theme-dark .rep-seg button {
+    background: transparent;
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-seg button:hover {
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-seg button.active {
+    background: #1f232b;
+    color: var(--rep-ink);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.22);
+}
+html.theme-dark .rep-custom {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-group {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-in {
+    border: 1px solid var(--rep-line);
+    color: var(--rep-ink);
+    background: #1f232b;
+    outline: none;
+}
+html.theme-dark select.rep-in {
+    background: #1f232b url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235b6576' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center;
+}
+html.theme-dark .rep-in:focus {
+    border-color: var(--rep-accent);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+}
+html.theme-dark .rep-active {
+    background: var(--rep-bg);
+    border-bottom: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-chip {
+    background: #1f232b;
+    border: 1px solid var(--rep-line);
+    color: var(--rep-ink-2);
+}
+html.theme-dark .rep-chip b {
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-chip button {
+    background: transparent;
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-chip button:hover {
+    background: #1a1d24;
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-clear {
+    background: none;
+    color: var(--rep-accent);
+}
+html.theme-dark .rep-kpi {
+    background: var(--rep-card);
+    border: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-kpi .l {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-kpi .s {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-kpi.bad .l {
+    color: var(--rep-bad);
+}
+html.theme-dark .rep-kpi.bad .v {
+    color: var(--rep-bad);
+}
+html.theme-dark .rep-kpi.good .v {
+    color: var(--rep-ok);
+}
+html.theme-dark .rep-card {
+    background: var(--rep-card);
+    border: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-card-h h2 span {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-card-sub {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-nodata {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-trend .grid {
+    stroke: #eef0f4;
+}
+html.theme-dark .rep-trend .tick {
+    fill: var(--rep-mut);
+}
+html.theme-dark .rep-trend .col {
+    fill: var(--rep-bar);
+}
+html.theme-dark .rep-trend .hit {
+    fill: transparent;
+    outline: none;
+}
+html.theme-dark .rep-trend .hit:hover + .col,
+html.theme-dark .rep-trend .hit:focus + .col {
+    fill: #9892e2;
+}
+html.theme-dark .rep-trend .hit:focus-visible {
+    stroke: var(--rep-accent);
+}
+html.theme-dark .rep-bars li.click:hover,
+html.theme-dark .rep-bars li.click:focus-visible {
+    background: var(--rep-hover);
+    outline: none;
+}
+html.theme-dark .rep-bars li.on {
+    background: var(--rep-accent-soft);
+}
+html.theme-dark .rep-bars .n {
+    color: var(--rep-ink-2);
+}
+html.theme-dark .rep-bars .v {
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-bars .v small {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-bars .t {
+    background: var(--rep-track);
+}
+html.theme-dark .rep-bars .t i {
+    background: var(--rep-bar);
+}
+html.theme-dark .rep-tip {
+    background: #39445e;
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.44);
+}
+html.theme-dark .rep-tip span {
+    color: #64718f;
+}
+html.theme-dark .rep-pop {
+    background: #1f232b;
+    border: 1px solid var(--rep-line);
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.308);
+}
+html.theme-dark .rep-pop label {
+    color: var(--rep-ink-2);
+}
+html.theme-dark .rep-pop label:hover {
+    background: var(--rep-hover);
+}
+html.theme-dark .rep-pop input {
+    accent-color: var(--rep-accent);
+}
+html.theme-dark .rep-pop p {
+    color: var(--rep-mut);
+    border-top: 1px solid var(--rep-line-2);
+}
+html.theme-dark .rep-table-scroll {
+    border-top: 1px solid var(--rep-line-2);
+}
+html.theme-dark .rep-table thead th {
+    background: #171a20;
+    color: var(--rep-mut);
+    border-bottom: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-table td {
+    border-bottom: 1px solid var(--rep-line-2);
+    color: var(--rep-ink-2);
+}
+html.theme-dark .rep-table tbody tr.row:hover td {
+    background: var(--rep-hover);
+}
+html.theme-dark .rep-table tbody tr.row:focus-visible td {
+    background: var(--rep-accent-soft);
+    outline: none;
+}
+html.theme-dark .rep-table tr.rep-grp td {
+    background: #171a20;
+    color: var(--rep-ink);
+    border-bottom: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-table tr.rep-grp td span {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-pill {
+    background: #191c23;
+    color: var(--rep-ink-2);
+}
+html.theme-dark .rep-pill.ok {
+    background: var(--rep-ok-bg);
+    color: var(--rep-ok);
+}
+html.theme-dark .rep-pill.warn {
+    background: var(--rep-warn-bg);
+    color: var(--rep-warn);
+}
+html.theme-dark .rep-pill.bad {
+    background: var(--rep-bad-bg);
+    color: var(--rep-bad);
+}
+html.theme-dark .rep-pill.info {
+    background: var(--rep-info-bg);
+    color: var(--rep-info);
+}
+html.theme-dark .rep-empty {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-more {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-scrim {
+    background: rgba(57, 68, 94, 0.28);
+}
+html.theme-dark .rep-drawer {
+    background: #1f232b;
+    box-shadow: -18px 0 40px rgba(15, 23, 42, 0.352);
+}
+html.theme-dark .rep-drawer-h {
+    border-bottom: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-x {
+    background: #191c23;
+    color: var(--rep-ink-2);
+}
+html.theme-dark .rep-x:hover {
+    background: #272b35;
+}
+html.theme-dark .rep-drawer-f {
+    border-top: 1px solid var(--rep-line);
+}
+html.theme-dark .rep-l {
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-l small {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-chips button {
+    border: 1px solid var(--rep-line);
+    background: #1f232b;
+    color: var(--rep-ink-2);
+}
+html.theme-dark .rep-chips button:hover {
+    border-color: #2b3264;
+}
+html.theme-dark .rep-chips button.active {
+    background: var(--rep-accent);
+    border-color: var(--rep-accent);
+    color: #ffffff;
+}
+html.theme-dark .rep-none {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-detail .dr {
+    border-bottom: 1px solid var(--rep-line-2);
+}
+html.theme-dark .rep-detail dt {
+    color: var(--rep-mut);
+}
+html.theme-dark .rep-detail dd {
+    color: var(--rep-ink);
+}
+html.theme-dark .rep-toast {
+    background: #39445e;
+    color: #ffffff;
+}
+html.theme-dark .rep-toast.err {
+    background: #b91c1c;
+}
+@media (max-width: 960px) {
+    html.theme-dark .rep-nav {
+        border-bottom: 1px solid var(--rep-line);
+    }
+    html.theme-dark .rep-nav-i {
+        border: 1px solid var(--rep-line);
+    }
+    html.theme-dark .rep-nav-i.active {
+        border-color: transparent;
+    }
+}

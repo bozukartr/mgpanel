@@ -260,3 +260,11 @@ a { text-decoration: none; color: inherit; }
     /* Çekmece çubuğun üstünde kalsın (alttan erişim). */
     .sh-app.has-bottom .sh-drawer { padding-bottom: calc(76px + var(--safe-bottom)); }
 }
+
+/* ── Gece modu düğmesi (theme.js) ── */
+.sh-theme { width: 36px; height: 36px; border-radius: 11px; background: #f1f5f9; border: none; color: #475569; display: flex; align-items: center; justify-content: center; }
+.sh-theme svg { width: 18px; height: 18px; }
+.sh-theme .i-sun { display: none; }
+.sh-theme.is-dark .i-sun { display: block; }
+.sh-theme.is-dark .i-moon { display: none; }
+.sh-theme:hover { color: var(--text); }
