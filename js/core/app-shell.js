@@ -275,6 +275,22 @@
     function activity() { for (var i = 0; i < activityFns.length; i++) { try { activityFns[i](); } catch (e) {} } }
     ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(function (t) { window.addEventListener(t, activity, { passive: true, capture: true }); });
 
+    // ── Boşta kalınca oturumu kapat (15 dk) ─────────────────────────
+    // Eskiden Kayıtlar ve Concierge sayfaları kendi sayaçlarını tutuyordu;
+    // modüller arka planda açık kaldığından (yukarıdaki çerçeve yöneticisi)
+    // bir modülde çalışan kişiyi DİĞERİNİN sayacı atıyordu. Artık tek sayaç,
+    // TÜM modüllerdeki etkinliği sayar. Ekran kilidi tanımlı ortak cihaz
+    // hesaplarında oturum kapatılmaz — kilit (shell-lock.js) onun yerini alır.
+    var IDLE_LOGOUT_MS = 15 * 60 * 1000;
+    var lastActivityAt = Date.now();
+    activityFns.push(function () { lastActivityAt = Date.now(); });
+    setInterval(function () {
+        if (Date.now() - lastActivityAt < IDLE_LOGOUT_MS) return;
+        if (window.ShellLock && ShellLock._cfg && ShellLock._cfg()) return;   // kilit var: oturum açık kalır
+        lastActivityAt = Date.now();
+        if (typeof hotelSignOut === 'function') hotelSignOut('login'); else location.replace('login');
+    }, 30000);
+
     // Diğer kabuk betikleri (genel arama, kısayollar…) için küçük arayüz.
     window.Shell = {
         onActivity: function (fn) { activityFns.push(fn); },

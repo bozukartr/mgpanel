@@ -92,8 +92,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── AUTO LOGOUT LOGIC (15 MINS) ────────────────────────────
+    // App Shell içinde (gömülü) bu sayaç ÇALIŞMAZ: modüller arka planda açık
+    // kaldığından her sayfanın kendi sayacı yalnız kendi etkinliğini sayıyor,
+    // başka modülde çalışan kişiyi 15 dk sonra oturumdan atıyordu. Kabuk
+    // (app-shell.js) tüm modüllerdeki etkinliği sayan TEK bir sayaç tutar.
     let logoutTimer;
     function resetLogoutTimer() {
+        if (window.__EMBED__) return;
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
             auth.signOut().then(() => {

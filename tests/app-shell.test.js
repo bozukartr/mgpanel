@@ -60,3 +60,16 @@ test('modüller derin bağlantı mesajını işler (yeniden yüklemeden kayıt a
   const go = read('js/modules/guest-orders.js');
   assert.match(go, /d\.type === 'deepLink'[\s\S]{0,200}focusOrder\(q\.get\('order'\)\)[\s\S]{0,80}openDrawer\(\)/);
 });
+
+test('boşta oturum kapatma tek sayaçta: modül sayaçları gömülüyken çalışmaz', () => {
+  // Modüller arka planda açık kaldığından, sayfa başına sayaç başka modülde
+  // çalışan kişiyi 15 dk sonra atıyordu (gerileme). Artık kabuk tüm
+  // çerçevelerdeki etkinliği sayar; ekran kilidi olan hesapta oturum kapanmaz.
+  for (const f of ['js/modules/panel.js', 'js/modules/concierge.js']) {
+    const src = read(f);
+    assert.match(src, /function resetLogoutTimer\(\) \{\n\s+if \(window\.__EMBED__\) return;/, f);
+  }
+  assert.match(shell, /var IDLE_LOGOUT_MS = 15 \* 60 \* 1000;/);
+  assert.match(shell, /activityFns\.push\(function \(\) \{ lastActivityAt = Date\.now\(\); \}\);/);
+  assert.match(shell, /if \(window\.ShellLock && ShellLock\._cfg && ShellLock\._cfg\(\)\) return;/);
+});
