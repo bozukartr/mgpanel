@@ -100,6 +100,8 @@
             if (frames[currentRoute] === f && loading) loading.classList.remove('show');
             // Kısayollar odak çerçevenin içindeyken de çalışsın (aynı köken).
             try { f.contentWindow.addEventListener('keydown', onKey, true); } catch (e) {}
+            // Kullanıcı etkinliği (ekran kilidi boşta kalma sayacı) çerçevede de sayılır.
+            try { ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(function (t) { f.contentWindow.addEventListener(t, activity, { passive: true, capture: true }); }); } catch (e) {}
         });
         if (!f.parentNode) host.insertBefore(f, loading);
         f.src = def.page + '?embed=1&v=' + SHELL_V + (query ? '&' + query : '');
@@ -260,6 +262,7 @@
     }
     function onKey(e) {
         if (e.defaultPrevented || e.isComposing) return;
+        if (document.documentElement.classList.contains('hz-locked')) return;   // kilitliyken kısayol yok
         var typing = isTyping(e.target);
         for (var i = 0; i < keyHandlers.length; i++) {
             if (keyHandlers[i](e, typing) === true) { e.preventDefault(); e.stopPropagation(); return; }
@@ -267,8 +270,15 @@
     }
     window.addEventListener('keydown', onKey, true);
 
+    // Kullanıcı etkinliği (dokunuş, tuş, kaydırma) — ekran kilidi bunu dinler.
+    var activityFns = [];
+    function activity() { for (var i = 0; i < activityFns.length; i++) { try { activityFns[i](); } catch (e) {} } }
+    ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(function (t) { window.addEventListener(t, activity, { passive: true, capture: true }); });
+
     // Diğer kabuk betikleri (genel arama, kısayollar…) için küçük arayüz.
     window.Shell = {
+        onActivity: function (fn) { activityFns.push(fn); },
+        frames: function () { return Object.keys(frames).map(function (r) { return frames[r]; }); },
         navigate: navigate,
         route: function () { return currentRoute; },
         frame: function (r) { return frames[r || currentRoute] || null; },

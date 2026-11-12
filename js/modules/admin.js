@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const user = doc.data();
                 const tr = document.createElement('tr');
                 tr.style.cursor = 'pointer';
+                tr.dataset.uid = doc.id;
                 tr.innerHTML = `
                     <td><strong>${esc(user.username)}</strong></td>
                     <td><span class="role-badge">${esc(roleLabel(user.role))}</span>${user.faceIdAllowed === true ? '<span class="tag tag-fid" title="Kişiye özel hesap — Face ID / Touch ID ile girebilir">Face ID</span>' : ''}</td>
@@ -92,8 +93,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.onclick = () => openEditUser(doc.id, user);
                 usersTableBody.appendChild(tr);
             });
+            syncLockTags();
         });
+        // Ekran kilidi olan (ortak cihaz) hesaplara "Ekran kilidi" etiketi.
+        db.collection('screenLocks').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
+            lockMap = {};
+            snap.forEach(d => { const c = d.data() || {}; if (c.idleMin > 0) lockMap[d.id] = c; });
+            syncLockTags();
+        }, () => {});
     };
+    let lockMap = {};
+    function syncLockTags() {
+        usersTableBody.querySelectorAll('tr[data-uid]').forEach(tr => {
+            const cfg = lockMap[tr.dataset.uid];
+            let tag = tr.querySelector('.tag-lock');
+            if (cfg && !tag) {
+                tag = document.createElement('span');
+                tag.className = 'tag tag-lock';
+                tr.children[1].appendChild(tag);
+            }
+            if (tag && !cfg) tag.remove();
+            else if (tag) { tag.textContent = 'Kilit ' + cfg.idleMin + ' dk'; tag.title = 'Ortak cihaz: ' + cfg.idleMin + ' dk işlem olmazsa ekran kilitlenir'; }
+        });
+    }
 
     // ── Per-user module access ─────────────────────────────────
     const MOD_KEYS = ['concierge', 'guestIssues', 'reports', 'crm', 'guestOrders', 'restaurant'];
@@ -189,6 +211,63 @@ document.addEventListener('DOMContentLoaded', () => {
         faceIdRevokeBtn.disabled = false;
     };
 
+    // ── Ortak cihaz ekran kilidi ─────────────────────────────────
+    // screenLocks/{uid}: { tenantId, idleMin, pinHash, salt, pinLength }.
+    // PIN tuzlu SHA-256 özeti olarak saklanır; kurallar gereği yalnızca o
+    // hesap ve otel yöneticisi okur (shell-lock.js kilidi bununla açar).
+    const lockIdle = document.getElementById('adminLockIdle');
+    const lockPin = document.getElementById('adminLockPin');
+    let lockExisting = null;
+    function hex(buf) { return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); }
+    async function pinHashOf(salt, pin) { return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pin))); }
+    function syncLockUI() {
+        if (!lockIdle || !lockPin) return;
+        const on = Number(lockIdle.value) > 0;
+        lockPin.disabled = !on;
+        lockPin.placeholder = !on ? 'PIN' : (lockExisting && lockExisting.pinHash ? 'Değiştirmek için yeni PIN' : 'PIN (4–6 rakam)');
+    }
+    lockIdle?.addEventListener('change', syncLockUI);
+    lockPin?.addEventListener('input', () => { lockPin.value = lockPin.value.replace(/\D/g, '').slice(0, 6); });
+    async function loadLock(uid) {
+        lockExisting = null;
+        if (lockIdle) lockIdle.value = '0';
+        if (lockPin) lockPin.value = '';
+        syncLockUI();
+        if (!uid) return;
+        try {
+            const s = await db.collection('screenLocks').doc(uid).get();
+            if (currentEditingUserId !== uid) return;
+            if (s.exists) { lockExisting = s.data(); if (lockIdle) lockIdle.value = String(lockExisting.idleMin || 0); }
+        } catch (e) { /* kural / ağ: ayar gösterilmez */ }
+        syncLockUI();
+    }
+    // Kaydetmeden ÖNCE doğrula (kullanıcı kaydı yarım kalmasın).
+    function lockValidationError() {
+        if (!lockIdle) return null;
+        const idle = Number(lockIdle.value) || 0;
+        const pin = (lockPin.value || '').trim();
+        if (!idle) return null;
+        if (pin && !/^\d{4,6}$/.test(pin)) return 'Kilit PIN\'i 4–6 rakam olmalı.';
+        if (!pin && !(lockExisting && lockExisting.pinHash)) return 'Ekran kilidi için bir PIN belirleyin (4–6 rakam).';
+        return null;
+    }
+    async function saveLock(uid) {
+        if (!lockIdle || !uid) return;
+        const idle = Number(lockIdle.value) || 0;
+        const pin = (lockPin.value || '').trim();
+        const ref = db.collection('screenLocks').doc(uid);
+        if (!idle) { if (lockExisting) await ref.delete(); return; }
+        const data = { tenantId: TENANT_ID, idleMin: idle, updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: localStorage.getItem('hotelUsername') || '' };
+        if (pin) {
+            const a = new Uint8Array(16); crypto.getRandomValues(a);
+            data.salt = hex(a);
+            data.pinHash = await pinHashOf(data.salt, pin);
+            data.pinLength = pin.length;
+        }
+        await ref.set(data, { merge: true });
+    }
+
     const openEditUser = (id, data) => {
         currentEditingUserId = id;
         currentEditingUserRole = (data.role || '').toLowerCase();
@@ -203,6 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         applyDeptPwUI();
         userModal.style.display = 'flex';
         loadFaceIdDevices(id);
+        loadLock(id);
     };
 
     userForm.onsubmit = async (e) => {
@@ -212,6 +292,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const department = document.getElementById('adminUserDept').value;
         const passwordInput = document.getElementById('adminNewPassword');
         const faceIdOn = !isFnbDept(department) && !!(faceIdCb && faceIdCb.checked);
+        const lockErr = lockValidationError();
+        if (lockErr) { showToast(lockErr, true); return; }
 
         try {
             if (currentEditingUserId) {
@@ -252,6 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     try { await passkeyManage({ action: 'revokeAll', uid: currentEditingUserId }); }
                     catch (e) { console.error('passkey revokeAll failed', e); }
                 }
+                try { await saveLock(currentEditingUserId); }
+                catch (e) { console.error('screen lock save failed', e); showToast('Ekran kilidi kaydedilemedi: ' + ((e && e.message) || ''), true); }
                 showToast(usernameRaw + ' için yetkiler güncellendi.');
             } else {
                 // CREATE MODE
@@ -311,6 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 if (isFnb) newUser.fnbCode = fnbCode;
                 await db.collection('systemUsers').doc(uid).set(newUser);
+                try { await saveLock(uid); }
+                catch (e) { console.error('screen lock save failed', e); showToast('Ekran kilidi kaydedilemedi: ' + ((e && e.message) || ''), true); }
                 showToast('Yeni hesap oluşturuldu: ' + username);
             }
             userModal.style.display = 'none';
@@ -377,6 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setRoleSelect('Staff');
         setUserModuleSel(null); // new users default to full access (all checked)
         setFaceIdSel(false);    // varsayılan: ortak kullanım (yalnızca şifre)
+        loadLock(null);         // varsayılan: ekran kilidi kapalı
         document.getElementById('adminNewPassword').disabled = false;
         deptOptions('');
         applyDeptPwUI();

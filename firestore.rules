@@ -578,6 +578,24 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // --- Ortak cihaz ekran kilidi (js/core/shell-lock.js). Belge kimliği =
+    //     kullanıcının uid'i. PIN tuzlu özet olarak tutulur; yalnızca o hesabın
+    //     kendisi (kilidi açmak için) ve kendi otelinin yöneticisi okur.
+    //     Diğer personel okuyamaz (kısa PIN'in özeti çevrimdışı denenemesin).
+    //     Yalnızca yönetici yazar ve hedef kullanıcı kendi otelinden olmalı. ---
+    match /screenLocks/{uid} {
+      allow read: if isSuperAdmin()
+        || (signedIn() && request.auth.uid == uid)
+        || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+      allow create, update: if isSuperAdmin()
+        || (isAdmin()
+            && request.resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()
+            && get(/databases/$(database)/documents/systemUsers/$(uid)).data.get('tenantId', 'NO_TENANT_USER') == callerTenant()
+            && (resource == null || resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant()));
+      allow delete: if isSuperAdmin()
+        || (isAdmin() && resource.data.get('tenantId', 'NO_TENANT_DOC') == callerTenant());
+    }
+
     // Misafirin doğrulanmış oturumu (bkz. verifiedSessionRoom() yukarıda) —
     // yalnızca functions/index.js:verifyGuestIdentity tarafından Admin SDK
     // ile yazılır (kurallardan bağımsız). İstemciye (misafir veya personel

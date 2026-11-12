@@ -409,3 +409,56 @@ html.theme-dark .pm-toast {
     color: #ffffff;
     box-shadow: 0 18px 50px rgba(15, 23, 42, 0.66);
 }
+html.theme-dark.hz-locked .lk-root {
+    background: radial-gradient(1200px 600px at 50% -10%, #1b233c 0%, var(--bg) 60%);
+}
+html.theme-dark .lk-ic {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--primary-dark);
+    box-shadow: var(--shadow);
+}
+html.theme-dark .lk-time {
+    color: var(--text);
+}
+html.theme-dark .lk-who {
+    color: var(--muted);
+}
+html.theme-dark .lk-who b {
+    color: var(--text);
+}
+html.theme-dark .lk-note {
+    color: var(--primary-dark);
+}
+html.theme-dark .lk-dots i {
+    border: 2px solid #3c4353;
+}
+html.theme-dark .lk-dots i.on {
+    background: var(--text);
+    border-color: var(--text);
+}
+html.theme-dark .lk-msg {
+    color: var(--muted);
+}
+html.theme-dark .lk-msg.bad {
+    color: #ea8686;
+}
+html.theme-dark .lk-key {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.11);
+}
+html.theme-dark .lk-key:active {
+    background: #282c37;
+}
+html.theme-dark .lk-del {
+    background: none;
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--muted);
+}
+html.theme-dark .lk-out {
+    background: none;
+    color: var(--muted);
+}
