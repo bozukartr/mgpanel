@@ -1,0 +1,224 @@
+/* OTOMATİK ÜRETİLDİ — elle düzenlemeyin. Kaynak değişince: node tools/dark-theme.js */
+html.theme-dark {
+    --primary: #6366f1;
+    --primary-dark: #5d55e7;
+    --primary-soft: #1b233c;
+    --bg: #181a21;
+    --surface: #1f232b;
+    --text: #d1d5df;
+    --muted: #828da5;
+    --faint: #838fa9;
+    --border: #313744;
+    --shadow: 0 2px 8px rgba(15, 23, 42, 0.088), 0 12px 36px rgba(15, 23, 42, 0.11);
+    --shadow-hover: 0 4px 12px rgba(15, 23, 42, 0.132), 0 20px 50px rgba(79, 70, 229, 0.1);
+}
+html.theme-dark body {
+    background: var(--bg);
+    color: var(--text);
+}
+html.theme-dark a {
+    color: inherit;
+}
+html.theme-dark .dash-header {
+    background: rgba(31, 35, 43, 0.85);
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .dash-nav a {
+    color: var(--muted);
+}
+html.theme-dark .dash-nav a:hover {
+    color: var(--text);
+    background: #191c23;
+}
+html.theme-dark .dash-nav a.active {
+    color: var(--primary-dark);
+    background: var(--primary-soft);
+}
+html.theme-dark .dash-chip .av {
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+}
+html.theme-dark .dash-chip .meta span {
+    color: var(--faint);
+}
+html.theme-dark .dash-logout {
+    background: #191c23;
+    border: none;
+    color: #9ca5ba;
+}
+html.theme-dark .dash-logout:hover {
+    background: #3c1b1b;
+    color: #ea8a8a;
+}
+html.theme-dark .dash-top p {
+    color: var(--muted);
+}
+html.theme-dark .dash-act {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+}
+html.theme-dark .dash-act:hover {
+    box-shadow: var(--shadow-hover);
+}
+html.theme-dark .dash-act.primary {
+    background: linear-gradient(120deg, var(--primary-dark), var(--primary));
+    color: #ffffff;
+    border-color: transparent;
+    box-shadow: 0 10px 26px rgba(79, 70, 229, 0.3);
+}
+html.theme-dark .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+html.theme-dark .kpi:hover {
+    box-shadow: var(--shadow-hover);
+}
+html.theme-dark .kpi-ico.indigo {
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+}
+html.theme-dark .kpi-ico.amber {
+    background: #3c2d1b;
+    color: #eabc87;
+}
+html.theme-dark .kpi-ico.emerald {
+    background: #1b3c2c;
+    color: #81e9c9;
+}
+html.theme-dark .kpi-ico.sky {
+    background: #1b293c;
+    color: #8ba9eb;
+}
+html.theme-dark .kpi-val small {
+    color: var(--faint);
+}
+html.theme-dark .kpi-label {
+    color: var(--muted);
+}
+html.theme-dark .kpi-sub.warn {
+    color: #ea8a8a;
+}
+html.theme-dark .kpi-sub.ok {
+    color: #81e9c9;
+}
+html.theme-dark .kpi-sub.mut {
+    color: var(--faint);
+}
+html.theme-dark .kpi-sub .dot {
+    background: currentColor;
+}
+html.theme-dark .dash-analysis-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+html.theme-dark .an-quick {
+    color: var(--muted);
+}
+html.theme-dark .an-title {
+    color: var(--faint);
+}
+html.theme-dark .an-label {
+    color: var(--text);
+}
+html.theme-dark .an-bar {
+    background: #191c23;
+}
+html.theme-dark .an-bar i {
+    background: var(--primary);
+}
+html.theme-dark .an-val {
+    color: var(--muted);
+}
+html.theme-dark .an-trend {
+    border-top: 1px solid var(--border);
+}
+html.theme-dark .trend-bar i {
+    background: var(--primary-soft);
+}
+html.theme-dark .trend-bar:hover i {
+    background: var(--primary);
+}
+html.theme-dark .dash-feed-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+html.theme-dark .feed-head .live {
+    color: #84e9a9;
+}
+html.theme-dark .feed-head .live::before {
+    background: #16a34a;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.16);
+}
+html.theme-dark .feed-item:hover {
+    background: #171a20;
+}
+html.theme-dark .feed-ico.req {
+    background: var(--primary-soft);
+    color: var(--primary, #938eeb);
+}
+html.theme-dark .feed-ico.cmp {
+    background: #3c2d1b;
+    color: #eaa386;
+}
+html.theme-dark .feed-ico.res {
+    background: #1b293c;
+    color: #89a3ea;
+}
+html.theme-dark .feed-title {
+    color: var(--text);
+}
+html.theme-dark .feed-meta {
+    color: var(--muted);
+}
+html.theme-dark .feed-time {
+    color: var(--faint);
+}
+html.theme-dark .feed-pill.pending {
+    background: #3c2d1b;
+    color: #eab886;
+}
+html.theme-dark .feed-pill.confirmed {
+    background: #1b3c25;
+    color: #84e9a9;
+}
+html.theme-dark .feed-pill.open {
+    background: #3c2d1b;
+    color: #eab886;
+}
+html.theme-dark .feed-pill.done {
+    background: #1b3c25;
+    color: #84e9a9;
+}
+html.theme-dark .feed-pill.progress {
+    background: #1b293c;
+    color: #89a3ea;
+}
+html.theme-dark .feed-pill.cancel {
+    background: #191c23;
+    color: #828da5;
+}
+html.theme-dark .dash-empty {
+    color: var(--faint);
+}
+html.theme-dark .dash-skeleton {
+    color: var(--faint);
+}
+@media (max-width: 880px) {
+    html.theme-dark .dash-bnav {
+        background: rgba(31, 35, 43, 0.94);
+        border-top: 1px solid var(--border);
+    }
+    html.theme-dark .dash-bn {
+        background: none;
+        border: none;
+        color: var(--faint);
+    }
+    html.theme-dark .dash-bn.active {
+        color: var(--primary);
+    }
+}

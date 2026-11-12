@@ -1,0 +1,256 @@
+/* OTOMATİK ÜRETİLDİ — elle düzenlemeyin. Kaynak değişince: node tools/dark-theme.js */
+html.theme-dark {
+    --bg: #181b22;
+    --surface: #1f232b;
+    --primary: #4a4a4a;
+    --accent: #2563eb;
+    --border: #343a48;
+    --text-main: #c3c8d5;
+    --text-muted: #828da5;
+    --in-house: #10b981;
+    --checked-out: #4a5266;
+    --issue-color: #f59e0b;
+    --concierge-color: #6366f1;
+}
+html.theme-dark body {
+    background-color: var(--bg);
+    color: var(--text-main);
+}
+html.theme-dark .crm-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .logo span {
+    color: var(--text-main);
+}
+html.theme-dark .crm-nav a {
+    color: var(--text-muted);
+}
+html.theme-dark .crm-nav a:hover {
+    background: #191c23;
+    color: var(--text-main);
+}
+html.theme-dark .crm-nav a.active {
+    background: var(--primary);
+    color: #ffffff;
+}
+html.theme-dark #userNameDisplay {
+    color: var(--text-main);
+}
+html.theme-dark .logout-btn {
+    background: none;
+    border: 1px solid var(--border);
+}
+html.theme-dark .guest-sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+}
+html.theme-dark .sidebar-header {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .search-wrap input {
+    border: 1px solid var(--border);
+    outline: none;
+}
+html.theme-dark .search-wrap input:focus {
+    border-color: var(--accent);
+}
+html.theme-dark .filter-btn {
+    border: 1px solid transparent;
+    background: #171a20;
+    color: var(--text-muted);
+}
+html.theme-dark .filter-btn.active {
+    background: #1f232b;
+    border-color: var(--border);
+    color: var(--text-main);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.11);
+}
+html.theme-dark .guest-card {
+    border-bottom: 1px solid #2f3441;
+}
+html.theme-dark .guest-card:hover {
+    background: #171a20;
+}
+html.theme-dark .guest-card.active {
+    background: #1b293c;
+    border-left: 4px solid var(--accent);
+}
+html.theme-dark .guest-card-name {
+    color: var(--text-main);
+}
+html.theme-dark .guest-card-room {
+    color: var(--text-muted);
+}
+html.theme-dark .status-in-house {
+    background: #1b3c26;
+    color: #83e4a8;
+}
+html.theme-dark .status-checked-out {
+    background: #191c23;
+    color: #828da5;
+}
+html.theme-dark .guest-detail {
+    background: #171a20;
+}
+html.theme-dark .empty-state {
+    color: var(--text-muted);
+}
+html.theme-dark .empty-state h2 {
+    color: var(--text-main);
+}
+html.theme-dark .profile-header {
+    background: #1f232b;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.11);
+}
+html.theme-dark .profile-room-badge {
+    color: var(--text-muted);
+}
+html.theme-dark .btn-status-toggle {
+    border: none;
+}
+html.theme-dark .btn-in-house {
+    background: #10b981;
+    color: #ffffff;
+}
+html.theme-dark .btn-checked-out {
+    background: #97a0b4;
+    color: #ffffff;
+}
+html.theme-dark .info-card {
+    background: #1f232b;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.11);
+}
+html.theme-dark .info-card label {
+    color: var(--text-muted);
+}
+html.theme-dark .info-card .val {
+    color: var(--text-main);
+}
+html.theme-dark .history-timeline::before {
+    background: var(--border);
+}
+html.theme-dark .timeline-item {
+    background: #1f232b;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.044);
+}
+html.theme-dark .timeline-item::before {
+    background: var(--accent);
+    border: 3px solid #2b303b;
+    box-shadow: 0 0 0 2px var(--border);
+}
+html.theme-dark .timeline-item.issue::before {
+    background: var(--issue-color);
+}
+html.theme-dark .timeline-item.concierge::before {
+    background: var(--concierge-color);
+}
+html.theme-dark .type-issue {
+    background: #3c351b;
+    color: #e9a982;
+}
+html.theme-dark .type-concierge {
+    background: #1b233c;
+    color: #9691df;
+}
+html.theme-dark .item-date {
+    color: var(--text-muted);
+}
+html.theme-dark .item-title {
+    color: var(--text-main);
+}
+html.theme-dark .item-desc {
+    color: #9ca5ba;
+}
+html.theme-dark .toast {
+    background: var(--primary);
+    color: #ffffff;
+}
+html.theme-dark .detail-tabs {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .tab-link {
+    color: var(--text-muted);
+    border: none;
+    background: none;
+}
+html.theme-dark .tab-link.active {
+    color: var(--accent);
+}
+html.theme-dark .tab-link.active::after {
+    background: var(--accent);
+}
+html.theme-dark .mood-indicator {
+    background: #191c23;
+}
+html.theme-dark .mood-happy {
+    background: #1b3c26;
+    color: #83e4a8;
+}
+html.theme-dark .mood-neutral {
+    background: #6b6524;
+    color: #e9b881;
+}
+html.theme-dark .mood-sad {
+    background: #3c1b1b;
+    color: #e98484;
+}
+html.theme-dark .tag {
+    background: #1b293c;
+    color: #869dea;
+    border: 1px solid #2b4364;
+}
+html.theme-dark .guest-notes-area {
+    background: #3c351b;
+    border: 1px solid #64592b;
+    box-shadow: 0 4px 6px -1px rgba(251, 191, 36, 0.1);
+}
+html.theme-dark .notes-header {
+    color: #e9a982;
+}
+html.theme-dark .notes-content textarea {
+    background: transparent;
+    border: none;
+    color: #e9a680;
+    outline: none;
+}
+@media (max-width: 768px) {
+    html.theme-dark .crm-sidebar {
+        border-right: none !important;
+        border-bottom: 1px solid var(--border) !important;
+    }
+    html.theme-dark .bottom-nav {
+        background: rgba(31, 35, 43, 0.97);
+        border-top: 1px solid var(--border);
+    }
+    html.theme-dark .bnav-btn {
+        background: none;
+        border: none;
+        color: #8c92a2;
+    }
+    html.theme-dark .bnav-btn.active {
+        color: var(--primary);
+    }
+}
+html.theme-dark .guest-card.missing-dates {
+    border-left: 4px solid #ef4444;
+    background-color: #3c1b1b;
+}
+html.theme-dark .guest-card.missing-dates:hover {
+    background-color: #3c1b1b;
+}
+html.theme-dark .guest-card.missing-dates.active {
+    background-color: #6b2424;
+    border-left-color: #b91c1c;
+}
+html.theme-dark .dark-theme .guest-card.missing-dates {
+    background-color: rgba(239, 68, 68, 0.1);
+    border-left: 4px solid #f87171;
+}
+html.theme-dark .dark-theme .guest-card.missing-dates:hover {
+    background-color: rgba(239, 68, 68, 0.15);
+}
+html.theme-dark .dark-theme .guest-card.missing-dates.active {
+    background-color: rgba(239, 68, 68, 0.25);
+    border-left-color: #ef4444;
+}

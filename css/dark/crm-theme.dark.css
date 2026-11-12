@@ -1,0 +1,292 @@
+/* OTOMATİK ÜRETİLDİ — elle düzenlemeyin. Kaynak değişince: node tools/dark-theme.js */
+html.theme-dark {
+    --primary: #6366f1;
+    --primary-dark: #5d55e7;
+    --primary-soft: #1b233c;
+    --accent: #6366f1;
+    --bg: #181b22;
+    --surface: #1f232b;
+    --text-main: #c3c8d5;
+    --text-muted: #828da5;
+    --border: #323846;
+    --shadow: 0 4px 20px rgba(15, 23, 42, 0.11);
+    --shadow-lg: 0 18px 50px rgba(15, 23, 42, 0.264);
+}
+html.theme-dark .crm-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .logo span {
+    color: var(--text-main);
+}
+html.theme-dark .crm-nav a {
+    color: var(--text-muted);
+    background: none;
+}
+html.theme-dark .crm-nav a:hover {
+    background: none;
+    color: var(--text-main);
+}
+html.theme-dark .crm-nav a.active {
+    background: none;
+    color: var(--primary-dark);
+}
+html.theme-dark .crm-nav a.active::after {
+    background: var(--primary);
+}
+html.theme-dark #userNameDisplay {
+    color: var(--text-main);
+}
+html.theme-dark .logout-btn {
+    border: none;
+    background: #191c23;
+    color: #9ca5ba;
+}
+html.theme-dark .logout-btn:hover {
+    background: #3c1b1b;
+    color: #ea8a8a;
+}
+html.theme-dark .guest-sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+}
+html.theme-dark .sidebar-header {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .search-wrap input {
+    border: 1px solid var(--border);
+    background: #16191f;
+}
+html.theme-dark .search-wrap input:focus {
+    border-color: var(--primary);
+    background: #1f232b;
+}
+html.theme-dark .search-wrap::before {
+    background: no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+}
+html.theme-dark .add-guest-btn {
+    border: none;
+    background: var(--primary);
+    color: #ffffff;
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.28);
+}
+html.theme-dark .add-guest-btn:hover {
+    background: var(--primary-dark);
+}
+html.theme-dark .filter-btn {
+    border: 1px solid var(--border);
+    background: #1f232b;
+    color: var(--text-muted);
+}
+html.theme-dark .filter-btn.active {
+    background: var(--text-main);
+    border-color: var(--text-main);
+    color: #ffffff;
+    box-shadow: none;
+}
+html.theme-dark .guest-card {
+    border-bottom: 1px solid #2f3441;
+}
+html.theme-dark .guest-card:hover {
+    background: #171a20;
+}
+html.theme-dark .guest-card.active {
+    background: var(--primary-soft);
+    border-left: 3px solid var(--primary);
+}
+html.theme-dark .guest-card-room {
+    color: var(--text-muted);
+}
+html.theme-dark .status-in-house {
+    background: #1b3c25;
+    color: #84e9a9;
+}
+html.theme-dark .status-checked-out {
+    background: #191c23;
+    color: #828da5;
+}
+html.theme-dark .status-arrival {
+    background: #1b293c;
+    color: #8ba9eb;
+}
+html.theme-dark .guest-detail {
+    background: var(--bg);
+}
+html.theme-dark .profile-header {
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+html.theme-dark .profile-main-info h1 {
+    color: var(--text-main);
+}
+html.theme-dark .profile-room-badge {
+    color: var(--text-muted);
+}
+html.theme-dark .btn-status-toggle {
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.132);
+}
+html.theme-dark .btn-in-house {
+    background: #16a34a;
+    color: #ffffff;
+}
+html.theme-dark .btn-checked-out {
+    background: #97a0b4;
+    color: #ffffff;
+}
+html.theme-dark .info-card {
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+html.theme-dark .info-card label {
+    color: #838fa9;
+}
+html.theme-dark .info-card .val {
+    color: var(--text-main);
+}
+html.theme-dark .guest-notes-area {
+    border: 1px solid #64592b;
+    box-shadow: 0 4px 16px rgba(251, 191, 36, 0.08);
+}
+html.theme-dark .tag {
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+    border: 1px solid #2b3864;
+}
+html.theme-dark .detail-tabs {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .tab-link.active {
+    color: var(--primary-dark);
+}
+html.theme-dark .tab-link.active::after {
+    background: var(--primary);
+}
+html.theme-dark .timeline-item {
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+html.theme-dark .timeline-item::before {
+    background: var(--primary);
+    box-shadow: 0 0 0 2px var(--border);
+}
+html.theme-dark .timeline-item.issue::before {
+    background: #f59e0b;
+}
+html.theme-dark .timeline-item.concierge::before {
+    background: var(--primary);
+}
+html.theme-dark .type-issue {
+    background: #3c351b;
+    color: #e9b084;
+}
+html.theme-dark .type-concierge {
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+}
+html.theme-dark .toast {
+    background: var(--text-main);
+    box-shadow: var(--shadow-lg);
+}
+html.theme-dark .crm-modal-title {
+    color: var(--text-main);
+}
+html.theme-dark .crm-modal-sub {
+    color: var(--text-muted);
+}
+html.theme-dark .crm-field > label {
+    color: #9ca5ba;
+}
+html.theme-dark .crm-check {
+    color: #aeb5c7;
+    background: #171a20;
+    border: 1px solid var(--border);
+}
+html.theme-dark .crm-btn {
+    border: none;
+}
+html.theme-dark .crm-btn-ghost {
+    background: #191c23;
+    color: #9ca5ba;
+}
+html.theme-dark .crm-btn-primary {
+    background: var(--primary);
+    color: #ffffff;
+}
+html.theme-dark .crm-btn-primary:hover {
+    background: var(--primary-dark);
+}
+html.theme-dark .crm-btn-purple {
+    background: #7c3aed;
+    color: #ffffff;
+}
+html.theme-dark .crm-btn-danger {
+    background: #ef4444;
+    color: #ffffff;
+}
+@media (max-width: 768px) {
+    html.theme-dark .guest-sidebar {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    html.theme-dark .bnav-btn.active {
+        color: var(--primary);
+    }
+}
+html.theme-dark .profile-room-badge span + span::before {
+    color: #64718f;
+}
+html.theme-dark .profile-facts .pf {
+    background: #171a20;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+}
+html.theme-dark .profile-facts .pf b {
+    color: var(--text-muted);
+}
+html.theme-dark .profile-warn {
+    background: #3c351b;
+    border: 1px solid #64592b;
+    color: #e9a982;
+}
+html.theme-dark .crm-act {
+    background: #1f232b;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+}
+html.theme-dark .crm-act:hover {
+    background: #171a20;
+    border-color: #3c4353;
+}
+html.theme-dark .crm-act.primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #ffffff;
+}
+html.theme-dark .crm-act.primary:hover {
+    background: var(--primary-dark);
+}
+html.theme-dark .crm-act.danger {
+    color: #ea8a8a;
+}
+html.theme-dark .crm-act.danger:hover {
+    background: #3c1b1b;
+    border-color: #642b2b;
+}
+html.theme-dark .info-card .val.st-in_house {
+    color: #84e9a9;
+}
+html.theme-dark .info-card .val.st-pre_arrival {
+    color: #eabc87;
+}
+html.theme-dark .info-card .val.st-checked_out {
+    color: #828da5;
+}
+html.theme-dark .crm-list-empty {
+    color: var(--text-muted);
+}
+html.theme-dark .crm-list-empty .ui-ic {
+    color: #64718f;
+}
+html.theme-dark .empty-icon[data-ic] {
+    color: #838fa9;
+}

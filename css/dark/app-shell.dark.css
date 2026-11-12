@@ -1,0 +1,283 @@
+/* OTOMATİK ÜRETİLDİ — elle düzenlemeyin. Kaynak değişince: node tools/dark-theme.js */
+html.theme-dark {
+    --primary: #6366f1;
+    --primary-dark: #5d55e7;
+    --primary-soft: #1b233c;
+    --bg: #181b22;
+    --surface: #1f232b;
+    --text: #d1d5df;
+    --muted: #828da5;
+    --faint: #838fa9;
+    --border: #323846;
+    --shadow: 0 4px 20px rgba(15, 23, 42, 0.11);
+}
+html.theme-dark body {
+    background: var(--bg);
+    color: var(--text);
+}
+html.theme-dark a {
+    color: inherit;
+}
+html.theme-dark .sh-header {
+    background: rgba(31, 35, 43, 0.88);
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .sh-tab {
+    color: var(--muted);
+    background: none;
+    border: none;
+}
+html.theme-dark .sh-tab:hover {
+    color: var(--text);
+    background: #191c23;
+}
+html.theme-dark .sh-tab.active {
+    color: var(--primary-dark);
+    background: var(--primary-soft);
+}
+html.theme-dark .sh-chip .av {
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+}
+html.theme-dark .sh-chip .meta span {
+    color: var(--faint);
+}
+html.theme-dark .sh-logout {
+    background: #191c23;
+    border: none;
+    color: #9ca5ba;
+}
+html.theme-dark .sh-logout:hover {
+    background: #3c1b1b;
+    color: #ea8a8a;
+}
+html.theme-dark .sh-content {
+    background: var(--bg);
+}
+html.theme-dark .sh-frame {
+    background: var(--bg);
+}
+html.theme-dark .sh-spin {
+    border: 3px solid var(--primary-soft);
+    border-top-color: var(--primary);
+}
+@media (max-width: 880px) {
+    html.theme-dark .sh-menu {
+        border: none;
+        background: none;
+        color: var(--text);
+    }
+    html.theme-dark .sh-menu:active {
+        background: #191c23;
+    }
+    html.theme-dark .sh-scrim {
+        background: rgba(57, 68, 94, 0.42);
+    }
+    html.theme-dark .sh-drawer {
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.396);
+    }
+    html.theme-dark .sh-dr {
+        border: none;
+        background: none;
+        color: var(--text);
+    }
+    html.theme-dark .sh-dr svg {
+        color: var(--muted);
+    }
+    html.theme-dark .sh-dr:active {
+        background: #191c23;
+    }
+    html.theme-dark .sh-dr.active {
+        background: var(--primary-soft);
+        color: var(--primary-dark);
+    }
+    html.theme-dark .sh-dr.active svg {
+        color: var(--primary-dark);
+    }
+}
+html.theme-dark .sh-search {
+    border: 1px solid var(--border);
+    background: #171a20;
+    color: var(--muted);
+}
+html.theme-dark .sh-search:hover {
+    border-color: #3c4353;
+    background: #1f232b;
+    color: var(--text);
+}
+html.theme-dark .sh-search kbd,
+html.theme-dark .ss-root kbd {
+    color: var(--muted);
+    background: #1f232b;
+    border: 1px solid var(--border);
+}
+@media (max-width: 880px) {
+    html.theme-dark .sh-search {
+        border: none;
+        background: none;
+        color: var(--text);
+    }
+}
+html.theme-dark .ss-scrim {
+    background: rgba(57, 68, 94, 0.38);
+}
+html.theme-dark .ss-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.55);
+}
+html.theme-dark .ss-head {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .ss-head > svg {
+    color: var(--muted);
+}
+html.theme-dark .ss-head input {
+    background: none;
+    color: var(--text);
+}
+html.theme-dark .ss-close {
+    background: none;
+    color: var(--muted);
+}
+html.theme-dark .ss-close .ss-kbd {
+    border: 1px solid var(--border);
+}
+html.theme-dark .ss-sec-h {
+    color: var(--faint);
+}
+html.theme-dark .ss-sec-h span {
+    background: #191c23;
+    color: var(--muted);
+}
+html.theme-dark .ss-row {
+    color: var(--text);
+}
+html.theme-dark .ss-row[data-act]:hover,
+html.theme-dark .ss-row.sel {
+    background: #191c23;
+}
+html.theme-dark .ss-row.sel {
+    box-shadow: inset 0 0 0 1px #e2e8f0;
+}
+html.theme-dark .ss-ic {
+    background: #191c23;
+    color: var(--muted);
+}
+html.theme-dark .ss-ic.t-indigo {
+    background: var(--primary-soft);
+    color: var(--primary-dark);
+}
+html.theme-dark .ss-ic.t-red {
+    background: #3c1b1b;
+    color: #ea8a8a;
+}
+html.theme-dark .ss-ic.t-amber {
+    background: #3c351b;
+    color: #e9b084;
+}
+html.theme-dark .ss-ic.t-teal {
+    background: #1b3c34;
+    color: #80e9e0;
+}
+html.theme-dark .ss-ic.t-violet {
+    background: #201b3c;
+    color: #b08aea;
+}
+html.theme-dark .ss-tx small {
+    color: var(--muted);
+}
+html.theme-dark .ss-pill {
+    background: #191c23;
+    color: #9ca5ba;
+}
+html.theme-dark .ss-pill.p-green {
+    background: #1b3c2c;
+    color: #7fe8ca;
+}
+html.theme-dark .ss-pill.p-amber {
+    background: #3c351b;
+    color: #e9b084;
+}
+html.theme-dark .ss-pill.p-blue {
+    background: #1b293c;
+    color: #89a3ea;
+}
+html.theme-dark .ss-chev {
+    color: #64718f;
+}
+html.theme-dark .ss-chev em {
+    color: var(--muted);
+}
+html.theme-dark .ss-note {
+    color: var(--muted);
+}
+html.theme-dark .ss-note.ss-err {
+    color: #ea8686;
+}
+html.theme-dark .ss-loading {
+    color: var(--faint);
+}
+html.theme-dark .ss-folio {
+    background: #171a20;
+    border: 1px solid var(--border);
+}
+html.theme-dark .ss-folio > svg {
+    color: var(--muted);
+}
+html.theme-dark .ss-folio small {
+    color: var(--muted);
+}
+html.theme-dark .ss-foot {
+    border-top: 1px solid var(--border);
+    color: var(--faint);
+}
+html.theme-dark .ss-row.ss-qbtn {
+    border: 1px solid var(--border);
+    background: #1f232b;
+}
+html.theme-dark .sk-head {
+    border-bottom: 1px solid var(--border);
+}
+html.theme-dark .sk-body h3 {
+    color: var(--faint);
+}
+html.theme-dark .sk-body li span {
+    color: var(--text);
+}
+html.theme-dark .sk-body li i {
+    color: var(--faint);
+}
+html.theme-dark .ss-close:focus-visible {
+    outline: 2px solid var(--primary);
+}
+html.theme-dark .sk-note {
+    color: var(--faint);
+}
+@media (max-width: 880px) {
+    html.theme-dark .sh-app.has-bottom .sh-bottom {
+        background: rgba(31, 35, 43, 0.96);
+        border-top: 1px solid var(--border);
+    }
+    html.theme-dark .sh-bt {
+        background: none;
+        color: var(--muted);
+    }
+    html.theme-dark .sh-bt:active {
+        background: #191c23;
+    }
+    html.theme-dark .sh-bt.active,
+    html.theme-dark .sh-bt.open {
+        color: var(--primary-dark);
+    }
+}
+html.theme-dark .sh-theme {
+    background: #191c23;
+    border: none;
+    color: #9ca5ba;
+}
+html.theme-dark .sh-theme:hover {
+    color: var(--text);
+}

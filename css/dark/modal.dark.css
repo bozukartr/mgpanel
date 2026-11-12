@@ -1,0 +1,156 @@
+/* OTOMATİK ÜRETİLDİ — elle düzenlemeyin. Kaynak değişince: node tools/dark-theme.js */
+html.theme-dark {
+    --mdl-ink: #d1d5df;
+    --mdl-ink-soft: #9ca5ba;
+    --mdl-ink-faint: #828da5;
+    --mdl-line: #323846;
+    --mdl-surface: #1f232b;
+    --mdl-field-bg: #16191f;
+    --mdl-accent: var(--primary, #6366f1);
+}
+html.theme-dark .modal,
+html.theme-dark .modal-backdrop,
+html.theme-dark .rst-modal {
+    background: rgba(57, 68, 94, 0.45);
+}
+html.theme-dark .modal-content,
+html.theme-dark .modal-backdrop > .modal,
+html.theme-dark .rst-modal-card {
+    background: var(--mdl-surface);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.484);
+}
+html.theme-dark .modal-header,
+html.theme-dark .modal-head,
+html.theme-dark .rst-modal-head {
+    border-bottom: 1px solid var(--mdl-line);
+}
+html.theme-dark .modal-header h3,
+html.theme-dark .modal-head h3,
+html.theme-dark .rst-modal-head h3,
+html.theme-dark .modal-header h2,
+html.theme-dark .modal-head h2 {
+    color: var(--mdl-ink);
+}
+html.theme-dark .modal-header p,
+html.theme-dark .modal-head p,
+html.theme-dark .modal-header .modal-sub {
+    color: var(--mdl-ink-soft);
+}
+html.theme-dark .close-modal,
+html.theme-dark .rst-modal-x,
+html.theme-dark .modal-x {
+    border: none;
+    background: #191c23;
+    color: #828da5;
+}
+html.theme-dark .close-modal:hover,
+html.theme-dark .rst-modal-x:hover,
+html.theme-dark .modal-x:hover {
+    background: #282c37;
+    color: var(--mdl-ink);
+}
+html.theme-dark .modal-body .form-group > label,
+html.theme-dark .modal-body > label,
+html.theme-dark .rst-modal-body .form-group > label {
+    color: var(--mdl-ink-soft);
+}
+html.theme-dark .modal-body .form-group > label small,
+html.theme-dark .modal-body .hint {
+    color: var(--mdl-ink-faint);
+}
+html.theme-dark .modal-body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+html.theme-dark .modal-body select,
+html.theme-dark .modal-body textarea,
+html.theme-dark .rst-modal-body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+html.theme-dark .rst-modal-body select,
+html.theme-dark .rst-modal-body textarea {
+    border: 1px solid var(--mdl-line);
+    background: var(--mdl-field-bg);
+    color: var(--mdl-ink);
+}
+html.theme-dark .modal-body input:focus,
+html.theme-dark .modal-body select:focus,
+html.theme-dark .modal-body textarea:focus,
+html.theme-dark .rst-modal-body input:focus,
+html.theme-dark .rst-modal-body select:focus,
+html.theme-dark .rst-modal-body textarea:focus {
+    outline: none;
+    border-color: var(--mdl-accent);
+    background: #1f232b;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+html.theme-dark .modal-body input::placeholder,
+html.theme-dark .modal-body textarea::placeholder {
+    color: var(--mdl-ink-faint);
+}
+html.theme-dark .modal-section-h {
+    border-top: 1px solid var(--mdl-line);
+    color: var(--mdl-ink-faint);
+}
+html.theme-dark .modal-section-h.first {
+    border-top: none;
+}
+html.theme-dark .modal-body .switch-row,
+html.theme-dark .modal-body .mod-check,
+html.theme-dark .modal-body .check-row {
+    border: 1px solid var(--mdl-line);
+    background: var(--mdl-field-bg);
+    color: #aeb5c7;
+}
+html.theme-dark .modal-body .switch-row:hover,
+html.theme-dark .modal-body .mod-check:hover,
+html.theme-dark .modal-body .check-row:hover {
+    border-color: #3c4353;
+}
+html.theme-dark .modal-body .switch-row input,
+html.theme-dark .modal-body .mod-check input,
+html.theme-dark .modal-body .check-row input {
+    accent-color: var(--mdl-accent);
+}
+html.theme-dark .modal-err {
+    color: var(--red, #ea8a8a);
+}
+html.theme-dark .modal-actions,
+html.theme-dark .modal-foot,
+html.theme-dark .rst-modal-actions,
+html.theme-dark .crm-modal-actions {
+    border-top: 1px solid var(--mdl-line);
+    background: var(--mdl-surface);
+}
+html.theme-dark .modal-actions .action-btn,
+html.theme-dark .modal-foot .action-btn {
+    border: none;
+}
+html.theme-dark .modal-actions .action-btn.save-btn,
+html.theme-dark .modal-foot .action-btn.save-btn {
+    background: var(--mdl-accent);
+    color: #ffffff;
+}
+html.theme-dark .modal-actions .action-btn.save-btn:hover,
+html.theme-dark .modal-foot .action-btn.save-btn:hover {
+    background: var(--primary-dark, #4f46e5);
+}
+html.theme-dark .modal-actions .action-btn.secondary,
+html.theme-dark .modal-foot .action-btn.secondary {
+    background: #191c23;
+    color: #aeb5c7;
+}
+html.theme-dark .modal-actions .action-btn.secondary:hover,
+html.theme-dark .modal-foot .action-btn.secondary:hover {
+    background: #282c37;
+}
+html.theme-dark .modal-actions .action-btn.danger,
+html.theme-dark .modal-foot .action-btn.danger {
+    background: #3c1b1b;
+    color: #ea8686;
+}
+html.theme-dark .modal-actions .action-btn.danger:hover,
+html.theme-dark .modal-foot .action-btn.danger:hover {
+    background: #3c1b1b;
+}
+html.theme-dark .field-view label {
+    color: var(--mdl-ink-soft);
+}
+html.theme-dark .field-view p {
+    color: var(--mdl-ink);
+}
