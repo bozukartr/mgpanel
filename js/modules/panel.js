@@ -1122,7 +1122,93 @@ document.addEventListener('DOMContentLoaded', () => {
             sub.textContent = (dept ? dept + ' · ' : '') +
                 (mine ? mine + ' açık işin var' : 'Açık işin yok');
         }
+        renderMyQueue();
     }
+
+    // ── İş kuyruğum (saha personeli) ─────────────────────────────
+    // Açılışta işin kendisi: ÜZERİMDEKİLER (üstlendiğim / bana atanan) ve
+    // departmanımda SIRADA bekleyenler — büyük Üstlen / Tamamlandı düğmeleri,
+    // modal açmadan (quickTransition: aynı transaction'lı iş akışı, katı
+    // departman kuralı ve vardiya kontrolü aynen geçerli). Mobilde ana
+    // menünün üstünde, masaüstünde sağ sütunun başında. Yeni sorgu yok —
+    // canlı `records` penceresinden hesaplanır.
+    function queueSort(a, b) {
+        const sa = slaState(a), sb = slaState(b);
+        const rank = (s) => (s.state === 'breached' ? 0 : (s.state === 'soon' ? 1 : 2));
+        if (rank(sa) !== rank(sb)) return rank(sa) - rank(sb);
+        return (sa.remaining == null ? 1e9 : sa.remaining) - (sb.remaining == null ? 1e9 : sb.remaining);
+    }
+    function myQueue() {
+        const myDept = localStorage.getItem('hotelDept') || '';
+        const open = records.filter(r => (r.status || 'Following') !== 'Solved');
+        const mine = open.filter(isMineRecord).sort(queueSort);
+        const waiting = !deptOf(myDept) ? [] : open.filter(r => (r.status || 'Following') === 'Following' && !isMineRecord(r)
+            && deptOf(r.department) && sameDept(myDept, r.department) && canTakeRecord(r)).sort(queueSort);
+        const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+        const doneToday = records.filter(r => r.status === 'Solved' && r.completedBy === loggedUsername
+            && (tsToDate(r.completedAt) || 0) >= t0).length;
+        return { mine, waiting, doneToday, dept: myDept };
+    }
+    function queueItem(r) {
+        const st = r.status || 'Following';
+        const sla = slaState(r);
+        let time = '', late = false;
+        if (st === 'InProgress' && tsToDate(r.acknowledgedAt)) {
+            time = 'Sende · ' + fmtDuration(Date.now() - tsToDate(r.acknowledgedAt));
+        } else if (sla.remaining != null) {
+            late = sla.state === 'breached';
+            time = late ? 'Gecikti · ' + fmtDuration(-sla.remaining * 60000) : fmtDuration(sla.remaining * 60000) + ' kaldı';
+        }
+        let btn = '';
+        if (st === 'Following' && canTakeRecord(r)) btn = `<button class="mq-btn take" data-mq="take" data-id="${esc(r.id)}">${ic('wrench')}<span>Üstlen</span></button>`;
+        else if (st === 'InProgress' && canCompleteRecord(r)) btn = `<button class="mq-btn complete" data-mq="complete" data-id="${esc(r.id)}">${ic('check')}<span>Bitti</span></button>`;
+        const cmp = (r.type || 'complaint') === 'complaint';
+        const what = (r.topic || r.complaint || (cmp ? 'Şikayet' : 'Talep')).slice(0, 70);
+        return `<div class="mq-item${late ? ' late' : ''}">
+            <button class="mq-main" data-open="${esc(r.id)}" aria-label="Oda ${esc(r.room)} ayrıntısı">
+                <span class="mq-top"><b>Oda ${esc(r.room || '—')}</b><span class="mq-kind ${cmp ? 'cmp' : 'req'}">${cmp ? 'Şikayet' : 'Talep'}</span></span>
+                <span class="mq-txt">${esc(what)}${r.guestName ? ' · ' + esc(r.guestName) : ''}</span>
+                ${time ? `<span class="mq-time${late ? ' late' : ''}">${ic(late ? 'alert' : 'timer')} ${esc(time)}</span>` : ''}
+            </button>
+            ${btn}
+        </div>`;
+    }
+    function renderMyQueue() {
+        const q = myQueue();
+        const max = MOB_MQ.matches ? 3 : 4;
+        const sec = (title, n, list, more) => list.length ? `
+            <div class="mq-sec"><span>${title}</span><b>${n}</b></div>
+            ${list.slice(0, max).map(queueItem).join('')}
+            ${n > max ? `<button class="mq-more" data-more="${more}">Tümünü gör (${n})</button>` : ''}` : '';
+        const empty = !q.mine.length && !q.waiting.length;
+        const html = `
+            <div class="mq-h"><b>İş kuyruğum</b>${q.doneToday ? `<span>${ic('check')} Bugün ${q.doneToday} iş bitirdin</span>` : ''}</div>
+            ${sec('Üzerimde', q.mine.length, q.mine, 'mine')}
+            ${sec('Sırada' + (q.dept ? ' · ' + esc(q.dept) : ''), q.waiting.length, q.waiting, 'waiting')}
+            ${empty ? `<div class="mq-empty">${ic('check')}<span>Şu an üzerinde ya da sırada bekleyen iş yok.</span></div>` : ''}`;
+        ['mhQueue', 'giMyQueue'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = html; });
+    }
+    ['mhQueue', 'giMyQueue'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-mq]');
+            if (b) {
+                const rec = records.find(r => r.id === b.dataset.id);
+                if (rec) quickTransition(rec, b.dataset.mq, b);
+                return;
+            }
+            const o = e.target.closest('[data-open]');
+            if (o) { const rec = records.find(r => r.id === o.dataset.open); if (rec) openModal(rec); return; }
+            const m = e.target.closest('[data-more]');
+            if (m) {
+                if (m.dataset.more === 'mine') { MOB_MQ.matches ? mobOpenList('Mine', 'İşlerim') : document.getElementById('filterMine')?.click(); }
+                else { MOB_MQ.matches ? mobOpenList('Following', 'Bekleyenler') : document.getElementById('filterFollowing')?.click(); }
+            }
+        });
+    });
+    // Süreler (kalan / gecikti) dakikada bir tazelensin.
+    setInterval(() => { if (!document.hidden) renderMyQueue(); }, 60000);
 
     (function initMobHome() {
         const h = new Date().getHours();
