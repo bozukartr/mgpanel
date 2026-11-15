@@ -11,8 +11,8 @@ html.theme-dark .header-logo img { filter: invert(1) hue-rotate(180deg) brightne
 /* Form alanları: tarayıcı varsayılanı + yer tutucular */
 html.theme-dark input::placeholder,
 html.theme-dark textarea::placeholder { color: #6b7488; }
-html.theme-dark input[type="date"]::-webkit-calendar-picker-indicator,
-html.theme-dark input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(.85); }
+/* Tarih/saat simgeleri: color-scheme: dark zaten açık renkte çizer; ayrıca
+ * invert() uygulamak onları yeniden koyulaştırıp görünmez yapıyordu. */
 /* Kaydırma çubukları */
 html.theme-dark ::-webkit-scrollbar-thumb { background-color: #3a4152; }
 html.theme-dark ::-webkit-scrollbar-track { background-color: transparent; }
