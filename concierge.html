@@ -7,27 +7,23 @@
     <script src="js/core/theme.js?v=20261112i"></script>
     <link rel="stylesheet" href="css/core/mobile.css">
     <link rel="stylesheet" href="css/modules/crm.css">
-    <link rel="stylesheet" href="css/modules/concierge.css?v=20261111a">
+    <link rel="stylesheet" href="css/modules/concierge.css?v=20261115a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css">
-    <!-- flatpickr JS gövde sonuna taşındı (render-blocking'di); html2pdf artık
-         eager yüklenmiyor — PDF üretimi anında tembel yüklenir (lazy-load.js). -->
     <link rel="stylesheet" href="css/core/embed.css">
     <script src="js/core/embed.js?v=20261112a"></script>
-    <link rel="stylesheet" href="css/core/theme-dark-base.css?v=20261112i">
+    <link rel="stylesheet" href="css/core/theme-dark-base.css?v=20261115a">
     <link rel="stylesheet" href="css/dark/mobile.dark.css?v=20261112i">
     <link rel="stylesheet" href="css/dark/crm.dark.css?v=20261112i">
-    <link rel="stylesheet" href="css/dark/concierge.dark.css?v=20261112i">
+    <link rel="stylesheet" href="css/dark/concierge.dark.css?v=20261115a">
     <link rel="stylesheet" href="css/dark/embed.dark.css?v=20261112i">
     <link rel="stylesheet" href="css/dark/realtime.dark.css?v=20261112i">
     <link rel="stylesheet" href="css/dark/guest-orders.dark.css?v=20261112i">
 </head>
-<body>
+<body class="cz-page">
     <div class="crm-container">
-        <!-- Header (shared app top bar) -->
+        <!-- Üst bar: yalnızca tek başına açıldığında görünür (App Shell'de gizli, bkz. embed.css) -->
         <header class="crm-header">
             <div class="logo">
                 <img src="logo.png" alt="Logo">
@@ -38,604 +34,324 @@
                 <a href="concierge" class="active">Concierge</a>
                 <a href="panel">Misafir Kayıtları</a>
                 <a href="crm">CRM Merkezi</a>
-                <a href="#" id="c-navReports">Raporlar</a>
                 <a href="admin" class="admin-only" id="c-adminNav" style="display:none;">Ayarlar</a>
             </nav>
             <div class="user-info" style="gap: 10px;">
-                <button class="app-icon-btn" id="c-searchBtn" title="Ara">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                </button>
-                <button class="app-icon-btn itinerary" id="c-openItinerary" title="Misafir Programı">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                </button>
-                <button class="app-icon-btn report" id="c-openReport" title="Raporlar" style="display:none">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                </button>
-                <button class="app-icon-btn finance" id="c-openFinance" style="display:none" title="Finans">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                </button>
-                <!-- Backup Dropdown -->
-                <div class="backup-dropdown">
-                    <button id="c-backupToggleBtn" class="app-icon-btn" title="Yedek">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    </button>
-                    <div class="backup-menu" id="c-backupMenu" style="right: 0; left: auto;">
-                        <div class="menu-item" id="c-exportDataBtn">
-                            <span class="m-icon" data-ic="download"></span> Dışa Aktar (JSON)
-                        </div>
-                        <div class="menu-item" id="c-importDataBtn">
-                            <span class="m-icon" data-ic="upload"></span> İçe Aktar (JSON)
-                            <input type="file" id="c-importFileInput" accept=".json" style="display:none">
-                        </div>
-                    </div>
-                </div>
                 <div id="rt-bell"></div>
                 <div class="user-chip">
                     <div class="uc-av" id="c-avatar">··</div>
                     <div class="uc-meta"><b id="userNameDisplay">Admin</b><span id="c-roleLabel">—</span></div>
                 </div>
-                <button class="app-icon-btn logout" id="c-logoutBtn" title="Çıkış">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                </button>
+                <button class="app-icon-btn logout" id="c-logoutBtn" title="Çıkış" aria-label="Çıkış"><span data-ic="logout"></span></button>
             </div>
         </header>
 
-        <main class="crm-main cz-main">
-            <!-- Left Sidebar: actions, filters, calendar, day tiles -->
-            <aside class="guest-sidebar cz-side">
-                <button class="cz-new" id="c-fab">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Ekle
-                </button>
-
-                <div class="search-bar cz-filters">
-                    <div class="search-input-wrap" style="position: relative;">
-                        <svg style="position: absolute; left: 12px; top: 13px; color: #9ca3af;" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <input type="text" id="c-search" placeholder="Rezervasyon ara..." autocomplete="off">
+        <main class="cz-app" id="czApp">
+            <!-- ── Araç çubuğu: tarih gezinme · görünüm · arama · eylemler ── -->
+            <div class="cz-top">
+                <div class="cz-top-l">
+                    <div class="cz-datenav" role="group" aria-label="Tarih">
+                        <button type="button" class="cz-ib" id="czPrev" aria-label="Önceki"><span data-ic="chevronLeft"></span></button>
+                        <label class="cz-datebtn" title="Tarih seç">
+                            <span class="cz-datebtn-t"><b id="czDateLabel">Bugün</b><small id="czDateSub">—</small></span>
+                            <span data-ic="chevronDown"></span>
+                            <input type="date" id="czDateInput" aria-label="Tarih seç">
+                        </label>
+                        <button type="button" class="cz-ib" id="czNext" aria-label="Sonraki"><span data-ic="chevronRight"></span></button>
+                        <button type="button" class="cz-btn ghost sm" id="czToday">Bugün</button>
                     </div>
-                    <input type="date" id="c-dateFilter" class="date-input">
-                    <button id="c-allTimeMobile" class="cz-alltime-m" title="Tarih filtresini kaldır">Tüm Zamanlar</button>
-                </div>
-
-                <!-- Month calendar (desktop) -->
-                <div class="cz-cal desk-only" id="c-cal">
-                    <div class="cz-cal-head">
-                        <button id="calPrev" aria-label="Önceki ay">‹</button>
-                        <b id="calTitle">—</b>
-                        <button id="calNext" aria-label="Sonraki ay">›</button>
-                    </div>
-                    <div class="cz-cal-dow"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div>
-                    <div class="cz-cal-grid" id="calGrid"></div>
-                    <button class="cz-cal-today" id="c-goTodaySide">Bugüne Dön</button>
-                </div>
-
-                <div class="stats-strip centered cz-tiles">
-                    <div class="stat-pill primary" id="c-pillToday" title="Bugünün rezervasyonları">
-                        <span class="stat-pill-val" id="c-statToday">0</span>
-                        <span class="stat-pill-label">Bugün</span>
-                    </div>
-                    <div class="stat-pill following" id="c-pillPending" title="Tüm bekleyen rezervasyonlar">
-                        <span class="stat-pill-val" id="c-statPending">0</span>
-                        <span class="stat-pill-label">Bekleyen</span>
-                    </div>
-                    <div class="stat-pill solved" id="c-pillConfirmed" title="Seçili günün onaylı rezervasyonları">
-                        <span class="stat-pill-val" id="c-statConfirmed">0</span>
-                        <span class="stat-pill-label">Onaylı</span>
+                    <div class="cz-seg" id="czViews" role="tablist" aria-label="Görünüm">
+                        <button type="button" role="tab" data-view="day">Gün</button>
+                        <button type="button" role="tab" data-view="week">Hafta</button>
+                        <button type="button" role="tab" data-view="month">Ay</button>
+                        <button type="button" role="tab" data-view="list">Liste</button>
                     </div>
                 </div>
-            </aside>
-
-            <!-- Center: day title + view toggle + timeline -->
-            <section id="c-scroller" class="cz-center">
-                <div class="cz-main-head desk-only">
-                    <h2 id="c-dayTitle">—</h2>
-                    <div class="cz-head-right">
-                        <div class="cz-views">
-                            <button id="vDay" class="active">Gün</button>
-                            <button id="vWeek">Hafta</button>
-                            <button id="vMonth">Ay</button>
+                <div class="cz-top-r">
+                    <label class="cz-search">
+                        <span data-ic="search"></span>
+                        <input type="search" id="czSearch" placeholder="Misafir, oda, hizmet ara" autocomplete="off" aria-label="Rezervasyon ara">
+                    </label>
+                    <div class="cz-more">
+                        <button type="button" class="cz-btn ghost icon" id="czMoreBtn" aria-haspopup="menu" aria-expanded="false" title="Diğer işlemler"><span data-ic="more"></span></button>
+                        <div class="cz-menu" id="czMoreMenu" role="menu" hidden>
+                            <button type="button" role="menuitem" id="czMenuIti"><span data-ic="file"></span><span>Misafir programı (PDF)</span></button>
+                            <button type="button" role="menuitem" id="czMenuReport"><span data-ic="sheet"></span><span>Rapor al (Excel / PDF)</span></button>
+                            <div class="cz-menu-sep"></div>
+                            <button type="button" role="menuitem" id="c-exportDataBtn"><span data-ic="download"></span><span>Yedek al (JSON)</span></button>
+                            <button type="button" role="menuitem" id="c-importDataBtn"><span data-ic="upload"></span><span>Yedekten yükle (JSON)</span></button>
+                            <input type="file" id="c-importFileInput" accept=".json" hidden>
                         </div>
-                        <button class="cz-todayBtn" id="c-goToday">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                            Bugün
-                        </button>
                     </div>
+                    <button type="button" class="cz-btn primary" id="c-fab"><span data-ic="plus"></span><span>Yeni rezervasyon</span></button>
                 </div>
-                <div class="feed" id="c-feed">
-                    <!-- Cards injected by JS -->
-                </div>
-                <div class="empty-state" id="c-emptyState" style="display:none; text-align: center; padding-top: 100px;">
-                    <p style="font-size: 40px; margin-bottom: 10px; color: #94a3b8;" data-ic="concierge" data-ic-sw="1.6"></p>
-                    <span style="color: #6b7280; font-size: 15px; font-weight: 500;">Rezervasyon bulunamadı</span>
-                </div>
-            </section>
+            </div>
 
-            <!-- Right: day summary + upcoming -->
-            <aside class="cz-right desk-only">
-                <div class="cz-card">
-                    <h4>Günün Özeti</h4>
-                    <div class="cz-sum-row"><span>Toplam Rezervasyon</span><b id="sumTotal">0</b></div>
-                    <div class="cz-sum-row ok"><span>Onaylı</span><b id="sumConfirmed">0</b></div>
-                    <div class="cz-sum-row warn"><span>Bekleyen</span><b id="sumPending">0</b></div>
-                    <div class="cz-sum-row bad"><span>İptal Edilen</span><b id="sumCancelled">0</b></div>
-                </div>
-                <div class="cz-card">
-                    <h4>Yaklaşan Rezervasyonlar</h4>
-                    <div id="c-upcoming"></div>
-                    <button class="cz-link" id="c-pillAllTime" title="Tarih filtresini kaldır, tüm rezervasyonları göster">Tüm Rezervasyonları Gör <span>›</span></button>
-                </div>
-            </aside>
+            <!-- ── Durum (sayılar) ve hizmet türü süzgeçleri ── -->
+            <div class="cz-filters">
+                <div class="cz-chips" id="czStatusChips" role="group" aria-label="Durum"></div>
+                <div class="cz-chips cz-types" id="czTypeChips" role="group" aria-label="Hizmet türü"></div>
+            </div>
+
+            <div class="cz-grid">
+                <section class="cz-board" id="czBoard" aria-live="polite">
+                    <div class="cz-todo-m" id="czTodoMobile"></div>
+                    <div id="c-feed"></div>
+                </section>
+                <aside class="cz-aside" aria-label="Özet">
+                    <section class="cz-panel" id="czTodo"></section>
+                    <section class="cz-panel" id="czMoney"></section>
+                    <section class="cz-panel" id="czWeekAhead"></section>
+                </aside>
+            </div>
         </main>
     </div>
 
+    <button type="button" class="cz-fab" id="c-fab-mobile" aria-label="Yeni rezervasyon"><span data-ic="plus"></span></button>
 
-    <!-- ── SPLIT MODAL: NEW RESERVATION ─────────────────────── -->
-    <div class="sheet-backdrop" id="resBackdrop"></div>
-    <div class="sheet rs-sheet" id="resSheet">
-        <div class="sheet-pill"></div>
-        <div class="rs-split">
-            <!-- LEFT · premium live preview -->
-            <aside class="rs-hero">
-                <div class="rs-hero-brand"><span class="rs-hero-dot"></span> Concierge</div>
-                <h3 class="rs-hero-title">Yeni Rezervasyon</h3>
-                <p class="rs-hero-desc">Bilgileri girdikçe rezervasyon özeti burada canlı güncellenir.</p>
-
-                <div class="rs-ticket">
-                    <div class="rs-ticket-head">
-                        <span class="rs-ticket-ico" id="rsPvIcon" data-ic="utensils"></span>
-                        <div class="rs-ticket-headmain">
-                            <div class="rs-ticket-type" id="rsPvType">Restoran</div>
-                            <div class="rs-ticket-when" id="rsPvWhen">Tarih ve saat girilmedi</div>
-                        </div>
-                    </div>
-                    <div class="rs-ticket-grid">
-                        <div><span>Misafir</span><b id="rsPvGuest">—</b></div>
-                        <div><span>Oda</span><b id="rsPvRoom">—</b></div>
-                        <div><span>Tutar</span><b id="rsPvPrice">—</b></div>
-                        <div><span>Kapora</span><b id="rsPvDeposit">—</b></div>
-                    </div>
-                </div>
-
-                <div class="rs-hero-sum">
-                    <div class="rs-hero-sum-title">Misafir Geçmişi</div>
-                    <div id="rs-guestSummary" class="rs-sum-empty">Misafir seçtiğinizde geçmiş rezervasyonları burada görünür.</div>
-                </div>
-            </aside>
-
-            <!-- RIGHT · form -->
-            <section class="rs-panel">
-                <button class="rs-close" id="resClose" aria-label="Kapat">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-
-                <div class="rs-form">
-                    <!-- Hizmet & Misafir -->
-                    <div class="rs-sec">
-                        <div class="rs-sec-h">Hizmet &amp; Misafir</div>
-                        <div class="field-group">
-                            <label>Hizmet Türü</label>
-                            <select id="rs-type">
-                                <option value="Restaurant">Restoran</option>
-                                <option value="Beach">Plaj</option>
-                                <option value="Transfer">Transfer</option>
-                                <option value="Flower">Çiçek Siparişi</option>
-                                <option value="Cake">Pasta Siparişi</option>
-                                <option value="Boat">Tekne Rezervasyonu</option>
-                                <option value="Tour">Tur / Gezi</option>
-                                <option value="Other">Diğer</option>
-                            </select>
-                        </div>
-                        <div class="field-row">
-                            <div class="field-group">
-                                <label>Misafir Adı</label>
-                                <input type="text" id="rs-guest" placeholder="Ad soyad" list="guest-list">
-                                <datalist id="guest-list"></datalist>
-                            </div>
-                            <div class="field-group">
-                                <label>Oda</label>
-                                <input type="text" id="rs-room" placeholder="No" inputmode="numeric">
-                            </div>
-                        </div>
-                        <div id="rs-pa-box" class="rs-inset">
-                            <label class="rs-inset-toggle">
-                                <input type="checkbox" id="rs-isPreArrival" onchange="
-                                    document.getElementById('rs-room').disabled = this.checked;
-                                    document.getElementById('rs-room').value = this.checked ? 'Pre-Arrival' : '';
-                                ">
-                                Ön Geliş misafiri (henüz oda atanmadı)
-                            </label>
-                            <div id="rs-dates-wrapper" class="field-row" style="display: none; margin-top: 10px;">
-                                <div class="field-group">
-                                    <label style="font-size: 11px;">Giriş Tarihi</label>
-                                    <input type="date" id="rs-checkIn">
-                                </div>
-                                <div class="field-group">
-                                    <label style="font-size: 11px;">Çıkış Tarihi</label>
-                                    <input type="date" id="rs-checkOut">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tarih & Detay -->
-                    <div class="rs-sec">
-                        <div class="rs-sec-h">Tarih &amp; Detay</div>
-                        <div class="field-row">
-                            <div class="field-group">
-                                <label>Tarih</label>
-                                <input type="text" id="rs-date" placeholder="GG/AA/YYYY" inputmode="numeric" style="letter-spacing: 1px;">
-                            </div>
-                            <div class="field-group">
-                                <label>Saat</label>
-                                <input type="text" id="rs-time" placeholder="SS:DD" inputmode="numeric" style="letter-spacing: 1px;">
-                            </div>
-                        </div>
-                        <div id="rs-dynamic-fields" class="dynamic-group"><!-- injected by JS --></div>
-                    </div>
-
-                    <!-- Finans -->
-                    <div class="rs-sec">
-                        <div class="rs-sec-h">Finans</div>
-                        <div class="field-row" id="rs-finance-group">
-                            <div class="field-group">
-                                <label>Fiyat</label>
-                                <input type="number" id="rs-price" placeholder="0.00" inputmode="decimal">
-                            </div>
-                            <div class="field-group">
-                                <label>Ödenen Kapora</label>
-                                <input type="number" id="rs-deposit" placeholder="0.00" inputmode="decimal">
-                            </div>
-                        </div>
-                        <div class="field-group">
-                            <label>Para Birimi</label>
-                            <select id="rs-currency">
-                                <option value="EUR">EUR (€)</option>
-                                <option value="TRY">TRY (₺)</option>
-                                <option value="USD">USD ($)</option>
-                            </select>
-                        </div>
-                        <div class="field-group" id="rs-voucher-group">
-                            <label>Voucher / Onay No</label>
-                            <input type="text" id="rs-voucher" placeholder="Onay için gerekli">
-                        </div>
-                    </div>
-
-                    <!-- Notlar & Seçenekler -->
-                    <div class="rs-sec">
-                        <div class="rs-sec-h">Notlar &amp; Seçenekler</div>
-                        <div class="field-group">
-                            <label>İç Notlar</label>
-                            <textarea id="rs-notes" placeholder="Tedarikçi bilgisi, özel istekler..."></textarea>
-                        </div>
-                        <div class="rs-repeat" id="rs-repeatBox">
-                            <label class="rs-repeat-toggle">
-                                <input type="checkbox" id="rs-repeatOn">
-                                <span><span data-ic="repeat"></span> Tekrarla / Paket</span>
-                            </label>
-                            <div class="rs-repeat-opts" id="rs-repeatOpts" style="display:none;">
-                                <div class="field-row">
-                                    <div class="field-group">
-                                        <label>Tekrar Sayısı</label>
-                                        <input type="number" id="rs-repeatCount" min="2" max="30" value="3" inputmode="numeric">
-                                    </div>
-                                    <div class="field-group">
-                                        <label>Aralık</label>
-                                        <select id="rs-repeatInterval">
-                                            <option value="1">Her gün</option>
-                                            <option value="2">2 günde bir</option>
-                                            <option value="7">Haftalık</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="rs-repeat-hint" id="rs-repeatHint"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="rs-conflict-alert" style="display:none; padding:12px; border-radius:10px; font-size:12px; border: 1px solid #fca5a5; background: rgba(239, 68, 68, 0.08); color: #b91c1c; line-height: 1.5;"></div>
-                </div>
-
-                <div class="rs-foot">
-                    <button class="primary-btn" id="rs-submit">Rezervasyonu Kaydet</button>
-                </div>
-            </section>
-        </div>
-    </div>
-
-    <!-- â”€â”€ BOTTOM SHEET: DETAIL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <div class="sheet-backdrop" id="detailBackdrop"></div>
-    <div class="sheet" id="detailSheet">
-        <div class="sheet-pill"></div>
-        <div class="sheet-top">
-            <div>
-                <p class="detail-room" id="d-room"></p>
-                <h3 class="detail-name" id="d-guest"></h3>
-            </div>
-            <div class="sheet-top-actions">
-                <button class="sheet-action-btn" id="d-editBtn" title="Düzenle">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-                <button class="sheet-action-btn" id="d-confirmLetterBtn" title="Onay Mektubu">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
-                </button>
-                <button class="sheet-action-btn delete" id="d-deleteBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                </button>
-                <button class="sheet-close-btn" id="detailClose">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-        </div>
-        <div class="sheet-body">
-            <!-- Status Toggle -->
-            <div class="status-toggle-row">
-                <button class="status-toggle-btn" id="d-setPending" data-status="Pending">
-                    <span class="stb-dot"></span> Bekleyen
-                </button>
-                <button class="status-toggle-btn" id="d-setConfirmed" data-status="Confirmed">
-                    <span class="stb-dot"></span> Onaylı
-                </button>
-                <button class="status-toggle-btn" id="d-setDone" data-status="Done">
-                    <span class="stb-dot"></span> Tamamlandı
-                </button>
-                <button class="status-toggle-btn" id="d-setCancelled" data-status="Cancelled">
-                    <span class="stb-dot"></span> İptal
-                </button>
-            </div>
-
-            <div class="res-detail-main">
-                <div class="res-type-badge" id="d-type"></div>
-                <div class="res-time-info">
-                    <span id="d-date"></span> • <span id="d-time"></span>
-                </div>
-            </div>
-
-            <div class="detail-grid">
-                <div class="detail-field">
-                    <label>Bakiye</label>
-                    <p id="d-balance" class="balance-text"></p>
-                </div>
-                <div class="detail-field">
-                    <label>Fiyat</label>
-                    <p id="d-price"></p>
-                </div>
-                <div class="detail-field">
-                    <label>Kapora</label>
-                    <p id="d-deposit"></p>
-                </div>
-            </div>
-
-            <button class="secondary-btn" id="d-applyFolioBtn" style="display:none; width:100%; margin-top:4px;"><span data-ic="receipt"></span> Kalan Bakiyeyi Oda Hesabına Yansıt</button>
-
-            <div id="d-dynamic-info" class="detail-section">
-                <!-- Dynamic info here -->
-            </div>
-
-            <div class="detail-section">
-                <label>Voucher / Onay No</label>
-                <p id="d-voucher" style="font-weight:700"></p>
-            </div>
-
-            <div class="detail-section">
-                <label>Personel</label>
-                <p id="d-staff"></p>
-            </div>
-
-            <div class="detail-section">
-                <label>Notlar</label>
-                <p id="d-notes"></p>
-            </div>
-
-            <!-- â”€â”€ INLINE DELETE CONFIRM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-            <div id="d-delete-confirm" class="delete-confirmation" style="display:none">
-                <div class="dc-content">
-                    <p>Bu kayıt kalıcı olarak silinsin mi?</p>
-                    <div class="dc-actions">
-                        <button class="dc-btn confirm" id="d-confirmDelete">Evet, Sil</button>
-                        <button class="dc-btn cancel" id="d-cancelDelete">Vazgeç</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-
-
-    <!-- â”€â”€ BOTTOM SHEET: SECURITY AUTH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <div class="sheet-backdrop" id="authBackdrop"></div>
-    <div class="sheet" id="authSheet" style="border-radius: 24px 24px 0 0; overflow: hidden;">
-        <div class="sheet-pill"></div>
-        <div class="sheet-top" style="background: linear-gradient(135deg, #4f46e5, #3730a3); color: white; padding: 20px 24px; border: none;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="background: rgba(255,255,255,0.15); width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
+    <!-- ══ Rezervasyon formu (oluştur / düzenle) ══ -->
+    <div class="cz-ov" id="czFormOv" hidden>
+        <div class="cz-modal cz-form" role="dialog" aria-modal="true" aria-labelledby="czFormTitle">
+            <header class="cz-mh">
                 <div>
-                    <h3 style="color: white; margin: 0; font-size: 16px;">Güvenlik Doğrulaması</h3>
-                    <p style="color: rgba(255,255,255,0.6); margin: 2px 0 0; font-size: 11px;">Devam etmek için doğrulama gerekli</p>
+                    <h2 id="czFormTitle">Yeni rezervasyon</h2>
+                    <p id="czFormSub">Hizmeti seçin, misafiri ve zamanı girin.</p>
                 </div>
+                <button type="button" class="cz-x" id="resClose" aria-label="Kapat"><span data-ic="x"></span></button>
+            </header>
+            <div class="cz-mb">
+                <section class="cz-fs">
+                    <h3>Hizmet</h3>
+                    <div class="cz-tiles" id="czTypeTiles" role="radiogroup" aria-label="Hizmet türü">
+                            <button type="button" class="cz-tile t-Restaurant" role="radio" data-type="Restaurant" aria-checked="false"><span class="cz-tile-ic"><span data-ic="utensils"></span></span><span>Restoran</span></button>
+                            <button type="button" class="cz-tile t-Transfer" role="radio" data-type="Transfer" aria-checked="false"><span class="cz-tile-ic"><span data-ic="car"></span></span><span>Transfer</span></button>
+                            <button type="button" class="cz-tile t-Beach" role="radio" data-type="Beach" aria-checked="false"><span class="cz-tile-ic"><span data-ic="beach"></span></span><span>Plaj</span></button>
+                            <button type="button" class="cz-tile t-Boat" role="radio" data-type="Boat" aria-checked="false"><span class="cz-tile-ic"><span data-ic="boat"></span></span><span>Tekne</span></button>
+                            <button type="button" class="cz-tile t-Tour" role="radio" data-type="Tour" aria-checked="false"><span class="cz-tile-ic"><span data-ic="map"></span></span><span>Tur</span></button>
+                            <button type="button" class="cz-tile t-Cake" role="radio" data-type="Cake" aria-checked="false"><span class="cz-tile-ic"><span data-ic="cake"></span></span><span>Pasta</span></button>
+                            <button type="button" class="cz-tile t-Flower" role="radio" data-type="Flower" aria-checked="false"><span class="cz-tile-ic"><span data-ic="flower"></span></span><span>Çiçek</span></button>
+                            <button type="button" class="cz-tile t-Other" role="radio" data-type="Other" aria-checked="false"><span class="cz-tile-ic"><span data-ic="sparkles"></span></span><span>Diğer</span></button>
+                    </div>
+                    <input type="hidden" id="rs-type" value="Restaurant">
+                </section>
+
+                <section class="cz-fs">
+                    <h3>Misafir</h3>
+                    <div class="cz-guest" id="czGuestBox">
+                        <div class="cz-combo">
+                            <div class="cz-field grow">
+                                <label for="rs-guest">Ad soyad ya da oda no</label>
+                                <input type="text" id="rs-guest" autocomplete="off" placeholder="Örn. Anna Novak ya da 1204" aria-autocomplete="list" aria-controls="czGuestList">
+                            </div>
+                            <div class="cz-field room">
+                                <label for="rs-room">Oda</label>
+                                <input type="text" id="rs-room" inputmode="numeric" placeholder="No" autocomplete="off">
+                            </div>
+                            <div class="cz-dd" id="czGuestList" role="listbox" hidden></div>
+                        </div>
+                        <div class="cz-guestcard" id="czGuestCard" hidden></div>
+                        <label class="cz-check" id="rs-pa-box">
+                            <input type="checkbox" id="rs-isPreArrival">
+                            <span>Ön geliş — misafir henüz gelmedi, oda atanmadı</span>
+                        </label>
+                        <div class="cz-row" id="rs-dates-wrapper" hidden>
+                            <div class="cz-field"><label for="rs-checkIn">Giriş tarihi</label><input type="date" id="rs-checkIn"></div>
+                            <div class="cz-field"><label for="rs-checkOut">Çıkış tarihi</label><input type="date" id="rs-checkOut"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="cz-fs">
+                    <h3>Ne zaman</h3>
+                    <div class="cz-row">
+                        <div class="cz-field"><label for="rs-date">Tarih</label><input type="date" id="rs-date"></div>
+                        <div class="cz-field"><label for="rs-time">Saat <small>(isteğe bağlı)</small></label><input type="time" id="rs-time" step="300"></div>
+                    </div>
+                    <div class="cz-quick" id="czDateQuick">
+                        <button type="button" data-d="0">Bugün</button>
+                        <button type="button" data-d="1">Yarın</button>
+                        <button type="button" data-d="2">2 gün sonra</button>
+                    </div>
+                    <div class="cz-repeat" id="rs-repeatBox">
+                        <label class="cz-check">
+                            <input type="checkbox" id="rs-repeatOn">
+                            <span><span data-ic="repeat"></span> Tekrarla (paket / seri)</span>
+                        </label>
+                        <div class="cz-row" id="rs-repeatOpts" hidden>
+                            <div class="cz-field"><label for="rs-repeatCount">Kaç kez</label><input type="number" id="rs-repeatCount" min="2" max="30" value="3" inputmode="numeric"></div>
+                            <div class="cz-field"><label for="rs-repeatInterval">Aralık</label>
+                                <select id="rs-repeatInterval"><option value="1">Her gün</option><option value="2">2 günde bir</option><option value="7">Haftalık</option></select>
+                            </div>
+                        </div>
+                        <p class="cz-hint" id="rs-repeatHint"></p>
+                    </div>
+                </section>
+
+                <section class="cz-fs">
+                    <h3 id="czDetailsTitle">Ayrıntılar</h3>
+                    <div id="rs-dynamic-fields"><!-- concierge.js: türe göre alanlar --></div>
+                </section>
+
+                <section class="cz-fs" id="rs-finance-box">
+                    <h3>Ödeme</h3>
+                    <div class="cz-row" id="rs-finance-group">
+                        <div class="cz-field"><label for="rs-price">Tutar</label><input type="number" id="rs-price" placeholder="0" min="0" step="0.01" inputmode="decimal"></div>
+                        <div class="cz-field"><label for="rs-deposit">Alınan kapora</label><input type="number" id="rs-deposit" placeholder="0" min="0" step="0.01" inputmode="decimal"></div>
+                        <div class="cz-field cur"><label>Para birimi</label>
+                            <div class="cz-seg sm" id="czCurSeg" role="radiogroup" aria-label="Para birimi">
+                                <button type="button" role="radio" data-cur="EUR">€</button>
+                                <button type="button" role="radio" data-cur="TRY">₺</button>
+                                <button type="button" role="radio" data-cur="USD">$</button>
+                            </div>
+                            <input type="hidden" id="rs-currency" value="EUR">
+                        </div>
+                    </div>
+                    <p class="cz-balance" id="czBalance"></p>
+                    <div class="cz-field" id="rs-voucher-group">
+                        <label for="rs-voucher">Voucher / onay no <small>(onaylamak için gerekli)</small></label>
+                        <input type="text" id="rs-voucher" placeholder="Tedarikçinin verdiği onay numarası" autocomplete="off">
+                    </div>
+                </section>
+
+                <section class="cz-fs">
+                    <h3>Not</h3>
+                    <textarea id="rs-notes" rows="2" placeholder="Tedarikçi bilgisi, özel istekler… (yalnızca ekip görür)"></textarea>
+                </section>
+
+                <div class="cz-warn" id="rs-conflict-alert" hidden></div>
             </div>
-            <button class="sheet-close-btn" id="authClose" style="color: white;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <div class="sheet-body" style="padding: 24px 24px 40px;">
-            <p style="font-size: 14px; color: #555; margin-bottom: 20px;">
-                Bu işlem korumalıdır. Bu kaydı silmek için lütfen şifrenizi girin.
-            </p>
-            <div class="field-group" style="margin-bottom: 24px;">
-                <label style="font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; margin-bottom: 6px; display: block;">Doğrulama Şifresi</label>
-                <div style="position: relative;">
-                    <input type="password" id="auth-password" 
-                           style="width: 100%; padding: 14px 14px 14px 42px; border-radius: 12px; border: 1.5px solid #eee; font-family: 'Outfit', sans-serif;" 
-                           placeholder="Şifrenizi girin">
-                    <svg style="position: absolute; left: 14px; top: 14px; color: #bbb;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <footer class="cz-mf">
+                <div class="cz-mf-sum" id="czFormSum"></div>
+                <div class="cz-mf-act">
+                    <button type="button" class="cz-btn ghost" id="czFormCancel">Vazgeç</button>
+                    <button type="button" class="cz-btn" id="rs-submit">Kaydet</button>
+                    <button type="button" class="cz-btn primary" id="rs-submitConfirm"><span data-ic="check"></span><span>Kaydet ve onayla</span></button>
                 </div>
+            </footer>
+            <div class="cz-leave" id="czLeave" hidden>
+                <span>Kaydedilmemiş değişiklikler var.</span>
+                <button type="button" class="cz-btn ghost sm" id="czLeaveStay">Düzenlemeye dön</button>
+                <button type="button" class="cz-btn danger sm" id="czLeaveGo">Kaydetmeden kapat</button>
             </div>
-            <button class="primary-btn" id="auth-confirm-btn" 
-                    style="width: 100%; padding: 16px; border-radius: 14px; background: #d32f2f; color: white; font-weight: 700; border: none; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 4px 12px rgba(211, 47, 47, 0.2);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                Onayla ve Sil
-            </button>
         </div>
     </div>
 
-    <!-- â”€â”€ BOTTOM SHEET: ITINERARY GENERATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <div class="sheet-backdrop" id="itiBackdrop"></div>
-    <div class="sheet" id="itiSheet">
-        <div class="sheet-pill"></div>
-        <div class="sheet-top">
-            <h3>Misafir Programı</h3>
-            <button class="sheet-close-btn" id="itiClose">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <div class="sheet-body">
-            <p class="sheet-desc">Belirli bir misafir için profesyonel bir program (PDF) oluşturun.</p>
-            <div class="field-group">
-                <label>Misafir Seç</label>
-                <div class="search-input-wrap">
-                    <input type="text" id="iti-guest-search" placeholder="İsim yazın..." list="iti-guest-list">
-                    <datalist id="iti-guest-list"></datalist>
+    <!-- ══ Rezervasyon ayrıntısı (masaüstü: sağ çekmece · mobil: alt sayfa) ══ -->
+    <div class="cz-ov drawer" id="czDetailOv" hidden>
+        <aside class="cz-drawer" role="dialog" aria-modal="true" aria-labelledby="d-guest" id="detailSheet">
+            <header class="cz-dh">
+                <div class="cz-dh-top">
+                    <span class="cz-type-ic" id="d-typeIc"></span>
+                    <div class="cz-dh-t"><span id="d-type"></span><span class="cz-st" id="d-status"></span></div>
+                    <button type="button" class="cz-x" id="detailClose" aria-label="Kapat"><span data-ic="x"></span></button>
+                </div>
+                <h2 id="d-guest"></h2>
+                <p class="cz-dh-sub"><span class="cz-room" id="d-room"></span><span id="d-stay"></span></p>
+            </header>
+            <div class="cz-db" id="czDetailBody">
+                <div id="d-banner"></div>
+                <div class="cz-when" id="d-when"></div>
+                <div class="cz-actions" id="d-actions"></div>
+                <div class="cz-inline" id="d-inline" hidden></div>
+                <dl class="cz-dl" id="d-info"></dl>
+                <section class="cz-sec" id="d-money"></section>
+                <section class="cz-sec" id="d-notesSec"><h4>Not</h4><p id="d-notes"></p></section>
+                <section class="cz-sec" id="d-meta"></section>
+                <section class="cz-sec" id="d-related"></section>
+            </div>
+            <footer class="cz-df">
+                <button type="button" class="cz-btn ghost sm" id="d-editBtn"><span data-ic="pencil"></span><span>Düzenle</span></button>
+                <button type="button" class="cz-btn ghost sm" id="d-dupBtn"><span data-ic="copy"></span><span>Benzerini oluştur</span></button>
+                <button type="button" class="cz-btn ghost sm" id="d-confirmLetterBtn"><span data-ic="file"></span><span>Onay mektubu</span></button>
+                <button type="button" class="cz-btn ghost sm danger-t" id="d-deleteBtn"><span data-ic="trash"></span><span>Sil</span></button>
+            </footer>
+        </aside>
+    </div>
+
+    <!-- ══ Misafir programı (PDF) ══ -->
+    <div class="cz-ov" id="czItiOv" hidden>
+        <div class="cz-modal sm" role="dialog" aria-modal="true" aria-labelledby="czItiTitle">
+            <header class="cz-mh">
+                <div><h2 id="czItiTitle">Misafir programı</h2><p>Misafirin rezervasyonlarından şık bir program (PDF) hazırlayın.</p></div>
+                <button type="button" class="cz-x" id="itiClose" aria-label="Kapat"><span data-ic="x"></span></button>
+            </header>
+            <div class="cz-mb">
+                <div class="cz-combo">
+                    <div class="cz-field grow">
+                        <label for="iti-guest-search">Misafir</label>
+                        <input type="text" id="iti-guest-search" autocomplete="off" placeholder="Ad ya da oda no yazın">
+                    </div>
+                    <div class="cz-dd" id="czItiList" role="listbox" hidden></div>
+                </div>
+                <div id="iti-guest-info" class="cz-iti" hidden>
+                    <div class="cz-iti-h"><b id="iti-sel-guest"></b><span class="cz-room" id="iti-sel-room"></span><small id="iti-sel-count"></small></div>
+                    <div id="sel-options-list" class="cz-iti-list"></div>
                 </div>
             </div>
-            
-            <div id="iti-guest-info" class="report-box" style="display:none">
-                <div class="rb-header">
-                    <span id="iti-sel-guest"></span>
-                    <span id="iti-sel-room" class="room-badge"></span>
-                </div>
-                <div id="iti-sel-count" class="rb-sub"></div>
-                <button class="primary-btn mt-12" id="iti-gen-btn">Öğeleri Seç & Oluştur</button>
-            </div>
+            <footer class="cz-mf">
+                <div class="cz-mf-sum"></div>
+                <div class="cz-mf-act"><button type="button" class="cz-btn primary" id="sel-confirm-btn" disabled><span data-ic="file"></span><span>PDF oluştur</span></button></div>
+            </footer>
         </div>
     </div>
 
-    <!-- â”€â”€ BOTTOM SHEET: REPORTS CENTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <div class="sheet-backdrop" id="reportBackdrop"></div>
-    <div class="sheet" id="reportSheet">
-        <div class="sheet-pill"></div>
-        <div class="sheet-top">
-            <h3>Misafir Raporları</h3>
-            <button class="sheet-close-btn" id="reportClose">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <div class="sheet-body">
-            <!-- Report Type Selection -->
-            <div style="margin-bottom: 20px;">
-                <label style="font-size: 13px; color: #666; display: block; margin-bottom: 8px; font-weight: 600;">RAPOR TÜRÜ SEÇİN</label>
-                <select id="reportTypeSelect" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif; font-size: 14px; background-color: #fff;">
-                    <option value="summary">Günlük Özet (Rezervasyonlar)</option>
-                    <option value="activity">Aktivite Kategorisine Göre</option>
-                    <option value="dateRange">Tarih Aralığı Raporu</option>
-                    <option value="guest">Misafir Profiline Göre</option>
-                    <option value="revenue">Gelir & Kapora Matrisi</option>
-                    <option value="currentView">Mevcut Filtrelenmiş Görünüm</option>
-                    <option value="fullArchive">Tüm Arşiv (Tüm Zamanlar)</option>
-                </select>
-            </div>
-
-            <!-- Dynamic Input Section -->
-            <div id="rpt-dynamicInputs" style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 24px; border: 1px solid #e0e0e0;">
-                
-                <!-- Date Group (Shared) -->
-                <div id="rpt-dateGroup" style="display: flex; gap: 15px; flex-wrap: wrap;">
-                    <div id="rpt-specificDateContainer" style="flex: 1; min-width: 140px;">
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">TARİH</label>
-                        <input type="date" id="rpt-specificDate" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                    </div>
-                    <div id="rpt-rangeGroup" style="display: none; gap: 15px; flex: 2; min-width: 300px;">
-                        <div style="flex: 1;">
-                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">BAŞLANGIÇ</label>
-                            <input type="date" id="rpt-dateFrom" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                        </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">BİTİŞ</label>
-                            <input type="date" id="rpt-dateTo" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                        </div>
-                    </div>
+    <!-- ══ Raporlar ══ -->
+    <div class="cz-ov" id="czRptOv" hidden>
+        <div class="cz-modal sm" role="dialog" aria-modal="true" aria-labelledby="czRptTitle" id="reportSheet">
+            <header class="cz-mh">
+                <div><h2 id="czRptTitle">Concierge raporu</h2><p>Rezervasyonları Excel ya da PDF olarak indirin.</p></div>
+                <button type="button" class="cz-x" id="reportClose" aria-label="Kapat"><span data-ic="x"></span></button>
+            </header>
+            <div class="cz-mb">
+                <div class="cz-field">
+                    <label for="reportTypeSelect">Rapor türü</label>
+                    <select id="reportTypeSelect">
+                        <option value="summary">Günlük özet</option>
+                        <option value="activity">Hizmet türüne göre</option>
+                        <option value="dateRange">Tarih aralığı</option>
+                        <option value="guest">Misafire göre</option>
+                        <option value="revenue">Gelir ve kapora</option>
+                        <option value="currentView">Şu anki görünüm</option>
+                        <option value="fullArchive">Tüm arşiv</option>
+                    </select>
                 </div>
-
-                <!-- Category Selector (Dynamic) -->
-                <div id="rpt-catContainer" style="display: none; margin-top: 15px;">
-                    <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">KATEGORİ SEÇİN</label>
-                    <select id="rpt-categorySelect" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
-                        <option value="All">Tüm Kategoriler</option>
+                <div class="cz-field" id="rpt-specificDateContainer"><label for="rpt-specificDate">Tarih</label><input type="date" id="rpt-specificDate"></div>
+                <div class="cz-row" id="rpt-rangeGroup" hidden>
+                    <div class="cz-field"><label for="rpt-dateFrom">Başlangıç</label><input type="date" id="rpt-dateFrom"></div>
+                    <div class="cz-field"><label for="rpt-dateTo">Bitiş</label><input type="date" id="rpt-dateTo"></div>
+                </div>
+                <div class="cz-field" id="rpt-catContainer" hidden>
+                    <label for="rpt-categorySelect">Hizmet türü</label>
+                    <select id="rpt-categorySelect">
+                        <option value="All">Tümü</option>
                         <option value="Restaurant">Restoran</option>
-                        <option value="Beach">Plaj</option>
                         <option value="Transfer">Transfer</option>
-                        <option value="Tour">Tur</option>
+                        <option value="Beach">Plaj</option>
                         <option value="Boat">Tekne</option>
+                        <option value="Tour">Tur</option>
                         <option value="Cake">Pasta</option>
                         <option value="Flower">Çiçek</option>
                         <option value="Other">Diğer</option>
                     </select>
                 </div>
-
-                <!-- Guest Search (Dynamic) -->
-                <div id="rpt-guestContainer" style="display: none; margin-top: 15px;">
-                    <label style="font-size: 11px; color: #666; display: block; margin-bottom: 4px; font-weight: 600;">MİSAFİR ADI</label>
-                    <input type="text" id="rpt-guestSearch" list="guestNamesList" placeholder="Misafir adı yazın..." style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-family: 'Outfit', sans-serif;">
+                <div class="cz-field" id="rpt-guestContainer" hidden>
+                    <label for="rpt-guestSearch">Misafir adı</label>
+                    <input type="text" id="rpt-guestSearch" list="guestNamesList" placeholder="Misafir adı yazın">
                     <datalist id="guestNamesList"></datalist>
                 </div>
             </div>
-
-            <!-- Export Buttons -->
-            <div style="display: flex; gap: 15px;">
-                <button class="primary-btn" onclick="generateReportFromUI('excel')" style="flex: 1; background: #2e7d32; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <span data-ic="sheet"></span> Excel
-                </button>
-                <button class="primary-btn" onclick="generateReportFromUI('pdf')" style="flex: 1; background: #c62828; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    <span data-ic="file"></span> PDF
-                </button>
-            </div>
+            <footer class="cz-mf">
+                <div class="cz-mf-sum"></div>
+                <div class="cz-mf-act">
+                    <button type="button" class="cz-btn" id="czRptExcel"><span data-ic="sheet"></span><span>Excel</span></button>
+                    <button type="button" class="cz-btn primary" id="czRptPdf"><span data-ic="file"></span><span>PDF</span></button>
+                </div>
+            </footer>
         </div>
     </div>
 
-    <!-- â”€â”€ BOTTOM SHEET: FINANCE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <div class="sheet-backdrop" id="financeBackdrop"></div>
-    <div class="sheet" id="financeSheet">
-        <div class="sheet-pill"></div>
-        <div class="sheet-top">
-            <h3>Finansal Özet</h3>
-            <button class="sheet-close-btn" id="financeClose">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <div class="sheet-body">
-            <div class="finance-grid">
-                <div class="finance-card total">
-                    <label>Brüt Gelir</label>
-                    <h2 id="f-totalRev">€0</h2>
-                </div>
-                <div class="finance-card deposit">
-                    <label>Toplam Kapora</label>
-                    <h2 id="f-totalDep">€0</h2>
-                </div>
-                <div class="finance-card balance">
-                    <label>Kalan Bakiye</label>
-                    <h2 id="f-totalBal">€0</h2>
-                </div>
-            </div>
-
-            <h4 class="mt-24">Kategoriye Göre Gelir</h4>
-            <div id="f-category-list" class="finance-list">
-                <!-- Categories injected by JS -->
-            </div>
-
-            <div class="info-note mt-24">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>
-                Tüm aktif rezervasyonları içerir (iptaller hariç).
-            </div>
-        </div>
-    </div>
-    <div id="itinerary-pdf" style="display:none; padding: 40px; font-family: sans-serif;">
-        <!-- Content generated by JS -->
-    </div>
-
-    <!-- â”€â”€ TOAST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <div class="app-toast" id="c-toast"></div>
+    <div id="itinerary-pdf" style="display:none; padding: 40px; font-family: sans-serif;"></div>
+    <div class="cz-toast" id="c-toast" role="status" aria-live="polite"></div>
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js" crossorigin="anonymous"></script>
@@ -644,7 +360,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js" crossorigin="anonymous"></script>
     <script src="js/core/firebase-config.js"></script>
-    <script src="js/core/ui-icons.js?v=20261111a"></script>
+    <script src="js/core/ui-icons.js?v=20261115a"></script>
     <script src="js/core/guest-directory.js"></script>
     <script src="js/core/monitor.js"></script>
     <script src="js/core/maintenance-guard.js"></script>
@@ -652,55 +368,12 @@
     <script src="js/core/realtime.js"></script>
     <script src="js/core/pwa.js"></script>
     <script src="js/core/push.js"></script>
-
-    <!-- flatpickr: takvim alanları init'te lazım ama head'de render-blocking'di —
-         gövde sonuna alındı. jspdf/autotable/xlsx/html2pdf artık eager DEĞİL:
-         dışa aktarma/PDF anında tembel yüklenir (js/core/lazy-load.js). -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <!-- Dışa aktarma / PDF kütüphaneleri anında tembel yüklenir (lazy-load.js). -->
     <script src="js/core/lazy-load.js"></script>
-
     <script src="js/modules/pms.js?v=20261111c"></script>
-    <script src="js/modules/concierge.js?v=20261112n"></script>
+    <script src="js/modules/concierge.js?v=20261115a"></script>
     <script src="js/core/service-icons.js?v=20261111b"></script>
     <script src="js/modules/guest-orders.js?v=20261112a"></script>
     <script src="js/modules/room-access.js"></script>
-    <script src="js/utils/modal-guard.js"></script>
-    <!-- â”€â”€ SELECTION MODAL (For Reports) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
-    <div class="sheet-backdrop" id="selBackdrop"></div>
-    <div class="sheet" id="selSheet">
-        <div class="sheet-pill"></div>
-        <div class="sheet-top">
-            <h3>Hizmetleri Seç</h3>
-            <button class="sheet-close-btn" id="selClose" aria-label="Kapat"><span data-ic="x"></span></button>
-        </div>
-        <div class="sheet-body">
-            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Programa eklenecek öğeleri seçin.</p>
-            <div id="sel-options-list">
-                <!-- Dynamically filled -->
-            </div>
-            <button class="primary-btn w-100" id="sel-confirm-btn">Onayla & PDF Oluştur</button>
-        </div>
-    </div>
-
-    <!-- ── BOTTOM NAV (MOBILE ONLY) ── -->
-    <nav class="bottom-nav">
-        <button class="bnav-btn active">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
-            <span>Concierge</span>
-        </button>
-        <button class="bnav-btn" data-module="guestIssues" onclick="window.location.href='panel'">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            <span>Kayıtlar</span>
-        </button>
-        <button class="bnav-btn" id="c-adminNavMobile" style="display:none" onclick="window.location.href='admin'">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
-            <span>Admin</span>
-        </button>
-    </nav>
-
-    <!-- ── FAB (MOBILE ONLY) ── -->
-    <button class="fab" id="c-fab-mobile">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
 </body>
 </html>

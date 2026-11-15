@@ -1,4 +1,17 @@
-/* concierge.js — Concierge Logic */
+/* concierge.js — Concierge (yeniden tasarım)
+ *
+ * Ekran: araç çubuğu (tarih gezinme · Gün/Hafta/Ay/Liste · arama · eylemler)
+ * → durum ve hizmet türü süzgeç çipleri → pano + yan panel (yapılacaklar,
+ * tahsilat, önümüzdeki 7 gün). Kartlarda hızlı işlemler (Onayla — geri
+ * alınabilir; Tamamlandı — iki dokunuşla). Rezervasyon formu tek pencerede:
+ * hizmet karoları, misafir seçici (rehber + PMS), canlı uyarılar (aynı misafir
+ * ±2 sa, aynı araç/tekne, misafir o tarihte otelde değil, geçmiş zaman),
+ * "Kaydet ve onayla". Ayrıntı sağdan açılan çekmecede: bağlama göre birincil
+ * işlem, voucher / iptal nedeni / silme onayı pencere içinde (prompt yok).
+ *
+ * Güvenlik: kayıt kimlikleri asla satır içi onclick'e yazılmaz (misafirin
+ * seçebildiği kimliklerle saklı XSS açığı vardı) — data-id + olay devri.
+ */
 
 // Escapes user-supplied text before it is inserted into innerHTML, preventing stored XSS.
 function esc(s) {
@@ -7,11 +20,8 @@ function esc(s) {
 }
 
 // Rezervasyon para birimi. Eski kayıtlarda `currency` alanı yoktur — bunlar
-// hep EUR olarak gösterildiğinden ('€' hardcoded idi) geriye dönük uyum için
-// varsayılan EUR'dur. Restoran/QR modüllerinden FARKLI bir birim olabileceği
-// için (Concierge genelde yurt dışı tur operatörü/transfer fiyatları) asla
-// guestConfig/restConfig currency'sine göre değiştirilmez — rezervasyonun
-// KENDİ currency alanı tek doğru kaynaktır.
+// hep EUR olarak gösterildiğinden geriye dönük uyum için varsayılan EUR'dur.
+// Rezervasyonun KENDİ currency alanı tek doğru kaynaktır.
 const CUR_SYM = { EUR: '€', TRY: '₺', USD: '$' };
 function curSym(cur) { return CUR_SYM[cur] || '€'; }
 
@@ -28,6 +38,7 @@ function curSym(cur) { return CUR_SYM[cur] || '€'; }
 })();
 
 document.addEventListener('DOMContentLoaded', () => {
+    const $ = (id) => document.getElementById(id);
 
     // ── AUTH ───────────────────────────────────────────────────
     const loggedUsername = localStorage.getItem('hotelUsername') || '';
@@ -35,9 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     if (!loggedUsername) { window.location.href = 'login'; return; }
 
-    // Bu otelin (tenant) görünen adı — PDF/çıktılarda kullanılır. Sabit yazmak
-    // başka bir tenant'a MGallery markasını sızdırır; bu yüzden guestConfig'ten
-    // okunur. Ayarlanmamışsa marka satırı boş bırakılır (sızıntı yok).
+    // Bu otelin (tenant) görünen adı — PDF/çıktılarda kullanılır (marka sızıntısı yok).
     let HOTEL_NAME = '';
     async function ensureHotelName() {
         if (HOTEL_NAME) return HOTEL_NAME;
@@ -49,36 +58,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     ensureHotelName();
     auth.onAuthStateChanged(async (u) => {
-        if (!u) {
-            window.location.href = 'login';
-        } else {
-            // Doğrudan Firestore'dan güncel yetkiyi çek
-            try {
-                const doc = await db.collection('systemUsers').doc(u.uid).get();
-                if (doc.exists) {
-                    const data = doc.data();
-                    const role = (data.role || '').toLowerCase();
-                    const uname = (data.username || '').toLowerCase();
-
-                    // Keep localStorage role fresh so other pages (admin, panel) gate correctly.
-                    if (data.role) localStorage.setItem('hotelRole', data.role);
-
-                    // Admin sekmesi: admin rolündeki (veya "admin" kullanıcı adlı) herkese
-                    if (role === 'admin' || uname === 'admin') {
-                        if (document.getElementById('c-adminNav')) document.getElementById('c-adminNav').style.display = 'flex';
-                        if (document.getElementById('c-adminNavMobile')) document.getElementById('c-adminNavMobile').style.display = 'flex';
-                    }
-
-                    // Finans butonu admin ve manager rollerine
-                    // Finance moved to the Admin panel — button stays hidden here.
+        if (!u) { window.location.href = 'login'; return; }
+        try {
+            const doc = await db.collection('systemUsers').doc(u.uid).get();
+            if (doc.exists) {
+                const data = doc.data();
+                const role = (data.role || '').toLowerCase();
+                const uname = (data.username || '').toLowerCase();
+                if (data.role) localStorage.setItem('hotelRole', data.role);
+                if (role === 'admin' || uname === 'admin') {
+                    const a = $('c-adminNav'); if (a) a.style.display = 'flex';
                 }
-            } catch (e) { console.error("Auth error", e); }
-        }
+            }
+        } catch (e) { console.error('Auth error', e); }
     });
-
-    document.querySelectorAll('.app-username').forEach(el => el.textContent = loggedUsername);
-
-    document.getElementById('c-logoutBtn')?.addEventListener('click', () => hotelSignOut('login'));
+    (function fillIdentity() {
+        const av = $('c-avatar'), rl = $('c-roleLabel'), nm = $('userNameDisplay');
+        if (av) av.textContent = loggedUsername.slice(0, 2).toUpperCase();
+        if (nm) nm.textContent = loggedUsername;
+        if (rl) rl.textContent = loggedRole === 'admin' ? 'Yönetici' : (loggedRole === 'manager' ? 'Müdür' : 'Personel');
+    })();
+    $('c-logoutBtn')?.addEventListener('click', () => hotelSignOut('login'));
 
     // ── AUTO LOGOUT LOGIC (15 MINS) ────────────────────────────
     // App Shell içinde (gömülü) bu sayaç ÇALIŞMAZ: modüller arka planda açık
@@ -96,77 +96,194 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }, 15 * 60 * 1000); // 15 minutes
     }
+    ['keydown', 'input', 'change', 'scroll', 'touchstart', 'click'].forEach(evt => document.addEventListener(evt, resetLogoutTimer, true));
+    resetLogoutTimer();
 
-    // Reset on typing, changing inputs, scrolling, or touching
-    ['keydown', 'input', 'change', 'scroll', 'touchstart'].forEach(evt => {
-        document.addEventListener(evt, resetLogoutTimer, true);
-    });
+    // ── CONFIG ────────────────────────────────────────────────
+    const SERVICE_IC = { Restaurant: 'utensils', Beach: 'beach', Transfer: 'car', Flower: 'flower', Cake: 'cake', Boat: 'boat', Tour: 'map', Other: 'sparkles' };
+    const TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
+    const TYPE_ORDER = ['Restaurant', 'Transfer', 'Beach', 'Boat', 'Tour', 'Cake', 'Flower', 'Other'];
+    const ic = (n) => (typeof window.UIcon === 'function' ? window.UIcon(n) : '');
+    const svcIcon = (type) => ic(SERVICE_IC[type] || 'sparkles');
+    const typeTr = (type) => TYPE_TR[type] || type || '';
+    const typeKey = (type) => (TYPE_TR[type] ? type : 'Other');
+    // Ödeme alanları olan türler (eskiden de aynı liste) ve onay için voucher
+    // isteyenler (eski güvenlik kontrolüyle aynı).
+    const PAID_TYPES = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other'];
+    const VOUCHER_REQ = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour'];
+    const ST_TR = { Pending: 'Bekliyor', Confirmed: 'Onaylı', Done: 'Tamamlandı', Cancelled: 'İptal' };
+    const stOf = (r) => (ST_TR[r && r.status] ? r.status : 'Pending');
+    const needsVoucher = (r) => VOUCHER_REQ.includes(r.type) && !String(r.voucherNo || '').trim();
+    const balanceOf = (r) => Math.max(0, (Number(r.totalPrice) || 0) - (Number(r.deposit) || 0));
+    const fmtMoney = (n, cur) => curSym(cur) + (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('tr-TR');
+    const norm = (s) => String(s || '').trim().toLocaleLowerCase('tr-TR');
 
-    // Reset only on functional clicks (buttons, cards, inputs, etc.)
-    document.addEventListener('click', (e) => {
-        const isInteractive = e.target.closest('button, input, select, textarea, a, .res-card, .stat-pill, .nav-btn, .app-icon-btn, .sheet-backdrop, .sheet-pill');
-        if (isInteractive) resetLogoutTimer();
-    }, true);
-
-    resetLogoutTimer(); // Start timer on load
-
-    // ── BACKUP LOGIC (JSON IMPORT/EXPORT) ──────────────────────
-    const backupToggleBtn = document.getElementById('c-backupToggleBtn');
-    const backupMenu = document.getElementById('c-backupMenu');
-    const exportDataBtn = document.getElementById('c-exportDataBtn');
-    const importDataBtn = document.getElementById('c-importDataBtn');
-    const importFileInput = document.getElementById('c-importFileInput');
-
-    if (backupToggleBtn) {
-        backupToggleBtn.onclick = (e) => {
-            e.stopPropagation();
-            backupMenu?.classList.toggle('show');
-        };
+    // ── TARİH YARDIMCILARI ─────────────────────────────────────
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateToIso = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const todayIso = () => dateToIso(new Date());
+    const isoToDate = (iso) => { const p = String(iso || '').split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };
+    const isoAdd = (iso, n) => { const d = isoToDate(iso); d.setDate(d.getDate() + n); return dateToIso(d); };
+    const validIso = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+    const nowHM = () => new Date().toTimeString().slice(0, 5);
+    const parseTimeToMins = (t) => {
+        if (!t || !String(t).includes(':')) return null;
+        const p = String(t).split(':');
+        return (parseInt(p[0], 10) * 60) + parseInt(p[1] || 0, 10);
+    };
+    // PDF'ler için GG/AA/YYYY (eski biçim korunur).
+    const fmtDate = (d) => {
+        if (!d) return '';
+        const dt = validIso(d) ? isoToDate(d) : new Date(d);
+        if (isNaN(dt.getTime())) return '';
+        return pad(dt.getDate()) + '/' + pad(dt.getMonth() + 1) + '/' + dt.getFullYear();
+    };
+    const fmtDayLong = (iso) => isoToDate(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' });
+    const fmtDayShort = (iso) => isoToDate(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    function dayWord(iso) {
+        const t = todayIso();
+        if (iso === t) return 'Bugün';
+        if (iso === isoAdd(t, 1)) return 'Yarın';
+        if (iso === isoAdd(t, -1)) return 'Dün';
+        return '';
+    }
+    const fmtDur = (mins) => {
+        mins = Math.abs(Math.round(mins));
+        if (mins < 60) return mins + ' dk';
+        const h = Math.floor(mins / 60), m = mins % 60;
+        if (h < 3) return m ? h + ' sa ' + m + ' dk' : h + ' sa';
+        if (h < 24) return h + ' sa';
+        const d = Math.round(h / 24);
+        return d + ' gün';
+    };
+    // Gecikmiş: hâlâ "Bekliyor" ama planlanan an geçmiş (yerel gün + saat).
+    function isOverdueRes(r) {
+        if (!r || stOf(r) !== 'Pending' || !validIso(r.date)) return false;
+        const today = todayIso();
+        if (r.date < today) return true;
+        if (r.date > today) return false;
+        if (!r.time) return false;
+        return r.time < nowHM();
+    }
+    // Karttaki göreli zaman: "40 dk sonra", "Gecikti · 2 sa", "3 gün sonra".
+    function relWhen(r) {
+        const st = stOf(r);
+        if (st === 'Done' || st === 'Cancelled' || !validIso(r.date)) return null;
+        const today = todayIso();
+        if (r.date !== today) {
+            const days = Math.round((isoToDate(r.date) - isoToDate(today)) / 86400000);
+            if (days > 0) return { text: days === 1 ? 'yarın' : days + ' gün sonra', cls: '' };
+            return st === 'Pending' ? { text: 'Gecikti · ' + (-days) + ' gün', cls: 'late' } : { text: (-days) + ' gün önce', cls: '' };
+        }
+        if (!r.time) return { text: 'gün içinde', cls: '' };
+        const diff = parseTimeToMins(r.time) - parseTimeToMins(nowHM());
+        if (diff >= 0) return { text: diff === 0 ? 'şimdi' : fmtDur(diff) + ' sonra', cls: diff <= 60 ? 'soon' : '' };
+        return st === 'Pending' ? { text: 'Gecikti · ' + fmtDur(diff), cls: 'late' } : { text: fmtDur(diff) + ' önce', cls: '' };
     }
 
-    document.addEventListener('click', () => {
-        backupMenu?.classList.remove('show');
+    // ── DURUM ─────────────────────────────────────────────────
+    let reservations = [];
+    let guestDirectory = [];
+    let filteredReservations = [];          // "Şu anki görünüm" raporu
+    let guestMap = {};                      // { guestName: room } — geçmiş rezervasyonlardan
+    const VIEWS = ['day', 'week', 'month', 'list'];
+    let view = (function () { try { const v = localStorage.getItem('cz_view'); return VIEWS.includes(v) ? v : 'day'; } catch (e) { return 'day'; } })();
+    let cursor = todayIso();
+    let statusFilter = null;                // Pending | Confirmed | Done | Cancelled | overdue
+    let typeFilter = null;
+    let searchQ = '';
+    let showPast = false;
+    let selectedId = null;
+    window.selectedReservation = null;
+
+    // ── TOAST (+ geri al) ─────────────────────────────────────
+    let toastTimer = null;
+    // action: işlev (→ "Geri al") ya da { label, fn } (ör. "Göster").
+    const showToast = (msg, isError = false, action = null) => {
+        const t = $('c-toast');
+        if (!t) return;
+        const act = typeof action === 'function' ? { label: 'Geri al', fn: action } : action;
+        t.innerHTML = '<span>' + esc(msg) + '</span>' + (act ? '<button type="button">' + esc(act.label) + '</button>' : '');
+        t.className = 'cz-toast show' + (isError ? ' error' : '');
+        if (act) t.querySelector('button').onclick = () => { t.classList.remove('show'); act.fn(); };
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => t.classList.remove('show'), act ? 6000 : (isError ? 4500 : 3200));
+    };
+
+    // ── PENCERELER ────────────────────────────────────────────
+    const openOv = (ov) => { ov.hidden = false; document.documentElement.classList.add('cz-modal-open'); };
+    const closeOv = (ov) => {
+        ov.hidden = true;
+        if (!document.querySelector('.cz-ov:not([hidden])')) document.documentElement.classList.remove('cz-modal-open');
+    };
+    const anyOpen = () => !!document.querySelector('.cz-ov:not([hidden])');
+    document.querySelectorAll('.cz-ov').forEach(ov => {
+        ov.addEventListener('mousedown', (e) => { ov.__downOnBg = e.target === ov; });
+        ov.addEventListener('click', (e) => {
+            if (e.target !== ov || !ov.__downOnBg) return;
+            if (ov.id === 'czFormOv') requestCloseForm(); else closeOv(ov);
+            if (ov.id === 'czDetailOv') onDetailClosed();
+        });
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const menu = $('czMoreMenu');
+            if (menu && !menu.hidden) { menu.hidden = true; $('czMoreBtn').setAttribute('aria-expanded', 'false'); return; }
+            const dd = document.querySelector('.cz-dd:not([hidden])');
+            if (dd) { dd.hidden = true; return; }
+            const open = Array.from(document.querySelectorAll('.cz-ov:not([hidden])')).pop();
+            if (!open) return;
+            e.preventDefault();
+            if (open.id === 'czFormOv') requestCloseForm();
+            else { closeOv(open); if (open.id === 'czDetailOv') onDetailClosed(); }
+            return;
+        }
+        // ← → : önceki / sonraki gün (yazı alanında ve pencere açıkken değil)
+        const t = e.target, tag = (t && t.tagName || '').toLowerCase();
+        const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable);
+        if (typing || anyOpen() || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
+        else if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
     });
 
-    // EXPORT: JSON (Full System Backup)
-    exportDataBtn?.addEventListener('click', async () => {
+    // ── YEDEK (JSON) ──────────────────────────────────────────
+    const moreBtn = $('czMoreBtn'), moreMenu = $('czMoreMenu');
+    moreBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        moreMenu.hidden = !moreMenu.hidden;
+        moreBtn.setAttribute('aria-expanded', moreMenu.hidden ? 'false' : 'true');
+    });
+    document.addEventListener('click', (e) => { if (moreMenu && !moreMenu.hidden && !e.target.closest('.cz-more')) { moreMenu.hidden = true; moreBtn.setAttribute('aria-expanded', 'false'); } });
+    moreMenu?.addEventListener('click', (e) => { if (e.target.closest('button')) { moreMenu.hidden = true; moreBtn.setAttribute('aria-expanded', 'false'); } });
+
+    $('c-exportDataBtn')?.addEventListener('click', async () => {
         try {
             const logsSnap = await db.collection('guestLogs').where('tenantId', '==', TENANT_ID).get();
             const resSnap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
             const dirSnap = await db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).get();
-
             const fullBackup = {
                 guestLogs: logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 reservations: resSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 guestDirectory: dirSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 backupDate: new Date().toISOString(),
-                version: "3.0"
+                version: '3.0'
             };
-
             const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Full_System_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `Full_System_Backup_${todayIso()}.json`;
             a.click();
             URL.revokeObjectURL(url);
-            showToast('Tam sistem yedeği dışa aktarıldı.');
-        } catch (e) { showToast('Dışa aktarma başarısız', true); }
+            showToast('Tam sistem yedeği indirildi.');
+        } catch (e) { showToast('Yedek alınamadı.', true); }
     });
-
-    // IMPORT: JSON (Full System Restore)
-    if (!isAdminUser) {
-        if (importDataBtn) importDataBtn.style.display = 'none';
-    }
-
-    importDataBtn?.addEventListener('click', () => {
-        if (!isAdminUser) {
-            return showToast('Yalnızca admin yedek içe aktarabilir.', true);
-        }
-        importFileInput.click();
+    if (!isAdminUser) { const ib = $('c-importDataBtn'); if (ib) ib.hidden = true; }
+    $('c-importDataBtn')?.addEventListener('click', () => {
+        if (!isAdminUser) return showToast('Yalnızca admin yedekten yükleyebilir.', true);
+        $('c-importFileInput').click();
     });
-
-    importFileInput?.addEventListener('change', async (e) => {
+    $('c-importFileInput')?.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
@@ -174,1285 +291,1311 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const data = JSON.parse(event.target.result);
                 const batch = db.batch();
-                let logCount = 0;
-                let resCount = 0;
-                let dirCount = 0;
-
-                // Case 1: Unified Backup Format
+                let logCount = 0, resCount = 0, dirCount = 0;
+                // Belge kimlikleri yalnızca güvenli karakterlerden oluşabilir
+                // (kimlikler arayüzde data-id olarak kullanılıyor).
+                const safeId = (id) => /^[A-Za-z0-9_-]{1,120}$/.test(String(id || ''));
+                const put = (col, item) => {
+                    const { id, ...rest } = item || {};
+                    if (!safeId(id)) return false;
+                    batch.set(db.collection(col).doc(id), rest, { merge: true });
+                    return true;
+                };
                 if (data.guestLogs || data.reservations || data.guestDirectory) {
-                    if (data.guestLogs) {
-                        data.guestLogs.forEach(item => {
-                            const { id, ...rest } = item;
-                            batch.set(db.collection('guestLogs').doc(id), rest, { merge: true });
-                            logCount++;
-                        });
-                    }
-                    if (data.reservations) {
-                        data.reservations.forEach(item => {
-                            const { id, ...rest } = item;
-                            batch.set(db.collection('reservations').doc(id), rest, { merge: true });
-                            resCount++;
-                        });
-                    }
-                    if (data.guestDirectory) {
-                        data.guestDirectory.forEach(item => {
-                            const { id, ...rest } = item;
-                            batch.set(db.collection('guestDirectory').doc(id), rest, { merge: true });
-                            dirCount++;
-                        });
-                    }
-                }
-                // Case 2: Legacy GuestLogs-only Array Format
-                else if (Array.isArray(data)) {
-                    data.forEach(item => {
-                        const { id, ...rest } = item;
-                        batch.set(db.collection('guestLogs').doc(id), rest, { merge: true });
-                        logCount++;
-                    });
+                    (data.guestLogs || []).forEach(it => { if (put('guestLogs', it)) logCount++; });
+                    (data.reservations || []).forEach(it => { if (put('reservations', it)) resCount++; });
+                    (data.guestDirectory || []).forEach(it => { if (put('guestDirectory', it)) dirCount++; });
+                } else if (Array.isArray(data)) {
+                    data.forEach(it => { if (put('guestLogs', it)) logCount++; });
                 } else {
-                    throw new Error('Desteklenmeyen yedek formatı');
+                    throw new Error('Desteklenmeyen yedek biçimi');
                 }
-
                 await batch.commit();
-                showToast(`İçe aktarma başarılı: ${logCount} kayıt, ${resCount} rezervasyon, ${dirCount} CRM profili.`);
+                showToast(`Yüklendi: ${logCount} kayıt, ${resCount} rezervasyon, ${dirCount} CRM profili.`);
                 e.target.value = '';
                 setTimeout(() => window.location.reload(), 1500);
-            } catch (err) { showToast('İçe aktarma başarısız: ' + err.message, true); }
+            } catch (err) { showToast('Yedekten yükleme başarısız: ' + err.message, true); }
         };
         reader.readAsText(file);
     });
 
-    // ── CONFIG ────────────────────────────────────────────────
-    // Hizmet türü → çizgi ikon (js/core/ui-icons.js) + Türkçe ad. Emoji
-    // ikonlar platforma göre farklı çiziliyordu; tür adları ise İngilizce
-    // ("Restaurant", "Boat") personele aynen gösteriliyordu.
-    const SERVICE_IC = { Restaurant: 'utensils', Beach: 'beach', Transfer: 'car', Flower: 'flower', Cake: 'cake', Boat: 'boat', Tour: 'map', Other: 'sparkles' };
-    const TYPE_TR = { Restaurant: 'Restoran', Beach: 'Plaj', Transfer: 'Transfer', Flower: 'Çiçek', Cake: 'Pasta', Boat: 'Tekne', Tour: 'Tur', Other: 'Diğer' };
-    const svcIcon = (type) => (typeof window.UIcon === 'function' ? window.UIcon(SERVICE_IC[type] || 'sparkles') : '');
-    const typeTr = (type) => TYPE_TR[type] || type || '';
-    const ic = (n) => (typeof window.UIcon === 'function' ? window.UIcon(n) : '');
-    const SERVICE_ICONS = new Proxy({}, { get: (_, k) => svcIcon(k) });
-    // Kart alt satırı: oda · saat · tür (+ kısa ayrıntı) · kişi —
-    // eskiden yalnızca "Room 1204 • 11:30" yazıyordu.
-    function resCardLine(r) {
-        const room = (r.room && r.room !== 'Pre-Arrival') ? 'Oda ' + r.room : 'Ön geliş';
-        let detail = '';
-        if (r.type === 'Transfer' && (r.from || r.to)) detail = [r.from, r.to].filter(Boolean).join(' → ');
-        else detail = r.resName || r.vessel || r.otherType || '';
-        return [room, r.time || '', typeTr(r.type) + (detail ? ': ' + detail : ''), r.pax ? r.pax + ' kişi' : ''].filter(Boolean).join(' · ');
-    }
-
-    // ── STATE ─────────────────────────────────────────────────
-    let reservations = [];
-    let filteredReservations = [];
-    let guestMap = {}; // { guestName: roomNumber }
-    let statusFilter = null; // 'Pending' or 'Confirmed'
-    window.selectedReservation = null;
-
-    // ── HELPERS ───────────────────────────────────────────────
-    const showToast = (msg, isError = false) => {
-        const t = document.getElementById('c-toast');
-        t.textContent = msg;
-        t.className = 'app-toast show' + (isError ? ' error' : '');
-        setTimeout(() => t.classList.remove('show'), 2800);
-    };
-
-    const openSheet = (s, b) => { s.classList.add('open'); b.classList.add('open'); };
-    const closeSheet = (s, b) => { s.classList.remove('open'); b.classList.remove('open'); };
-
-    // ESC closes whichever sheet is open (top-most/all), matching modern app UX.
-    document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        const open = document.querySelectorAll('.sheet.open, .sheet-backdrop.open');
-        if (open.length) open.forEach(el => el.classList.remove('open'));
-    });
-
-    // ── PASSIVE INLINE COLLISION WARNING SYSTEM ──
-    // Passively scans cached reservations in real-time as inputs mutate. Does NOT block save.
-    const checkConflictInline = () => {
-        const alertEl = document.getElementById('rs-conflict-alert');
-        if (!alertEl) return;
-
-        const guestName = document.getElementById('rs-guest').value.trim();
-        const time = document.getElementById('rs-time').value;
-        const rawD = document.getElementById('rs-date').value;
-
-        // Insufficient information to run logic
-        if (!guestName || !time || !rawD) {
-            alertEl.style.display = 'none';
-            return;
-        }
-
-        // Match data in standard persisted format
-        const date = toIsoDate(smartExpandDate(rawD)); 
-        const entryMins = parseTimeToMins(time);
-
-        const conflicts = reservations.filter(r => {
-            if (editResId && r.id === editResId) return false; // exclude self
-            if (r.status === 'Cancelled') return false;
-            if (r.date !== date || !r.time) return false;
-            if (r.guestName.trim().toLocaleLowerCase('tr-TR') !== guestName.toLocaleLowerCase('tr-TR')) return false;
-
-            const existingMins = parseTimeToMins(r.time);
-            return entryMins !== null && existingMins !== null && Math.abs(entryMins - existingMins) <= 120;
-        });
-
-        if (conflicts.length > 0) {
-            const markup = conflicts.map(c => `&bull; <b>${esc(c.type)}</b> (${esc(c.time)})`).join('<br>');
-            alertEl.innerHTML = `
-                <div style="font-weight:bold; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-                    ⚠️ YAKIN SAATTE BAŞKA KAYIT VAR
-                </div>
-                <div style="opacity:0.9; font-size:11.5px;">Bu misafirin ±2 saat diliminde şu kayıtları mevcut:<br>${markup}</div>
-            `;
-            alertEl.style.display = 'block';
-        } else {
-            alertEl.style.display = 'none';
-        }
-    };
-
-    // Tekrarlayan (seri) rezervasyonlarda çakışma kontrolü — checkConflictInline
-    // yalnızca formdaki TEK `rs-date` alanını kontrol eder; seri N tarihe
-    // genişlediğinde (repeatDates()) diğer N-1 tarih hiç kontrol edilmeden
-    // toplu yazılırdı. Aynı mantığı (aynı misafir + ±2 saat) serinin TÜM
-    // tarihlerine uygular; bilgilendirici kalır (kaydı engellemez), yalnız
-    // seri kaydından önce personelin onayını ister.
-    const seriesConflicts = (dates, guestName, time) => {
-        const entryMins = parseTimeToMins(time);
-        const out = [];
-        dates.forEach(date => {
-            const hit = reservations.some(r => {
-                if (editResId && r.id === editResId) return false;
-                if (r.status === 'Cancelled') return false;
-                if (r.date !== date || !r.time) return false;
-                if (r.guestName.trim().toLocaleLowerCase('tr-TR') !== guestName.toLocaleLowerCase('tr-TR')) return false;
-                const existingMins = parseTimeToMins(r.time);
-                return entryMins !== null && existingMins !== null && Math.abs(entryMins - existingMins) <= 120;
-            });
-            if (hit) out.push(date);
-        });
-        return out;
-    };
-
-    const resetConflictAlert = () => {
-        const box = document.getElementById('rs-conflict-alert');
-        if (box) box.style.display = 'none';
-        // Notice: Submit button is static, no need to manipulate colors anymore
-    };
-
-    // Global Helpers & Universal Formats
-    const fmtDate = (d) => {
-        if (!d) return '';
-        const dt = new Date(d);
-        // Geçersiz bir tarihte ham girdiyi (`d`) olduğu gibi döndürmek, bazı
-        // çağrı noktalarında esc() olmadan innerHTML'e yazıldığından stored
-        // XSS riski taşıyordu — geçersiz tarihte boş döndürülür.
-        if (isNaN(dt.getTime())) return '';
-        const dd = String(dt.getDate()).padStart(2, '0');
-        const mm = String(dt.getMonth() + 1).padStart(2, '0');
-        const yyyy = dt.getFullYear();
-        return `${dd}/${mm}/${yyyy}`; // Global Standard Set
-    };
-
-    // Realtime UI Input Converter Utilities (View <-> Persisted Storage)
-    const toIsoDate = (val) => {
-        if (!val) return '';
-        const p = val.split('/');
-        if (p.length === 3) return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-        return val;
-    };
-    const toDisplayDate = (iso) => {
-        if (!iso) return '';
-        const p = iso.split('-');
-        if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
-        return iso;
-    };
-    // Converts 'HH:MM' strings into an absolute integer count of minutes from midnight for math
-    const parseTimeToMins = (t) => {
-        if (!t || !t.includes(':')) return null;
-        const p = t.split(':');
-        return (parseInt(p[0]) * 60) + parseInt(p[1] || 0);
-    };
-
-    // Dynamic Smart Reactive Masking Logic (Time only now, Date uses Expansion on Blur)
-    function initMask(id, type) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('input', (e) => {
-            let val = e.target.value.replace(/\D/g, '');
-            let formatted = val;
-            if (type === 'time') {
-                if (val.length > 4) val = val.slice(0, 4);
-                if (val.length > 2) formatted = val.slice(0, 2) + ':' + val.slice(2);
-            }
-            e.target.value = formatted;
-        });
-    }
-
-    // High-End Predictive Date Expansion Engine (Handles ALL abbreviations flawlessly)
-    function smartExpandDate(raw) {
-        if (!raw) return raw;
-        const currentYear = new Date().getFullYear();
-
-        // OPTION 1: EXPLICIT AMBIGUITY RESOLVER (Uses dots or slashes to strictly interpret)
-        // Example: "11.2" -> "11/02/2026"
-        let delimiter = raw.includes('/') ? '/' : (raw.includes('.') ? '.' : null);
-        if (delimiter) {
-            const p = raw.split(delimiter).map(i => i.trim()).filter(i => i !== "");
-            if (p.length === 2) { // Manual overrides automatically append current year
-                let d = String(parseInt(p[0])).padStart(2, '0');
-                let m = String(parseInt(p[1])).padStart(2, '0');
-                if (parseInt(d) <= 31 && parseInt(m) <= 12) return `${d}/${m}/${currentYear}`;
-            } else if (p.length === 3) { // Full segmented date normalization
-                let d = String(parseInt(p[0])).padStart(2, '0');
-                let m = String(parseInt(p[1])).padStart(2, '0');
-                let y = p[2];
-                if (y.length === 2) y = "20" + y;
-                return `${d}/${m}/${y}`;
-            }
-        }
-
-        // OPTION 2: CONSECUTIVE NUMERICAL EXPANDER
-        const s = raw.replace(/\D/g, '');
-        if (s.length < 4 || s.length > 8) return raw;
-
-        let d, m, y;
-        if (s.length === 8) {
-            // Fully typed: 15052026
-            d = s.slice(0, 2); m = s.slice(2, 4); y = s.slice(4);
-        } else if (s.length === 6) {
-            // UNAMBIGUOUS 6 DIGIT FALLBACK: 110226 -> 11/02/2026
-            d = s.slice(0, 2); m = s.slice(2, 4); y = "20" + s.slice(4);
-        } else {
-            // Shorthand prioritized heuristics
-            y = "20" + s.slice(-2);
-            const rest = s.slice(0, -2);
-            
-            if (rest.length === 2) { // 6726 -> 06/07
-                d = rest[0]; m = rest[1];
-            } else if (rest.length === 3) {
-                // The requested "11226" vs "12826" scenario resolution
-                const lastTwo = parseInt(rest.slice(1));
-                if (lastTwo <= 12 && lastTwo > 0) {
-                    // Right-dominant Month priority logic (Matches explicitly requested 11226 -> Month 12)
-                    m = rest.slice(1); d = rest[0];
-                } else {
-                    // Fallback logic (Matches explicitly requested 12826 -> Month 8)
-                    m = rest[2]; d = rest.slice(0, 2);
-                }
-            } else {
-                return raw;
-            }
-        }
-
-        // Final Format Validations
-        d = String(parseInt(d)).padStart(2, '0');
-        m = String(parseInt(m)).padStart(2, '0');
-        const dayNum = parseInt(d); const monNum = parseInt(m);
-        if (dayNum > 31 || dayNum < 1 || monNum > 12 || monNum < 1) return raw; 
-        
-        return `${d}/${m}/${y}`;
-    }
-
-    // ── DATA SYNC ─────────────────────────────────────────────
-    let guestDirectory = [];
-
-    // Load Guest Directory for Global Autocomplete
+    // ── VERİ ──────────────────────────────────────────────────
     db.collection('guestDirectory').where('tenantId', '==', TENANT_ID).onSnapshot(snap => {
         guestDirectory = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // Auto Check-Out past guests
-        const today = new Date().toISOString().split('T')[0];
+        // Çıkış tarihi geçmiş "konaklıyor" misafirleri otomatik çıkışa al.
+        const today = todayIso();
         const batch = db.batch();
         let needsCommit = false;
-
         guestDirectory.forEach(g => {
             if (g.status === 'in_house' && g.checkOut && g.checkOut < today) {
                 batch.update(db.collection('guestDirectory').doc(g.id), { status: 'checked_out' });
                 needsCommit = true;
             }
         });
-
-        if (needsCommit) batch.commit().catch(e => console.error("Auto-checkout error", e));
-
-        updateAutocompletes();
+        if (needsCommit) batch.commit().catch(e => console.error('Auto-checkout error', e));
+        if (selectedId) { const r = reservations.find(x => x.id === selectedId); if (r) populateDetail(r); }
     });
 
-    // Canlı pencere: son 90 gün + tüm gelecek. Önceden tüm rezervasyon
-    // TARİHÇESİ sınırsız dinleniyordu — otel yaşlandıkça her sayfa açılışı
-    // (App Shell her sekme geçişinde sayfayı yeniden yükler) büyüyen bir
-    // maliyet ödüyordu (bkz. hız denetimi). Dışa aktarma yine TÜM veriyi
-    // kapsar (ensureFullData ayrı, tek seferlik tam okuma yapar).
-    const resWindowStart = (() => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10); })();
+    // Canlı pencere: son 90 gün + tüm gelecek (dışa aktarma ayrıca tam okur).
+    const resWindowStart = (() => { const d = new Date(); d.setDate(d.getDate() - 90); return dateToIso(d); })();
     db.collection('reservations').where('tenantId', '==', TENANT_ID)
         .where('date', '>=', resWindowStart).orderBy('date', 'asc').onSnapshot(snap => {
         reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-        // Update Guest Map for Autocomplete
         guestMap = {};
         reservations.forEach(r => { if (r.guestName && r.room) guestMap[r.guestName] = r.room; });
-        updateAutocompletes();
-
-        if (dateFilterFp) dateFilterFp.redraw();
-        renderReservations();
+        render();
         if (window.__openPendingRes) window.__openPendingRes();
-        if (window.selectedReservation) {
-            const up = reservations.find(r => r.id === window.selectedReservation.id);
-            if (up) {
-                window.selectedReservation = up; // Update global state with latest data
-                populateDetail(up);
-            }
+        if (selectedId) {
+            const up = reservations.find(r => r.id === selectedId);
+            if (up) { window.selectedReservation = up; populateDetail(up); }
         }
     });
 
-    let allGuestOptionsHTML = ''; // Cached system guests
-    let reportsGuestHTML = '';    // Cached reports names
-
-    function updateAutocompletes() {
-        // Collate unique list of searchable guest names
-        const namesSet = new Set([...Object.keys(guestMap), ...guestDirectory.map(g => g.name)]);
-        const names = Array.from(namesSet).sort();
-
-        allGuestOptionsHTML = names.map(n => {
-            const room = guestDirectory.find(g => g.name === n)?.room || guestMap[n] || '';
-            return `<option value="${esc(n)}">${esc(room)}</option>`;
-        }).join('');
-        
-        // Push live sync to active datalists only if they are currently visible/inflated
-        ['guest-list', 'iti-guest-list'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el && el.children.length > 0) el.innerHTML = allGuestOptionsHTML;
-        });
+    // ── KAPSAM / SÜZGEÇ ───────────────────────────────────────
+    function matchesSearch(r, q) {
+        if (!q) return true;
+        return [r.guestName, r.room, typeTr(r.type), r.type, r.resName, r.otherType, r.vessel, r.provider, r.from, r.to, r.notes, r.voucherNo, r.vehicle]
+            .some(v => v && norm(v).includes(q));
     }
-
-    // ── SMART AUTOCOMPLETE ENGINE ──────────────────────────────
-    // Throttles population to suppress native dropdown until 3 chars typed
-    function setupDynamicAutolist(inputId, listId, type = 'general') {
-        const inputEl = document.getElementById(inputId);
-        const listEl = document.getElementById(listId);
-        if (!inputEl || !listEl) return;
-
-        // Ensure initially absolutely empty to prevent browser instant pop-down
-        listEl.innerHTML = '';
-
-        inputEl.addEventListener('input', (e) => {
-            const cleanVal = e.target.value.trim();
-            if (cleanVal.length >= 3) {
-                // Inflate only on crossover to prevent CPU thrashing
-                if (listEl.children.length === 0) {
-                    listEl.innerHTML = (type === 'reports') ? reportsGuestHTML : allGuestOptionsHTML;
-                }
-            } else {
-                // Purge on underflow to completely hide the component
-                listEl.innerHTML = ''; 
-            }
-        });
+    function passStatus(r) {
+        if (!statusFilter) return true;
+        if (statusFilter === 'overdue') return isOverdueRes(r);
+        return stOf(r) === statusFilter;
     }
-
-    // Activate throttling on all 3 key entry inputs
-    setupDynamicAutolist('rs-guest', 'guest-list');
-    setupDynamicAutolist('iti-guest-search', 'iti-guest-list');
-    setupDynamicAutolist('rpt-guestSearch', 'guestNamesList', 'reports');
-
-    // PMS live lookup: while typing a guest/room in the reservation sheet,
-    // pull matches from the hotel's PMS (if integrated) and fill name/room/dates.
-    if (window.PMS) {
-        PMS.attach({
-            nameInput: document.getElementById('rs-guest'),
-            roomInput: document.getElementById('rs-room'),
-            checkInInput: document.getElementById('rs-checkIn'),
-            checkOutInput: document.getElementById('rs-checkOut'),
-            onPick: function (g) {
-                // If the PMS gave stay dates, surface the pre-arrival date row.
-                if (g.checkIn || g.checkOut) {
-                    const w = document.getElementById('rs-dates-wrapper');
-                    if (w) w.style.display = 'flex';
-                }
-            }
-        });
-    }
-
-    // Instantly analyze and project passive conflict warnings as fields evolve
-    ['rs-guest', 'rs-date', 'rs-time'].forEach(id => {
-        const target = document.getElementById(id);
-        if (target) {
-            target.addEventListener('input', checkConflictInline);
-            target.addEventListener('blur', checkConflictInline);
-        }
-    });
-
-    // Yeni Rezervasyon modalı — sağdaki "Misafir Özeti" panelini doldur.
-    const RES_ICON = SERVICE_ICONS;
-    function renderGuestSummary(name) {
-        const host = document.getElementById('rs-guestSummary');
-        if (!host) return;
-        const n = (name || '').trim();
-        if (!n) { host.className = 'rs-sum-empty'; host.textContent = 'Misafir seçtiğinizde rezervasyon özeti burada görünür.'; return; }
-        const g = guestDirectory.find(x => (x.name || '').toLocaleLowerCase('tr-TR') === n.toLocaleLowerCase('tr-TR'));
-        const list = reservations.filter(r => (r.guestName || '').toLocaleLowerCase('tr-TR') === n.toLocaleLowerCase('tr-TR'))
-            .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-        if (!g && !list.length) { host.className = 'rs-sum-empty'; host.textContent = '“' + n + '” için kayıt yok — yeni misafir olarak eklenecek.'; return; }
-        host.className = '';
-        const initials = n.split(/\s+/).map(s => s[0] || '').slice(0, 2).join('').toUpperCase();
-        const room = (g && g.room && g.room !== 'Pre-Arrival') ? g.room : ((g && g.status === 'pre_arrival') ? 'Ön geliş' : '—');
-        const st = g ? (g.status === 'in_house' ? ['in', 'Konaklıyor'] : (g.status === 'pre_arrival' ? ['pre', 'Bekliyor'] : ['out', 'Çıkış yaptı'])) : null;
-        let html = '<div class="rs-sum-head"><div class="rs-sum-av">' + esc(initials || '·') + '</div><div>'
-            + '<div class="rs-sum-name">' + esc(n) + '</div><div class="rs-sum-sub">Oda ' + esc(room) + '</div></div></div>';
-        if (st) html += '<span class="rs-sum-stat ' + st[0] + '">' + st[1] + '</span>';
-        if (g && (g.checkIn || g.checkOut)) html += '<div class="rs-sum-dates">'
-            + (g.checkIn ? '<span>Giriş: ' + esc(g.checkIn) + '</span>' : '')
-            + (g.checkOut ? '<span>Çıkış: ' + esc(g.checkOut) + '</span>' : '') + '</div>';
-        html += '<div class="rs-sum-list-title">Rezervasyonlar (' + list.length + ')</div>';
-        if (!list.length) html += '<div class="rs-sum-empty">Henüz rezervasyon yok.</div>';
-        else {
-            html += list.slice(0, 6).map(function (r) {
-                const p = r.status === 'Confirmed' ? ['confirmed', 'Onaylı'] : (r.status === 'Cancelled' ? ['cancelled', 'İptal'] : ['pending', 'Bekliyor']);
-                const d = (r.date && /^\d{4}-\d{2}-\d{2}/.test(r.date)) ? r.date.split('-').reverse().join('.') : (r.date || '—');
-                return '<div class="rs-sum-item"><div class="rs-sum-ico">' + svcIcon(r.type) + '</div>'
-                    + '<div class="it-main"><div class="it-t">' + esc(typeTr(r.type)) + (r.time ? ' · ' + esc(r.time) : '') + '</div>'
-                    + '<div class="it-d">' + esc(d) + '</div></div><span class="rs-sum-pill ' + p[0] + '">' + p[1] + '</span></div>';
-            }).join('');
-            if (list.length > 6) html += '<div class="rs-sum-more">+' + (list.length - 6) + ' daha</div>';
-        }
-        host.innerHTML = html;
-    }
-
-    // Live preview (left panel of the split modal) — reflects the form as it fills.
-    function rsPreview() {
-        const gid = id => document.getElementById(id);
-        const typeSel = gid('rs-type');
-        const typeVal = typeSel ? typeSel.value : '';
-        let typeLabel = typeVal;
-        if (typeSel && typeSel.selectedOptions[0]) {
-            // Seçenek metninden emoji kaldırıldı — ad olduğu gibi alınır.
-            typeLabel = typeSel.selectedOptions[0].textContent.trim();
-        }
-        const set = (id, val) => { const el = gid(id); if (el) el.textContent = val; };
-        { const pv = gid('rsPvIcon'); if (pv) pv.innerHTML = svcIcon(typeVal); }
-        set('rsPvType', typeLabel || 'Hizmet');
-        const date = (gid('rs-date') || {}).value || '';
-        const time = (gid('rs-time') || {}).value || '';
-        set('rsPvWhen', (date || time) ? [date, time].filter(Boolean).join(' · ') : 'Tarih ve saat girilmedi');
-        set('rsPvGuest', ((gid('rs-guest') || {}).value || '').trim() || '—');
-        set('rsPvRoom', ((gid('rs-room') || {}).value || '').trim() || '—');
-        const price = parseFloat((gid('rs-price') || {}).value);
-        const dep = parseFloat((gid('rs-deposit') || {}).value);
-        const sym = curSym((gid('rs-currency') || {}).value || 'EUR');
-        set('rsPvPrice', isNaN(price) ? '—' : sym + price.toLocaleString('tr-TR'));
-        set('rsPvDeposit', isNaN(dep) ? '—' : sym + dep.toLocaleString('tr-TR'));
-    }
-    ['rs-type', 'rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-currency'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.addEventListener('input', rsPreview); el.addEventListener('change', rsPreview); }
-    });
-
-    // Auto-fill Details & Sync Pre-Arrival state when guest name is selected from directory
-    document.getElementById('rs-guest')?.addEventListener('input', (e) => {
-        const name = e.target.value.trim();
-        const found = guestDirectory.find(g => g.name.toLocaleLowerCase('tr-TR') === name.toLocaleLowerCase('tr-TR'));
-        const paCheckbox = document.getElementById('rs-isPreArrival');
-        const roomInput = document.getElementById('rs-room');
-        const datesWrapper = document.getElementById('rs-dates-wrapper');
-        const checkInInput = document.getElementById('rs-checkIn');
-        const checkOutInput = document.getElementById('rs-checkOut');
-
-        if (found) {
-            const isPreArrival = found.status === 'pre_arrival' || found.room === 'Pre-Arrival';
-            
-            paCheckbox.checked = isPreArrival;
-            roomInput.disabled = isPreArrival;
-
-            if (isPreArrival) {
-                roomInput.value = 'Pre-Arrival'; // Set visually clear value
-                document.getElementById('rs-pa-box').style.display = 'none'; // Hide the ENTIRE outer wrapper box
-                
-                // Sync existing dates silently from directory
-                if (found.checkIn) checkInInput.value = found.checkIn;
-                if (found.checkOut) checkOutInput.value = found.checkOut;
-            } else {
-                roomInput.value = (found.room && found.room !== 'Pre-Arrival') ? found.room : '';
-                document.getElementById('rs-pa-box').style.display = 'block'; // Restore outer wrapper
-            }
-        }
-        renderGuestSummary(name);
-        rsPreview();
-    });
-
-    // Paylaşımlı yardımcıya devrediyor (bkz. js/core/guest-directory.js) —
-    // panel.js'deki bağımsız kopyayla birleştirildi (tutarlılık denetimi).
-    async function syncGuestStatus(name, room, isPreArrival, checkIn, checkOut) {
-        return GuestDirectory.syncGuestStatus(name, { room, isPreArrival, checkIn, checkOut });
-    }
-
-    document.getElementById('c-search').oninput = renderReservations;
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    // The date filter is a plain native input on every device — the sidebar's
-    // own month calendar replaced the old inline flatpickr (which rendered a
-    // second, duplicate calendar on desktop).
-    let dateFilterFp = null;
-    document.getElementById('c-dateFilter').value = todayStr;
-    document.getElementById('c-dateFilter').onchange = renderReservations;
-
-    if (window.flatpickr) {
-        // Instant Manual-Typing Date & Time Enhancers (reservation form only)
-        flatpickr("#rs-date", {
-            dateFormat: "d/m/Y",
-            allowInput: true,
-            disableMobile: "true"
-        });
-        flatpickr("#rs-time", {
-            enableTime: true,
-            noCalendar: true,
-            dateFormat: "H:i",
-            time_24hr: true,
-            allowInput: true
-        });
-
-        // Bind Proactive Interactive Mechanisms
-        const dateEl = document.getElementById('rs-date');
-        if (dateEl) {
-            // Expand shorthand input instantly when the user steps out of the field
-            dateEl.addEventListener('blur', (e) => {
-                e.target.value = smartExpandDate(e.target.value);
+    const passType = (r) => !typeFilter || typeKey(r.type) === typeFilter;
+    const byTime = (a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '99:99').localeCompare(b.time || '99:99');
+    function weekStart(iso) { const d = isoToDate(iso); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dateToIso(d); }
+    // Görünümün kapsadığı kayıtlar (durum süzgecinden ÖNCE — çip sayıları için).
+    function scopeItems() {
+        if (statusFilter === 'overdue') return reservations.filter(isOverdueRes);
+        if (view === 'day') {
+            const next = isoAdd(cursor, 1);
+            const out = [];
+            reservations.forEach(r => {
+                if (r.date === cursor) out.push(r);
+                // Ertesi günün gece saatleri (00–08) bu günün akışında "+1 gün" olarak.
+                else if (r.date === next && r.time && parseInt(r.time, 10) < 8) out.push(Object.assign({}, r, { __next: true }));
             });
+            return out;
         }
-        initMask('rs-time', 'time');
+        if (view === 'week') { const s = weekStart(cursor), e = isoAdd(s, 6); return reservations.filter(r => r.date >= s && r.date <= e); }
+        if (view === 'month') { const m = cursor.slice(0, 7); return reservations.filter(r => (r.date || '').slice(0, 7) === m); }
+        const t = todayIso();
+        return reservations.filter(r => showPast || (r.date || '') >= t);
     }
 
-    document.getElementById('c-pillPending').onclick = () => {
-        statusFilter = (statusFilter === 'Pending') ? null : 'Pending';
-        renderReservations();
-    };
-    document.getElementById('c-pillConfirmed').onclick = () => {
-        statusFilter = (statusFilter === 'Confirmed') ? null : 'Confirmed';
-        renderReservations();
-    };
-    document.getElementById('c-pillToday').onclick = () => {
-        if (dateFilterFp) {
-            dateFilterFp.setDate(todayStr);
+    // ── ÇİZİM ─────────────────────────────────────────────────
+    const board = $('c-feed');
+    function render() {
+        renderToolbar();
+        const scope = scopeItems().filter(r => matchesSearch(r, searchQ));
+        renderChips(scope);
+        const visible = scope.filter(r => passType(r) && passStatus(r)).sort(byTime);
+        filteredReservations = visible;
+        if (statusFilter === 'overdue') renderOverdue(visible);
+        else if (view === 'day') renderDay(visible);
+        else if (view === 'week') renderWeek(visible);
+        else if (view === 'month') renderMonth(visible);
+        else renderList(visible);
+        renderAside(scope.filter(passType));
+        markSelected();
+    }
+
+    function renderToolbar() {
+        const lbl = $('czDateLabel'), sub = $('czDateSub');
+        const t = todayIso();
+        if (view === 'day') {
+            lbl.textContent = dayWord(cursor) || isoToDate(cursor).toLocaleDateString('tr-TR', { weekday: 'long' });
+            sub.textContent = isoToDate(cursor).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) + (dayWord(cursor) ? ' · ' + isoToDate(cursor).toLocaleDateString('tr-TR', { weekday: 'long' }) : '');
+        } else if (view === 'week') {
+            const s = weekStart(cursor), e = isoAdd(s, 6);
+            lbl.textContent = isoToDate(s).getMonth() === isoToDate(e).getMonth()
+                ? isoToDate(s).getDate() + ' – ' + fmtDayShort(e)
+                : fmtDayShort(s) + ' – ' + fmtDayShort(e);
+            sub.textContent = (t >= s && t <= e) ? 'Bu hafta' : 'Hafta';
+        } else if (view === 'month') {
+            lbl.textContent = isoToDate(cursor).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+            sub.textContent = cursor.slice(0, 7) === t.slice(0, 7) ? 'Bu ay' : 'Ay';
         } else {
-            document.getElementById('c-dateFilter').value = todayStr;
+            lbl.textContent = 'Tüm rezervasyonlar';
+            sub.textContent = showPast ? 'Son 90 gün + gelecek' : 'Bugünden itibaren';
         }
-        statusFilter = null;
-        renderReservations();
-    };
-    document.getElementById('c-pillAllTime')?.addEventListener('click', () => {
-        if (dateFilterFp) dateFilterFp.clear();
-        else document.getElementById('c-dateFilter').value = '';
-        statusFilter = null;
-        renderReservations();
+        const di = $('czDateInput'); if (di) di.value = cursor;
+        const list = view === 'list' && statusFilter !== 'overdue';
+        $('czPrev').hidden = list; $('czNext').hidden = list;
+        $('czToday').disabled = !list && cursor === t && view === 'day';
+        document.querySelectorAll('#czViews button').forEach(b => {
+            const on = b.dataset.view === view;
+            b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+    }
+
+    function renderChips(scope) {
+        const typed = scope.filter(passType);
+        const cnt = { all: typed.length, Pending: 0, Confirmed: 0, Done: 0, Cancelled: 0 };
+        typed.forEach(r => { cnt[stOf(r)]++; });
+        const overdue = reservations.filter(isOverdueRes).length;
+        const chip = (key, label, n, extra) => `<button type="button" class="cz-chip${extra || ''}${(statusFilter || 'all') === key ? ' on' : ''}" data-status="${key}" aria-pressed="${(statusFilter || 'all') === key}">${key !== 'all' && key !== 'overdue' ? `<i class="dot ${key}"></i>` : ''}${label} <b>${n}</b></button>`;
+        let html = chip('all', 'Tümü', cnt.all) + chip('Pending', 'Bekliyor', cnt.Pending) + chip('Confirmed', 'Onaylı', cnt.Confirmed)
+            + chip('Done', 'Tamamlandı', cnt.Done) + chip('Cancelled', 'İptal', cnt.Cancelled);
+        if (overdue) html += chip('overdue', ic('alert') + ' Gecikti', overdue, ' warn');
+        $('czStatusChips').innerHTML = html;
+        // Tür çipleri: kapsamda olanlar (+ seçili olan, sayısı 0 olsa da)
+        const tc = {};
+        scope.filter(passStatus).forEach(r => { const k = typeKey(r.type); tc[k] = (tc[k] || 0) + 1; });
+        const types = TYPE_ORDER.filter(k => tc[k] || typeFilter === k);
+        $('czTypeChips').innerHTML = types.length < 2 && !typeFilter ? '' :
+            `<button type="button" class="cz-chip${!typeFilter ? ' on' : ''}" data-type="">Tüm hizmetler</button>` +
+            types.map(k => `<button type="button" class="cz-chip${typeFilter === k ? ' on' : ''}" data-type="${k}">${ic(SERVICE_IC[k])} ${TYPE_TR[k]} <span class="n">${tc[k] || 0}</span></button>`).join('');
+    }
+    $('czStatusChips').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-status]'); if (!b) return;
+        const k = b.dataset.status;
+        statusFilter = (k === 'all' || statusFilter === k) ? null : k;
+        render();
+    });
+    $('czTypeChips').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-type]'); if (!b) return;
+        typeFilter = (!b.dataset.type || typeFilter === b.dataset.type) ? null : b.dataset.type;
+        render();
     });
 
-    // ═══ Console redesign: calendar, day title, views, summary ═══
-    let viewMode = 'day'; // 'day' | 'week' | 'month'
-    let calCursor = null; // Date for the month shown in the sidebar calendar
-
-    function setFilterDate(iso) {
-        if (dateFilterFp) dateFilterFp.setDate(iso, false);
-        else document.getElementById('c-dateFilter').value = iso;
-        renderReservations();
+    // Kart: misafir · oda · hizmet ayrıntısı · bayraklar · hızlı işlem.
+    function whatLine(r) {
+        const pax = r.pax ? r.pax + ' kişi' : '';
+        let parts = [];
+        if (r.type === 'Transfer') parts = [[r.from, r.to].filter(Boolean).join(' → '), r.vehicle, pax];
+        else if (r.type === 'Boat' || r.type === 'Tour') parts = [r.vessel, r.provider, pax];
+        else if (r.type === 'Restaurant' || r.type === 'Beach') parts = [r.resName, pax];
+        else parts = [r.otherType || r.resName];
+        return [typeTr(r.type)].concat(parts.filter(Boolean)).join(' · ');
     }
-    function isoAddDays(iso, n) {
-        const p = iso.split('-');
-        const d = new Date(+p[0], +p[1] - 1, +p[2]);
-        d.setDate(d.getDate() + n);
-        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    function roomChip(r) {
+        if (!r.room || r.room === 'Pre-Arrival') return '<span class="cz-room pre">Ön geliş</span>';
+        return '<span class="cz-room">' + esc(r.room) + '</span>';
     }
-    function isoToDate(iso) { const p = iso.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
-    function dateToIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-
-    function updateDayTitle(dateVal) {
-        const el = document.getElementById('c-dayTitle');
-        if (!el) return;
-        if (!dateVal) { el.textContent = 'Tüm Rezervasyonlar'; return; }
-        const d = isoToDate(dateVal);
-        el.textContent = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' })
-            .replace(' ' + d.toLocaleDateString('tr-TR', { weekday: 'long' }), ', ' + d.toLocaleDateString('tr-TR', { weekday: 'long' }));
+    function seriesInfo(r) {
+        if (!r.seriesId) return null;
+        const sib = reservations.filter(x => x.seriesId === r.seriesId).sort(byTime);
+        if (sib.length < 2) return null;
+        return { i: sib.findIndex(x => x.id === r.id) + 1, n: sib.length, sib };
     }
-
-    function renderSummary(dateVal) {
-        const ref = dateVal || todayStr;
-        let total = 0, conf = 0, pend = 0, canc = 0;
-        reservations.forEach(r => {
-            if (r.date !== ref) return;
-            total++;
-            if (r.status === 'Confirmed') conf++;
-            else if (r.status === 'Cancelled') canc++;
-            else pend++;
-        });
-        const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-        set('sumTotal', total); set('sumConfirmed', conf); set('sumPending', pend); set('sumCancelled', canc);
+    // "Tamamlandı" hızlı işlemi: onaylı ve vakti gelmiş (en çok 1 sa öncesi) kayıt.
+    function doneDue(r) {
+        if (stOf(r) !== 'Confirmed' || !validIso(r.date)) return false;
+        const t = todayIso();
+        if (r.date < t) return true;
+        if (r.date > t) return false;
+        return !r.time || parseTimeToMins(r.time) - parseTimeToMins(nowHM()) <= 60;
     }
-
-    function renderUpcoming() {
-        const box = document.getElementById('c-upcoming');
-        if (!box) return;
-        const nowHM = new Date().toTimeString().slice(0, 5);
-        const ups = reservations
-            .filter(r => r.status !== 'Cancelled' && r.status !== 'Done' && r.date && (r.date > todayStr || (r.date === todayStr && (r.time || '23:59') >= nowHM)))
-            .sort((a, b) => a.date !== b.date ? a.date.localeCompare(b.date) : (a.time || '00:00').localeCompare(b.time || '00:00'))
-            .slice(0, 3);
-        if (!ups.length) { box.innerHTML = '<div class="cz-up-empty">Yaklaşan rezervasyon yok.</div>'; return; }
-        box.innerHTML = ups.map(r => `
-            <div class="cz-up-item" onclick="openDetailById('${r.id}')">
-                <div class="cz-up-time">${esc(r.time || '—')}${r.date !== todayStr ? ' · ' + fmtDate(isoToDate(r.date)) : ''}</div>
-                <b>${esc(r.guestName)}</b>
-                <div class="cz-up-meta"><span>Oda ${esc(r.room)}</span>
-                    <span class="cz-up-badge ${esc(r.status)}">${({ Pending: 'Bekleyen', Confirmed: 'Onaylı', Done: 'Tamamlandı' })[r.status] || esc(r.status)}</span></div>
-            </div>`).join('');
-    }
-
-    function renderCalendar() {
-        const grid = document.getElementById('calGrid');
-        const title = document.getElementById('calTitle');
-        if (!grid || !title) return;
-        const selIso = document.getElementById('c-dateFilter').value;
-        if (!calCursor) calCursor = selIso ? isoToDate(selIso) : new Date();
-        const y = calCursor.getFullYear(), m = calCursor.getMonth();
-        title.textContent = calCursor.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
-
-        // Days with reservations this month (excluding cancelled) get a dot.
-        const marked = new Set();
-        reservations.forEach(r => { if (r.date && r.status !== 'Cancelled') marked.add(r.date); });
-
-        const first = new Date(y, m, 1);
-        let startOffset = (first.getDay() + 6) % 7; // Monday-first
-        const cells = [];
-        const start = new Date(y, m, 1 - startOffset);
-        for (let i = 0; i < 42; i++) {
-            const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-            cells.push(d);
+    function flagsHtml(r) {
+        const st = stOf(r), out = [];
+        if (r.__next) out.push('<span class="cz-flag warn">+1 gün</span>');
+        if (r.source === 'guest-order') out.push('<span class="cz-flag qr" title="Misafirin QR ekranından geldi">' + ic('qr') + ' QR</span>');
+        const s = seriesInfo(r); if (s) out.push('<span class="cz-flag series" title="Tekrarlayan seri">' + ic('repeat') + ' ' + s.i + '/' + s.n + '</span>');
+        if ((st === 'Pending' || st === 'Confirmed') && needsVoucher(r)) out.push('<span class="cz-flag warn">Voucher eksik</span>');
+        const bal = balanceOf(r);
+        if (st !== 'Cancelled' && PAID_TYPES.includes(r.type) && (Number(r.totalPrice) || 0) > 0) {
+            if (r.folioApplied) out.push('<span class="cz-flag paid">Oda hesabında</span>');
+            else if (bal > 0) out.push('<span class="cz-flag money">' + esc(fmtMoney(bal, r.currency)) + ' bakiye</span>');
+            else out.push('<span class="cz-flag paid">Ödendi</span>');
         }
-        // Trim trailing full week of next month
-        const rows = cells.slice(35).every(d => d.getMonth() !== m) ? cells.slice(0, 35) : cells;
-
-        grid.innerHTML = rows.map(d => {
-            const iso = dateToIso(d);
-            const cls = ['cz-day'];
-            if (d.getMonth() !== m) cls.push('dim');
-            if (iso === todayStr) cls.push('today');
-            if (iso === selIso) cls.push('sel');
-            return `<button class="${cls.join(' ')}" data-iso="${iso}">${d.getDate()}${marked.has(iso) ? '<span class="dot"></span>' : ''}</button>`;
-        }).join('');
+        return out.join('');
     }
-    document.getElementById('calGrid')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.cz-day');
-        if (!btn) return;
-        calCursor = isoToDate(btn.dataset.iso);
-        statusFilter = null;
-        setFilterDate(btn.dataset.iso);
-    });
-    document.getElementById('calPrev')?.addEventListener('click', () => {
-        calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1);
-        renderCalendar();
-    });
-    document.getElementById('calNext')?.addEventListener('click', () => {
-        calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
-        renderCalendar();
-    });
-    function goToday() {
-        calCursor = new Date();
-        statusFilter = null;
-        viewMode = 'day';
-        syncViewButtons();
-        setFilterDate(todayStr);
+    function cardHtml(r) {
+        const st = stOf(r), rw = relWhen(r);
+        let cls = ' is-' + st.toLowerCase();
+        if (isOverdueRes(r)) cls += ' is-overdue';
+        let acts = '';
+        if (st === 'Pending') acts = `<button type="button" class="cz-qa go" data-qa="confirm" data-id="${esc(r.id)}">${ic('check')} Onayla</button>`;
+        else if (doneDue(r)) acts = `<button type="button" class="cz-qa" data-qa="done" data-id="${esc(r.id)}">${ic('check')} Tamamlandı</button>`;
+        return `<article class="cz-res${cls}" data-id="${esc(r.id)}" data-status="${st}" tabindex="0" aria-label="${esc(r.guestName)} · ${esc(typeTr(r.type))} · ${esc(r.time || '')}">
+            <div class="cz-res-time"><b>${esc(r.time || '—')}</b>${rw ? `<small class="${rw.cls}">${esc(rw.text)}</small>` : ''}</div>
+            <div class="cz-res-ic t-${typeKey(r.type)}">${svcIcon(r.type)}</div>
+            <div class="cz-res-main">
+                <div class="cz-res-top"><span class="cz-res-guest">${esc(r.guestName || '—')}</span>${roomChip(r)}</div>
+                <div class="cz-res-what">${esc(whatLine(r))}</div>
+                <div class="cz-res-flags">${flagsHtml(r)}</div>
+            </div>
+            <div class="cz-res-side"><span class="cz-st st-${st}">${ST_TR[st]}</span>${acts ? `<div class="cz-res-acts">${acts}</div>` : ''}</div>
+        </article>`;
     }
-    document.getElementById('c-goToday')?.addEventListener('click', goToday);
-    document.getElementById('c-goTodaySide')?.addEventListener('click', goToday);
 
-    function syncViewButtons() {
-        [['vDay', 'day'], ['vWeek', 'week'], ['vMonth', 'month']].forEach(([id, mode]) => {
-            document.getElementById(id)?.classList.toggle('active', viewMode === mode);
+    // Boş durum: süzgeç varsa temizle; aramada diğer günlerde sonuç varsa listede göster; sonraki rezervasyona git.
+    function emptyHtml(title, text) {
+        const filtered = statusFilter || typeFilter || searchQ;
+        let extra = '';
+        if (searchQ && view !== 'list') {
+            const other = reservations.filter(r => matchesSearch(r, searchQ)).length;
+            if (other) extra += `<p class="cz-hint-row">Diğer tarihlerde ${other} sonuç var — <button type="button" data-go="list">listede göster</button></p>`;
+        }
+        if (!filtered && view === 'day') {
+            const next = reservations.filter(r => r.date > cursor && stOf(r) !== 'Cancelled').sort(byTime)[0];
+            if (next) extra += `<p class="cz-hint-row">Sonraki rezervasyon: ${esc(fmtDayLong(next.date))} — <button type="button" data-go-date="${esc(next.date)}">git</button></p>`;
+        }
+        return `<div class="cz-empty"><span class="cz-empty-ic">${ic('concierge')}</span><b>${esc(title)}</b><p>${esc(text)}</p>
+            <div class="cz-empty-act">${filtered ? '<button type="button" class="cz-btn ghost sm" data-clear="1">Süzgeçleri temizle</button>' : ''}<button type="button" class="cz-btn primary sm" data-new="1">${ic('plus')} Rezervasyon ekle</button></div>${extra}</div>`;
+    }
+
+    // Gün: zaman dilimi grupları + bugünse "şimdi" çizgisi.
+    function renderDay(items) {
+        if (!items.length) {
+            const filtered = statusFilter || typeFilter || searchQ;
+            board.innerHTML = emptyHtml(filtered ? 'Süzgeçlere uyan rezervasyon yok' : 'Bu gün için rezervasyon yok', filtered ? 'Süzgeçleri değiştirin ya da temizleyin.' : 'Yeni bir rezervasyon ekleyebilir ya da başka bir güne geçebilirsiniz.');
+            return;
+        }
+        const groups = [
+            ['notime', 'Saatsiz', r => !r.time && !r.__next],
+            ['morning', 'Sabah', r => !r.__next && r.time && r.time < '12:00'],
+            ['noon', 'Öğleden sonra', r => !r.__next && r.time >= '12:00' && r.time < '17:00'],
+            ['evening', 'Akşam', r => !r.__next && r.time >= '17:00'],
+            ['night', 'Gece · ertesi gün', r => r.__next]
+        ];
+        const isToday = cursor === todayIso();
+        const now = nowHM();
+        let nowPlaced = !isToday;
+        let html = '';
+        groups.forEach(([key, label, fn]) => {
+            const list = items.filter(fn);
+            if (!list.length) return;
+            let inner = '';
+            list.forEach(r => {
+                if (!nowPlaced && r.time && !r.__next && r.time >= now) {
+                    inner += `<div class="cz-now"><i></i>Şimdi ${now}</div>`;
+                    nowPlaced = true;
+                }
+                inner += cardHtml(r);
+            });
+            html += `<section class="cz-group"><h3 class="cz-group-h">${label}<span class="n">${list.length}</span></h3><div class="cz-list">${inner}</div></section>`;
         });
+        board.innerHTML = html;
     }
-    [['vDay', 'day'], ['vWeek', 'week'], ['vMonth', 'month']].forEach(([id, mode]) => {
-        document.getElementById(id)?.addEventListener('click', () => {
-            viewMode = mode;
-            syncViewButtons();
-            renderReservations();
-        });
-    });
 
-    // Week view: Monday–Sunday of the selected date, grouped per day.
-    function renderWeekView(refIso, feed, empty) {
-        feed.classList.remove('cz-month-wrap');
-        const ref = isoToDate(refIso);
-        const monday = new Date(ref);
-        monday.setDate(ref.getDate() - ((ref.getDay() + 6) % 7));
-        feed.innerHTML = '';
-        empty.style.display = 'none';
-        const weekItems = [];
+    function renderWeek(items) {
+        const s = weekStart(cursor), t = todayIso();
+        let html = '<div class="cz-week-wrap"><div class="cz-week">';
         for (let i = 0; i < 7; i++) {
-            const iso = dateToIso(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
+            const iso = isoAdd(s, i);
+            const day = items.filter(r => r.date === iso);
             const d = isoToDate(iso);
-            const items = reservations.filter(r => r.date === iso)
-                .sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
-            weekItems.push(...items);
-            const sec = document.createElement('div');
-            sec.className = 'cz-week-day';
-            const head = d.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
-            sec.innerHTML = `<div class="cz-week-day-head ${iso === todayStr ? 'is-today' : ''}">
-                    <span>${head}</span>${items.length ? `<span class="cnt">${items.length} rezervasyon</span>` : ''}
-                </div><div class="cz-week-day-body"></div>`;
-            const body = sec.querySelector('.cz-week-day-body');
-            if (!items.length) body.innerHTML = '<div class="none">Müsait</div>';
-            else items.forEach(r => body.appendChild(createResCard(r)));
-            feed.appendChild(sec);
+            html += `<div class="cz-wcol${iso === t ? ' today' : ''}">
+                <button type="button" class="cz-wcol-h" data-go-date="${iso}"><b>${d.toLocaleDateString('tr-TR', { weekday: 'short' })} ${d.getDate()}</b><small>${day.length ? day.length + ' rez.' : ''}</small></button>
+                <div class="cz-wcol-b">${day.length ? day.map(r => `<button type="button" class="cz-witem" data-id="${esc(r.id)}" data-status="${stOf(r)}">
+                    <span class="t">${svcIcon(r.type)} ${esc(r.time || '—')}</span><span class="g">${esc(r.guestName || '—')}</span></button>`).join('') : '<div class="cz-wnone">Boş</div>'}</div>
+            </div>`;
         }
-        filteredReservations = weekItems;
-        const t = document.getElementById('c-dayTitle');
-        if (t) {
-            const sun = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
-            t.textContent = monday.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + ' – ' +
-                sun.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
-        }
+        board.innerHTML = html + '</div></div>';
     }
 
-    // Month view: 7-column grid of day cells with counts; click → day view.
-    function renderMonthView(refIso, feed, empty) {
-        const ref = isoToDate(refIso);
-        const y = ref.getFullYear(), m = ref.getMonth();
-        empty.style.display = 'none';
-        feed.classList.add('cz-month-wrap');
-        const counts = {};
-        reservations.forEach(r => { if (r.date && r.status !== 'Cancelled') counts[r.date] = (counts[r.date] || 0) + 1; });
-        const first = new Date(y, m, 1);
-        const startOffset = (first.getDay() + 6) % 7;
-        const start = new Date(y, m, 1 - startOffset);
-        let html = '<div class="cz-month-dow"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div><div class="cz-month-grid">';
-        for (let i = 0; i < 42; i++) {
-            const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    function renderMonth(items) {
+        const first = isoToDate(cursor.slice(0, 7) + '-01');
+        const m = first.getMonth();
+        const start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+        const t = todayIso();
+        let html = '<div class="cz-month"><div class="cz-month-dow"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div><div class="cz-month-grid">';
+        const cells = [];
+        for (let i = 0; i < 42; i++) { const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i); cells.push(d); }
+        const rows = cells.slice(35).every(d => d.getMonth() !== m) ? cells.slice(0, 35) : cells;
+        rows.forEach(d => {
             const iso = dateToIso(d);
-            const dim = d.getMonth() !== m ? ' dim' : '';
-            const tod = iso === todayStr ? ' today' : '';
-            const n = counts[iso] || 0;
-            html += `<button class="cz-mday${dim}${tod}" data-iso="${iso}"><b>${d.getDate()}</b>${n ? `<span class="cnt">${n} rez.</span>` : ''}</button>`;
-        }
-        html += '</div>';
-        feed.innerHTML = html;
-        feed.querySelectorAll('.cz-mday').forEach(btn => btn.addEventListener('click', () => {
-            viewMode = 'day';
-            syncViewButtons();
-            calCursor = isoToDate(btn.dataset.iso);
-            setFilterDate(btn.dataset.iso);
-        }));
-        filteredReservations = reservations.filter(r => {
-            if (!r.date) return false;
-            const d = isoToDate(r.date);
-            return d.getFullYear() === y && d.getMonth() === m;
+            const day = items.filter(r => r.date === iso);
+            const cls = (d.getMonth() !== m ? ' dim' : '') + (iso === t ? ' today' : '') + (iso === cursor ? ' sel' : '');
+            const shown = day.slice(0, 3).map(r => `<span><i class="${stOf(r)}"></i>${esc(r.time ? r.time + ' ' : '')}${esc(r.guestName || '')}</span>`).join('');
+            html += `<button type="button" class="cz-mday${cls}" data-go-date="${iso}"><b>${d.getDate()}</b><div class="cz-mday-items">${shown}${day.length > 3 ? `<em class="cz-mday-more">+${day.length - 3} daha</em>` : ''}${day.length ? `<span class="cz-mday-cnt">${day.length}</span>` : ''}</div></button>`;
         });
-        const t = document.getElementById('c-dayTitle');
-        if (t) t.textContent = ref.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+        board.innerHTML = html + '</div></div>';
     }
 
-    // Topbar wiring: search focus, reports tab, identity chip.
-    document.getElementById('c-searchBtn')?.addEventListener('click', () => {
-        document.getElementById('c-search')?.focus();
-        document.getElementById('c-search')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    function dateGroupsHtml(items) {
+        const t = todayIso();
+        const groups = {};
+        items.forEach(r => { (groups[r.date] = groups[r.date] || []).push(r); });
+        return Object.keys(groups).sort().map(d => `<section class="cz-dgroup">
+            <h3 class="cz-dgroup-h${d === t ? ' today' : ''}">${esc(dayWord(d) || fmtDayLong(d))} <small>${dayWord(d) ? esc(fmtDayLong(d)) + ' · ' : ''}${groups[d].length} rezervasyon</small></h3>
+            <div class="cz-list">${groups[d].map(cardHtml).join('')}</div></section>`).join('');
+    }
+    function renderList(items) {
+        const past = !showPast ? `<button type="button" class="cz-btn ghost sm cz-pastbtn" data-past="1">${ic('clock')} Geçmiş rezervasyonları da göster (son 90 gün)</button>` : '';
+        if (!items.length) { board.innerHTML = past + emptyHtml('Rezervasyon bulunamadı', 'Süzgeçleri değiştirin ya da yeni bir rezervasyon ekleyin.'); return; }
+        board.innerHTML = past + dateGroupsHtml(items);
+    }
+    function renderOverdue(items) {
+        const head = `<div class="cz-banner late" style="margin-bottom:12px">${ic('alert')}<div><b>Gecikmiş rezervasyonlar</b>Planlanan zamanı geçmiş ama hâlâ onay bekleyen kayıtlar. Onaylayın, tamamlayın ya da iptal edin.</div></div>`;
+        board.innerHTML = head + (items.length ? dateGroupsHtml(items) : emptyHtml('Gecikmiş rezervasyon yok', 'Her şey güncel.'));
+    }
+
+    // ── YAN PANEL ─────────────────────────────────────────────
+    function todoItems() {
+        const t = todayIso(), t1 = isoAdd(t, 1), t7 = isoAdd(t, 7);
+        const seen = new Set(), out = [];
+        const add = (r, kind, why) => { if (seen.has(r.id)) return; seen.add(r.id); out.push({ r, kind, why }); };
+        reservations.filter(isOverdueRes).sort(byTime).forEach(r => add(r, 'bad', 'Gecikti'));
+        reservations.filter(r => r.source === 'guest-order' && stOf(r) === 'Pending' && r.date >= t).sort(byTime).forEach(r => add(r, 'qr', 'QR talebi · onay bekliyor'));
+        reservations.filter(r => stOf(r) === 'Pending' && needsVoucher(r) && r.date >= t && r.date <= t7).sort(byTime).forEach(r => add(r, 'warn', 'Voucher bekleniyor'));
+        reservations.filter(r => stOf(r) === 'Pending' && r.date >= t && r.date <= t1).sort(byTime).forEach(r => add(r, 'warn', 'Onay bekliyor'));
+        return out;
+    }
+    function todoHtml(items, max) {
+        if (!items.length) return `<div class="cz-todo-ok">${ic('check')} Bekleyen iş yok — her şey yolunda.</div>`;
+        const shown = items.slice(0, max);
+        return '<div class="cz-todo">' + shown.map(({ r, kind, why }) => {
+            const when = (dayWord(r.date) || fmtDayShort(r.date)) + (r.time ? ' ' + r.time : '');
+            const act = stOf(r) === 'Pending' && !needsVoucher(r)
+                ? `<button type="button" class="cz-qa go" data-qa="confirm" data-id="${esc(r.id)}">Onayla</button>`
+                : `<button type="button" class="cz-qa" data-id="${esc(r.id)}">Aç</button>`;
+            return `<div class="cz-todo-it" data-id="${esc(r.id)}"><span class="ic ${kind}">${kind === 'qr' ? ic('qr') : (kind === 'bad' ? ic('alert') : svcIcon(r.type))}</span>
+                <span><b>${esc(r.guestName || '—')} · ${esc(typeTr(r.type))}</b><small>${esc(why)} · ${esc(when)}</small></span>${act}</div>`;
+        }).join('') + '</div>' + (items.length > max ? `<button type="button" class="cz-todo-more" data-status-go="Pending">+${items.length - max} iş daha — bekleyenleri listede göster</button>` : '');
+    }
+    function renderAside(scopeTyped) {
+        const todo = todoItems();
+        $('czTodo').innerHTML = `<div class="cz-panel-h"><h4>Yapılacaklar</h4><span class="n${todo.length ? '' : ' ok'}">${todo.length}</span></div>` + todoHtml(todo, 6);
+        // Mobil / dar ekran: panonun başında katlanabilir özet
+        const m = $('czTodoMobile');
+        if (m) m.innerHTML = todo.length ? `<details class="cz-panel"><summary class="cz-panel-h" style="cursor:pointer;list-style:none"><h4>${ic('alert')} ${todo.length} iş bekliyor</h4><span class="n">${todo.length}</span></summary>${todoHtml(todo, 8)}</details>` : '';
+
+        // Tahsilat (kapsam: görünüm) — para birimleri karıştırılmaz
+        const money = {};
+        let dueCount = 0;
+        scopeTyped.forEach(r => {
+            if (stOf(r) === 'Cancelled' || !PAID_TYPES.includes(r.type)) return;
+            const c = r.currency || 'EUR';
+            const g = money[c] || (money[c] = { total: 0, dep: 0, due: 0 });
+            g.total += Number(r.totalPrice) || 0; g.dep += Number(r.deposit) || 0;
+            if (!r.folioApplied && balanceOf(r) > 0) { g.due += balanceOf(r); dueCount++; }
+        });
+        const curs = Object.keys(money).filter(c => money[c].total > 0);
+        const scopeName = view === 'day' ? (dayWord(cursor) ? dayWord(cursor).toLowerCase() : 'bu gün') : view === 'week' ? 'bu hafta' : view === 'month' ? 'bu ay' : 'listede';
+        $('czMoney').innerHTML = !curs.length ? '' : `<div class="cz-panel-h"><h4>Tahsilat · ${esc(scopeName)}</h4></div><div class="cz-money">
+            <div class="cz-money-row big"><span>Tahsil edilecek</span><b>${curs.map(c => esc(fmtMoney(money[c].due, c))).join(' + ')}</b></div>
+            <div class="cz-money-row"><span>Toplam tutar</span><b>${curs.map(c => esc(fmtMoney(money[c].total, c))).join(' + ')}</b></div>
+            <div class="cz-money-row"><span>Alınan kapora</span><b>${curs.map(c => esc(fmtMoney(money[c].dep, c))).join(' + ')}</b></div>
+            <p class="cz-money-note">${dueCount ? dueCount + ' rezervasyonda kalan bakiye var; ayrıntıdan oda hesabına yansıtılabilir.' : 'Kalan bakiye yok.'}</p></div>`;
+
+        // Önümüzdeki 7 gün
+        const t = todayIso();
+        const days = [];
+        for (let i = 0; i < 7; i++) { const iso = isoAdd(t, i); days.push([iso, reservations.filter(r => r.date === iso && stOf(r) !== 'Cancelled').length]); }
+        const max = Math.max(1, ...days.map(d => d[1]));
+        $('czWeekAhead').innerHTML = `<div class="cz-panel-h"><h4>Önümüzdeki 7 gün</h4></div><div class="cz-bars">${days.map(([iso, n]) =>
+            `<button type="button" class="cz-bar${iso === t ? ' today' : ''}" data-go-date="${iso}" title="${esc(fmtDayLong(iso))}: ${n} rezervasyon"><em>${n || ''}</em><i style="height:${Math.max(4, Math.round(n / max * 64))}px"></i><span>${isoToDate(iso).toLocaleDateString('tr-TR', { weekday: 'short' })}</span></button>`).join('')}</div>`;
+    }
+
+    // ── GEZİNME ───────────────────────────────────────────────
+    function goDate(iso, toView) {
+        if (!validIso(iso)) return;
+        cursor = iso;
+        if (toView) setView(toView, true);
+        if (statusFilter === 'overdue') statusFilter = null;
+        render();
+        $('czBoard')?.scrollTo({ top: 0 });
+    }
+    function step(dir) {
+        if (view === 'list' || statusFilter === 'overdue') return;
+        if (view === 'day') cursor = isoAdd(cursor, dir);
+        else if (view === 'week') cursor = isoAdd(cursor, 7 * dir);
+        else { const d = isoToDate(cursor); d.setDate(1); d.setMonth(d.getMonth() + dir); cursor = dateToIso(d); }
+        render();
+    }
+    function setView(v, silent) {
+        if (!VIEWS.includes(v)) return;
+        view = v;
+        try { localStorage.setItem('cz_view', v); } catch (e) {}
+        if (!silent) render();
+    }
+    $('czPrev').addEventListener('click', () => step(-1));
+    $('czNext').addEventListener('click', () => step(1));
+    $('czToday').addEventListener('click', () => { cursor = todayIso(); if (view === 'list') setView('day', true); statusFilter = statusFilter === 'overdue' ? null : statusFilter; render(); });
+    $('czDateInput').addEventListener('change', (e) => { if (validIso(e.target.value)) goDate(e.target.value, view === 'list' ? 'day' : null); });
+    $('czViews').addEventListener('click', (e) => { const b = e.target.closest('[data-view]'); if (b) { if (statusFilter === 'overdue') statusFilter = null; setView(b.dataset.view); } });
+    let searchTimer = null;
+    $('czSearch').addEventListener('input', (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { searchQ = norm(e.target.value); render(); }, 120); });
+
+    // Pano ve yan panel: olay devri (satır içi onclick YOK).
+    function onBoardClick(e) {
+        const qa = e.target.closest('[data-qa]');
+        if (qa) { e.stopPropagation(); quickAction(qa.dataset.id, qa.dataset.qa, qa); return; }
+        const go = e.target.closest('[data-go-date]');
+        if (go) { goDate(go.dataset.goDate, 'day'); return; }
+        if (e.target.closest('[data-go="list"]')) { statusFilter = null; setView('list'); return; }
+        if (e.target.closest('[data-clear]')) { statusFilter = null; typeFilter = null; searchQ = ''; $('czSearch').value = ''; render(); return; }
+        if (e.target.closest('[data-new]')) { openNewRes({ date: cursor }); return; }
+        if (e.target.closest('[data-past]')) { showPast = true; render(); return; }
+        const sg = e.target.closest('[data-status-go]');
+        if (sg) { statusFilter = sg.dataset.statusGo; setView('list'); return; }
+        const it = e.target.closest('[data-id]');
+        if (it) openDetailById(it.dataset.id);
+    }
+    $('czBoard').addEventListener('click', onBoardClick);
+    document.querySelector('.cz-aside').addEventListener('click', onBoardClick);
+    $('czBoard').addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('cz-res')) { e.preventDefault(); openDetailById(e.target.dataset.id); }
     });
-    document.getElementById('c-navReports')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.getElementById('c-openReport')?.click();
-    });
-    document.getElementById('c-allTimeMobile')?.addEventListener('click', () => {
-        document.getElementById('c-pillAllTime')?.click();
-    });
-    (function fillIdentity() {
-        const name = localStorage.getItem('hotelUsername') || 'Admin';
-        const role = (localStorage.getItem('hotelRole') || '').toLowerCase();
-        const av = document.getElementById('c-avatar');
-        const rl = document.getElementById('c-roleLabel');
-        if (av) av.textContent = name.slice(0, 2).toUpperCase();
-        if (rl) rl.textContent = role === 'admin' ? 'Yönetici' : (role === 'manager' ? 'Müdür' : 'Personel');
-    })();
+    function markSelected() {
+        document.querySelectorAll('.cz-res.is-sel').forEach(el => el.classList.remove('is-sel'));
+        if (!selectedId) return;
+        document.querySelectorAll('.cz-res').forEach(el => { if (el.dataset.id === selectedId) el.classList.add('is-sel'); });
+    }
 
-    function renderReservations() {
-        const search = document.getElementById('c-search').value.toLocaleLowerCase('tr-TR');
-        const dateVal = document.getElementById('c-dateFilter').value;
-        const feed = document.getElementById('c-feed');
-        const empty = document.getElementById('c-emptyState');
-        const today = new Date().toISOString().split('T')[0];
-
-        // Update Stats & Active states. "Bugün" lights up when viewing today's
-        // agenda and "Tüm Zamanlar" when no date is set — so the active view is
-        // always visible, not just the status pills.
-        document.getElementById('c-pillPending')?.classList.toggle('active', statusFilter === 'Pending');
-        document.getElementById('c-pillConfirmed')?.classList.toggle('active', statusFilter === 'Confirmed');
-        document.getElementById('c-pillToday')?.classList.toggle('active', !statusFilter && !search && dateVal === today);
-        document.getElementById('c-pillAllTime')?.classList.toggle('active', !statusFilter && !search && !dateVal);
-
-        // Console chrome: date title, day summary, upcoming list, calendar dots.
-        updateDayTitle(dateVal);
-        renderSummary(dateVal);
-        renderUpcoming();
-        renderCalendar();
-        feed.classList.remove('cz-month-wrap');
-
-        let todayCount = 0, pending = 0, confirmed = 0, overdue = 0;
-        reservations.forEach(r => {
-            if (r.date === today) todayCount++;
-
-            // Pending is GLOBAL (show all outstanding tasks)
-            if (r.status === 'Pending') pending++;
-            // Bunların kaçı GECİKMİŞ? Eskiden ayrım yoktu: 3 ay önce
-            // onaylanmamış bir talep, yarınki taleple aynı sayıda görünüyordu.
-            if (isOverdueRes(r)) overdue++;
-
-            // Confirmed is DAILY (show today's operations)
-            if (r.date === dateVal && r.status === 'Confirmed') confirmed++;
-        });
-        if (document.getElementById('c-statToday')) document.getElementById('c-statToday').textContent = todayCount;
-        const pEl = document.getElementById('c-statPending');
-        if (pEl) {
-            pEl.textContent = pending;
-            // Gecikmişler ayrıca vurgulanır — sayının yanında küçük bir uyarı.
-            const host = pEl.parentElement;
-            if (host) {
-                let warn = host.querySelector('.c-stat-overdue');
-                if (overdue > 0) {
-                    if (!warn) { warn = document.createElement('span'); warn.className = 'c-stat-overdue'; host.appendChild(warn); }
-                    warn.innerHTML = ic('alert') + ' ' + overdue + ' gecikti';
-                    warn.title = 'Planlanan saati/tarihi geçmiş, hâlâ bekleyen kayıtlar';
-                } else if (warn) { warn.remove(); }
-            }
+    // ── DURUM DEĞİŞTİRME (tek kapı) ───────────────────────────
+    // Terminal durum koruması: iptal edilmiş (özellikle misafirin iptal ettiği)
+    // ya da tamamlanmış kayıt geri çevrilemez — misafir ekranı ve QR siparişi
+    // de bu durumda kalır (sunucu senkronu geri almaz).
+    async function setStatus(r, st, extra) {
+        const cur = stOf(r);
+        if ((cur === 'Cancelled' || cur === 'Done') && st !== cur) {
+            const who = r.cancelledBy === 'guest' ? 'Misafir' : (r.cancelledBy || 'Personel');
+            showToast(cur === 'Cancelled' ? ('Bu kayıt iptal edilmiş (' + who + '). Geri alınamaz — gerekiyorsa yeni kayıt oluşturun.') : 'Bu kayıt tamamlanmış. Geri alınamaz.', true);
+            return false;
         }
-        if (document.getElementById('c-statConfirmed')) document.getElementById('c-statConfirmed').textContent = confirmed;
-
-        feed.innerHTML = '';
-
-        // ── LIST MODE (Search or Status Filter Active) ─────────────
-        if (search || statusFilter) {
-            const results = reservations.filter(r => {
-                const matchesText = !search || [
-                    r.guestName, r.room, r.type, r.resName, r.otherType, r.vessel, r.provider, r.from, r.to, r.notes
-                ].some(val => val && val.toString().toLocaleLowerCase('tr-TR').includes(search));
-
-                const matchesStatus = !statusFilter || r.status === statusFilter;
-                const matchesDate = !dateVal || r.date === dateVal;   // ← değiştirilen kısım
-
-                return matchesText && matchesStatus && matchesDate;   // ← bu satır olmalı
-            });
-
-            if (results.length === 0) { empty.style.display = 'flex'; return; }
-            empty.style.display = 'none';
-
-            // Global Sort: Date then Time
-            results.sort((a, b) => {
-                if (a.date !== b.date) return a.date.localeCompare(b.date);
-                return (a.time || '00:00').localeCompare(b.time || '00:00');
-            });
-
-            filteredReservations = results;
-            results.forEach(r => feed.appendChild(createResCard(r)));
-            return;
+        if (st === 'Confirmed' && needsVoucher(Object.assign({}, r, extra || {}))) {
+            showToast('Onaylamak için voucher / onay no gerekli.', true);
+            return false;
         }
-
-        // ── WEEK / MONTH VIEWS ────────────────────────────
-        if (viewMode === 'week') { renderWeekView(dateVal || today, feed, empty); return; }
-        if (viewMode === 'month') { renderMonthView(dateVal || today, feed, empty); return; }
-
-        // ── AGENDA MODE (Default) ─────────────────────────
-        // All Time mode: no date selected, show flat list of all
-    if (!dateVal) {
-        const allRes = [...reservations].sort((a, b) => {
-            if (a.date !== b.date) return a.date.localeCompare(b.date);
-            return (a.time || '00:00').localeCompare(b.time || '00:00');
-        });
-            if (allRes.length === 0) { empty.style.display = 'flex'; return; }
-            empty.style.display = 'none';
-            filteredReservations = allRes;
-            allRes.forEach(r => feed.appendChild(createResCard(r)));
-            return;
-        }
-        const parts = dateVal.split('-');
-        const d = new Date(parts[0], parts[1] - 1, parts[2]);
-        d.setDate(d.getDate() + 1);
-        const nextDayStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-
-        const filtered = [];
-        reservations.forEach(r => {
-            const matchesStatus = !statusFilter || r.status === statusFilter;
-            if (!matchesStatus) return;
-
-            // Today's actual reservations
-            if (r.date === dateVal) {
-                filtered.push({ ...r, isNextDayVirtual: false });
+        const upd = Object.assign({ status: st, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }, extra || {});
+        if (st === 'Confirmed') { upd.confirmedBy = loggedUsername; upd.confirmedAt = firebase.firestore.FieldValue.serverTimestamp(); }
+        if (st === 'Done') { upd.completedBy = loggedUsername; upd.completedAt = firebase.firestore.FieldValue.serverTimestamp(); }
+        try {
+            await db.collection('reservations').doc(r.id).update(upd);
+            return true;
+        } catch (e) { showToast('Durum değiştirilemedi.', true); return false; }
+    }
+    const armed = new WeakMap();
+    async function quickAction(id, act, btn) {
+        const r = reservations.find(x => x.id === id);
+        if (!r) return;
+        if (act === 'confirm') {
+            if (needsVoucher(r)) { openDetail(r); openInline('voucher'); return; }
+            btn.disabled = true;
+            if (await setStatus(r, 'Confirmed')) {
+                showToast(r.guestName + ' · ' + typeTr(r.type) + ' onaylandı', false, async () => {
+                    try { await db.collection('reservations').doc(r.id).update({ status: 'Pending' }); showToast('Onay geri alındı'); }
+                    catch (e) { showToast('Geri alınamadı.', true); }
+                });
             }
-            // Tomorrow's early morning reservations (00:00 to 07:59)
-            else if (r.date === nextDayStr && r.time) {
-                const hour = parseInt(r.time.split(':')[0]);
-                if (hour >= 0 && hour < 8) {
-                    filtered.push({ ...r, isNextDayVirtual: true });
-                }
-            }
-        });
-        
-        filteredReservations = filtered;
-        // An empty day still renders the full hour grid (every slot "Müsait"),
-        // matching the console design — no separate empty state here.
-        empty.style.display = 'none';
-
-        // Dynamic Slots: Start with core 08-23
-        let slots = [];
-        for (let h = 8; h <= 23; h++) slots.push(h.toString().padStart(2, '0') + ':00');
-
-        // Add extra hours that have reservations (e.g. 05:00, 01:00, and virtual hours like 25:00 for next day early morning)
-        filtered.forEach(r => {
-            if (r.time) {
-                let hourNum = parseInt(r.time.split(':')[0]);
-                if (r.isNextDayVirtual) {
-                    hourNum += 24;
-                }
-                const h = hourNum.toString().padStart(2, '0') + ':00';
-                if (!slots.includes(h)) slots.push(h);
-            }
-        });
-
-        // Sort slots numerically
-        slots.sort((a, b) => a.localeCompare(b));
-
-        const grouped = {};
-        slots.forEach(s => grouped[s] = []);
-        const noTimeItems = [];
-
-        filtered.forEach(r => {
-            if (!r.time) {
-                noTimeItems.push(r);
-            } else {
-                let hourNum = parseInt(r.time.split(':')[0]);
-                if (r.isNextDayVirtual) {
-                    hourNum += 24;
-                }
-                const hourSlot = hourNum.toString().padStart(2, '0') + ':00';
-                if (grouped[hourSlot]) grouped[hourSlot].push(r);
-            }
-        });
-
-        // Render "Anytime" items at the very top if they exist
-        if (noTimeItems.length > 0) {
-            const anyEl = document.createElement('div');
-            anyEl.className = 'agenda-slot has-items';
-            let itemsHtml = noTimeItems.map(r => createResCard(r).outerHTML).join('');
-            anyEl.innerHTML = `
-                <div class="slot-time">Any</div>
-                <div class="slot-content">${itemsHtml}</div>
-            `;
-            feed.appendChild(anyEl);
-        }
-
-        // Ardışık BOŞ saatler tek satırda toplanır ("12:00 – 15:00 · Boş").
-        // Eskiden her boş saat ayrı bir "Müsait" satırıydı: dolu bir gün bile
-        // ekranın çoğunu boş satırlara harcıyor, rezervasyonlar kayboluyordu.
-        const fmtSlot = (hourVal) => (hourVal >= 24 ? (hourVal - 24) : hourVal).toString().padStart(2, '0') + ':00' + (hourVal >= 24 ? ' (+1)' : '');
-        let gapStart = null, gapEnd = null;
-        const flushGap = () => {
-            if (gapStart === null) return;
-            const gapEl = document.createElement('div');
-            gapEl.className = 'agenda-slot agenda-gap';
-            const label = gapEnd > gapStart ? fmtSlot(gapStart) + ' – ' + fmtSlot(gapEnd + 1) : fmtSlot(gapStart);
-            gapEl.innerHTML = `<div class="slot-time">${fmtSlot(gapStart)}</div><div class="slot-content"><div class="empty-slot-msg">${label} · Boş</div></div>`;
-            feed.appendChild(gapEl);
-            gapStart = gapEnd = null;
-        };
-        slots.forEach(slot => {
-            const items = grouped[slot];
-            const isCore = parseInt(slot) >= 8 && parseInt(slot) <= 23;
-            if (!isCore && items.length === 0) return; // Don't show empty non-core slots
-            if (items.length === 0) {
-                const hv = parseInt(slot);
-                if (gapStart === null) gapStart = hv;
-                gapEnd = hv;
+            btn.disabled = false;
+        } else if (act === 'done') {
+            // İki dokunuş: tamamlandı geri alınamaz.
+            if (!armed.get(btn)) {
+                armed.set(btn, true);
+                btn.classList.add('arm');
+                const old = btn.innerHTML;
+                btn.innerHTML = 'Emin misiniz?';
+                setTimeout(() => { if (btn.isConnected) { btn.classList.remove('arm'); btn.innerHTML = old; } armed.delete(btn); }, 3000);
                 return;
             }
-            flushGap();
-
-            const slotEl = document.createElement('div');
-            slotEl.className = 'agenda-slot' + (items.length > 0 ? ' has-items' : '');
-            let itemsHtml = '';
-            items.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-            items.forEach(r => {
-                const card = createResCard(r);
-                itemsHtml += card.outerHTML;
-            });
-
-            // If slot is virtual (>= 24), display as e.g. "01:00 (+1)"
-            let displayTime = slot;
-            const hourVal = parseInt(slot);
-            if (hourVal >= 24) {
-                displayTime = (hourVal - 24).toString().padStart(2, '0') + ':00 (+1)';
-            }
-
-            slotEl.innerHTML = `
-                <div class="slot-time">${displayTime}</div>
-                <div class="slot-content">${itemsHtml || '<div class="empty-slot-msg">Müsait</div>'}</div>
-            `;
-            feed.appendChild(slotEl);
-        });
-        flushGap();
+            btn.disabled = true;
+            if (await setStatus(r, 'Done')) showToast(r.guestName + ' · ' + typeTr(r.type) + ' tamamlandı');
+        }
     }
 
-    // Gecikmiş rezervasyon: hâlâ "Bekleyen" ama planlanan an geçmiş.
-    // Yalnızca Pending sayılır — Onaylı bir kayıt zaten ele alınmıştır,
-    // Tamamlandı/İptal ise terminaldir.
-    function isOverdueRes(r) {
-        if (!r || (r.status || 'Pending') !== 'Pending' || !r.date) return false;
-        const now = new Date();
-        const p = n => String(n).padStart(2, '0');
-        // Yerel gün (toISOString UTC'ye kayar; gece yarısı civarı yanlış güne düşerdi)
-        const today = now.getFullYear() + '-' + p(now.getMonth() + 1) + '-' + p(now.getDate());
-        if (r.date < today) return true;
-        if (r.date > today) return false;
-        // Bugünse saat karşılaştırılır; saati olmayan kayıt gün boyu geçerlidir.
-        if (!r.time) return false;
-        return r.time < now.toTimeString().slice(0, 5);
+    // ── MİSAFİR YARDIMCILARI ──────────────────────────────────
+    const findGuest = (name, guestId) => {
+        if (guestId) { const g = guestDirectory.find(x => x.id === guestId); if (g) return g; }
+        const n = norm(name);
+        return n ? guestDirectory.find(x => norm(x.name) === n) || null : null;
+    };
+    const initials = (n) => String(n || '').trim().split(/\s+/).map(s => s[0] || '').slice(0, 2).join('').toLocaleUpperCase('tr-TR') || '·';
+    function guestState(g) {
+        if (!g) return null;
+        if (g.status === 'in_house') return ['in', 'Konaklıyor'];
+        if (g.status === 'pre_arrival' || g.room === 'Pre-Arrival') return ['pre', 'Ön geliş'];
+        return ['out', 'Çıkış yaptı'];
+    }
+    const stayText = (g) => {
+        if (!g || (!g.checkIn && !g.checkOut)) return '';
+        const f = (iso) => validIso(iso) ? fmtDayShort(iso) : '?';
+        return f(g.checkIn) + ' – ' + f(g.checkOut);
+    };
+    // Misafirin bu tarihte otelde olup olmadığı (konaklama tarihleri biliniyorsa).
+    function outsideStay(g, iso) {
+        if (!g || !validIso(iso)) return false;
+        if (validIso(g.checkIn) && iso < g.checkIn) return true;
+        if (validIso(g.checkOut) && iso > g.checkOut) return true;
+        return false;
     }
 
-    function createResCard(r) {
-        const card = document.createElement('div');
-        card.className = 'res-card';
-        card.dataset.type = r.type;
-        card.dataset.status = r.status || 'Pending';
-        card.setAttribute('onclick', `openDetailById('${r.id}')`);
-
-        const isVirtual = r.isNextDayVirtual;
-        const nextDayBadge = isVirtual ? ' <span style="font-size:9px; background:#f97316; color:white; padding:1px 4px; border-radius:3px; font-weight:700; margin-left:4px;">+1 gün</span>' : '';
-        // Statik r.seriesTotal yalnızca oluşturma anındaki seri boyutunu taşır;
-        // seriden bazı tarihler silinince bu sayı bayatlar (ör. "3/5" kalan
-        // yalnızca 2 kayıt olsa bile). Rozet, aynı seriesId'yi paylaşan ve HÂLÂ
-        // var olan kayıt sayısını canlı olarak sayar.
-        const seriesCount = r.seriesId ? reservations.filter(x => x.seriesId === r.seriesId).length : 0;
-        const seriesBadge = (r.seriesId && seriesCount > 1) ? ` <span class="series-badge" title="Tekrarlayan rezervasyon serisi">${ic('repeat')} Seri (${seriesCount})</span>` : '';
-        // Gecikmiş: saati/tarihi geçmiş ama hâlâ Bekleyen. Bu kayıt "Yaklaşan"
-        // kutusundan da düştüğü için (renderUpcoming yalnızca geleceğe bakar)
-        // eskiden personelin baktığı HİÇBİR yerde işaretlenmiyordu.
-        const overdue = isOverdueRes(r);
-        if (overdue) card.classList.add('res-overdue');
-        const overdueBadge = overdue ? ' <span class="res-overdue-badge">GECİKTİ</span>' : '';
-        // Kaydın QR'dan mı yoksa personelden mi geldiği listede belli değildi.
-        const srcBadge = r.source === 'guest-order' ? ' <span class="res-src-badge" title="Misafirin QR ekranından geldi">QR</span>' : '';
-
-        card.innerHTML = `
-            <div class="res-card-icon">${svcIcon(r.type)}</div>
-            <div class="res-card-info">
-                <span class="res-card-guest">${esc(r.guestName)}${nextDayBadge}${seriesBadge}${srcBadge}${overdueBadge}</span>
-                <span class="res-card-room">${esc(resCardLine(r))}</span>
-            </div>
-            <div class="res-card-status">
-                <span class="status-badge ${esc((r.status || 'Pending').toLowerCase())}">${esc(({Pending:'Bekliyor',Confirmed:'Onaylı',Done:'Tamamlandı',Cancelled:'İptal'})[r.status] || r.status || 'Pending')}</span>
-            </div>
-        `;
-        return card;
+    // ── AYRINTI ÇEKMECESİ ─────────────────────────────────────
+    const detailOv = $('czDetailOv');
+    let inlineMode = null;
+    function openDetail(r) {
+        if (!r) return;
+        const same = selectedId === r.id;
+        selectedId = r.id;
+        window.selectedReservation = r;
+        if (!same) inlineMode = null;
+        populateDetail(r);
+        openOv(detailOv);
+        markSelected();
+        if (!same) $('czDetailBody').scrollTop = 0;
     }
-
-
-    // Helper for onclick in generated HTML
+    function onDetailClosed() {
+        selectedId = null;
+        window.selectedReservation = null;
+        inlineMode = null;
+        markSelected();
+    }
+    function openDetailById(id) {
+        const r = reservations.find(res => res.id === id);
+        if (r) openDetail(r);
+    }
+    // QR çekmecesi (guest-orders.js) concierge kalemini buradan açar.
     window.openDetailById = (id) => {
         const r = reservations.find(res => res.id === id);
         if (r) openDetail(r);
     };
+    $('detailClose').addEventListener('click', () => { closeOv(detailOv); onDetailClosed(); });
 
+    const canDelete = (r) => r.staffInitial === loggedUsername || r.staffInitial === 'QR-Misafir';
+    const tsText = (ts) => {
+        const d = ts && ts.toDate ? ts.toDate() : null;
+        return d ? d.toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    };
 
+    function populateDetail(r) {
+        const st = stOf(r), k = typeKey(r.type);
+        const g = findGuest(r.guestName, r.guestId);
+        const ti = $('d-typeIc'); ti.className = 'cz-type-ic t-' + k; ti.innerHTML = svcIcon(r.type);
+        $('d-type').textContent = typeTr(r.type);
+        const ds = $('d-status'); ds.className = 'cz-st st-' + st; ds.textContent = ST_TR[st];
+        $('d-guest').textContent = r.guestName || '—';
+        const dr = $('d-room');
+        const pre = !r.room || r.room === 'Pre-Arrival';
+        dr.className = 'cz-room' + (pre ? ' pre' : ''); dr.textContent = pre ? 'Ön geliş' : 'Oda ' + r.room;
+        const gs = guestState(g);
+        $('d-stay').textContent = [gs ? gs[1] : '', stayText(g)].filter(Boolean).join(' · ');
 
-    // ── DYNAMIC FORM LOGIC ────────────────────────────────────
-    const dynamicFields = document.getElementById('rs-dynamic-fields');
-    const typeSelect = document.getElementById('rs-type');
-
-    function updateFormFields() {
-        const type = typeSelect.value;
-        const voucherGroup = document.getElementById('rs-voucher-group');
-        const financeGroup = document.getElementById('rs-finance-group');
-        const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other'];
-
-        const isPaidType = paidTypes.includes(type);
-        if (voucherGroup) voucherGroup.style.display = isPaidType ? 'block' : 'none';
-        if (financeGroup) financeGroup.style.display = isPaidType ? 'flex' : 'none';
-
-        let html = '';
-        if (type === 'Restaurant') {
-            html = `
-                <div class="field-row">
-                    <div class="field-group"><label>Restoran adı</label><input type="text" id="rs-resName"></div>
-                    <div class="field-group"><label>Kişi</label><input type="number" id="rs-pax" inputmode="numeric"></div>
-                </div>`;
-        } else if (type === 'Beach') {
-            html = `
-        <div class="field-row">
-            <div class="field-group"><label>Plaj / mekân adı</label><input type="text" id="rs-resName"></div>
-            <div class="field-group"><label>Kişi</label><input type="number" id="rs-pax" inputmode="numeric"></div>
-        </div>`;
-        } else if (type === 'Transfer') {
-            html = `
-                <div class="field-row">
-                    <div class="field-group"><label>Nereden</label><input type="text" id="rs-from"></div>
-                    <div class="field-group"><label>Nereye</label><input type="text" id="rs-to"></div>
-                </div>
-                <div class="field-row">
-                    <div class="field-group"><label>Araç / uçuş no</label><input type="text" id="rs-vehicle"></div>
-                    <div class="field-group" style="max-width: 80px;"><label>Kişi</label><input type="number" id="rs-pax" inputmode="numeric"></div>
-                </div>`;
-        } else if (type === 'Boat' || type === 'Tour') {
-            html = `
-                <div class="field-group"><label>Tekne / tur adı</label><input type="text" id="rs-vessel"></div>
-                <div class="field-row">
-                    <div class="field-group"><label>Sağlayıcı / rehber</label><input type="text" id="rs-provider"></div>
-                    <div class="field-group" style="max-width: 80px;"><label>Kişi</label><input type="number" id="rs-pax" inputmode="numeric"></div>
-                </div>`;
-        } else if (type === 'Other' || type === 'Flower' || type === 'Cake') {
-            html = `
-                <div class="field-row">
-                    <div class="field-group"><label>Hizmet adı</label><input type="text" id="rs-otherType" placeholder="Örn. Spa, araç kiralama, bebek bakıcısı"></div>
-                </div>`;
+        // Durum şeridi
+        let banner = '';
+        if (st === 'Cancelled') {
+            const who = r.cancelledBy === 'guest' ? 'Misafir iptal etti' : ('İptal eden: ' + (r.cancelledBy || '—'));
+            banner = `<div class="cz-banner cancel">${ic('ban')}<div><b>${esc(who)}</b>${r.cancelReason ? esc(r.cancelReason) : ''}</div></div>`;
+        } else if (st === 'Done') {
+            banner = `<div class="cz-banner done">${ic('check')}<div><b>Tamamlandı</b>${esc([r.completedBy, tsText(r.completedAt)].filter(Boolean).join(' · '))}</div></div>`;
+        } else if (isOverdueRes(r)) {
+            banner = `<div class="cz-banner late">${ic('alert')}<div><b>Gecikti</b>Planlanan zaman geçti, kayıt hâlâ onay bekliyor. Onaylayın, tamamlayın ya da iptal edin.</div></div>`;
         }
-        dynamicFields.innerHTML = html;
-    };
-    typeSelect.onchange = updateFormFields;
-    updateFormFields();
+        if (r.source === 'guest-order' && st !== 'Cancelled' && st !== 'Done') {
+            banner += `<div class="cz-banner qr">${ic('qr')}<div><b>Misafirin QR talebi</b>Durum değişiklikleri misafirin ekranına anında yansır.</div></div>`;
+        }
+        if (g && outsideStay(g, r.date) && st !== 'Cancelled' && st !== 'Done') {
+            banner += `<div class="cz-banner late">${ic('calendar')}<div><b>Konaklama dışında</b>Misafirin konaklaması ${esc(stayText(g))}; bu rezervasyonun tarihi bu aralıkta değil.</div></div>`;
+        }
+        $('d-banner').innerHTML = banner;
 
-    let editResId = null;
-    // Düzenleme açıldığındaki son güncelleme zamanı — kaydederken bir
-    // transaction içinde bununla karşılaştırılır (kayıp güncelleme/lost-update
-    // önlemi: aynı rezervasyonu iki personel eşzamanlı düzenlerse ikinci kayıt
-    // ilkini sessizce ezmez).
-    let editResBaseUpdatedAt = null;
+        // Ne zaman
+        const rw = relWhen(r);
+        $('d-when').innerHTML = validIso(r.date) ? `<span class="ic">${ic('clock')}</span><div><b>${esc((dayWord(r.date) ? dayWord(r.date) + ', ' : '') + fmtDayLong(r.date))}${r.time ? ' · ' + esc(r.time) : ''}</b>${rw ? `<small class="${rw.cls}">${esc(rw.text)}</small>` : (r.time ? '' : '<small>Saat belirtilmedi</small>')}</div>` : '';
 
-    const openNewRes = () => {
-        editResId = null;
-        editResBaseUpdatedAt = null;
-        resetConflictAlert(); // Wipe existing alerts
-        document.querySelector('#resSheet h3').textContent = 'Yeni Rezervasyon';
-        document.getElementById('rs-submit').textContent = 'Rezervasyonu Kaydet';
-        
-        // Reset fields
-        ['rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
-            const el = document.getElementById(id); if (el) el.value = '';
-        });
-        const paCb = document.getElementById('rs-isPreArrival');
-        paCb.checked = false;
-        document.getElementById('rs-pa-box').style.display = 'block'; // Ensure total container visibility restored
-        document.getElementById('rs-room').disabled = false;
-        document.getElementById('rs-currency').value = 'EUR';
+        // Bağlama göre işlemler
+        let acts = '';
+        if (st === 'Pending') {
+            acts = needsVoucher(r)
+                ? `<button type="button" class="cz-btn success" data-act="voucher">${ic('check')} Voucher ekle ve onayla</button>`
+                : `<button type="button" class="cz-btn success" data-act="confirm">${ic('check')} Onayla</button>`;
+            acts += `<button type="button" class="cz-btn ghost" data-act="cancel">${ic('ban')} İptal et</button>`;
+        } else if (st === 'Confirmed') {
+            acts = `<button type="button" class="cz-btn primary" data-act="done">${ic('check')} Tamamlandı</button>`
+                + `<button type="button" class="cz-btn ghost" data-act="pending">${ic('hourglass')} Beklemeye al</button>`
+                + `<button type="button" class="cz-btn ghost" data-act="cancel">${ic('ban')} İptal et</button>`;
+        }
+        $('d-actions').innerHTML = acts;
+        renderInline(r);
 
-        typeSelect.value = 'Restaurant';
-        updateFormFields();
-        document.getElementById('rs-date').value = fmtDate(new Date());
-        // Reset repeat/package controls for a fresh reservation.
-        setRepeatVisible(true);
-        document.getElementById('rs-repeatOn').checked = false;
-        document.getElementById('rs-repeatOpts').style.display = 'none';
-        document.getElementById('rs-repeatCount').value = 3;
-        document.getElementById('rs-repeatInterval').value = '1';
-        renderGuestSummary('');
-        rsPreview();
-        openSheet(resSheet, resBackdrop);
-    };
+        // Hizmet ayrıntıları
+        const rows = [];
+        const add = (k2, v) => { if (v !== undefined && v !== null && String(v).trim() !== '') rows.push(`<dt>${k2}</dt><dd>${esc(v)}</dd>`); };
+        if (r.type === 'Transfer') { add('Nereden', r.from); add('Nereye', r.to); add('Araç / uçuş', r.vehicle); }
+        else if (r.type === 'Boat' || r.type === 'Tour') { add(r.type === 'Boat' ? 'Tekne' : 'Tur', r.vessel); add('Sağlayıcı', r.provider); }
+        else if (r.type === 'Restaurant' || r.type === 'Beach') add(r.type === 'Beach' ? 'Plaj / mekân' : 'Restoran', r.resName);
+        else add('Hizmet', r.otherType || r.resName);
+        add('Kişi', r.pax ? r.pax + ' kişi' : '');
+        if (VOUCHER_REQ.includes(r.type) || r.voucherNo) {
+            rows.push(`<dt>Voucher no</dt><dd>${r.voucherNo ? esc(r.voucherNo) : '<span class="cz-flag warn">Eksik</span>'}</dd>`);
+        }
+        const si = seriesInfo(r);
+        if (si) rows.push(`<dt>Seri</dt><dd>${si.i}. / ${si.n} rezervasyon</dd>`);
+        $('d-info').innerHTML = rows.join('');
 
-    // ── Repeat / package helpers ───────────────────────────────
-    function setRepeatVisible(show) {
-        const box = document.getElementById('rs-repeatBox');
-        if (box) box.style.display = show ? 'block' : 'none';
-    }
-    function addDaysIso(iso, n) {
-        const p = String(iso).split('-');
-        if (p.length !== 3) return iso;
-        const d = new Date(+p[0], +p[1] - 1, +p[2]);
-        d.setDate(d.getDate() + n);
-        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    }
-    function repeatDates() {
-        const on = document.getElementById('rs-repeatOn').checked;
-        const baseIso = toIsoDate(smartExpandDate(document.getElementById('rs-date').value));
-        if (!on || !baseIso) return baseIso ? [baseIso] : [];
-        const count = Math.max(2, Math.min(30, parseInt(document.getElementById('rs-repeatCount').value, 10) || 2));
-        const step = parseInt(document.getElementById('rs-repeatInterval').value, 10) || 1;
-        const out = [];
-        for (let i = 0; i < count; i++) out.push(addDaysIso(baseIso, i * step));
-        return out;
-    }
-    function renderRepeatHint() {
-        const hint = document.getElementById('rs-repeatHint');
-        const dates = repeatDates();
-        if (!document.getElementById('rs-repeatOn').checked || dates.length < 2) { hint.textContent = ''; return; }
-        const shown = dates.slice(0, 4).map(d => fmtDate(new Date(d.replace(/-/g, '/')))).join(', ');
-        hint.textContent = `${dates.length} rezervasyon: ${shown}${dates.length > 4 ? ' …' : ''}`;
-    }
-    document.getElementById('rs-repeatOn').addEventListener('change', (e) => {
-        document.getElementById('rs-repeatOpts').style.display = e.target.checked ? 'block' : 'none';
-        renderRepeatHint();
-    });
-    ['rs-repeatCount', 'rs-repeatInterval', 'rs-date'].forEach(id => {
-        document.getElementById(id)?.addEventListener('input', renderRepeatHint);
-        document.getElementById(id)?.addEventListener('change', renderRepeatHint);
-    });
-
-    const fabDesktop = document.getElementById('c-fab');
-    const fabMobile = document.getElementById('c-fab-mobile');
-    if (fabDesktop) fabDesktop.onclick = openNewRes;
-    if (fabMobile) fabMobile.onclick = openNewRes;
-    document.getElementById('resClose').onclick = () => closeSheet(resSheet, resBackdrop);
-    resBackdrop.onclick = () => closeSheet(resSheet, resBackdrop);
-
-    document.getElementById('rs-submit').onclick = async () => {
-        const submitBtn = document.getElementById('rs-submit');
-        if (submitBtn.disabled) return; // çift tıklamada mükerrer kayıt önlenir
-        const type = typeSelect.value;
-        const guestName = document.getElementById('rs-guest').value.trim();
-        const isPreArrival = document.getElementById('rs-isPreArrival').checked;
-        const room = document.getElementById('rs-room').value.trim();
-        let displayD = document.getElementById('rs-date').value;
-        displayD = smartExpandDate(displayD); // Ensure latest expansion ran
-        document.getElementById('rs-date').value = displayD; // Visually push fix
-        const date = toIsoDate(displayD);
-        const time = document.getElementById('rs-time').value;
-        const checkIn = document.getElementById('rs-checkIn').value;
-        const checkOut = document.getElementById('rs-checkOut').value;
-        const price = parseFloat(document.getElementById('rs-price').value) || 0;
-        const deposit = parseFloat(document.getElementById('rs-deposit').value) || 0;
-        const currency = document.getElementById('rs-currency').value || 'EUR';
-        const voucher = document.getElementById('rs-voucher').value.trim();
-        const notes = document.getElementById('rs-notes').value.trim();
-
-        if (!guestName || date === '') { showToast('Lütfen Misafir Adı ve Tarih girin', true); return; }
-        if (!isPreArrival && !room) { showToast('Ön Geliş işaretli değilse Oda zorunludur', true); return; }
-
-        // 🛡️ Informational Collision checks now trigger live via event listeners above.
-        // We allow direct single-click commits without obstructing UX flows now.
-
-        const dynamicData = {};
-        dynamicFields.querySelectorAll('input').forEach(inp => {
-            dynamicData[inp.id.replace('rs-', '')] = inp.value;
-        });
-
-        const data = {
-            type, guestName, room: isPreArrival ? 'Pre-Arrival' : room, date, time, notes,
-            totalPrice: price, deposit: deposit, currency,
-            voucherNo: voucher,
-            ...dynamicData
-        };
-
-        // Seri (tekrarlayan) rezervasyon oluşturuluyorsa, toplu yazımdan önce
-        // serinin TÜM tarihlerinde çakışma var mı kontrol et — tek tarihli
-        // pasif uyarı (checkConflictInline) seriye genişleyen diğer tarihleri
-        // hiç görmüyordu. Bilgilendirici kalır, personel onaylarsa kaydeder.
-        if (!editResId) {
-            const seriesDates = repeatDates();
-            if (seriesDates.length > 1) {
-                const conflictDates = seriesConflicts(seriesDates, guestName, time);
-                if (conflictDates.length) {
-                    const shown = conflictDates.slice(0, 5).map(d => fmtDate(new Date(d.replace(/-/g, '/')))).join(', ');
-                    const proceed = confirm(`${conflictDates.length} tarihte bu misafir için ±2 saat içinde başka bir kayıt var (${shown}${conflictDates.length > 5 ? ' …' : ''}).\n\nYine de kaydetmek istiyor musunuz?`);
-                    if (!proceed) return;
-                }
+        // Ödeme
+        const total = Number(r.totalPrice) || 0, dep = Number(r.deposit) || 0, bal = balanceOf(r);
+        let money = '';
+        if (PAID_TYPES.includes(r.type) && (total > 0 || dep > 0)) {
+            const cur = r.currency || 'EUR';
+            const balBox = r.folioApplied
+                ? `<div class="ok"><span>Oda hesabında</span><b>${esc(fmtMoney(r.folioAmount != null ? r.folioAmount : bal, cur))}</b></div>`
+                : (bal > 0 ? `<div class="due"><span>Kalan</span><b>${esc(fmtMoney(bal, cur))}</b></div>` : `<div class="ok"><span>Kalan</span><b>Ödendi</b></div>`);
+            money = `<h4>Ödeme</h4><div class="cz-moneybox"><div><span>Tutar</span><b>${esc(fmtMoney(total, cur))}</b></div><div><span>Kapora</span><b>${esc(fmtMoney(dep, cur))}</b></div>${balBox}</div>`;
+            // Bakiye varsa, oda gerçek bir numaraya atanmışsa ve daha önce
+            // yansıtılmamışsa "oda hesabına yansıt" sunulur (sunucuda hesaplanır).
+            if (!r.folioApplied && bal > 0 && !pre && st !== 'Cancelled') {
+                money += `<button type="button" class="cz-btn" id="d-applyFolioBtn" data-act="folio">${ic('receipt')} Kalan bakiyeyi oda hesabına yansıt</button>`;
+            } else if (!r.folioApplied && bal > 0 && pre && st !== 'Cancelled') {
+                money += `<p class="cz-hint">Oda atandığında kalan bakiye oda hesabına yansıtılabilir.</p>`;
             }
         }
+        $('d-money').innerHTML = money;
 
-        submitBtn.disabled = true; // çift tıklamada mükerrer kayıt önlenir
+        const notes = $('d-notes');
+        notes.textContent = r.notes || 'Not yok.';
+        notes.className = r.notes ? '' : 'muted';
+
+        const creator = r.staffInitial === 'QR-Misafir' ? 'Misafir (QR)' : (r.staffInitial || '—');
+        const meta = [['Oluşturan', creator + (tsText(r.createdAt) ? ' · ' + tsText(r.createdAt) : '')]];
+        if (r.confirmedBy) meta.push(['Onaylayan', r.confirmedBy + (tsText(r.confirmedAt) ? ' · ' + tsText(r.confirmedAt) : '')]);
+        if (r.lastUpdated) meta.push(['Son değişiklik', tsText(r.lastUpdated)]);
+        $('d-meta').innerHTML = '<h4>Kayıt</h4><dl class="cz-dl">' + meta.filter(m => m[1]).map(m => `<dt>${m[0]}</dt><dd>${esc(m[1])}</dd>`).join('') + '</dl>';
+
+        // Aynı misafirin diğer rezervasyonları
+        const n = norm(r.guestName);
+        const others = reservations.filter(x => x.id !== r.id && ((r.guestId && x.guestId === r.guestId) || (n && norm(x.guestName) === n)) && stOf(x) !== 'Cancelled');
+        const t = todayIso();
+        const upcoming = others.filter(x => x.date >= t).sort(byTime);
+        const past = others.filter(x => x.date < t).sort(byTime).reverse();
+        const rel = upcoming.concat(past).slice(0, 5);
+        $('d-related').innerHTML = !others.length ? '' : `<h4>Misafirin diğer rezervasyonları (${others.length})</h4><div class="cz-rel">${rel.map(x =>
+            `<button type="button" data-id="${esc(x.id)}"><span class="cz-res-ic t-${typeKey(x.type)}">${svcIcon(x.type)}</span><span><b>${esc(typeTr(x.type))}${x.time ? ' · ' + esc(x.time) : ''}</b><small>${esc(dayWord(x.date) || fmtDayLong(x.date))}</small></span><span class="cz-st st-${stOf(x)}">${ST_TR[stOf(x)]}</span></button>`).join('')}</div>`
+            + (upcoming.length ? `<button type="button" class="cz-btn ghost sm" data-act="iti" style="margin-top:8px;width:100%">${ic('file')} Misafir programı (PDF)</button>` : '');
+
+        $('d-deleteBtn').hidden = !canDelete(r);
+        $('d-editBtn').hidden = st === 'Cancelled';
+    }
+
+    // Çekmece içi pencereler: voucher · iptal nedeni · silme onayı (prompt/confirm yok).
+    const CANCEL_REASONS = ['Misafir vazgeçti', 'Hava koşulları', 'Tedarikçi iptal etti', 'Yer / araç yok', 'Tarih değişti'];
+    function renderInline(r) {
+        const box = $('d-inline');
+        if (!inlineMode) { box.hidden = true; box.innerHTML = ''; box.className = 'cz-inline'; return; }
+        box.hidden = false;
+        box.className = 'cz-inline' + (inlineMode === 'cancel' || inlineMode === 'delete' ? ' bad' : '');
+        if (inlineMode === 'voucher') {
+            box.innerHTML = `<h4>Voucher / onay no</h4><p>${esc(typeTr(r.type))} rezervasyonunu onaylamak için tedarikçinin verdiği onay numarası gerekli.</p>
+                <input type="text" id="d-voucherIn" autocomplete="off" placeholder="Örn. TRF-48213" value="${esc(r.voucherNo || '')}">
+                <div class="cz-inline-act"><button type="button" class="cz-btn ghost sm" data-act="inline-close">Vazgeç</button><button type="button" class="cz-btn success sm" data-act="voucher-save">${ic('check')} Kaydet ve onayla</button></div>`;
+            setTimeout(() => $('d-voucherIn')?.focus(), 30);
+        } else if (inlineMode === 'cancel') {
+            box.innerHTML = `<h4>İptal nedeni</h4><p>${r.source === 'guest-order' ? 'Neden misafirin ekranında gösterilir.' : 'Neden kayıtta saklanır.'} İptal geri alınamaz.</p>
+                <div class="cz-quick">${CANCEL_REASONS.map(x => `<button type="button" data-reason="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+                <textarea id="d-cancelIn" rows="2" maxlength="300" placeholder="Nedeni yazın"></textarea>
+                <div class="cz-inline-act"><button type="button" class="cz-btn ghost sm" data-act="inline-close">Vazgeç</button><button type="button" class="cz-btn danger sm" data-act="cancel-save">${ic('ban')} Rezervasyonu iptal et</button></div>`;
+            setTimeout(() => $('d-cancelIn')?.focus(), 30);
+        } else if (inlineMode === 'delete') {
+            box.innerHTML = `<h4>Rezervasyonu kalıcı olarak sil</h4><p>Silinen kayıt geri getirilemez; raporlarda da görünmez. İptal etmek çoğu zaman daha doğrudur. Onay için şifrenizi girin.</p>
+                <input type="password" id="d-delPass" autocomplete="current-password" placeholder="Şifreniz">
+                <div class="cz-inline-act"><button type="button" class="cz-btn ghost sm" data-act="inline-close">Vazgeç</button><button type="button" class="cz-btn danger sm" data-act="delete-save">${ic('trash')} Kalıcı olarak sil</button></div>`;
+            setTimeout(() => $('d-delPass')?.focus(), 30);
+        }
+    }
+    function openInline(mode) {
+        const r = window.selectedReservation;
+        if (!r) return;
+        inlineMode = mode;
+        renderInline(r);
+        $('d-inline').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    $('czDetailBody').addEventListener('click', async (e) => {
+        const r = window.selectedReservation;
+        if (!r) return;
+        const reason = e.target.closest('[data-reason]');
+        if (reason) {
+            const ta = $('d-cancelIn'); if (ta) { ta.value = reason.dataset.reason; ta.focus(); }
+            reason.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === reason));
+            return;
+        }
+        const rel = e.target.closest('.cz-rel [data-id]');
+        if (rel) { openDetailById(rel.dataset.id); return; }
+        const b = e.target.closest('[data-act]');
+        if (!b) return;
+        const act = b.dataset.act;
+        if (act === 'confirm') {
+            b.disabled = true;
+            if (await setStatus(r, 'Confirmed')) {
+                showToast('Onaylandı', false, async () => {
+                    try { await db.collection('reservations').doc(r.id).update({ status: 'Pending' }); showToast('Onay geri alındı'); }
+                    catch (err) { showToast('Geri alınamadı.', true); }
+                });
+            }
+            b.disabled = false;
+        } else if (act === 'voucher') openInline('voucher');
+        else if (act === 'cancel') openInline('cancel');
+        else if (act === 'inline-close') { inlineMode = null; renderInline(r); }
+        else if (act === 'pending') { if (await setStatus(r, 'Pending')) showToast('Beklemeye alındı'); }
+        else if (act === 'done') {
+            if (b.dataset.armed !== '1') {
+                b.dataset.armed = '1';
+                b.innerHTML = ic('check') + ' Emin misiniz? Geri alınamaz';
+                setTimeout(() => { if (b.isConnected && b.dataset.armed === '1') { b.dataset.armed = ''; b.innerHTML = ic('check') + ' Tamamlandı'; } }, 3500);
+                return;
+            }
+            b.disabled = true;
+            if (await setStatus(r, 'Done')) showToast('Tamamlandı olarak işaretlendi');
+            b.disabled = false;
+        } else if (act === 'voucher-save') {
+            const v = ($('d-voucherIn').value || '').trim();
+            if (!v) { $('d-voucherIn').classList.add('bad'); $('d-voucherIn').focus(); return; }
+            b.disabled = true;
+            const ok = stOf(r) === 'Pending' ? await setStatus(r, 'Confirmed', { voucherNo: v }) : await db.collection('reservations').doc(r.id).update({ voucherNo: v }).then(() => true, () => false);
+            b.disabled = false;
+            if (ok) { inlineMode = null; showToast(stOf(r) === 'Pending' ? 'Voucher kaydedildi, onaylandı' : 'Voucher kaydedildi'); }
+        } else if (act === 'cancel-save') {
+            const reasonTxt = ($('d-cancelIn').value || '').trim();
+            if (!reasonTxt) { $('d-cancelIn').classList.add('bad'); $('d-cancelIn').focus(); showToast('İptal nedeni belirtmelisiniz.', true); return; }
+            b.disabled = true;
+            const ok = await setStatus(r, 'Cancelled', { cancelReason: reasonTxt.slice(0, 300), cancelledBy: loggedUsername });
+            b.disabled = false;
+            if (ok) { inlineMode = null; showToast('Rezervasyon iptal edildi'); }
+        } else if (act === 'delete-save') {
+            await deleteReservation(r, b);
+        } else if (act === 'folio') {
+            await applyToFolio(r);
+        } else if (act === 'iti') {
+            closeOv(detailOv); onDetailClosed();
+            openItinerary(r.guestName);
+        }
+    });
+    $('czDetailBody').addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        const id = e.target && e.target.id;
+        const map = { 'd-voucherIn': 'voucher-save', 'd-delPass': 'delete-save' };
+        if (map[id]) { e.preventDefault(); document.querySelector(`#d-inline [data-act="${map[id]}"]`)?.click(); }
+    });
+
+    // Silme: yalnızca oluşturan (ya da QR kaynaklı kayıtlar — firestore.rules
+    // ile aynı istisna) ve şifre yeniden doğrulanarak.
+    async function deleteReservation(r, btn) {
+        if (!canDelete(r)) { showToast('Bu kaydı yalnızca oluşturan kişi silebilir!', true); return; }
+        const passEl = $('d-delPass');
+        const password = passEl ? passEl.value : '';
+        if (!password) { showToast('Lütfen şifrenizi girin', true); passEl?.focus(); return; }
+        btn.disabled = true;
+        const old = btn.innerHTML;
+        btn.textContent = 'Doğrulanıyor…';
+        try {
+            const user = firebase.auth().currentUser;
+            const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+            await user.reauthenticateWithCredential(credential);
+            await db.collection('reservations').doc(r.id).delete();
+            closeOv(detailOv); onDetailClosed();
+            showToast('Rezervasyon silindi');
+        } catch (e) {
+            showToast('Doğrulama başarısız. Şifre yanlış.', true);
+            if (passEl) { passEl.value = ''; passEl.classList.add('bad'); passEl.focus(); }
+        } finally {
+            if (btn.isConnected) { btn.disabled = false; btn.innerHTML = old; }
+        }
+    }
+
+    // Ödeme gerektiren rezervasyonların kalan bakiyesini misafirin oda hesabına
+    // (folio) yansıtır. F4.5: folio CREATE istemciye kapalı — bakiye SUNUCUDA
+    // hesaplanır (applyReservationFolio), folioApplied + operationId çift
+    // yansıtmayı engeller, audit'e yazılır.
+    async function applyToFolio(r) {
+        if (!r) return;
+        if (!r.room || r.room === 'Pre-Arrival') { showToast('Oda ataması olmayan rezervasyon oda hesabına yansıtılamaz.', true); return; }
+        const btn = $('d-applyFolioBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Yansıtılıyor…'; }
+        try {
+            const call = firebase.app().functions('us-central1').httpsCallable('applyReservationFolio');
+            const opId = 'op' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+            const res = await call({ operationId: opId, reservationId: r.id });
+            const updated = Object.assign({}, r, { folioApplied: true, folioAmount: res.data.balance });
+            window.selectedReservation = updated;
+            populateDetail(updated);
+            showToast('Oda hesabına yansıtıldı.');
+        } catch (e) {
+            const det = (e && e.details) || {};
+            if (det.already) showToast('Bu rezervasyon zaten oda hesabına yansıtılmış.', true);
+            else if (det.noBalance) showToast('Yansıtılacak bakiye yok.', true);
+            else if (String(e && e.code).includes('not-found') && !det.errCode) showToast('Servis henüz yüklenmemiş (deploy eksik) — yöneticinizle iletişime geçin.', true);
+            else showToast('Yansıtılamadı: ' + ((e && e.message) || 'hata'), true);
+            const b2 = $('d-applyFolioBtn');
+            if (b2) { b2.disabled = false; b2.innerHTML = ic('receipt') + ' Kalan bakiyeyi oda hesabına yansıt'; }
+        }
+    }
+
+    $('d-confirmLetterBtn').addEventListener('click', () => { if (window.selectedReservation) generateConfirmationPDF(window.selectedReservation); });
+    $('d-deleteBtn').addEventListener('click', () => {
+        const r = window.selectedReservation;
+        if (!r) return;
+        if (!canDelete(r)) { showToast('Bu kaydı yalnızca oluşturan kişi silebilir!', true); return; }
+        openInline('delete');
+    });
+    $('d-editBtn').addEventListener('click', () => {
+        const r = window.selectedReservation;
+        if (!r) return;
+        closeOv(detailOv); onDetailClosed();
+        openEditRes(r);
+    });
+    $('d-dupBtn').addEventListener('click', () => {
+        const r = window.selectedReservation;
+        if (!r) return;
+        closeOv(detailOv); onDetailClosed();
+        const t = todayIso();
+        openNewRes(Object.assign({}, r, { date: r.date > t ? isoAdd(r.date, 1) : t, voucherNo: '', deposit: '', __dup: true }));
+    });
+
+    // ── REZERVASYON FORMU ─────────────────────────────────────
+    const formOv = $('czFormOv');
+    const dynamicFields = $('rs-dynamic-fields');
+    const DYN_KEYS = ['resName', 'pax', 'from', 'to', 'vehicle', 'vessel', 'provider', 'otherType'];
+    let editResId = null;
+    // Düzenleme açıldığındaki son güncelleme zamanı — kaydederken bir
+    // transaction içinde bununla karşılaştırılır (kayıp güncelleme önlemi:
+    // aynı rezervasyonu iki personel eşzamanlı düzenlerse ikinci kayıt
+    // ilkini sessizce ezmez).
+    let editResBaseUpdatedAt = null;
+    let editResStatus = null;
+    let formSnap = '';
+    let seriesAck = false;
+
+    // Daha önce girilmiş değerlerden öneriler (restoran adları, güzergâhlar, tekneler…).
+    function suggest(key, type) {
+        const cnt = {};
+        reservations.forEach(r => {
+            if (type && r.type !== type) return;
+            const v = String(r[key] || '').trim();
+            if (v && v.length < 60) cnt[v] = (cnt[v] || 0) + 1;
+        });
+        return Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 12);
+    }
+    function field(key, label, opts) {
+        opts = opts || {};
+        const list = opts.sug ? suggest(key, opts.sugType) : [];
+        const dl = list.length ? `<datalist id="czSug-${key}">${list.map(v => `<option value="${esc(v)}">`).join('')}</datalist>` : '';
+        return `<div class="cz-field${opts.cls ? ' ' + opts.cls : ''}"><label for="rs-${key}">${label}</label><input type="${opts.num ? 'number' : 'text'}" id="rs-${key}"${opts.num ? ' min="1" max="99" inputmode="numeric"' : ''}${list.length ? ` list="czSug-${key}"` : ''} placeholder="${esc(opts.ph || '')}" autocomplete="off">${dl}</div>`;
+    }
+    function dynHtml(type) {
+        if (type === 'Restaurant') return `<div class="cz-row">${field('resName', 'Restoran', { sug: true, sugType: 'Restaurant', ph: 'Restoran adı', cls: 'grow' })}${field('pax', 'Kişi', { num: true, cls: 'room' })}</div>`;
+        if (type === 'Beach') return `<div class="cz-row">${field('resName', 'Plaj / mekân', { sug: true, sugType: 'Beach', ph: 'Plaj ya da beach club', cls: 'grow' })}${field('pax', 'Kişi', { num: true, cls: 'room' })}</div>`;
+        if (type === 'Transfer') return `<div class="cz-row">${field('from', 'Nereden', { sug: true, ph: 'Örn. Otel' })}${field('to', 'Nereye', { sug: true, ph: 'Örn. Havalimanı' })}</div>
+            <div class="cz-row" style="margin-top:10px">${field('vehicle', 'Araç / uçuş no', { sug: true, sugType: 'Transfer', ph: 'Örn. Vito · TK 2412', cls: 'grow' })}${field('pax', 'Kişi', { num: true, cls: 'room' })}</div>`;
+        if (type === 'Boat' || type === 'Tour') return `${field('vessel', type === 'Boat' ? 'Tekne' : 'Tur', { sug: true, sugType: type, ph: type === 'Boat' ? 'Tekne adı' : 'Tur adı' })}
+            <div class="cz-row" style="margin-top:10px">${field('provider', 'Sağlayıcı / rehber', { sug: true, sugType: type, cls: 'grow' })}${field('pax', 'Kişi', { num: true, cls: 'room' })}</div>`;
+        const ph = type === 'Cake' ? 'Örn. Doğum günü pastası, 6 kişilik' : (type === 'Flower' ? 'Örn. Oda süslemesi, gül buketi' : 'Örn. Spa, araç kiralama, bebek bakıcısı');
+        return field('otherType', 'Hizmet', { sug: true, sugType: type, ph });
+    }
+    function setType(type) {
+        if (!TYPE_TR[type]) type = 'Restaurant';
+        // Tür değişse de ortak alanların (kişi sayısı vb.) değeri korunur.
+        const keep = {};
+        dynamicFields.querySelectorAll('input').forEach(i => { if (i.value) keep[i.id] = i.value; });
+        $('rs-type').value = type;
+        document.querySelectorAll('#czTypeTiles .cz-tile').forEach(t => {
+            const on = t.dataset.type === type;
+            t.setAttribute('aria-checked', on ? 'true' : 'false');
+            t.tabIndex = on ? 0 : -1;
+        });
+        dynamicFields.innerHTML = dynHtml(type);
+        Object.keys(keep).forEach(id => { const el = $(id); if (el) el.value = keep[id]; });
+        $('czDetailsTitle').textContent = typeTr(type) + ' ayrıntıları';
+        const paid = PAID_TYPES.includes(type);
+        $('rs-finance-box').hidden = !paid;
+        $('rs-voucher-group').hidden = !paid;
+        const vl = document.querySelector('label[for="rs-voucher"] small');
+        if (vl) vl.textContent = VOUCHER_REQ.includes(type) ? '(onaylamak için gerekli)' : '(isteğe bağlı)';
+        refreshForm();
+    }
+    $('czTypeTiles').addEventListener('click', (e) => { const t = e.target.closest('.cz-tile'); if (t) setType(t.dataset.type); });
+    $('czTypeTiles').addEventListener('keydown', (e) => {
+        if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+        const tiles = Array.from(document.querySelectorAll('#czTypeTiles .cz-tile'));
+        const i = tiles.findIndex(t => t.dataset.type === $('rs-type').value);
+        const d = (e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' ? 4 : -4);
+        const n = tiles[(i + d + tiles.length) % tiles.length];
+        setType(n.dataset.type); n.focus(); e.preventDefault();
+    });
+
+    // Para birimi
+    function setCur(c) {
+        if (!CUR_SYM[c]) c = 'EUR';
+        $('rs-currency').value = c;
+        document.querySelectorAll('#czCurSeg [data-cur]').forEach(b => b.setAttribute('aria-checked', b.dataset.cur === c ? 'true' : 'false'));
+        refreshForm();
+    }
+    $('czCurSeg').addEventListener('click', (e) => { const b = e.target.closest('[data-cur]'); if (b) setCur(b.dataset.cur); });
+
+    // Ön geliş
+    function setPreArrival(on) {
+        $('rs-isPreArrival').checked = on;
+        const room = $('rs-room');
+        room.disabled = on;
+        if (on) room.value = '';
+        room.placeholder = on ? '—' : 'No';
+        $('rs-dates-wrapper').hidden = !on;
+    }
+    $('rs-isPreArrival').addEventListener('change', (e) => { setPreArrival(e.target.checked); refreshForm(); });
+
+    // Tarih kısayolları
+    $('czDateQuick').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-d]'); if (!b) return;
+        $('rs-date').value = isoAdd(todayIso(), +b.dataset.d);
+        refreshForm();
+    });
+
+    // Tekrarlama (seri)
+    function repeatDates() {
+        const baseIso = $('rs-date').value;
+        if (!validIso(baseIso)) return [];
+        if (editResId || !$('rs-repeatOn').checked) return [baseIso];
+        const count = Math.max(2, Math.min(30, parseInt($('rs-repeatCount').value, 10) || 2));
+        const stepN = parseInt($('rs-repeatInterval').value, 10) || 1;
+        const out = [];
+        for (let i = 0; i < count; i++) out.push(isoAdd(baseIso, i * stepN));
+        return out;
+    }
+    $('rs-repeatOn').addEventListener('change', (e) => { $('rs-repeatOpts').hidden = !e.target.checked; refreshForm(); });
+
+    // ── Misafir seçici (rehber + geçmiş rezervasyonlar + PMS) ──
+    const guestIn = $('rs-guest'), roomIn = $('rs-room'), gList = $('czGuestList');
+    let gItems = [], gActive = -1, pmsTimer = null, pmsSeq = 0;
+    function localGuestMatches(q, byRoom) {
+        const out = [], seen = new Set();
+        const rank = (g) => g.status === 'in_house' ? 0 : (g.status === 'pre_arrival' ? 1 : 2);
+        guestDirectory.slice().sort((a, b) => rank(a) - rank(b)).forEach(g => {
+            const name = String(g.name || '').trim();
+            if (!name) return;
+            const hit = byRoom ? String(g.room || '') === q : (norm(name).includes(q) || (/^\d+$/.test(q) && String(g.room || '').startsWith(q)));
+            if (!hit || seen.has(norm(name))) return;
+            seen.add(norm(name));
+            out.push({ name, room: g.room && g.room !== 'Pre-Arrival' ? g.room : '', checkIn: g.checkIn, checkOut: g.checkOut, g, src: 'dir' });
+        });
+        if (!byRoom) Object.keys(guestMap).forEach(name => {
+            if (seen.has(norm(name)) || !norm(name).includes(q)) return;
+            seen.add(norm(name));
+            out.push({ name, room: guestMap[name] !== 'Pre-Arrival' ? guestMap[name] : '', src: 'res' });
+        });
+        return out.slice(0, 8);
+    }
+    function renderGuestList(local, pms) {
+        gItems = local.concat(pms || []);
+        gActive = -1;
+        if (!gItems.length) { gList.hidden = true; return; }
+        const row = (it, i) => {
+            const st = it.g ? guestState(it.g) : null;
+            const tag = it.src === 'pms' ? `<span class="tag pms">${it._demo ? 'DEMO' : 'PMS'}</span>` : (st ? `<span class="tag ${st[0] === 'in' ? '' : st[0]}">${st[1]}</span>` : '');
+            const sub = [it.room ? 'Oda ' + it.room : (st && st[0] === 'pre' ? 'Oda atanmadı' : ''), stayText(it)].filter(Boolean).join(' · ') || 'Önceki rezervasyonlardan';
+            return `<div class="cz-dd-it" role="option" data-i="${i}"><span class="av">${esc(initials(it.name))}</span><span><b>${esc(it.name)}${it.vip ? ' · VIP' : ''}</b><small>${esc(sub)}</small></span>${tag}</div>`;
+        };
+        let html = local.map(row).join('');
+        if (pms && pms.length) html += `<div class="cz-dd-h">${pms.some(p => p._demo) ? 'PMS · DEMO VERİ — gerçek misafir değil' : 'PMS'}</div>` + pms.map((it, j) => row(it, local.length + j)).join('');
+        gList.innerHTML = html;
+        gList.hidden = false;
+    }
+    function guestSearch(fromRoom) {
+        const raw = (fromRoom ? roomIn : guestIn).value.trim();
+        const q = norm(raw);
+        if (!q || (!fromRoom && q.length < 2 && !/^\d+$/.test(q))) { gList.hidden = true; return; }
+        if (fromRoom && guestIn.value.trim()) { gList.hidden = true; return; }
+        const local = localGuestMatches(q, fromRoom);
+        renderGuestList(local, []);
+        clearTimeout(pmsTimer);
+        if (!fromRoom && window.PMS && PMS.enabled && PMS.enabled() && raw.length >= 2) {
+            const seq = ++pmsSeq;
+            pmsTimer = setTimeout(async () => {
+                const list = await PMS.lookup(raw);
+                if (seq !== pmsSeq || document.activeElement !== guestIn) return;
+                const names = new Set(local.map(l => norm(l.name)));
+                const pms = (list || []).filter(p => p && p.name && !names.has(norm(p.name))).slice(0, 6).map(p => Object.assign({}, p, { src: 'pms' }));
+                renderGuestList(local, pms);
+            }, 320);
+        }
+    }
+    function pickGuest(it) {
+        if (!it) return;
+        guestIn.value = it.name;
+        const g = it.g || findGuest(it.name);
+        const isPre = g ? (g.status === 'pre_arrival' || g.room === 'Pre-Arrival') : false;
+        setPreArrival(!!isPre && !it.room);
+        if (it.room) { roomIn.disabled = false; roomIn.value = it.room; }
+        // Sunucu/rehber tarihleri YYYY-MM-DD; <input type="date"> başka biçimi boşaltır.
+        if (validIso(it.checkIn)) $('rs-checkIn').value = it.checkIn;
+        if (validIso(it.checkOut)) $('rs-checkOut').value = it.checkOut;
+        gList.hidden = true;
+        refreshForm();
+        (it.room || isPre ? $('rs-date') : roomIn).focus();
+    }
+    guestIn.addEventListener('input', () => { guestSearch(false); refreshForm(); });
+    guestIn.addEventListener('focus', () => { if (guestIn.value.trim()) guestSearch(false); });
+    roomIn.addEventListener('input', () => { guestSearch(true); refreshForm(); });
+    [guestIn, roomIn].forEach(inp => {
+        inp.addEventListener('blur', () => setTimeout(() => { if (!gList.contains(document.activeElement)) gList.hidden = true; }, 160));
+        inp.addEventListener('keydown', (e) => {
+            if (gList.hidden || !gItems.length) return;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                gActive = e.key === 'ArrowDown' ? Math.min(gActive + 1, gItems.length - 1) : Math.max(gActive - 1, 0);
+                gList.querySelectorAll('.cz-dd-it').forEach((el, i) => el.classList.toggle('act', i === gActive));
+                gList.querySelector('.cz-dd-it.act')?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter' && gActive >= 0) { e.preventDefault(); pickGuest(gItems[gActive]); }
+            else if (e.key === 'Escape') { e.stopPropagation(); gList.hidden = true; }
+        });
+    });
+    gList.addEventListener('mousedown', (e) => {
+        const it = e.target.closest('.cz-dd-it'); if (!it) return;
+        e.preventDefault();
+        pickGuest(gItems[+it.dataset.i]);
+    });
+
+    function renderGuestCard() {
+        const card = $('czGuestCard');
+        const name = guestIn.value.trim();
+        if (!name) { card.hidden = true; return; }
+        const g = findGuest(name);
+        const n = norm(name), t = todayIso();
+        const list = reservations.filter(r => norm(r.guestName) === n && r.id !== editResId && stOf(r) !== 'Cancelled' && r.date >= t).sort(byTime);
+        // Yazarken (rehberde eşleşen adlar varken) "yeni misafir" denmez.
+        if (!g && !guestMap[name] && localGuestMatches(n, false).length) { card.hidden = true; return; }
+        if (!g && !list.length && !guestMap[name]) {
+            card.className = 'cz-guestcard new';
+            card.innerHTML = `<span class="av">${esc(initials(name))}</span><span><b>Yeni misafir</b><small>Kaydedildiğinde misafir rehberine (CRM) eklenecek.</small></span>`;
+            card.hidden = false;
+            return;
+        }
+        const st = guestState(g);
+        const sub = [st ? st[1] : '', stayText(g)].filter(Boolean).join(' · ') || 'Önceki rezervasyonlardan';
+        const next = list.slice(0, 3).map(r => `${typeTr(r.type)} ${dayWord(r.date) || fmtDayShort(r.date)}${r.time ? ' ' + r.time : ''}`).join(' · ');
+        card.className = 'cz-guestcard';
+        card.innerHTML = `<span class="av">${esc(initials(name))}</span><span><b>${esc(g ? g.name : name)}</b><small>${esc(sub)}</small>${list.length ? `<small>${list.length} yaklaşan rezervasyon: ${esc(next)}${list.length > 3 ? ' …' : ''}</small>` : ''}</span>`;
+        card.hidden = false;
+    }
+
+    // ── Canlı uyarılar ────────────────────────────────────────
+    // Aynı misafir ±2 saat (seride TÜM tarihler), aynı araç/tekne başka
+    // misafirde, misafir o tarihte otelde değil, geçmiş zaman, kapora > tutar.
+    // Bilgilendiricidir; yalnız seri çakışması kayıttan önce bir kez onay ister.
+    function sameGuestClash(date, guestName, time) {
+        const entry = parseTimeToMins(time);
+        if (entry === null) return [];
+        return reservations.filter(r => {
+            if (editResId && r.id === editResId) return false;
+            if (stOf(r) === 'Cancelled' || r.date !== date || !r.time) return false;
+            if (norm(r.guestName) !== norm(guestName)) return false;
+            const m = parseTimeToMins(r.time);
+            return m !== null && Math.abs(entry - m) <= 120;
+        });
+    }
+    const seriesConflicts = (dates, guestName, time) => dates.filter(d => sameGuestClash(d, guestName, time).length);
+    function resourceClash(type, date, time, guestName) {
+        const key = type === 'Transfer' ? 'vehicle' : ((type === 'Boat' || type === 'Tour') ? 'vessel' : null);
+        if (!key) return [];
+        const val = norm(($('rs-' + key) || {}).value);
+        const entry = parseTimeToMins(time);
+        if (!val || entry === null) return [];
+        return reservations.filter(r => {
+            if (editResId && r.id === editResId) return false;
+            if (r.type !== type || stOf(r) === 'Cancelled' || r.date !== date || !r.time) return false;
+            if (norm(r[key]) !== val || norm(r.guestName) === norm(guestName)) return false;
+            return Math.abs(parseTimeToMins(r.time) - entry) <= 90;
+        });
+    }
+    function formWarnings() {
+        const out = [];
+        const name = guestIn.value.trim(), date = $('rs-date').value, time = $('rs-time').value, type = $('rs-type').value;
+        const dates = repeatDates();
+        if (name && time && dates.length) {
+            if (dates.length > 1) {
+                const cd = seriesConflicts(dates, name, time);
+                if (cd.length) out.push({ kind: 'series', bad: true, title: `${cd.length} tarihte yakın saatte başka kayıt var`, text: 'Bu misafirin ±2 saat içinde başka rezervasyonu olan tarihler: ' + cd.slice(0, 5).map(fmtDayShort).join(', ') + (cd.length > 5 ? ' …' : '') });
+            } else {
+                const c = sameGuestClash(date, name, time);
+                if (c.length) out.push({ kind: 'clash', title: 'Yakın saatte başka kayıt var', text: 'Bu misafirin ±2 saat içinde: ' + c.map(x => typeTr(x.type) + ' ' + x.time).join(', ') });
+            }
+        }
+        if (date && time) {
+            const rc = resourceClash(type, date, time, name);
+            if (rc.length) out.push({ kind: 'res', title: type === 'Transfer' ? 'Aynı araç başka misafire ayrılmış' : 'Aynı tekne / tur başka misafire ayrılmış', text: rc.map(x => x.guestName + ' · ' + x.time).join(', ') + ' (±90 dk)' });
+        }
+        const g = name ? findGuest(name) : null;
+        if (g && validIso(date) && outsideStay(g, date)) out.push({ kind: 'stay', title: 'Misafir bu tarihte otelde değil', text: 'Konaklama: ' + stayText(g) });
+        if (!editResId && validIso(date)) {
+            const t = todayIso();
+            if (date < t || (date === t && time && time < nowHM())) out.push({ kind: 'past', title: 'Geçmiş bir zaman seçildi', text: 'Tarih ve saati kontrol edin.' });
+        }
+        const price = parseFloat($('rs-price').value) || 0, dep = parseFloat($('rs-deposit').value) || 0;
+        if (PAID_TYPES.includes(type) && dep > 0 && dep > price) out.push({ kind: 'money', bad: true, title: 'Kapora tutardan büyük', text: 'Alınan kapora toplam tutarı aşıyor.' });
+        return out;
+    }
+
+    function refreshForm() {
+        const type = $('rs-type').value;
+        // Bakiye
+        const price = parseFloat($('rs-price').value) || 0, dep = parseFloat($('rs-deposit').value) || 0, cur = $('rs-currency').value;
+        const bal = $('czBalance');
+        if (!PAID_TYPES.includes(type) || (!price && !dep)) bal.innerHTML = '';
+        else if (price - dep > 0) bal.innerHTML = 'Kalan bakiye: <b>' + esc(fmtMoney(price - dep, cur)) + '</b>' + (dep ? ' · kapora ' + esc(fmtMoney(dep, cur)) : '');
+        else bal.innerHTML = '<span class="paid">Tamamı ödendi</span>';
+        // Tarih kısayolları
+        const d = $('rs-date').value, t = todayIso();
+        document.querySelectorAll('#czDateQuick [data-d]').forEach(b => b.classList.toggle('on', d === isoAdd(t, +b.dataset.d)));
+        // Seri ipucu
+        const dates = repeatDates();
+        $('rs-repeatHint').textContent = (!editResId && $('rs-repeatOn').checked && dates.length > 1)
+            ? `${dates.length} rezervasyon oluşturulacak: ${dates.slice(0, 4).map(fmtDayShort).join(', ')}${dates.length > 4 ? ' …' : ''}` : '';
+        // Uyarılar
+        const w = formWarnings();
+        const box = $('rs-conflict-alert');
+        box.innerHTML = w.map(x => `<div class="cz-warn-it${x.bad ? ' bad' : ''}">${ic('alert')}<div><b>${esc(x.title)}</b>${esc(x.text)}</div></div>`).join('');
+        box.hidden = !w.length;
+        if (!w.some(x => x.kind === 'series')) seriesAck = false;
+        // Özet
+        const name = guestIn.value.trim();
+        const room = $('rs-isPreArrival').checked ? 'Ön geliş' : (roomIn.value.trim() ? 'Oda ' + roomIn.value.trim() : '');
+        const when = validIso(d) ? (dayWord(d) || fmtDayShort(d)) + ($('rs-time').value ? ' ' + $('rs-time').value : '') : '';
+        $('czFormSum').innerHTML = `<b>${esc(typeTr(type))}</b>${[name, room, when].filter(Boolean).map(x => ' · ' + esc(x)).join('')}${dates.length > 1 ? ' · <b>' + dates.length + ' rezervasyon</b>' : ''}`;
+        renderGuestCard();
+        // "Kaydet ve onayla" yalnız yeni ya da bekleyen kayıtta
+        $('rs-submitConfirm').hidden = !!editResId && editResStatus !== 'Pending';
+        ['rs-guest', 'rs-room', 'rs-date', 'rs-voucher'].forEach(id => { const el = $(id); if (el && el.value) el.classList.remove('bad'); });
+    }
+    ['rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-repeatCount', 'rs-repeatInterval', 'rs-checkIn', 'rs-checkOut', 'rs-notes'].forEach(id => {
+        $(id).addEventListener('input', refreshForm);
+        $(id).addEventListener('change', refreshForm);
+    });
+    dynamicFields.addEventListener('input', refreshForm);
+
+    const formState = () => JSON.stringify(Array.from(formOv.querySelectorAll('input, textarea, select')).map(el => el.type === 'checkbox' ? el.checked : el.value));
+    function resetForm() {
+        ['rs-guest', 'rs-room', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => { const el = $(id); el.value = ''; el.classList.remove('bad'); });
+        dynamicFields.innerHTML = '';
+        setPreArrival(false);
+        $('rs-repeatOn').checked = false;
+        $('rs-repeatOpts').hidden = true;
+        $('rs-repeatCount').value = 3;
+        $('rs-repeatInterval').value = '1';
+        $('czLeave').hidden = true;
+        gList.hidden = true;
+        seriesAck = false;
+    }
+    function showForm() {
+        $('czFormOv').querySelector('.cz-mb').scrollTop = 0;
+        openOv(formOv);
+        refreshForm();
+        formSnap = formState();
+        const first = guestIn.value ? $('rs-date') : guestIn;
+        setTimeout(() => { if (document.activeElement === document.body || !formOv.contains(document.activeElement)) first.focus(); }, 40);
+    }
+    // Yeni rezervasyon (isteğe bağlı ön doldurma: tarih, ya da "benzerini oluştur").
+    function openNewRes(pre) {
+        pre = (pre && typeof pre === 'object' && !(pre instanceof Event)) ? pre : {};
+        editResId = null; editResBaseUpdatedAt = null; editResStatus = null;
+        resetForm();
+        $('czFormTitle').textContent = pre.__dup ? 'Benzer rezervasyon' : 'Yeni rezervasyon';
+        $('czFormSub').textContent = pre.__dup ? 'Bilgiler kopyalandı — tarihi ve saati kontrol edin.' : 'Hizmeti seçin, misafiri ve zamanı girin.';
+        $('rs-submit').textContent = 'Kaydet';
+        $('rs-repeatBox').hidden = false;
+        setType(pre.type || 'Restaurant');
+        setCur(pre.currency || 'EUR');
+        const t = todayIso();
+        $('rs-date').value = validIso(pre.date) && pre.date >= t ? pre.date : (cursor >= t ? cursor : t);
+        if (pre.guestName) {
+            guestIn.value = pre.guestName;
+            if (pre.room === 'Pre-Arrival') setPreArrival(true); else roomIn.value = pre.room || '';
+        }
+        if (pre.time) $('rs-time').value = pre.time;
+        if (pre.totalPrice) $('rs-price').value = pre.totalPrice;
+        if (pre.notes) $('rs-notes').value = pre.notes;
+        DYN_KEYS.forEach(k => { const el = $('rs-' + k); if (el && pre[k]) el.value = pre[k]; });
+        showForm();
+    }
+    function openEditRes(r) {
+        editResId = r.id;
+        editResBaseUpdatedAt = r.lastUpdated || r.createdAt || null;
+        editResStatus = stOf(r);
+        resetForm();
+        $('czFormTitle').textContent = 'Rezervasyonu düzenle';
+        $('czFormSub').textContent = (r.guestName || '') + ' · ' + typeTr(r.type) + ' · ' + ST_TR[stOf(r)];
+        $('rs-submit').textContent = 'Değişiklikleri kaydet';
+        $('rs-repeatBox').hidden = true;
+        setType(r.type);
+        setCur(r.currency || 'EUR');
+        guestIn.value = r.guestName || '';
+        const isPre = r.room === 'Pre-Arrival';
+        setPreArrival(isPre);
+        if (!isPre) roomIn.value = r.room || '';
+        if (isPre) {
+            const g = findGuest(r.guestName, r.guestId);
+            if (g) { $('rs-checkIn').value = g.checkIn || ''; $('rs-checkOut').value = g.checkOut || ''; }
+        }
+        $('rs-date').value = validIso(r.date) ? r.date : '';
+        $('rs-time').value = r.time || '';
+        $('rs-price').value = r.totalPrice || '';
+        $('rs-deposit').value = r.deposit || '';
+        $('rs-voucher').value = r.voucherNo || '';
+        $('rs-notes').value = r.notes || '';
+        DYN_KEYS.forEach(k => { const el = $('rs-' + k); if (el && r[k]) el.value = r[k]; });
+        showForm();
+    }
+    function closeForm() { $('czLeave').hidden = true; gList.hidden = true; closeOv(formOv); }
+    function requestCloseForm() {
+        if (formOv.hidden) return;
+        if (formState() !== formSnap && $('czLeave').hidden) { $('czLeave').hidden = false; $('czLeaveStay').focus(); return; }
+        if (formState() !== formSnap && !$('czLeave').hidden) return;
+        closeForm();
+    }
+    $('resClose').addEventListener('click', requestCloseForm);
+    $('czFormCancel').addEventListener('click', requestCloseForm);
+    $('czLeaveStay').addEventListener('click', () => { $('czLeave').hidden = true; });
+    $('czLeaveGo').addEventListener('click', closeForm);
+    $('c-fab').addEventListener('click', () => openNewRes());
+    $('c-fab-mobile')?.addEventListener('click', () => openNewRes());
+    formOv.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitRes(false); }
+    });
+
+    function fieldError(id, msg) {
+        const el = $(id);
+        if (el) { el.classList.add('bad'); el.focus(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        showToast(msg, true);
+    }
+
+    let submitting = false;
+    async function submitRes(confirmToo) {
+        if (submitting) return; // çift tıklamada mükerrer kayıt önlenir
+        const type = $('rs-type').value;
+        const guestName = guestIn.value.trim();
+        const isPreArrival = $('rs-isPreArrival').checked;
+        const room = roomIn.value.trim();
+        const date = $('rs-date').value;
+        const time = $('rs-time').value;
+        const checkIn = $('rs-checkIn').value, checkOut = $('rs-checkOut').value;
+        const price = parseFloat($('rs-price').value) || 0;
+        const deposit = parseFloat($('rs-deposit').value) || 0;
+        const currency = $('rs-currency').value || 'EUR';
+        const voucher = $('rs-voucher').value.trim();
+        const notes = $('rs-notes').value.trim();
+
+        if (!guestName) return fieldError('rs-guest', 'Misafir adını girin.');
+        if (!isPreArrival && !room) return fieldError('rs-room', 'Oda numarasını girin ya da "Ön geliş"i işaretleyin.');
+        if (!validIso(date)) return fieldError('rs-date', 'Tarih seçin.');
+        if (PAID_TYPES.includes(type) && deposit > price && price > 0) return fieldError('rs-deposit', 'Kapora tutardan büyük olamaz.');
+        if (confirmToo && VOUCHER_REQ.includes(type) && !voucher) return fieldError('rs-voucher', 'Onaylamak için voucher / onay no gerekli.');
+
+        // Seri oluşturulurken TÜM tarihlerdeki çakışma bir kez onaylanır
+        // (tek tarihli uyarı yalnız bilgilendiricidir).
+        const dates = repeatDates();
+        if (!editResId && dates.length > 1 && seriesConflicts(dates, guestName, time).length && !seriesAck) {
+            seriesAck = true;
+            $('rs-conflict-alert').scrollIntoView({ block: 'center', behavior: 'smooth' });
+            showToast('Seride çakışan tarihler var. Yine de kaydetmek için tekrar basın.', true);
+            return;
+        }
+
+        const dynamicData = {};
+        dynamicFields.querySelectorAll('input').forEach(inp => { dynamicData[inp.id.replace('rs-', '')] = inp.value.trim(); });
+        const data = Object.assign({
+            type, guestName, room: isPreArrival ? 'Pre-Arrival' : room, date, time, notes,
+            totalPrice: PAID_TYPES.includes(type) ? price : 0, deposit: PAID_TYPES.includes(type) ? deposit : 0, currency,
+            voucherNo: PAID_TYPES.includes(type) ? voucher : ''
+        }, dynamicData);
+
+        submitting = true;
+        const btns = [$('rs-submit'), $('rs-submitConfirm')];
+        btns.forEach(b => { b.disabled = true; });
         try {
             if (editResId) {
-                // Update existing — bir transaction içinde "kayıp güncelleme"
-                // (lost update) kontrolü: bu kayıt biz düzenleme ekranını
-                // açtıktan SONRA başka biri tarafından değiştirildiyse, bizim
-                // yazımımız onu sessizce ezmesin.
+                // Kayıp güncelleme kontrolü (transaction): bu kayıt biz düzenleme
+                // ekranını açtıktan SONRA değiştirildiyse sessizce ezilmez.
                 const resRef = db.collection('reservations').doc(editResId);
                 const txResult = await db.runTransaction(async (tx) => {
                     const snap = await tx.get(resRef);
@@ -1462,35 +1605,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     const baseMs = (editResBaseUpdatedAt && editResBaseUpdatedAt.toMillis) ? editResBaseUpdatedAt.toMillis() : null;
                     const curMs = (curTs && curTs.toMillis) ? curTs.toMillis() : null;
                     if (baseMs !== null && curMs !== null && baseMs !== curMs) return { error: 'stale' };
-                    tx.update(resRef, Object.assign({}, data, { lastUpdated: firebase.firestore.FieldValue.serverTimestamp() }));
+                    const upd = Object.assign({}, data, { lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+                    if (confirmToo && (cur.status || 'Pending') === 'Pending') {
+                        upd.status = 'Confirmed'; upd.confirmedBy = loggedUsername; upd.confirmedAt = firebase.firestore.FieldValue.serverTimestamp();
+                    }
+                    tx.update(resRef, upd);
                     return { ok: true };
                 });
-                if (txResult.error === 'stale') {
-                    showToast('Bu rezervasyon siz düzenlerken başka biri tarafından güncellendi. Lütfen tekrar açıp kontrol edin.', true);
-                    return;
-                }
-                if (txResult.error === 'not-found') {
-                    showToast('Rezervasyon bulunamadı (silinmiş olabilir).', true);
-                    return;
-                }
-                showToast('Rezervasyon güncellendi');
+                if (txResult.error === 'stale') { showToast('Bu rezervasyon siz düzenlerken başka biri tarafından güncellendi. Lütfen tekrar açıp kontrol edin.', true); return; }
+                if (txResult.error === 'not-found') { showToast('Rezervasyon bulunamadı (silinmiş olabilir).', true); return; }
+                closeForm();
+                showToast(confirmToo ? 'Kaydedildi ve onaylandı' : 'Rezervasyon güncellendi');
             } else {
-                // Create new — one per repeat date (single doc when repeat is off).
-                data.status = 'Pending';
+                // Kimlik: misafir/konaklama ÖNCE çözülür ki rezervasyon
+                // dokümanları guestId/stayId ile doğsun — guestName/room yalnızca
+                // gösterim snapshot'ı olarak kalır. Paylaşımlı yardımcı başarısız
+                // olursa (ağ) rezervasyon yine de eski alanlarla kaydedilir.
+                data.status = confirmToo ? 'Confirmed' : 'Pending';
+                if (confirmToo) { data.confirmedBy = loggedUsername; data.confirmedAt = firebase.firestore.FieldValue.serverTimestamp(); }
                 data.staffInitial = loggedUsername;
                 data.tenantId = TENANT_ID;
-                // Kimlik: misafir/konaklama ÖNCE çözülür ki rezervasyon
-                // dokümanları guestId/stayId ile doğsun — guestName/room
-                // yalnızca gösterim snapshot'ı olarak kalır. syncGuestStatus
-                // başarısız olursa (ağ) rezervasyon yine de eski alanlarla
-                // kaydedilir; backfill sonradan eşler.
                 let guest = null;
-                try { guest = await syncGuestStatus(guestName, isPreArrival ? '' : room, isPreArrival, checkIn, checkOut); } catch (e) { /* legacy alanlarla devam */ }
+                try { guest = await GuestDirectory.syncGuestStatus(guestName, { room: isPreArrival ? '' : room, isPreArrival, checkIn, checkOut }); } catch (e) { /* eski alanlarla devam */ }
                 if (guest) {
                     data.guestId = guest.id;
                     if (guest.stayId) data.stayId = guest.stayId;
                 }
-                const dates = repeatDates();
                 const isSeries = dates.length > 1;
                 const seriesId = isSeries ? ('seq' + Date.now() + Math.floor(Math.random() * 1000)) : null;
                 const batch = db.batch();
@@ -1505,31 +1645,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     }));
                 });
                 await batch.commit();
-                showToast(isSeries ? (dates.length + ' rezervasyon oluşturuldu') : 'Rezervasyon kaydedildi');
+                closeForm();
+                const msg = (isSeries ? dates.length + ' rezervasyon oluşturuldu' : 'Rezervasyon kaydedildi') + (confirmToo ? ' (onaylı)' : '');
+                const inScope = statusFilter !== 'overdue' && (view === 'list' || (view === 'day' && cursor === date) ||
+                    (view === 'week' && date >= weekStart(cursor) && date <= isoAdd(weekStart(cursor), 6)) || (view === 'month' && date.slice(0, 7) === cursor.slice(0, 7)));
+                showToast(msg, false, inScope ? null : { label: 'Göster', fn: () => goDate(date, 'day') });
             }
+        } catch (e) {
+            if (window.Monitor) Monitor.capture(e, { where: 'concierge.submit' });
+            showToast('Kaydedilemedi. Bağlantıyı kontrol edip tekrar deneyin.', true);
+        } finally {
+            submitting = false;
+            btns.forEach(b => { b.disabled = false; });
+        }
+    }
+    $('rs-submit').addEventListener('click', () => submitRes(false));
+    $('rs-submitConfirm').addEventListener('click', () => submitRes(true));
 
-            resetConflictAlert(); // Clear transient alerts
-            closeSheet(resSheet, resBackdrop);
-            ['rs-guest', 'rs-room', 'rs-date', 'rs-time', 'rs-price', 'rs-deposit', 'rs-voucher', 'rs-notes', 'rs-checkIn', 'rs-checkOut'].forEach(id => {
-                const el = document.getElementById(id); if (el) el.value = '';
-            });
-            document.getElementById('rs-currency').value = 'EUR';
-            document.getElementById('rs-isPreArrival').checked = false;
-            document.getElementById('rs-pa-box').style.display = 'block'; // Ensure visible
-            document.getElementById('rs-room').disabled = false;
-        } catch (e) { showToast('Hata', true); }
-        finally { submitBtn.disabled = false; }
-    };
-
-    // ── DETAIL SHEET ──────────────────────────────────────────
-    const detailSheet = document.getElementById('detailSheet');
-    const detailBackdrop = document.getElementById('detailBackdrop');
-
-    const openDetail = (r) => {
-        window.selectedReservation = r;
-        populateDetail(r);
-        openSheet(detailSheet, detailBackdrop);
-    };
     // Genel aramadan rezervasyon aç (?res=ID ya da kabuğun deepLink mesajı).
     // Canlı pencerede (son 90 gün + gelecek) yoksa doğrudan okunur.
     function openReservationById(id) {
@@ -1551,480 +1683,197 @@ document.addEventListener('DOMContentLoaded', () => {
     try { pendingResId = new URLSearchParams(location.search).get('res'); } catch (e) {}
     window.__openPendingRes = () => { if (pendingResId && reservations.length) { const id = pendingResId; pendingResId = null; openReservationById(id); } };
 
-    function populateDetail(r) {
-        const sym = curSym(r.currency || 'EUR');
-        document.getElementById('d-guest').textContent = r.guestName;
-        document.getElementById('d-room').textContent = (r.room && r.room !== 'Pre-Arrival') ? 'Oda ' + r.room : 'Ön geliş (oda atanmadı)';
-        document.getElementById('d-type').textContent = typeTr(r.type);
-        document.getElementById('d-date').textContent = fmtDate(r.date);
-        document.getElementById('d-time').textContent = r.time || '—';
-        // Number() ile güvenli dönüşüm — totalPrice/deposit eksik/tanımsız bir
-        // kayıtta önceden "€undefined"/"€NaN" gösteriliyordu.
-        const totalPrice = Number(r.totalPrice) || 0;
-        const deposit = Number(r.deposit) || 0;
-        document.getElementById('d-price').textContent = sym + totalPrice;
-        document.getElementById('d-deposit').textContent = sym + deposit;
-
-        const isPaid = r.status === 'Confirmed' || (totalPrice - deposit <= 0);
-        const balance = totalPrice - deposit;
-        const bEl = document.getElementById('d-balance');
-        if (r.folioApplied) {
-            bEl.textContent = 'Oda Hesabına Yansıtıldı (' + sym + (r.folioAmount != null ? (Number(r.folioAmount) || 0) : balance) + ')';
-            bEl.className = 'balance-text folio';
-        } else {
-            bEl.textContent = isPaid ? 'PAID' : sym + balance;
-            bEl.className = 'balance-text' + (isPaid ? ' paid' : '');
-        }
-        // Bakiye varsa, oda gerçek bir oda numarasına atanmışsa (Pre-Arrival değil)
-        // ve daha önce yansıtılmamışsa "Oda Hesabına Yansıt" aksiyonu gösterilir.
-        const applyBtn = document.getElementById('d-applyFolioBtn');
-        if (applyBtn) applyBtn.style.display = (!r.folioApplied && balance > 0 && r.room && r.room !== 'Pre-Arrival') ? '' : 'none';
-
-        document.getElementById('d-staff').textContent = r.staffInitial;
-        document.getElementById('d-voucher').textContent = r.voucherNo || '—';
-        document.getElementById('d-notes').textContent = r.notes || 'Not yok.';
-
-        // ── İptal nedeni / kim iptal etti ────────────────────────────────
-        // Personelden ZORUNLU olarak istenen iptal nedeni (ve misafirin kendi
-        // iptali) kaydediliyordu ama panelde HİÇBİR YERDE gösterilmiyordu:
-        // iptal edilmiş bir QR kaydı ile personel kaydı birbirinden ayırt
-        // edilemiyordu. Detay sayfasının başına bir uyarı şeridi eklenir.
-        const host = document.querySelector('#detailSheet .sheet-body');
-        if (host) {
-            let banner = host.querySelector('.d-state-banner');
-            const guestCancelled = r.status === 'Cancelled' && r.cancelledBy === 'guest';
-            let html = '';
-            if (r.status === 'Cancelled') {
-                const who = guestCancelled ? 'Misafir iptal etti' : ('İptal eden: ' + esc(r.cancelledBy || '—'));
-                html = `<div class="d-banner cancel"><b>${who}</b>${r.cancelReason ? '<span>' + esc(r.cancelReason) + '</span>' : ''}</div>`;
-            } else if (r.status === 'Done') {
-                html = `<div class="d-banner done"><b>Tamamlandı</b>${r.completedBy ? '<span>' + esc(r.completedBy) + '</span>' : ''}</div>`;
-            } else if (isOverdueRes(r)) {
-                html = `<div class="d-banner overdue"><b>${ic('alert')} Gecikti</b><span>Planlanan an geçti, kayıt hâlâ bekliyor.</span></div>`;
-            }
-            if (html) {
-                if (!banner) {
-                    banner = document.createElement('div');
-                    banner.className = 'd-state-banner';
-                    host.insertBefore(banner, host.firstChild);
-                }
-                banner.innerHTML = html;
-            } else if (banner) { banner.remove(); }
-        }
-
-        document.querySelectorAll('.status-toggle-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.status === r.status);
+    // ── MİSAFİR PROGRAMI (PDF) ────────────────────────────────
+    const itiOv = $('czItiOv'), itiIn = $('iti-guest-search'), itiList = $('czItiList');
+    let itiGuest = null, itiItems = [], itiActive = -1, itiMatches = [];
+    const activeOf = (name) => reservations.filter(r => r.guestName === name && stOf(r) !== 'Cancelled' && stOf(r) !== 'Done').sort(byTime);
+    function itiCandidates(q) {
+        const by = {};
+        reservations.forEach(r => {
+            const st = stOf(r);
+            if (!r.guestName || st === 'Cancelled' || st === 'Done') return;
+            const g = by[r.guestName] || (by[r.guestName] = { name: r.guestName, room: '', n: 0 });
+            g.n++;
+            if (r.room && r.room !== 'Pre-Arrival') g.room = r.room;
         });
-
-        let dynHtml = '';
-        const paxTxt = r.pax ? esc(r.pax) + ' kişi' : '';
-        if (r.type === 'Restaurant' || r.type === 'Beach') dynHtml = `<p><strong>${esc(r.resName || '—')}</strong>${paxTxt ? ' · ' + paxTxt : ''}</p>`;
-        else if (r.type === 'Transfer') dynHtml = `<p><strong>${esc(r.from || '?')} → ${esc(r.to || '?')}</strong><br><small>${[esc(r.vehicle || ''), paxTxt].filter(Boolean).join(' · ')}</small></p>`;
-        else if (r.type === 'Boat' || r.type === 'Tour') dynHtml = `<p><strong>${esc(r.vessel || '')}</strong><br><small>${[r.provider ? 'Sağlayıcı: ' + esc(r.provider) : '', paxTxt].filter(Boolean).join(' · ')}</small></p>`;
-        // 'Other' + Flower/Cake (+ herhangi bilinmeyen tür) — önceden yalnızca
-        // 'Other' bir catch-all dalıydı, Flower/Cake tamamen BOŞ kalıyordu
-        // (bkz. QR Concierge paneli denetimi).
-        else dynHtml = `<p><strong>${esc(r.otherType || r.resName || r.type || 'Diğer Hizmet')}</strong></p>`;
-        document.getElementById('d-dynamic-info').innerHTML = dynHtml;
-    };
-
-    document.getElementById('detailClose').onclick = () => closeSheet(detailSheet, detailBackdrop);
-    detailBackdrop.onclick = () => closeSheet(detailSheet, detailBackdrop);
-
-    document.getElementById('d-confirmLetterBtn').onclick = () => {
-        if (!window.selectedReservation) return;
-        generateConfirmationPDF(window.selectedReservation);
-    };
-
-    // Ödeme gerektiren (transfer, tekne, çiçek vb.) rezervasyonların kalan
-    // bakiyesini misafirin oda hesabına (Folio) yansıtır — restaurant.js'in
-    // "Oda Hesabı" ile adisyon kapatmasıyla AYNI folioCharges koleksiyonuna
-    // yazar; guest-order.js'deki Konaklama/Oda Hesabım kartında görünür.
-    // folioApplied bayrağıyla aynı bakiyenin iki kez yansıtılması engellenir.
-    // F4.5: folio CREATE istemciye kapandı (firestore.rules) — yansıtma
-    // artık applyReservationFolio fonksiyonunda: bakiye SUNUCUDA hesaplanır,
-    // folioApplied + operationId çift yansıtmayı engeller, audit'e yazılır.
-    async function applyToFolio(r) {
-        if (!r) return;
-        if (!r.room || r.room === 'Pre-Arrival') { showToast('Oda ataması olmayan rezervasyon oda hesabına yansıtılamaz.', true); return; }
-        const btn = document.getElementById('d-applyFolioBtn');
-        if (btn) { btn.disabled = true; btn.textContent = 'Yansıtılıyor…'; }
-        try {
-            const call = firebase.app().functions('us-central1').httpsCallable('applyReservationFolio');
-            const opId = 'op' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-            const res = await call({ operationId: opId, reservationId: r.id });
-            const updated = Object.assign({}, r, { folioApplied: true, folioAmount: res.data.balance });
-            window.selectedReservation = updated;
-            populateDetail(updated);
-            showToast('Oda hesabına yansıtıldı.');
-        } catch (e) {
-            const det = (e && e.details) || {};
-            if (det.already) showToast('Bu rezervasyon zaten oda hesabına yansıtılmış.', true);
-            else if (det.noBalance) showToast('Yansıtılacak bakiye yok.', true);
-            else if (String(e && e.code).includes('not-found') && !det.errCode) showToast('Servis henüz yüklenmemiş (deploy eksik) — yöneticinizle iletişime geçin.', true);
-            else showToast('Yansıtılamadı: ' + ((e && e.message) || 'hata'), true);
-        } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = ic('receipt') + ' Kalan Bakiyeyi Oda Hesabına Yansıt'; }
-        }
+        return Object.values(by).filter(g => !q || norm(g.name).includes(q) || String(g.room).startsWith(q))
+            .sort((a, b) => a.name.localeCompare(b.name, 'tr')).slice(0, 8);
     }
-    const applyFolioBtn = document.getElementById('d-applyFolioBtn');
-    if (applyFolioBtn) applyFolioBtn.onclick = () => applyToFolio(window.selectedReservation);
-
-    const RES_STATUS_TR = { Pending: 'Bekleyen', Confirmed: 'Onaylı', Done: 'Tamamlandı', Cancelled: 'İptal' };
-    // 'Done' YENİ: eskiden yalnızca Bekleyen/Onaylı/İptal vardı, dolayısıyla
-    // gerçekleşmiş bir transfer sonsuza dek "Onaylı" kalıyor, misafirin
-    // ekranı hiç "Tamamlandı" göstermiyor ve misafir hizmeti
-    // DEĞERLENDİREMİYORDU (puanlama 'completed' gerektiriyor). Sunucudaki
-    // MAP'te karşılığı zaten hazırdı (functions/index.js onReservationUpdate).
-    ['Pending', 'Confirmed', 'Done', 'Cancelled'].forEach(st => {
-        document.getElementById('d-set' + st).onclick = async () => {
-            if (!window.selectedReservation) return;
-            const r = window.selectedReservation;
-
-            // TERMİNAL DURUM KORUMASI: iptal edilmiş (özellikle MİSAFİRİN
-            // iptal ettiği) ya da tamamlanmış bir kayıt geri çevrilemez.
-            // Eskiden koruma yoktu: misafir talebini iptal ettikten sonra
-            // personel yanlışlıkla "Onaylı"ya basabiliyor, panel "Onaylı"
-            // derken misafir "İptal" görüyordu — iptal etmiş misafir için
-            // araç gönderiliyordu.
-            if ((r.status === 'Cancelled' || r.status === 'Done') && st !== r.status) {
-                const who = r.cancelledBy === 'guest' ? 'Misafir' : (r.cancelledBy || 'Personel');
-                showToast(r.status === 'Cancelled'
-                    ? ('Bu kayıt iptal edilmiş (' + who + '). Geri alınamaz — gerekiyorsa yeni kayıt oluşturun.')
-                    : 'Bu kayıt tamamlanmış. Geri alınamaz.', true);
-                return;
-            }
-
-            // Security check for 'Confirmed'
-            if (st === 'Confirmed') {
-                const paidTypes = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour'];
-                if (paidTypes.includes(r.type) && !r.voucherNo) {
-                    showToast('Onaylamak için Voucher No gerekli!', true);
-                    return;
-                }
-            }
-
-            // İptal nedeni zorunlu — guest-orders.js'in personel iptal
-            // akışıyla AYNI desen. QR-kaynaklı rezervasyonlarda bu neden
-            // onReservationUpdate ile misafirin kalem-seviyesi takip
-            // ekranına taşınır (bkz. çift-yönlü senkron denetimi); manuel
-            // rezervasyonlarda yalnızca personelin kendi denetim izinde
-            // kalır, zararsızdır.
-            const upd = { status: st };
-            if (st === 'Cancelled') {
-                const raw = prompt('İptal nedeni (misafire gösterilecektir):');
-                if (raw === null) return;
-                const reason = raw.trim();
-                if (!reason) { showToast('İptal nedeni belirtmelisiniz.', true); return; }
-                upd.cancelReason = reason.slice(0, 300);
-                upd.cancelledBy = loggedUsername;
-            }
-            if (st === 'Done') {
-                upd.completedBy = loggedUsername;
-                upd.completedAt = firebase.firestore.FieldValue.serverTimestamp();
-            }
-
-            try {
-                await db.collection('reservations').doc(r.id).update(upd);
-                showToast('Durum: ' + (RES_STATUS_TR[st] || st));
-            } catch (e) { showToast('Hata', true); }
-        };
+    function renderItiList() {
+        const q = norm(itiIn.value);
+        itiMatches = itiCandidates(q);
+        itiActive = -1;
+        itiList.innerHTML = itiMatches.length
+            ? itiMatches.map((g, i) => `<div class="cz-dd-it" role="option" data-i="${i}"><span class="av">${esc(initials(g.name))}</span><span><b>${esc(g.name)}</b><small>${g.room ? 'Oda ' + esc(g.room) + ' · ' : ''}${g.n} aktif rezervasyon</small></span></div>`).join('')
+            : '<div class="cz-dd-empty">Aktif rezervasyonu olan misafir bulunamadı.</div>';
+        itiList.hidden = false;
+    }
+    function selectItiGuest(name) {
+        itiGuest = name;
+        itiIn.value = name;
+        itiList.hidden = true;
+        itiItems = activeOf(name);
+        const room = guestMap[name] && guestMap[name] !== 'Pre-Arrival' ? guestMap[name] : '';
+        $('iti-sel-guest').textContent = name;
+        const rEl = $('iti-sel-room'); rEl.textContent = room ? 'Oda ' + room : 'Ön geliş'; rEl.className = 'cz-room' + (room ? '' : ' pre');
+        const t = todayIso();
+        // Kimlikler satır içi değil: dizin (data-i) üzerinden eşlenir.
+        $('sel-options-list').innerHTML = itiItems.length ? itiItems.map((r, i) => `<label class="cz-iti-it"><input type="checkbox" data-i="${i}"${r.date >= t ? ' checked' : ''}>
+            <span class="cz-res-ic t-${typeKey(r.type)}">${svcIcon(r.type)}</span>
+            <span><b>${esc(typeTr(r.type))}${r.time ? ' · ' + esc(r.time) : ''}</b><small>${esc(dayWord(r.date) || fmtDayLong(r.date))}${whatLine(r) !== typeTr(r.type) ? ' · ' + esc(whatLine(r).split(' · ').slice(1).join(' · ')) : ''}</small></span></label>`).join('')
+            : '<div class="cz-dd-empty">Bu misafirin aktif rezervasyonu yok.</div>';
+        $('iti-guest-info').hidden = false;
+        updateItiCount();
+    }
+    function updateItiCount() {
+        const n = $('sel-options-list').querySelectorAll('input:checked').length;
+        $('iti-sel-count').textContent = n + ' / ' + itiItems.length + ' seçili';
+        $('sel-confirm-btn').disabled = !n;
+    }
+    function openItinerary(name) {
+        itiGuest = null; itiItems = [];
+        itiIn.value = '';
+        $('iti-guest-info').hidden = true;
+        $('sel-confirm-btn').disabled = true;
+        itiList.hidden = true;
+        openOv(itiOv);
+        if (name && activeOf(name).length) selectItiGuest(name);
+        else setTimeout(() => { itiIn.focus(); renderItiList(); }, 40);
+    }
+    $('czMenuIti').addEventListener('click', () => openItinerary());
+    $('itiClose').addEventListener('click', () => closeOv(itiOv));
+    itiIn.addEventListener('input', () => { $('iti-guest-info').hidden = true; $('sel-confirm-btn').disabled = true; renderItiList(); });
+    itiIn.addEventListener('focus', () => { if (!itiGuest || itiIn.value !== itiGuest) renderItiList(); });
+    itiIn.addEventListener('blur', () => setTimeout(() => { itiList.hidden = true; }, 160));
+    itiIn.addEventListener('keydown', (e) => {
+        if (itiList.hidden || !itiMatches.length) return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            itiActive = e.key === 'ArrowDown' ? Math.min(itiActive + 1, itiMatches.length - 1) : Math.max(itiActive - 1, 0);
+            itiList.querySelectorAll('.cz-dd-it').forEach((el, i) => el.classList.toggle('act', i === itiActive));
+        } else if (e.key === 'Enter') { e.preventDefault(); selectItiGuest(itiMatches[Math.max(0, itiActive)].name); }
+        else if (e.key === 'Escape') { e.stopPropagation(); itiList.hidden = true; }
+    });
+    itiList.addEventListener('mousedown', (e) => {
+        const it = e.target.closest('.cz-dd-it'); if (!it) return;
+        e.preventDefault();
+        selectItiGuest(itiMatches[+it.dataset.i].name);
+    });
+    $('sel-options-list').addEventListener('change', updateItiCount);
+    $('sel-confirm-btn').addEventListener('click', () => {
+        const picked = Array.from($('sel-options-list').querySelectorAll('input:checked')).map(cb => itiItems[+cb.dataset.i]).filter(Boolean);
+        if (!picked.length) { showToast('Lütfen en az bir öğe seçin', true); return; }
+        generatePDF(itiGuest, guestMap[itiGuest], picked);
+        closeOv(itiOv);
     });
 
-    const dConfirmBox = document.getElementById('d-delete-confirm');
-
-    document.getElementById('d-deleteBtn').onclick = () => {
-        dConfirmBox.style.display = 'flex';
-    };
-
-    document.getElementById('d-cancelDelete').onclick = () => {
-        dConfirmBox.style.display = 'none';
-    };
-
-    const authSheet = document.getElementById('authSheet');
-    const authBackdrop = document.getElementById('authBackdrop');
-    const authPassInput = document.getElementById('auth-password');
-
-    document.getElementById('authClose').onclick = () => closeSheet(authSheet, authBackdrop);
-    authBackdrop.onclick = () => closeSheet(authSheet, authBackdrop);
-
-    document.getElementById('d-confirmDelete').onclick = () => {
-        if (!window.selectedReservation) return;
-
-        // Security Check: Only creator can delete — QR-kaynaklı kayıtların
-        // staffInitial'ı hep sabit 'QR-Misafir' (gerçek bir personel adı
-        // ASLA buna eşit olmaz), bu istisna olmadan hiçbir personel (admin
-        // dahil) bu kayıtları silemiyordu (bkz. QR Concierge denetimi).
-        // firestore.rules'daki AYNI istisnayla eşleşir.
-        if (window.selectedReservation.staffInitial !== loggedUsername
-            && window.selectedReservation.staffInitial !== 'QR-Misafir') {
-            showToast('Bu kaydı yalnızca oluşturan kişi silebilir!', true);
-            return;
-        }
-
-        dConfirmBox.style.display = 'none';
-        authPassInput.value = '';
-        openSheet(authSheet, authBackdrop);
-    };
-
-    document.getElementById('auth-confirm-btn').onclick = async () => {
-        const password = authPassInput.value;
-        if (!password) return showToast('Lütfen şifrenizi girin', true);
-
-        const btn = document.getElementById('auth-confirm-btn');
-        btn.disabled = true;
-        btn.textContent = 'Verifying...';
-
-        try {
-            const user = firebase.auth().currentUser;
-            const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
-            await user.reauthenticateWithCredential(credential);
-
-            // Success: Proceed with deletion
-            await db.collection('reservations').doc(window.selectedReservation.id).delete();
-            showToast('Silindi');
-            closeSheet(authSheet, authBackdrop);
-            closeSheet(detailSheet, detailBackdrop);
-        } catch (e) {
-            showToast('Doğrulama başarısız. Şifre yanlış.', true);
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Verify & Delete';
-        }
-    };
-
-    // ── EDIT LOGIC ───────────────────────────────────────────
-    document.getElementById('d-editBtn').onclick = () => {
-        if (!window.selectedReservation) return;
-        const r = window.selectedReservation;
-        const openDetails = window.selectedReservation; // not relevant, r passed via caller
-        
-        editResId = r.id;
-        editResBaseUpdatedAt = r.lastUpdated || r.createdAt || null;
-        resetConflictAlert(); // Clear logic caches
-        document.querySelector('#resSheet h3').textContent = 'Rezervasyonu Düzenle';
-        document.getElementById('rs-submit').textContent = 'Değişiklikleri Kaydet';
-        setRepeatVisible(false);
-
-        typeSelect.value = r.type;
-        updateFormFields();
-
-        document.getElementById('rs-guest').value = r.guestName;
-        renderGuestSummary(r.guestName);
-
-        const isPreArrival = r.room === 'Pre-Arrival';
-        const paCheckbox = document.getElementById('rs-isPreArrival');
-        paCheckbox.checked = isPreArrival;
-        document.getElementById('rs-room').disabled = isPreArrival;
-        document.getElementById('rs-room').value = isPreArrival ? 'Pre-Arrival' : r.room;
-        
-        // Hide/Show total container box based on context
-        document.getElementById('rs-pa-box').style.display = isPreArrival ? 'none' : 'block';
-
-        // Pre-fill check-in/out if available from directory
-        if (isPreArrival) {
-            const guest = guestDirectory.find(g => g.name.toLocaleLowerCase('tr-TR') === r.guestName.toLocaleLowerCase('tr-TR'));
-            if (guest) {
-                document.getElementById('rs-checkIn').value = guest.checkIn || '';
-                document.getElementById('rs-checkOut').value = guest.checkOut || '';
-            }
-        }
-
-        document.getElementById('rs-date').value = toDisplayDate(r.date);
-        document.getElementById('rs-time').value = r.time || '';
-        document.getElementById('rs-price').value = r.totalPrice || '';
-        document.getElementById('rs-deposit').value = r.deposit || '';
-        document.getElementById('rs-currency').value = r.currency || 'EUR';
-        document.getElementById('rs-voucher').value = r.voucherNo || '';
-        document.getElementById('rs-notes').value = r.notes || '';
-
-        // Populate dynamic fields
-        dynamicFields.querySelectorAll('input').forEach(inp => {
-            const key = inp.id.replace('rs-', '');
-            if (r[key]) inp.value = r[key];
-        });
-
-        checkConflictInline(); // Passive logic sync check instantly
-        rsPreview(); // Reflect the edited reservation in the live preview
-
-        // Close detail sheet, open res sheet
-        closeSheet(detailSheet, detailBackdrop);
-        openSheet(resSheet, resBackdrop);
-    };
-
-    // ── ITINERARY GENERATOR ──────────────────────────────────
-    const itiSheet = document.getElementById('itiSheet');
-    const itiBackdrop = document.getElementById('itiBackdrop');
-    const itiGuestSearch = document.getElementById('iti-guest-search');
-
-    document.getElementById('c-openItinerary')?.addEventListener('click', () => {
-        openSheet(itiSheet, itiBackdrop);
-    });
-    document.getElementById('itiClose')?.addEventListener('click', () => closeSheet(itiSheet, itiBackdrop));
-    itiBackdrop.onclick = () => closeSheet(itiSheet, itiBackdrop);
-
-    itiGuestSearch.oninput = () => {
-        const val = itiGuestSearch.value.trim();
-        const box = document.getElementById('iti-guest-info');
-        if (guestMap[val]) {
-            const guestItems = reservations.filter(r => r.guestName === val && r.status !== 'Cancelled' && r.status !== 'Done');
-            document.getElementById('iti-sel-guest').textContent = val;
-            document.getElementById('iti-sel-room').textContent = 'Oda ' + guestMap[val];
-            document.getElementById('iti-sel-count').textContent = `${guestItems.length} aktif rezervasyon`;
-            box.style.display = 'block';
-        } else {
-            box.style.display = 'none';
-        }
-    };
-
-    document.getElementById('iti-gen-btn').onclick = () => {
-        const guestName = itiGuestSearch.value.trim();
-        if (!guestName) return;
-        const guestItems = reservations.filter(r => r.guestName === guestName && r.status !== 'Cancelled' && r.status !== 'Done');
-        if (guestItems.length === 0) { showToast('Aktif rezervasyon bulunamadı', true); return; }
-
-        selOptions.innerHTML = guestItems.map(item => `
-            <label class="sel-item-row">
-                <div class="sel-item-icon-wrap">${svcIcon(item.type)}</div>
-                <div class="sel-item-info">
-                    <span class="sel-item-type">${esc(typeTr(item.type))}</span>
-                    <span class="sel-item-date">${fmtDate(item.date)} ${esc(item.time || '')}</span>
-                    ${item.resName ? `<span class="sel-item-sub">${esc(item.resName)}</span>` : ''}
-                </div>
-                <div class="sel-item-check">
-                    <input type="checkbox" name="iti-item" value="${item.id}" checked>
-                    <div class="custom-check"></div>
-                </div>
-            </label>
-        `).join('');
-
-        openSheet(selSheet, selBackdrop);
-
-        document.getElementById('sel-confirm-btn').onclick = () => {
-            const checked = Array.from(document.querySelectorAll('input[name="iti-item"]:checked')).map(cb => cb.value);
-            if (checked.length === 0) { showToast('Lütfen en az bir öğe seçin', true); return; }
-
-            const selectedItems = guestItems.filter(r => checked.includes(r.id));
-            generatePDF(guestName, guestMap[guestName], selectedItems);
-            closeSheet(selSheet, selBackdrop);
-        };
-    };
-
-    // ── REPORTS CENTER ───────────────────────────────────────
-    const reportsModal = document.getElementById('reportSheet');
-    const rptTypeSelect = document.getElementById('reportTypeSelect');
-
-    document.getElementById('c-openReport')?.addEventListener('click', () => {
-        openSheet(reportsModal, document.getElementById('reportBackdrop'));
-        populateGuestDatalist();
-        updateRptUI();
-    });
-    document.getElementById('reportClose')?.addEventListener('click', () => {
-        closeSheet(reportsModal, document.getElementById('reportBackdrop'));
-    });
-    document.getElementById('reportBackdrop').onclick = () => closeSheet(reportsModal, document.getElementById('reportBackdrop'));
-
-    // Dynamic UI Toggles
-    rptTypeSelect?.addEventListener('change', updateRptUI);
-
+    // ── RAPORLAR ──────────────────────────────────────────────
+    const rptOv = $('czRptOv');
+    const rptTypeSelect = $('reportTypeSelect');
+    function viewRange() {
+        if (view === 'week') { const s = weekStart(cursor); return [s, isoAdd(s, 6)]; }
+        if (view === 'month') { const m = cursor.slice(0, 7); const e = isoToDate(m + '-01'); e.setMonth(e.getMonth() + 1); e.setDate(0); return [m + '-01', dateToIso(e)]; }
+        if (view === 'list') return [todayIso(), isoAdd(todayIso(), 30)];
+        return [cursor, cursor];
+    }
     function updateRptUI() {
         const type = rptTypeSelect.value;
-        const specificDateCont = document.getElementById('rpt-specificDateContainer');
-        const rangeGroup = document.getElementById('rpt-rangeGroup');
-        const catCont = document.getElementById('rpt-catContainer');
-        const guestCont = document.getElementById('rpt-guestContainer');
-
-        // Reset all
-        specificDateCont.style.display = 'none';
-        rangeGroup.style.display = 'none';
-        catCont.style.display = 'none';
-        guestCont.style.display = 'none';
-
-        // Show based on type
-        if (type === 'summary') {
-            specificDateCont.style.display = 'block';
-        } else if (type === 'dateRange' || type === 'revenue' || type === 'activity') {
-            rangeGroup.style.display = 'flex';
-            if (type === 'activity') catCont.style.display = 'block';
-        } else if (type === 'guest') {
-            guestCont.style.display = 'block';
-        }
+        $('rpt-specificDateContainer').hidden = type !== 'summary';
+        $('rpt-rangeGroup').hidden = !['dateRange', 'revenue', 'activity'].includes(type);
+        $('rpt-catContainer').hidden = type !== 'activity';
+        $('rpt-guestContainer').hidden = type !== 'guest';
+        const excelOnly = type === 'currentView' || type === 'fullArchive';
+        $('czRptPdf').hidden = excelOnly;
+        const hint = { currentView: 'Ekrandaki süzgeçlere uyan ' + filteredReservations.length + ' kayıt.', fullArchive: 'Tüm tarihler (eski kayıtlar dahil) tek dosyada.' }[type] || '';
+        rptOv.querySelector('.cz-mf-sum').textContent = hint;
     }
-
     function populateGuestDatalist() {
-        const uniqueNames = [...new Set(reservations.map(r => r.guestName).filter(Boolean))].sort();
-        reportsGuestHTML = uniqueNames.map(name => `<option value="${esc(name)}">`).join('');
-        
-        // Sync if currently displayed
-        const list = document.getElementById('guestNamesList');
-        if (list && list.children.length > 0) list.innerHTML = reportsGuestHTML;
+        const uniqueNames = [...new Set(reservations.map(r => r.guestName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'tr'));
+        $('guestNamesList').innerHTML = uniqueNames.map(name => `<option value="${esc(name)}">`).join('');
     }
-
-    window.generateReportFromUI = function (format) {
-        const type = rptTypeSelect.value;
-        generateReport(type, format);
-    };
+    $('czMenuReport').addEventListener('click', () => {
+        const [f, t] = viewRange();
+        $('rpt-specificDate').value = view === 'day' ? cursor : todayIso();
+        $('rpt-dateFrom').value = f; $('rpt-dateTo').value = t;
+        if (typeFilter) $('rpt-categorySelect').value = typeFilter;
+        populateGuestDatalist();
+        updateRptUI();
+        openOv(rptOv);
+    });
+    $('reportClose').addEventListener('click', () => closeOv(rptOv));
+    rptTypeSelect.addEventListener('change', updateRptUI);
+    $('czRptExcel').addEventListener('click', () => generateReport(rptTypeSelect.value, 'excel'));
+    $('czRptPdf').addEventListener('click', () => generateReport(rptTypeSelect.value, 'pdf'));
+    window.generateReportFromUI = function (format) { generateReport(rptTypeSelect.value, format); };
 
     function getRptDates() {
         return {
-            from: document.getElementById('rpt-dateFrom')?.value || '',
-            to: document.getElementById('rpt-dateTo')?.value || '',
-            specific: document.getElementById('rpt-specificDate')?.value || new Date().toISOString().split('T')[0],
-            cat: document.getElementById('rpt-categorySelect')?.value || 'All',
-            guest: document.getElementById('rpt-guestSearch')?.value || ''
+            from: $('rpt-dateFrom')?.value || '',
+            to: $('rpt-dateTo')?.value || '',
+            specific: $('rpt-specificDate')?.value || todayIso(),
+            cat: $('rpt-categorySelect')?.value || 'All',
+            guest: $('rpt-guestSearch')?.value || ''
         };
+    }
+    // Canlı pencere son 90 günü tutar; daha eskisini kapsayan raporlar için
+    // tek seferlik tam okuma yapılır (önceden "tüm arşiv" yalnız 90 günü veriyordu).
+    async function reportData(from, all) {
+        if (!all && from && from >= resWindowStart) return reservations;
+        try {
+            const snap = await db.collection('reservations').where('tenantId', '==', TENANT_ID).get();
+            return snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(byTime);
+        } catch (e) { showToast('Eski kayıtlar okunamadı; yalnız son 90 gün raporlanıyor.', true); return reservations; }
     }
 
     function rowBase(r) {
         let details = '';
         if (r.type === 'Restaurant' || r.type === 'Beach') details = r.resName || '';
-        else if (r.type === 'Transfer') details = `${r.from || ''} -> ${r.to || ''} (${r.vehicle || ''})`;
-        else if (r.type === 'Boat' || r.type === 'Tour') details = `${r.vessel || ''} (${r.provider || ''})`;
-        // Other + Flower/Cake — otherType/resName ÖNCE notes'a düşmeden
-        // kontrol edilir (bkz. QR Concierge denetimi).
+        else if (r.type === 'Transfer') details = `${r.from || ''} -> ${r.to || ''}${r.vehicle ? ' (' + r.vehicle + ')' : ''}`;
+        else if (r.type === 'Boat' || r.type === 'Tour') details = `${r.vessel || ''}${r.provider ? ' (' + r.provider + ')' : ''}`;
+        // Other + Flower/Cake — otherType/resName ÖNCE notes'a düşmeden kontrol edilir.
         else details = r.otherType || r.resName || r.notes || '';
-
         return {
-            Date: r.date,
-            Time: r.time || '',
-            Room: r.room,
-            'Guest Name': r.guestName,
-            Type: r.type,
-            Details: details,
-            Pax: r.pax || '',
-            Price: r.totalPrice || 0,
-            Deposit: r.deposit || 0,
-            Currency: r.currency || 'EUR',
-            Status: r.status || 'Pending'
+            Tarih: r.date,
+            Saat: r.time || '',
+            Oda: r.room === 'Pre-Arrival' ? 'Ön geliş' : (r.room || ''),
+            Misafir: r.guestName,
+            Hizmet: typeTr(r.type),
+            Ayrıntı: details,
+            Kişi: r.pax || '',
+            Tutar: Number(r.totalPrice) || 0,
+            Kapora: Number(r.deposit) || 0,
+            'Para birimi': r.currency || 'EUR',
+            Voucher: r.voucherNo || '',
+            Durum: ST_TR[stOf(r)],
+            Oluşturan: r.staffInitial || ''
         };
     }
+    const pdfRow = (r, withGuest = true) => {
+        const rb = rowBase(r); const s = curSym(rb['Para birimi']);
+        const row = [fmtDate(rb.Tarih), rb.Saat, rb.Oda];
+        if (withGuest) row.push(rb.Misafir);
+        return row.concat([rb.Hizmet, rb.Ayrıntı, rb.Kişi, s + rb.Tutar, s + rb.Kapora, rb.Durum]);
+    };
+    const PDF_HEAD = ['Tarih', 'Saat', 'Oda', 'Misafir', 'Hizmet', 'Ayrıntı', 'Kişi', 'Tutar', 'Kapora', 'Durum'];
 
     function autoSizeSheet(ws, rows) {
         if (!rows || rows.length === 0) return;
         const keys = Object.keys(rows[0]);
-        // Binlerce satırlık büyük raporlarda TÜM satırları TÜM sütunlar için
-        // taraması (satır×sütun) sekmeyi donduruyordu. Genişlik yalnızca
-        // "iyi yeterli" bir tahmin olduğundan, ilk 500 satırlık bir örneklem
-        // yeterlidir — maliyeti veri boyutundan bağımsız sabitler.
+        // Binlerce satırda tüm hücreleri taramak sekmeyi donduruyordu;
+        // genişlik için ilk 500 satırlık örneklem yeterli.
         const sample = rows.length > 500 ? rows.slice(0, 500) : rows;
-        const widths = keys.map(k => {
+        ws['!cols'] = keys.map(k => {
             let maxLen = k.length;
-            sample.forEach(r => {
-                const val = r[k] ? String(r[k]) : '';
-                if (val.length > maxLen) maxLen = val.length;
-            });
-            return { wch: maxLen + 2 };
+            sample.forEach(r => { const val = r[k] ? String(r[k]) : ''; if (val.length > maxLen) maxLen = val.length; });
+            return { wch: Math.min(60, maxLen + 2) };
         });
-        ws['!cols'] = widths;
         if (ws['!ref']) {
             const range = XLSX.utils.decode_range(ws['!ref']);
             ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
         }
     }
 
-    // Dışa-aktarma kütüphaneleri TEMBEL yüklenir (bkz. js/core/lazy-load.js) —
-    // önceden sayfa açılışında jspdf+autotable+xlsx+html2pdf (~1.5MB, üstelik
-    // html2pdf paketi jsPDF'i İKİNCİ kez içeriyor) eager iniyordu (hız denetimi).
+    // Dışa-aktarma kütüphaneleri TEMBEL yüklenir (bkz. js/core/lazy-load.js).
     const CG_PDF_LIBS = [
         'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js'
@@ -2032,14 +1881,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const CG_XLSX_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
     const CG_HTML2PDF_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
 
-    async function exportExcel(rows, filename, sheetName = 'Report') {
+    const safeName = (s) => String(s || '').replace(/[^\w\-ğüşöçıİĞÜŞÖÇ]+/g, '_').slice(0, 60);
+    async function exportExcel(rows, filename, sheetName = 'Rapor', extraSheets) {
         if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
-        try { await loadScriptOnce(CG_XLSX_LIB); } catch (e) { return showToast('Excel kütüphanesi yüklenemedi.', true); }
+        try { await loadScriptOnce(CG_XLSX_LIB); } catch (e) { /* aşağıda denetlenir */ }
+        if (typeof XLSX === 'undefined') return showToast('Excel kütüphanesi yüklenemedi.', true);
+        const wb = XLSX.utils.book_new();
+        (extraSheets || []).forEach(([name, data]) => {
+            const ws0 = XLSX.utils.json_to_sheet(data); autoSizeSheet(ws0, data); XLSX.utils.book_append_sheet(wb, ws0, name);
+        });
         const ws = XLSX.utils.json_to_sheet(rows);
         autoSizeSheet(ws, rows);
-        const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
-        XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(wb, `${safeName(filename)}_${todayIso()}.xlsx`);
         showToast('Excel raporu indirildi.');
     }
 
@@ -2051,204 +1905,129 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/ü/g, 'u').replace(/Ü/g, 'U')
             .replace(/ş/g, 's').replace(/Ş/g, 'S')
             .replace(/ö/g, 'o').replace(/Ö/g, 'O')
-            .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+            .replace(/ç/g, 'c').replace(/Ç/g, 'C')
+            .replace(/₺/g, 'TL ').replace(/€/g, 'EUR ');
     }
 
     async function exportPDF(title, headers, rows, filename, subtitle = '') {
         if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
-        try { await loadScriptsOnce(CG_PDF_LIBS); } catch (e) { return showToast('PDF kütüphanesi yüklenemedi.', true); }
+        try { await loadScriptsOnce(CG_PDF_LIBS); } catch (e) { /* aşağıda denetlenir */ }
+        if (!window.jspdf || !window.jspdf.jsPDF) return showToast('PDF kütüphanesi yüklenemedi.', true);
+        await ensureHotelName();
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: rows[0].length > 6 ? 'landscape' : 'portrait' });
-
-        // Fix Turkish chars for title, subtitle and headers
+        // Yerleşik yazı tipinde Türkçe karakter yok — sadeleştirilir.
         const fixedTitle = fixTurkishChars(title);
-        const fixedSubtitle = fixTurkishChars(subtitle);
+        const fixedSubtitle = fixTurkishChars(subtitle || ((HOTEL_NAME ? HOTEL_NAME + ' · ' : '') + 'Olusturulma: ' + fmtDate(todayIso())));
         const fixedHeaders = headers.map(h => fixTurkishChars(h));
-        const fixedRows = rows.map(row => row.map(cell => fixTurkishChars(cell)));
-
-        doc.setFillColor(21, 101, 192);
+        const fixedRows = rows.map(row => row.map(cell => fixTurkishChars(typeof cell === 'number' ? String(cell) : cell)));
+        doc.setFillColor(79, 70, 229);
         doc.rect(0, 0, doc.internal.pageSize.getWidth(), 28, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(16); doc.setFont('helvetica', 'bold');
         doc.text(fixedTitle, 14, 12);
         doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text(fixedSubtitle || `Generated: ${new Date().toISOString().split('T')[0]}`, 14, 20);
+        doc.text(fixedSubtitle, 14, 20);
         doc.setTextColor(0, 0, 0);
         doc.autoTable({
             head: [fixedHeaders],
             body: fixedRows,
             startY: 32,
             theme: 'grid',
-            headStyles: { fillColor: [43, 58, 74], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+            headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 9 },
             bodyStyles: { fontSize: 8.5 },
-            alternateRowStyles: { fillColor: [245, 248, 255] },
+            alternateRowStyles: { fillColor: [245, 247, 255] },
             margin: { left: 14, right: 14 }
         });
         const pageCount = doc.internal.getNumberOfPages();
         for (let i = 1; i <= pageCount; i++) {
             doc.setPage(i);
             doc.setFontSize(8); doc.setTextColor(150);
-            doc.text(`Page ${i} of ${pageCount} — Concierge Management System`, 14, doc.internal.pageSize.getHeight() - 8);
+            doc.text(`Sayfa ${i} / ${pageCount} — Concierge`, 14, doc.internal.pageSize.getHeight() - 8);
         }
-        doc.save(`${filename}_${new Date().toISOString().split('T')[0]}.pdf`);
+        doc.save(`${safeName(filename)}_${todayIso()}.pdf`);
         showToast('PDF raporu indirildi.');
     }
 
-    window.generateReport = function (type, format) {
+    window.generateReport = async function (type, format) {
         const { from, to, specific, cat, guest } = getRptDates();
-        let data = reservations;
+        const inRange = (r) => (!from || r.date >= from) && (!to || r.date <= to);
+        const rangeTxt = (from || to) ? `${from ? fmtDate(from) : '…'} – ${to ? fmtDate(to) : '…'}` : 'Tüm tarihler';
+        if ((type === 'dateRange' || type === 'revenue' || type === 'activity') && from && to && from > to) return showToast('Başlangıç tarihi bitişten sonra olamaz.', true);
 
         if (type === 'summary') {
-            data = reservations.filter(r => r.date === specific && r.status !== 'Cancelled');
-            // Para birimi bazında grupla — o günün EUR ve TRY rezervasyonları
-            // tek bir toplamda karıştırılmaz.
+            const data = (await reportData(specific)).filter(r => r.date === specific && stOf(r) !== 'Cancelled').sort(byTime);
+            // Para birimi bazında — o günün EUR ve TRY tutarları tek toplamda karışmaz.
             const byCur = {};
             data.forEach(r => { const c = r.currency || 'EUR'; const g = byCur[c] || (byCur[c] = { rev: 0, dep: 0 }); g.rev += Number(r.totalPrice) || 0; g.dep += Number(r.deposit) || 0; });
             const curs = Object.keys(byCur);
             const sumLine = key => curs.length ? curs.map(c => curSym(c) + byCur[c][key]).join(' · ') : curSym('EUR') + '0';
+            const st = {}; data.forEach(r => { st[stOf(r)] = (st[stOf(r)] || 0) + 1; });
             const summaryRows = [
-                { Metric: 'Total Reservations', Value: data.length },
-                { Metric: 'Total Revenue', Value: sumLine('rev') },
-                { Metric: 'Total Deposits', Value: sumLine('dep') }
+                { Gösterge: 'Rezervasyon', Değer: data.length },
+                { Gösterge: 'Bekliyor', Değer: st.Pending || 0 },
+                { Gösterge: 'Onaylı', Değer: st.Confirmed || 0 },
+                { Gösterge: 'Tamamlandı', Değer: st.Done || 0 },
+                { Gösterge: 'Toplam tutar', Değer: sumLine('rev') },
+                { Gösterge: 'Alınan kapora', Değer: sumLine('dep') }
             ];
             if (format === 'excel') {
-                const wb = XLSX.utils.book_new();
-                const wsSum = XLSX.utils.json_to_sheet(summaryRows);
-                const wsDet = XLSX.utils.json_to_sheet(data.map(rowBase));
-                autoSizeSheet(wsSum, summaryRows);
-                autoSizeSheet(wsDet, data.map(rowBase));
-                XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
-                XLSX.utils.book_append_sheet(wb, wsDet, 'Details');
-                XLSX.writeFile(wb, `Daily_Summary_${specific}.xlsx`);
-            } else {
-                const rows = data.map(r => {
-                    const rb = rowBase(r); const s = curSym(rb.Currency);
-                    return [rb.Date, rb.Time, rb.Room, rb['Guest Name'], rb.Type, rb.Details, rb.Pax, s + rb.Price, s + rb.Deposit, rb.Status];
-                });
-                exportPDF(`Daily Summary: ${specific}`, ['Date', 'Time', 'Room', 'Guest', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
-                    rows, `Daily_Summary_${specific}`);
+                // XLSX tembel yüklenir — önceden bu dal kütüphaneyi yüklemeden
+                // XLSX'e erişip "XLSX is not defined" ile sessizce düşüyordu.
+                if (!data.length) return showToast('Bu gün için rezervasyon yok.', true);
+                return exportExcel(data.map(rowBase), `Gunluk_Ozet_${specific}`, 'Ayrıntı', [['Özet', summaryRows]]);
             }
-        } else if (type === 'activity') {
-            data = reservations.filter(r => r.status !== 'Cancelled');
-            if (from || to) data = data.filter(r => (!from || r.date >= from) && (!to || r.date <= to));
-            if (cat !== 'All') data = data.filter(r => r.type === cat);
-
-            if (format === 'excel') exportExcel(data.map(rowBase), `By_Activity_${cat}`);
-            else {
-                const rows = data.map(r => {
-                    const rb = rowBase(r); const s = curSym(rb.Currency);
-                    return [rb.Date, rb.Time, rb.Room, rb['Guest Name'], rb.Type, rb.Details, rb.Pax, s + rb.Price, s + rb.Deposit, rb.Status];
-                });
-                exportPDF(`By Activity: ${cat}`, ['Date', 'Time', 'Room', 'Guest', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
-                    rows, `By_Activity_${cat}`);
+            return exportPDF(`Gunluk ozet: ${fmtDate(specific)}`, PDF_HEAD, data.map(r => pdfRow(r)), `Gunluk_Ozet_${specific}`);
+        }
+        if (type === 'activity' || type === 'dateRange') {
+            let data = (await reportData(from)).filter(inRange);
+            if (type === 'activity') {
+                data = data.filter(r => stOf(r) !== 'Cancelled');
+                if (cat !== 'All') data = data.filter(r => typeKey(r.type) === cat);
             }
-        } else if (type === 'guest') {
-            if (!guest) return showToast('Lütfen bir misafir seçin.', true);
-            data = reservations.filter(r => r.guestName && r.guestName.toLocaleLowerCase('tr-TR').includes(guest.toLocaleLowerCase('tr-TR')) && r.status !== 'Cancelled');
-            if (format === 'excel') exportExcel(data.map(rowBase), `Guest_Report_${guest}`);
-            else {
-                const rows = data.map(r => {
-                    const rb = rowBase(r); const s = curSym(rb.Currency);
-                    return [rb.Date, rb.Time, rb.Room, rb.Type, rb.Details, rb.Pax, s + rb.Price, s + rb.Deposit, rb.Status];
-                });
-                exportPDF(`Guest Report: ${guest}`, ['Date', 'Time', 'Room', 'Type', 'Details', 'Pax', 'Price', 'Deposit', 'Status'],
-                    rows, `Guest_Report_${guest}`);
-            }
-        } else if (type === 'revenue') {
-            data = reservations.filter(r => r.status !== 'Cancelled');
-            if (from || to) data = data.filter(r => (!from || r.date >= from) && (!to || r.date <= to));
-            // Tarih + PARA BİRİMİ bazında grupla — aynı günün EUR ve TRY
-            // rezervasyonları tek bir tutarda karıştırılmaz (bkz. curSym).
-            const revenueMap = {};
+            data.sort(byTime);
+            const label = type === 'activity' ? ('Hizmet: ' + (cat === 'All' ? 'Tümü' : typeTr(cat))) : 'Tarih aralığı';
+            const file = type === 'activity' ? `Hizmet_${cat}` : 'Tarih_Araligi';
+            if (format === 'excel') return exportExcel(data.map(rowBase), file);
+            return exportPDF(label, PDF_HEAD, data.map(r => pdfRow(r)), file, rangeTxt);
+        }
+        if (type === 'guest') {
+            if (!guest.trim()) return showToast('Lütfen bir misafir seçin.', true);
+            const q = norm(guest);
+            const data = (await reportData('', true)).filter(r => r.guestName && norm(r.guestName).includes(q) && stOf(r) !== 'Cancelled').sort(byTime);
+            if (format === 'excel') return exportExcel(data.map(rowBase), `Misafir_${guest}`);
+            return exportPDF(`Misafir: ${guest}`, PDF_HEAD.filter(h => h !== 'Misafir'), data.map(r => pdfRow(r, false)), `Misafir_${guest}`);
+        }
+        if (type === 'revenue') {
+            const data = (await reportData(from)).filter(r => stOf(r) !== 'Cancelled' && inRange(r));
+            // Tarih + PARA BİRİMİ bazında — aynı günün EUR ve TRY tutarları karışmaz.
+            const m = {};
             data.forEach(r => {
                 const cur = r.currency || 'EUR';
                 const key = r.date + '|' + cur;
-                if (!revenueMap[key]) revenueMap[key] = { Date: r.date, Currency: cur, Reservations: 0, Price: 0, Deposit: 0 };
-                revenueMap[key].Reservations++;
-                revenueMap[key].Price += (Number(r.totalPrice) || 0);
-                revenueMap[key].Deposit += (Number(r.deposit) || 0);
+                if (!m[key]) m[key] = { Tarih: r.date, 'Para birimi': cur, Rezervasyon: 0, Tutar: 0, Kapora: 0, Kalan: 0 };
+                m[key].Rezervasyon++;
+                m[key].Tutar += Number(r.totalPrice) || 0;
+                m[key].Kapora += Number(r.deposit) || 0;
+                m[key].Kalan += balanceOf(r);
             });
-            const revenueRows = Object.values(revenueMap).sort((a, b) => a.Date.localeCompare(b.Date) || a.Currency.localeCompare(b.Currency));
-            if (format === 'excel') exportExcel(revenueRows, 'Revenue_Matrix');
-            else exportPDF('Revenue Matrix', ['Date', 'Currency', 'Count', 'Total Price', 'Total Deposit'],
-                revenueRows.map(r => [r.Date, r.Currency, r.Reservations, curSym(r.Currency) + r.Price, curSym(r.Currency) + r.Deposit]),
-                'Revenue_Matrix');
-        } else if (type === 'currentView') {
-            exportExcel(filteredReservations.map(rowBase), 'Current_View');
-        } else if (type === 'fullArchive') {
-            exportExcel(reservations.map(rowBase), 'Full_Archive');
+            const rows = Object.values(m).filter(x => x.Tutar || x.Kapora).sort((a, b) => a.Tarih.localeCompare(b.Tarih) || a['Para birimi'].localeCompare(b['Para birimi']));
+            if (format === 'excel') return exportExcel(rows, 'Gelir_Kapora');
+            return exportPDF('Gelir ve kapora', ['Tarih', 'Para birimi', 'Adet', 'Tutar', 'Kapora', 'Kalan'],
+                rows.map(r => [fmtDate(r.Tarih), r['Para birimi'], r.Rezervasyon, curSym(r['Para birimi']) + r.Tutar, curSym(r['Para birimi']) + r.Kapora, curSym(r['Para birimi']) + r.Kalan]), 'Gelir_Kapora', rangeTxt);
         }
+        if (type === 'currentView') return exportExcel(filteredReservations.map(rowBase), 'Su_Anki_Gorunum');
+        if (type === 'fullArchive') return exportExcel((await reportData('', true)).map(rowBase), 'Tum_Arsiv');
     };
 
-    // Selection modal basics
-    const selSheet = document.getElementById('selSheet');
-    const selBackdrop = document.getElementById('selBackdrop');
-    const selOptions = document.getElementById('sel-options-list');
-
-    document.getElementById('selClose').onclick = () => closeSheet(selSheet, selBackdrop);
-    selBackdrop.onclick = () => closeSheet(selSheet, selBackdrop);
-
-    // ── FINANCE SHEET ────────────────────────────────────────
-    const financeSheet = document.getElementById('financeSheet');
-    const financeBackdrop = document.getElementById('financeBackdrop');
-
-    document.getElementById('c-openFinance').onclick = () => {
-        summarizeFinance();
-        openSheet(financeSheet, financeBackdrop);
-    };
-    document.getElementById('financeClose').onclick = () => closeSheet(financeSheet, financeBackdrop);
-    financeBackdrop.onclick = () => closeSheet(financeSheet, financeBackdrop);
-
-    // Para birimleri KARIŞTIRILMADAN gruplanır (ör. €1.200 + ₺3.400 asla
-    // tek bir sayıda toplanmaz — bu, misafirin oda hesabında yanlış tutar
-    // görmesine yol açan asıl hataydı). Tek para birimi kullanan oteller
-    // (çoğunluk) eskisiyle birebir aynı tek satırlık görünümü görür.
-    function summarizeFinance() {
-        const confirmed = reservations.filter(r => r.status === 'Confirmed');
-        const byCur = {}; // { EUR: {rev,dep,bal}, TRY: {...} }
-        const catMap = {}; // { type: { EUR: rev, TRY: rev } }
-
-        confirmed.forEach(r => {
-            const cur = r.currency || 'EUR';
-            const p = parseFloat(r.totalPrice) || 0;
-            const d = parseFloat(r.deposit) || 0;
-            const g = byCur[cur] || (byCur[cur] = { rev: 0, dep: 0, bal: 0 });
-            g.rev += p; g.dep += d; g.bal += (p - d);
-
-            if (!catMap[r.type]) catMap[r.type] = {};
-            catMap[r.type][cur] = (catMap[r.type][cur] || 0) + p;
-        });
-
-        const cursPresent = Object.keys(byCur);
-        const fmtLines = key => cursPresent.length
-            ? cursPresent.map(c => curSym(c) + byCur[c][key].toLocaleString()).join('<br>')
-            : (curSym('EUR') + '0');
-        document.getElementById('f-totalRev').innerHTML = fmtLines('rev');
-        document.getElementById('f-totalDep').innerHTML = fmtLines('dep');
-        document.getElementById('f-totalBal').innerHTML = fmtLines('bal');
-
-        const catList = document.getElementById('f-category-list');
-        catList.innerHTML = Object.keys(catMap)
-            .sort()
-            .map(cat => {
-                const vals = Object.keys(catMap[cat]).filter(c => catMap[cat][c] > 0);
-                if (!vals.length) return '';
-                return `
-                <div class="f-cat-item">
-                    <span class="f-cat-label">${esc(cat)}</span>
-                    <span class="f-cat-val">${vals.map(c => curSym(c) + catMap[cat][c].toLocaleString()).join(' · ')}</span>
-                </div>`;
-            }).join('');
-    }
-
-    // ── PDF GENERATOR ────────────────────────────────────────
+    // ── PDF: MİSAFİR PROGRAMI ─────────────────────────────────
     const generatePDF = async (guest, room, itemsOverride = null) => {
         let guestItems = itemsOverride || reservations.filter(r => r.guestName === guest && r.status !== 'Cancelled');
         if (guestItems.length === 0) { showToast('Aktif rezervasyon bulunamadı', true); return; }
+        await ensureHotelName();
+        guestItems = guestItems.slice().sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
 
-        guestItems.sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
-
-        const pdfEl = document.getElementById('itinerary-pdf');
+        const pdfEl = $('itinerary-pdf');
         pdfEl.style.display = 'block';
 
         let html = `
@@ -2257,7 +2036,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 .pdf-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #34495e; padding-bottom: 15px; margin-bottom: 20px; }
                 .pdf-title h1 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; color: #34495e; }
                 .pdf-guest-info { margin-bottom: 20px; background: #fafafa; padding: 15px; border-radius: 6px; border-left: 3px solid #34495e; }
-                .pdf-guest-info h2 { margin: 0; font-size: 18px; color: #1a1a1a; }
                 .pdf-guest-info p { margin: 0; font-size: 12px; color: #7f8c8d; }
                 .pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
                 .pdf-table th { text-align: left; padding: 10px; background: #34495e; color: #fff; font-size: 11px; text-transform: uppercase; }
@@ -2265,101 +2043,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 .pdf-date-cell { white-space: nowrap; font-weight: bold; }
                 .pdf-service-type { font-weight: 800; color: #2980b9; display: block; }
                 .pdf-item-details { color: #34495e; }
-                .pdf-footer { text-align: center; margin-top: 30px; border-top: 1px solid #ecf0f1; padding-top: 15px; font-size: 10px; color: #95a5a6; }
             </style>
             <div class="pdf-container">
                 <div class="pdf-header">
                     <img src="logo.png" style="height: 40px; width: auto;" alt="Logo">
-                    <div class="pdf-title">
-                        <h1>Guest Itinerary</h1>
-                    </div>
+                    <div class="pdf-title"><h1>Guest Itinerary</h1></div>
                 </div>
-
                 <div class="pdf-guest-info">
-                    <p>Dear <strong>${esc(guest)}</strong>,</p>
-                    <p style="margin-top: 5px;">We hope you are enjoying your stay. Please find below the updated details of your arrangements. We remain at your full disposal for any further assistance.</p>
+                    <p>Dear <strong>${esc(guest)}</strong>${room && room !== 'Pre-Arrival' ? ' · Room ' + esc(room) : ''},</p>
+                    <p style="margin-top: 5px;">We hope you are enjoying your stay. Please find below the details of your arrangements. We remain at your full disposal for any further assistance.</p>
                 </div>
-
                 <table class="pdf-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 20%;">Date & Time</th>
-                            <th style="width: 30%;">Service</th>
-                            <th style="width: 50%;">Details & Arrangements</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
+                    <thead><tr><th style="width: 20%;">Date & Time</th><th style="width: 25%;">Service</th><th style="width: 55%;">Details & Arrangements</th></tr></thead>
+                    <tbody>`;
         guestItems.forEach(item => {
-            const dateStr = fmtDate(item.date);
-            const timeStr = item.time || '—';
-
             let details = '';
-            if (item.type === 'Restaurant' || item.type === 'Beach') details = `<strong>${esc(item.resName)}</strong><br>Pax: ${esc(item.pax)}`;
-            else if (item.type === 'Transfer') details = `<strong>Path:</strong> ${esc(item.from)} ➔ ${esc(item.to)}<br><strong>Vehicle:</strong> ${esc(item.vehicle || 'Standard')}`;
+            if (item.type === 'Restaurant' || item.type === 'Beach') details = `<strong>${esc(item.resName || '')}</strong>${item.pax ? '<br>Guests: ' + esc(item.pax) : ''}`;
+            else if (item.type === 'Transfer') details = `<strong>Route:</strong> ${esc(item.from || '')} ➔ ${esc(item.to || '')}<br><strong>Vehicle:</strong> ${esc(item.vehicle || 'Standard')}`;
             else if (item.type === 'Boat' || item.type === 'Tour') details = `<strong>Service:</strong> ${esc(item.vessel || 'Private Tour')}<br><strong>Provider:</strong> ${esc(item.provider || 'Hotel Direct')}`;
             else details = `<strong>Request:</strong> ${esc(item.otherType || item.resName || item.type)}`;
-
-            html += `
-                <tr>
-                    <td class="pdf-date-cell">${dateStr}<br><span style="font-weight: normal; color: #7f8c8d;">${esc(timeStr)}</span></td>
-                    <td>
-                        <span class="pdf-service-type">${esc(item.type.toUpperCase())}</span>
-                    </td>
-                    <td class="pdf-item-details">${details}</td>
-                </tr>
-            `;
+            html += `<tr><td class="pdf-date-cell">${fmtDate(item.date)}<br><span style="font-weight: normal; color: #7f8c8d;">${esc(item.time || '—')}</span></td>
+                <td><span class="pdf-service-type">${esc(String(item.type || '').toUpperCase())}</span></td><td class="pdf-item-details">${details}</td></tr>`;
         });
-
-        html += `
-                    </tbody>
-                </table>
-
+        html += `</tbody></table>
                 <div style="margin-top: 40px; padding: 20px; border: 1px solid #ecf0f1; border-radius: 8px;">
                     <h4 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase;">A Note from Management</h4>
-                    <p style="margin: 0; font-size: 12px; font-style: italic; color: #7f8c8d;">
-                        "We hope you enjoy your stay with us. If there are any changes to this schedule, please do not hesitate to contact our Concierge team at any time."
-                    </p>
+                    <p style="margin: 0; font-size: 12px; font-style: italic; color: #7f8c8d;">"We hope you enjoy your stay with us. If there are any changes to this schedule, please do not hesitate to contact our Concierge team at any time."</p>
                 </div>
-
-                </div>
-            </div>
-        `;
-
+                ${HOTEL_NAME ? `<p style="margin-top: 24px; text-align: center; font-size: 11px; color: #95a5a6;">${esc(HOTEL_NAME)}</p>` : ''}
+            </div>`;
         pdfEl.innerHTML = html;
-
         const opt = {
             margin: 0,
-            filename: `Itinerary_${guest.replace(/\s+/g, '_')}.pdf`,
+            filename: `Itinerary_${String(guest).replace(/\s+/g, '_')}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 3, useCORS: true, letterRendering: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
-
-        try { await loadScriptOnce(CG_HTML2PDF_LIB); } catch (e) { pdfEl.style.display = 'none'; return showToast('PDF kütüphanesi yüklenemedi.', true); }
-        html2pdf().set(opt).from(pdfEl).save().then(() => {
-            pdfEl.style.display = 'none';
-        });
+        try { await loadScriptOnce(CG_HTML2PDF_LIB); } catch (e) { /* aşağıda denetlenir */ }
+        if (typeof html2pdf !== 'function') { pdfEl.style.display = 'none'; return showToast('PDF kütüphanesi yüklenemedi.', true); }
+        html2pdf().set(opt).from(pdfEl).save().then(() => { pdfEl.style.display = 'none'; showToast('Program PDF olarak indirildi.'); });
     };
 
+    // ── PDF: ONAY MEKTUBU ─────────────────────────────────────
     const generateConfirmationPDF = async (r) => {
         await ensureHotelName(); // tenant'ın kendi otel adı (marka sızıntısını önler)
-        const pdfEl = document.getElementById('itinerary-pdf');
+        const pdfEl = $('itinerary-pdf');
         pdfEl.style.display = 'block';
-
         let details = '';
-        if (r.type === 'Restaurant' || r.type === 'Beach') details = `Restaurant: <strong>${esc(r.resName)}</strong><br>Guests: ${esc(r.pax)} Pax`;
-        else if (r.type === 'Transfer') details = `Path: <strong>${esc(r.from)} ➔ ${esc(r.to)}</strong><br>Vehicle/Flight: ${esc(r.vehicle || 'Standard')}<br>Pax: ${esc(r.pax || '—')}`;
+        if (r.type === 'Restaurant' || r.type === 'Beach') details = `Venue: <strong>${esc(r.resName || '')}</strong>${r.pax ? '<br>Guests: ' + esc(r.pax) + ' Pax' : ''}`;
+        else if (r.type === 'Transfer') details = `Route: <strong>${esc(r.from || '')} ➔ ${esc(r.to || '')}</strong><br>Vehicle/Flight: ${esc(r.vehicle || 'Standard')}<br>Pax: ${esc(r.pax || '—')}`;
         else if (r.type === 'Boat' || r.type === 'Tour') details = `Service: <strong>${esc(r.vessel || r.type)}</strong><br>Provider: ${esc(r.provider || 'Hotel Direct')}<br>Pax: ${esc(r.pax || '—')}`;
         else details = `Arrangement: <strong>${esc(r.otherType || r.resName || r.type)}</strong>`;
-
-        let html = `
+        const ST_EN = { Pending: 'Pending', Confirmed: 'Confirmed', Done: 'Completed', Cancelled: 'Cancelled' };
+        pdfEl.innerHTML = `
             <style>
                 .pdf-container { padding: 40px; font-family: 'Helvetica', 'Arial', sans-serif; color: #2c3e50; line-height: 1.6; }
                 .pdf-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #34495e; padding-bottom: 20px; margin-bottom: 30px; }
                 .pdf-title h1 { margin: 0; font-size: 28px; text-transform: uppercase; letter-spacing: 2px; color: #2c3e50; }
-                .pdf-content { margin-top: 20px; }
                 .conf-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 25px; border-radius: 8px; margin: 25px 0; }
                 .conf-row { display: flex; border-bottom: 1px solid #eee; padding: 10px 0; }
                 .conf-label { width: 150px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; font-size: 11px; }
@@ -2368,47 +2109,52 @@ document.addEventListener('DOMContentLoaded', () => {
             </style>
             <div class="pdf-container">
                 <div class="pdf-header">
-                    <img src="logo.png" style="height: 50px; width: auto;">
+                    <img src="logo.png" style="height: 50px; width: auto;" alt="Logo">
                     <div class="pdf-title">
                         <h1>Confirmation</h1>
-                        <p style="margin:5px 0 0 0; font-size:12px; color:#7f8c8d; text-align:right;">Ref: #${r.id.substring(0, 8).toUpperCase()}</p>
+                        <p style="margin:5px 0 0 0; font-size:12px; color:#7f8c8d; text-align:right;">Ref: #${esc(String(r.id).substring(0, 8).toUpperCase())}</p>
                     </div>
                 </div>
-
                 <div class="pdf-content">
                     <p>Dear <strong>${esc(r.guestName)}</strong>,</p>
                     <p>We are pleased to confirm your upcoming arrangement as follows:</p>
-
                     <div class="conf-box">
-                        <div class="conf-row"><div class="conf-label">Service Type</div><div class="conf-value" style="font-weight:bold; color:#2980b9;">${esc(r.type.toUpperCase())}</div></div>
+                        <div class="conf-row"><div class="conf-label">Service Type</div><div class="conf-value" style="font-weight:bold; color:#2980b9;">${esc(String(r.type || '').toUpperCase())}</div></div>
                         <div class="conf-row"><div class="conf-label">Date</div><div class="conf-value">${fmtDate(r.date)}</div></div>
                         <div class="conf-row"><div class="conf-label">Time</div><div class="conf-value">${esc(r.time || '—')}</div></div>
                         <div class="conf-row"><div class="conf-label">Details</div><div class="conf-value">${details}</div></div>
-                        <div class="conf-row"><div class="conf-label">Status</div><div class="conf-value"><strong>${esc(r.status)}</strong></div></div>
+                        <div class="conf-row"><div class="conf-label">Status</div><div class="conf-value"><strong>${esc(ST_EN[stOf(r)])}</strong></div></div>
                         ${r.voucherNo ? `<div class="conf-row"><div class="conf-label">Confirmation No</div><div class="conf-value">${esc(r.voucherNo)}</div></div>` : ''}
                     </div>
-
                     <p>Should you require any further assistance or wish to make changes, please contact the Concierge desk.</p>
                     <p style="margin-top:30px;">Warm regards,<br><strong>Concierge Team</strong></p>
                 </div>
-
-                <div class="pdf-footer">
-                    ${esc(HOTEL_NAME)}
-                </div>
-            </div>
-        `;
-
-        pdfEl.innerHTML = html;
+                <div class="pdf-footer">${esc(HOTEL_NAME)}</div>
+            </div>`;
         const opt = {
             margin: 0,
-            filename: `Confirmation_${r.guestName.replace(/\s+/g, '_')}_${r.type}.pdf`,
+            filename: `Confirmation_${String(r.guestName || '').replace(/\s+/g, '_')}_${r.type}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 3, useCORS: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
-        try { await loadScriptOnce(CG_HTML2PDF_LIB); } catch (e) { pdfEl.style.display = 'none'; return showToast('PDF kütüphanesi yüklenemedi.', true); }
-        html2pdf().set(opt).from(pdfEl).save().then(() => {
-            pdfEl.style.display = 'none';
-        });
+        try { await loadScriptOnce(CG_HTML2PDF_LIB); } catch (e) { /* aşağıda denetlenir */ }
+        if (typeof html2pdf !== 'function') { pdfEl.style.display = 'none'; return showToast('PDF kütüphanesi yüklenemedi.', true); }
+        html2pdf().set(opt).from(pdfEl).save().then(() => { pdfEl.style.display = 'none'; });
     };
+
+    // ── BAŞLANGIÇ ─────────────────────────────────────────────
+    renderToolbar();
+    board.innerHTML = '<div class="cz-empty"><span class="cz-empty-ic">' + ic('hourglass') + '</span><b>Rezervasyonlar yükleniyor…</b></div>';
+    // Göreli zamanlar ("40 dk sonra"), "şimdi" çizgisi ve gecikme durumu
+    // dakikada bir tazelenir (görünürken; açık pencere/yazma sırasında değil).
+    let lastDay = todayIso();
+    setInterval(() => {
+        if (document.hidden || anyOpen() || !reservations.length) return;
+        const t = todayIso();
+        if (t !== lastDay) { if (cursor === lastDay) cursor = t; lastDay = t; }
+        const a = document.activeElement;
+        if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+        render();
+    }, 60000);
 });
