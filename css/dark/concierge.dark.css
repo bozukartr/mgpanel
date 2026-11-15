@@ -859,6 +859,9 @@ html.theme-dark .cz-inline.bad {
     border-color: #642b2b;
     background: #17191f;
 }
+html.theme-dark .cz-doclang {
+    color: var(--cz-muted);
+}
 html.theme-dark .cz-dl dt {
     color: var(--cz-muted);
 }

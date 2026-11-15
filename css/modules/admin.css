@@ -390,11 +390,22 @@ html { -webkit-text-size-adjust: 100%; }
 .fin-check.warn > span:first-child { background: var(--warn-bg); color: var(--warn); }
 .fin-check.bad > span:first-child { background: var(--bad-bg); color: var(--bad); }
 .fin-check.bad { color: var(--ink); }
-.comm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.comm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .comm-item { padding: 12px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--surface-2); }
 .comm-item label { display: block; font-size: 13px; font-weight: 500; color: var(--ink-2); margin-bottom: 8px; }
 .comm-item .inrow { display: flex; align-items: center; gap: 6px; }
 .comm-item .inrow span { color: var(--ink-3); }
+/* Concierge ücretleri: hizmet başına "ücretli" anahtarı + komisyon */
+.comm-item .comm-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; margin-bottom: 10px; }
+.comm-item .comm-top b { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.comm-item .comm-top .switch-row { display: flex; margin: 0; font-size: 12.5px; font-weight: 500; color: var(--ink-2); align-items: center; gap: 8px; }
+.comm-item .comm-top .switch-row > span { padding-top: 0; }
+.comm-item .inrow input { width: 88px; flex: 0 0 auto; min-width: 0; }
+.comm-item .inrow span { white-space: nowrap; font-size: 13px; }
+.comm-item .inrow input:disabled { opacity: .5; cursor: not-allowed; }
+.comm-item.off { background: var(--surface); }
+.comm-item.off .comm-top b { color: var(--ink-3); }
+.comm-item .comm-off { font-size: 12px; color: var(--ink-3); line-height: 1.4; }
 
 /* ════════ Hizmet kataloğu (eskiden request-catalog.js enjekte ediyordu) ════════ */
 .cat-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
@@ -565,6 +576,8 @@ html { -webkit-text-size-adjust: 100%; }
     .admin-body input.cat-search { max-width: none; }
     .comm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     .comm-item { padding: 10px; }
+    .comm-item .inrow input { flex: 1 1 auto; width: auto; }
+    .comm-item .inrow span { font-size: 12px; }
     .cat-bulk-row { grid-template-columns: 1fr 1fr; }
     .cat-bulk-row.cat-bulk-head { display: none; }
     /* Kullanıcılar tablosu → kartlar */

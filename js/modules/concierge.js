@@ -46,17 +46,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const isAdminUser = loggedRole === 'admin' || loggedUsername.toLowerCase() === 'admin';
     if (!loggedUsername) { window.location.href = 'login'; return; }
 
-    // Bu otelin (tenant) görünen adı — PDF/çıktılarda kullanılır (marka sızıntısı yok).
-    let HOTEL_NAME = '';
-    async function ensureHotelName() {
-        if (HOTEL_NAME) return HOTEL_NAME;
+    // Bu otelin (tenant) adı, adresi ve telefonu — PDF belgelerinin başlık ve
+    // alt bilgisinde kullanılır (Ayarlar → Misafir Sayfası; platform markası yok).
+    let HOTEL = null;
+    async function ensureHotel() {
+        if (HOTEL) return HOTEL;
         try {
             const d = await db.collection('guestConfig').doc(TENANT_ID).get();
-            if (d.exists) HOTEL_NAME = String((d.data() || {}).hotelName || '').trim();
-        } catch (e) { if (window.Monitor) Monitor.capture(e, { where: 'concierge.ensureHotelName' }); }
-        return HOTEL_NAME;
+            const c = d.exists ? (d.data() || {}) : {};
+            HOTEL = { name: String(c.hotelName || '').trim(), address: String(c.address || '').trim(), phone: String(c.phone || '').trim() };
+        } catch (e) {
+            if (window.Monitor) Monitor.capture(e, { where: 'concierge.ensureHotel' });
+            return { name: '', address: '', phone: '' };
+        }
+        return HOTEL;
     }
-    ensureHotelName();
+    ensureHotel();
     auth.onAuthStateChanged(async (u) => {
         if (!u) { window.location.href = 'login'; return; }
         try {
@@ -107,10 +112,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const svcIcon = (type) => ic(SERVICE_IC[type] || 'sparkles');
     const typeTr = (type) => TYPE_TR[type] || type || '';
     const typeKey = (type) => (TYPE_TR[type] ? type : 'Other');
-    // Ödeme alanları olan türler (eskiden de aynı liste) ve onay için voucher
-    // isteyenler (eski güvenlik kontrolüyle aynı).
-    const PAID_TYPES = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other'];
+    // Ücret alınan hizmetler Ayarlar → Gelir ve Komisyon → "Concierge
+    // ücretleri"nden yönetilir (financeConfig.pricedTypes). Ayar yoksa eski
+    // sabit liste geçerli — admin.js ile AYNI liste. Onay için voucher
+    // isteyenler sabit (eski güvenlik kontrolüyle aynı).
+    const DEFAULT_PRICED = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other'];
     const VOUCHER_REQ = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour'];
+    let pricedTypes = {};
+    const isPriced = (type) => (typeof pricedTypes[type] === 'boolean' ? pricedTypes[type] : DEFAULT_PRICED.includes(type));
+    // Kayıtta tutar/kapora varsa ayardan bağımsız gösterilir (veri gizlenmez).
+    const hasMoney = (r) => (Number(r && r.totalPrice) || 0) > 0 || (Number(r && r.deposit) || 0) > 0;
     const ST_TR = { Pending: 'Bekliyor', Confirmed: 'Onaylı', Done: 'Tamamlandı', Cancelled: 'İptal' };
     const stOf = (r) => (ST_TR[r && r.status] ? r.status : 'Pending');
     const needsVoucher = (r) => VOUCHER_REQ.includes(r.type) && !String(r.voucherNo || '').trim();
@@ -131,12 +142,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const p = String(t).split(':');
         return (parseInt(p[0], 10) * 60) + parseInt(p[1] || 0, 10);
     };
-    // PDF'ler için GG/AA/YYYY (eski biçim korunur).
+    // Rapor PDF'leri için GG.AA.YYYY (Türkçe yazım).
     const fmtDate = (d) => {
         if (!d) return '';
         const dt = validIso(d) ? isoToDate(d) : new Date(d);
         if (isNaN(dt.getTime())) return '';
-        return pad(dt.getDate()) + '/' + pad(dt.getMonth() + 1) + '/' + dt.getFullYear();
+        return pad(dt.getDate()) + '.' + pad(dt.getMonth() + 1) + '.' + dt.getFullYear();
     };
     const fmtDayLong = (iso) => isoToDate(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' });
     const fmtDayShort = (iso) => isoToDate(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
@@ -336,6 +347,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedId) { const r = reservations.find(x => x.id === selectedId); if (r) populateDetail(r); }
     });
 
+    // Ücretli hizmetler (Ayarlar). Açık formda anında uygulanır.
+    db.collection('financeConfig').doc(TENANT_ID).onSnapshot(doc => {
+        const v = doc.exists ? (doc.data() || {}).pricedTypes : null;
+        pricedTypes = (v && typeof v === 'object') ? v : {};
+        // (İlk anlık görüntü form kurulmadan gelebilir; form o an kapalıdır.)
+        const fo = $('czFormOv');
+        if (fo && !fo.hidden) { applyPayFields($('rs-type').value); refreshForm(); }
+    }, () => {});
+
     // Canlı pencere: son 90 gün + tüm gelecek (dışa aktarma ayrıca tam okur).
     const resWindowStart = (() => { const d = new Date(); d.setDate(d.getDate() - 90); return dateToIso(d); })();
     db.collection('reservations').where('tenantId', '==', TENANT_ID)
@@ -495,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const s = seriesInfo(r); if (s) out.push('<span class="cz-flag series" title="Tekrarlayan seri">' + ic('repeat') + ' ' + s.i + '/' + s.n + '</span>');
         if ((st === 'Pending' || st === 'Confirmed') && needsVoucher(r)) out.push('<span class="cz-flag warn">Voucher eksik</span>');
         const bal = balanceOf(r);
-        if (st !== 'Cancelled' && PAID_TYPES.includes(r.type) && (Number(r.totalPrice) || 0) > 0) {
+        if (st !== 'Cancelled' && (Number(r.totalPrice) || 0) > 0) {
             if (r.folioApplied) out.push('<span class="cz-flag paid">Oda hesabında</span>');
             else if (bal > 0) out.push('<span class="cz-flag money">' + esc(fmtMoney(bal, r.currency)) + ' bakiye</span>');
             else out.push('<span class="cz-flag paid">Ödendi</span>');
@@ -658,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const money = {};
         let dueCount = 0;
         scopeTyped.forEach(r => {
-            if (stOf(r) === 'Cancelled' || !PAID_TYPES.includes(r.type)) return;
+            if (stOf(r) === 'Cancelled' || !hasMoney(r)) return;
             const c = r.currency || 'EUR';
             const g = money[c] || (money[c] = { total: 0, dep: 0, due: 0 });
             g.total += Number(r.totalPrice) || 0; g.dep += Number(r.deposit) || 0;
@@ -920,7 +940,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Ödeme
         const total = Number(r.totalPrice) || 0, dep = Number(r.deposit) || 0, bal = balanceOf(r);
         let money = '';
-        if (PAID_TYPES.includes(r.type) && (total > 0 || dep > 0)) {
+        if (total > 0 || dep > 0) {
             const cur = r.currency || 'EUR';
             const balBox = r.folioApplied
                 ? `<div class="ok"><span>Oda hesabında</span><b>${esc(fmtMoney(r.folioAmount != null ? r.folioAmount : bal, cur))}</b></div>`
@@ -984,6 +1004,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <input type="password" id="d-delPass" autocomplete="current-password" placeholder="Şifreniz">
                 <div class="cz-inline-act"><button type="button" class="cz-btn ghost sm" data-act="inline-close">Vazgeç</button><button type="button" class="cz-btn danger sm" data-act="delete-save">${ic('trash')} Kalıcı olarak sil</button></div>`;
             setTimeout(() => $('d-delPass')?.focus(), 30);
+        } else if (inlineMode === 'letter') {
+            const st = stOf(r);
+            const what = st === 'Pending' ? 'Rezervasyon talebi (onay bekleniyor)' : st === 'Cancelled' ? 'İptal bildirimi' : 'Rezervasyon onayı';
+            box.innerHTML = `<h4>Onay mektubu</h4><p>${esc(what)}. Misafirin adı, oda ve hizmet ayrıntıları yazılır; ekip notu ve fiyat yazılmaz.</p>
+                <div class="cz-doclang"><span>Belge dili</span>${langSeg()}</div>
+                <div class="cz-inline-act"><button type="button" class="cz-btn ghost sm" data-act="inline-close">Vazgeç</button><button type="button" class="cz-btn primary sm" data-act="letter-pdf">${ic('file')} PDF indir</button></div>`;
+            setDocLang(docLang);
         }
     }
     function openInline(mode) {
@@ -1045,6 +1072,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const ok = await setStatus(r, 'Cancelled', { cancelReason: reasonTxt.slice(0, 300), cancelledBy: loggedUsername });
             b.disabled = false;
             if (ok) { inlineMode = null; showToast('Rezervasyon iptal edildi'); }
+        } else if (act === 'letter-pdf') {
+            b.disabled = true;
+            await generateConfirmationPDF(r);
+            if (b.isConnected) b.disabled = false;
         } else if (act === 'delete-save') {
             await deleteReservation(r, b);
         } else if (act === 'folio') {
@@ -1114,7 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    $('d-confirmLetterBtn').addEventListener('click', () => { if (window.selectedReservation) generateConfirmationPDF(window.selectedReservation); });
+    $('d-confirmLetterBtn').addEventListener('click', () => { if (window.selectedReservation) openInline('letter'); });
     $('d-deleteBtn').addEventListener('click', () => {
         const r = window.selectedReservation;
         if (!r) return;
@@ -1189,12 +1220,24 @@ document.addEventListener('DOMContentLoaded', () => {
         dynamicFields.innerHTML = dynHtml(type);
         Object.keys(keep).forEach(id => { const el = $(id); if (el) el.value = keep[id]; });
         $('czDetailsTitle').textContent = typeTr(type) + ' ayrıntıları';
-        const paid = PAID_TYPES.includes(type);
-        $('rs-finance-box').hidden = !paid;
-        $('rs-voucher-group').hidden = !paid;
+        applyPayFields(type);
+        refreshForm();
+    }
+    // Ödeme alanları: hizmet ücretliyse (Ayarlar) ya da düzenlenen kayıtta
+    // zaten tutar/kapora varsa görünür. Voucher, onay için gerekiyorsa ücret
+    // kapalı olsa da görünür; ikisi de yoksa bölüm tamamen gizlenir.
+    let editKeepPay = null;                 // düzenlenen kaydın türü (tutarı varsa)
+    const payOn = (type) => isPriced(type) || editKeepPay === type;
+    const voucherOn = (type) => VOUCHER_REQ.includes(type) || payOn(type);
+    function applyPayFields(type) {
+        const pay = payOn(type), vou = voucherOn(type);
+        $('rs-finance-box').hidden = !pay && !vou;
+        $('rs-finance-group').hidden = !pay;
+        $('czBalance').hidden = !pay;
+        $('rs-voucher-group').hidden = !vou;
+        $('czPayTitle').textContent = pay ? 'Ödeme' : 'Onay';
         const vl = document.querySelector('label[for="rs-voucher"] small');
         if (vl) vl.textContent = VOUCHER_REQ.includes(type) ? '(onaylamak için gerekli)' : '(isteğe bağlı)';
-        refreshForm();
     }
     $('czTypeTiles').addEventListener('click', (e) => { const t = e.target.closest('.cz-tile'); if (t) setType(t.dataset.type); });
     $('czTypeTiles').addEventListener('keydown', (e) => {
@@ -1413,7 +1456,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (date < t || (date === t && time && time < nowHM())) out.push({ kind: 'past', title: 'Geçmiş bir zaman seçildi', text: 'Tarih ve saati kontrol edin.' });
         }
         const price = parseFloat($('rs-price').value) || 0, dep = parseFloat($('rs-deposit').value) || 0;
-        if (PAID_TYPES.includes(type) && dep > 0 && dep > price) out.push({ kind: 'money', bad: true, title: 'Kapora tutardan büyük', text: 'Alınan kapora toplam tutarı aşıyor.' });
+        if (payOn(type) && dep > 0 && dep > price) out.push({ kind: 'money', bad: true, title: 'Kapora tutardan büyük', text: 'Alınan kapora toplam tutarı aşıyor.' });
         return out;
     }
 
@@ -1422,7 +1465,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Bakiye
         const price = parseFloat($('rs-price').value) || 0, dep = parseFloat($('rs-deposit').value) || 0, cur = $('rs-currency').value;
         const bal = $('czBalance');
-        if (!PAID_TYPES.includes(type) || (!price && !dep)) bal.innerHTML = '';
+        if (!payOn(type) || (!price && !dep)) bal.innerHTML = '';
         else if (price - dep > 0) bal.innerHTML = 'Kalan bakiye: <b>' + esc(fmtMoney(price - dep, cur)) + '</b>' + (dep ? ' · kapora ' + esc(fmtMoney(dep, cur)) : '');
         else bal.innerHTML = '<span class="paid">Tamamı ödendi</span>';
         // Tarih kısayolları
@@ -1478,7 +1521,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Yeni rezervasyon (isteğe bağlı ön doldurma: tarih, ya da "benzerini oluştur").
     function openNewRes(pre) {
         pre = (pre && typeof pre === 'object' && !(pre instanceof Event)) ? pre : {};
-        editResId = null; editResBaseUpdatedAt = null; editResStatus = null;
+        editResId = null; editResBaseUpdatedAt = null; editResStatus = null; editKeepPay = null;
         resetForm();
         $('czFormTitle').textContent = pre.__dup ? 'Benzer rezervasyon' : 'Yeni rezervasyon';
         $('czFormSub').textContent = pre.__dup ? 'Bilgiler kopyalandı — tarihi ve saati kontrol edin.' : 'Hizmeti seçin, misafiri ve zamanı girin.';
@@ -1502,6 +1545,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editResId = r.id;
         editResBaseUpdatedAt = r.lastUpdated || r.createdAt || null;
         editResStatus = stOf(r);
+        editKeepPay = hasMoney(r) ? r.type : null;
         resetForm();
         $('czFormTitle').textContent = 'Rezervasyonu düzenle';
         $('czFormSub').textContent = (r.guestName || '') + ' · ' + typeTr(r.type) + ' · ' + ST_TR[stOf(r)];
@@ -1568,7 +1612,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!guestName) return fieldError('rs-guest', 'Misafir adını girin.');
         if (!isPreArrival && !room) return fieldError('rs-room', 'Oda numarasını girin ya da "Ön geliş"i işaretleyin.');
         if (!validIso(date)) return fieldError('rs-date', 'Tarih seçin.');
-        if (PAID_TYPES.includes(type) && deposit > price && price > 0) return fieldError('rs-deposit', 'Kapora tutardan büyük olamaz.');
+        const pay = payOn(type), vou = voucherOn(type);
+        if (pay && deposit > price && price > 0) return fieldError('rs-deposit', 'Kapora tutardan büyük olamaz.');
         if (confirmToo && VOUCHER_REQ.includes(type) && !voucher) return fieldError('rs-voucher', 'Onaylamak için voucher / onay no gerekli.');
 
         // Seri oluşturulurken TÜM tarihlerdeki çakışma bir kez onaylanır
@@ -1585,8 +1630,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dynamicFields.querySelectorAll('input').forEach(inp => { dynamicData[inp.id.replace('rs-', '')] = inp.value.trim(); });
         const data = Object.assign({
             type, guestName, room: isPreArrival ? 'Pre-Arrival' : room, date, time, notes,
-            totalPrice: PAID_TYPES.includes(type) ? price : 0, deposit: PAID_TYPES.includes(type) ? deposit : 0, currency,
-            voucherNo: PAID_TYPES.includes(type) ? voucher : ''
+            totalPrice: pay ? price : 0, deposit: pay ? deposit : 0, currency,
+            voucherNo: vou ? voucher : ''
         }, dynamicData);
 
         submitting = true;
@@ -1736,6 +1781,7 @@ document.addEventListener('DOMContentLoaded', () => {
         $('iti-guest-info').hidden = true;
         $('sel-confirm-btn').disabled = true;
         itiList.hidden = true;
+        setDocLang(docLang);
         openOv(itiOv);
         if (name && activeOf(name).length) selectItiGuest(name);
         else setTimeout(() => { itiIn.focus(); renderItiList(); }, 40);
@@ -1828,7 +1874,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function rowBase(r) {
         let details = '';
         if (r.type === 'Restaurant' || r.type === 'Beach') details = r.resName || '';
-        else if (r.type === 'Transfer') details = `${r.from || ''} -> ${r.to || ''}${r.vehicle ? ' (' + r.vehicle + ')' : ''}`;
+        else if (r.type === 'Transfer') details = `${r.from || ''} – ${r.to || ''}${r.vehicle ? ' (' + r.vehicle + ')' : ''}`;
         else if (r.type === 'Boat' || r.type === 'Tour') details = `${r.vessel || ''}${r.provider ? ' (' + r.provider + ')' : ''}`;
         // Other + Flower/Cake — otherType/resName ÖNCE notes'a düşmeden kontrol edilir.
         else details = r.otherType || r.resName || r.notes || '';
@@ -1849,10 +1895,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     const pdfRow = (r, withGuest = true) => {
-        const rb = rowBase(r); const s = curSym(rb['Para birimi']);
+        const rb = rowBase(r), cur = rb['Para birimi'];
         const row = [fmtDate(rb.Tarih), rb.Saat, rb.Oda];
         if (withGuest) row.push(rb.Misafir);
-        return row.concat([rb.Hizmet, rb.Ayrıntı, rb.Kişi, s + rb.Tutar, s + rb.Kapora, rb.Durum]);
+        // Ücretsiz kayıtlarda (restoran, plaj…) "€0" yerine boş hücre.
+        return row.concat([rb.Hizmet, rb.Ayrıntı, rb.Kişi, rb.Tutar ? fmtMoney(rb.Tutar, cur) : '', rb.Kapora ? fmtMoney(rb.Kapora, cur) : '', rb.Durum]);
     };
     const PDF_HEAD = ['Tarih', 'Saat', 'Oda', 'Misafir', 'Hizmet', 'Ayrıntı', 'Kişi', 'Tutar', 'Kapora', 'Durum'];
 
@@ -1874,14 +1921,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Dışa-aktarma kütüphaneleri TEMBEL yüklenir (bkz. js/core/lazy-load.js).
-    const CG_PDF_LIBS = [
-        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-        'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js'
-    ];
+    // PDF'ler concierge-pdf.js (CzPdf) ile üretilir: vektörel, Türkçe yazı tipli.
     const CG_XLSX_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    const CG_HTML2PDF_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
 
-    const safeName = (s) => String(s || '').replace(/[^\w\-ğüşöçıİĞÜŞÖÇ]+/g, '_').slice(0, 60);
+    // Dosya adları ASCII: tarayıcı Türkçe harfli indirme adını atıp dosyayı
+    // uzantısız "download" olarak kaydedebiliyordu ("Misafir_Ayşe" → download).
+    const TR_ASCII = { ı: 'i', İ: 'I', ğ: 'g', Ğ: 'G', ü: 'u', Ü: 'U', ş: 's', Ş: 'S', ö: 'o', Ö: 'O', ç: 'c', Ç: 'C' };
+    const safeName = (s) => String(s || '').replace(/[ıİğĞüÜşŞöÖçÇ]/g, c => TR_ASCII[c]).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 60) || 'Belge';
     async function exportExcel(rows, filename, sheetName = 'Rapor', extraSheets) {
         if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
         try { await loadScriptOnce(CG_XLSX_LIB); } catch (e) { /* aşağıda denetlenir */ }
@@ -1897,56 +1944,27 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Excel raporu indirildi.');
     }
 
-    function fixTurkishChars(str) {
-        if (typeof str !== 'string') return str;
-        return str
-            .replace(/ı/g, 'i').replace(/İ/g, 'I')
-            .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
-            .replace(/ü/g, 'u').replace(/Ü/g, 'U')
-            .replace(/ş/g, 's').replace(/Ş/g, 'S')
-            .replace(/ö/g, 'o').replace(/Ö/g, 'O')
-            .replace(/ç/g, 'c').replace(/Ç/g, 'C')
-            .replace(/₺/g, 'TL ').replace(/€/g, 'EUR ');
-    }
-
-    async function exportPDF(title, headers, rows, filename, subtitle = '') {
-        if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
-        try { await loadScriptsOnce(CG_PDF_LIBS); } catch (e) { /* aşağıda denetlenir */ }
-        if (!window.jspdf || !window.jspdf.jsPDF) return showToast('PDF kütüphanesi yüklenemedi.', true);
-        await ensureHotelName();
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: rows[0].length > 6 ? 'landscape' : 'portrait' });
-        // Yerleşik yazı tipinde Türkçe karakter yok — sadeleştirilir.
-        const fixedTitle = fixTurkishChars(title);
-        const fixedSubtitle = fixTurkishChars(subtitle || ((HOTEL_NAME ? HOTEL_NAME + ' · ' : '') + 'Olusturulma: ' + fmtDate(todayIso())));
-        const fixedHeaders = headers.map(h => fixTurkishChars(h));
-        const fixedRows = rows.map(row => row.map(cell => fixTurkishChars(typeof cell === 'number' ? String(cell) : cell)));
-        doc.setFillColor(79, 70, 229);
-        doc.rect(0, 0, doc.internal.pageSize.getWidth(), 28, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(16); doc.setFont('helvetica', 'bold');
-        doc.text(fixedTitle, 14, 12);
-        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text(fixedSubtitle, 14, 20);
-        doc.setTextColor(0, 0, 0);
-        doc.autoTable({
-            head: [fixedHeaders],
-            body: fixedRows,
-            startY: 32,
-            theme: 'grid',
-            headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-            bodyStyles: { fontSize: 8.5 },
-            alternateRowStyles: { fillColor: [245, 247, 255] },
-            margin: { left: 14, right: 14 }
-        });
-        const pageCount = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
-            doc.setFontSize(8); doc.setTextColor(150);
-            doc.text(`Sayfa ${i} / ${pageCount} — Concierge`, 14, doc.internal.pageSize.getHeight() - 8);
+    // PDF üretimi tek noktadan: kütüphane yüklenemezse anlaşılır uyarı.
+    async function runPdf(fn, okMsg) {
+        if (!window.CzPdf) return showToast('PDF modülü yüklenemedi. Sayfayı yenileyin.', true);
+        try {
+            await fn();
+            if (okMsg) showToast(okMsg);
+        } catch (e) {
+            if (e && e.code === 'lib') return showToast('PDF kütüphanesi yüklenemedi.', true);
+            if (window.Monitor) Monitor.capture(e, { where: 'concierge.pdf' });
+            showToast('PDF oluşturulamadı.', true);
         }
-        doc.save(`${safeName(filename)}_${todayIso()}.pdf`);
-        showToast('PDF raporu indirildi.');
+    }
+    const PDF_RIGHT = ['Kişi', 'Adet', 'Tutar', 'Kapora', 'Kalan'];
+    async function exportPDF(title, headers, rows, filename, subtitle = '', summary = null) {
+        if (!rows || rows.length === 0) return showToast('Bu rapor için veri yok.', true);
+        const hotel = await ensureHotel();
+        return runPdf(() => CzPdf.table({
+            hotel, title, head: headers, rows, right: PDF_RIGHT, status: 'Durum', summary, user: loggedUsername,
+            subtitle: [subtitle, rows.length + ' kayıt'].filter(Boolean).join('  ·  '),
+            filename: `${safeName(filename)}_${todayIso()}.pdf`
+        }), 'PDF raporu indirildi.');
     }
 
     window.generateReport = async function (type, format) {
@@ -1961,7 +1979,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const byCur = {};
             data.forEach(r => { const c = r.currency || 'EUR'; const g = byCur[c] || (byCur[c] = { rev: 0, dep: 0 }); g.rev += Number(r.totalPrice) || 0; g.dep += Number(r.deposit) || 0; });
             const curs = Object.keys(byCur);
-            const sumLine = key => curs.length ? curs.map(c => curSym(c) + byCur[c][key]).join(' · ') : curSym('EUR') + '0';
+            const sumLine = key => curs.length ? curs.map(c => fmtMoney(byCur[c][key], c)).join(' · ') : '—';
             const st = {}; data.forEach(r => { st[stOf(r)] = (st[stOf(r)] || 0) + 1; });
             const summaryRows = [
                 { Gösterge: 'Rezervasyon', Değer: data.length },
@@ -1977,7 +1995,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!data.length) return showToast('Bu gün için rezervasyon yok.', true);
                 return exportExcel(data.map(rowBase), `Gunluk_Ozet_${specific}`, 'Ayrıntı', [['Özet', summaryRows]]);
             }
-            return exportPDF(`Gunluk ozet: ${fmtDate(specific)}`, PDF_HEAD, data.map(r => pdfRow(r)), `Gunluk_Ozet_${specific}`);
+            return exportPDF('Günlük özet', PDF_HEAD, data.map(r => pdfRow(r)), `Gunluk_Ozet_${specific}`,
+                isoToDate(specific).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' }),
+                summaryRows.map(x => [x.Gösterge, String(x.Değer)]));
         }
         if (type === 'activity' || type === 'dateRange') {
             let data = (await reportData(from)).filter(inRange);
@@ -1986,17 +2006,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (cat !== 'All') data = data.filter(r => typeKey(r.type) === cat);
             }
             data.sort(byTime);
-            const label = type === 'activity' ? ('Hizmet: ' + (cat === 'All' ? 'Tümü' : typeTr(cat))) : 'Tarih aralığı';
+            const label = type === 'activity' ? 'Hizmet türüne göre' : 'Tarih aralığı';
+            const sub = (type === 'activity' ? (cat === 'All' ? 'Tüm hizmetler' : typeTr(cat)) + '  ·  ' : '') + rangeTxt;
             const file = type === 'activity' ? `Hizmet_${cat}` : 'Tarih_Araligi';
             if (format === 'excel') return exportExcel(data.map(rowBase), file);
-            return exportPDF(label, PDF_HEAD, data.map(r => pdfRow(r)), file, rangeTxt);
+            return exportPDF(label, PDF_HEAD, data.map(r => pdfRow(r)), file, sub);
         }
         if (type === 'guest') {
             if (!guest.trim()) return showToast('Lütfen bir misafir seçin.', true);
             const q = norm(guest);
             const data = (await reportData('', true)).filter(r => r.guestName && norm(r.guestName).includes(q) && stOf(r) !== 'Cancelled').sort(byTime);
             if (format === 'excel') return exportExcel(data.map(rowBase), `Misafir_${guest}`);
-            return exportPDF(`Misafir: ${guest}`, PDF_HEAD.filter(h => h !== 'Misafir'), data.map(r => pdfRow(r, false)), `Misafir_${guest}`);
+            return exportPDF('Misafir raporu', PDF_HEAD.filter(h => h !== 'Misafir'), data.map(r => pdfRow(r, false)), `Misafir_${guest}`, guest.trim());
         }
         if (type === 'revenue') {
             const data = (await reportData(from)).filter(r => stOf(r) !== 'Cancelled' && inRange(r));
@@ -2014,134 +2035,58 @@ document.addEventListener('DOMContentLoaded', () => {
             const rows = Object.values(m).filter(x => x.Tutar || x.Kapora).sort((a, b) => a.Tarih.localeCompare(b.Tarih) || a['Para birimi'].localeCompare(b['Para birimi']));
             if (format === 'excel') return exportExcel(rows, 'Gelir_Kapora');
             return exportPDF('Gelir ve kapora', ['Tarih', 'Para birimi', 'Adet', 'Tutar', 'Kapora', 'Kalan'],
-                rows.map(r => [fmtDate(r.Tarih), r['Para birimi'], r.Rezervasyon, curSym(r['Para birimi']) + r.Tutar, curSym(r['Para birimi']) + r.Kapora, curSym(r['Para birimi']) + r.Kalan]), 'Gelir_Kapora', rangeTxt);
+                rows.map(r => [fmtDate(r.Tarih), r['Para birimi'], String(r.Rezervasyon), fmtMoney(r.Tutar, r['Para birimi']), fmtMoney(r.Kapora, r['Para birimi']), fmtMoney(r.Kalan, r['Para birimi'])]), 'Gelir_Kapora', rangeTxt);
         }
         if (type === 'currentView') return exportExcel(filteredReservations.map(rowBase), 'Su_Anki_Gorunum');
         if (type === 'fullArchive') return exportExcel((await reportData('', true)).map(rowBase), 'Tum_Arsiv');
     };
 
-    // ── PDF: MİSAFİR PROGRAMI ─────────────────────────────────
-    const generatePDF = async (guest, room, itemsOverride = null) => {
-        let guestItems = itemsOverride || reservations.filter(r => r.guestName === guest && r.status !== 'Cancelled');
-        if (guestItems.length === 0) { showToast('Aktif rezervasyon bulunamadı', true); return; }
-        await ensureHotelName();
-        guestItems = guestItems.slice().sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
-
-        const pdfEl = $('itinerary-pdf');
-        pdfEl.style.display = 'block';
-
-        let html = `
-            <style>
-                .pdf-container { padding: 30px; font-family: 'Helvetica', 'Arial', sans-serif; color: #2c3e50; line-height: 1.4; }
-                .pdf-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #34495e; padding-bottom: 15px; margin-bottom: 20px; }
-                .pdf-title h1 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; color: #34495e; }
-                .pdf-guest-info { margin-bottom: 20px; background: #fafafa; padding: 15px; border-radius: 6px; border-left: 3px solid #34495e; }
-                .pdf-guest-info p { margin: 0; font-size: 12px; color: #7f8c8d; }
-                .pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                .pdf-table th { text-align: left; padding: 10px; background: #34495e; color: #fff; font-size: 11px; text-transform: uppercase; }
-                .pdf-table td { padding: 10px; border-bottom: 1px solid #ecf0f1; vertical-align: top; font-size: 13px; }
-                .pdf-date-cell { white-space: nowrap; font-weight: bold; }
-                .pdf-service-type { font-weight: 800; color: #2980b9; display: block; }
-                .pdf-item-details { color: #34495e; }
-            </style>
-            <div class="pdf-container">
-                <div class="pdf-header">
-                    <img src="logo.png" style="height: 40px; width: auto;" alt="Logo">
-                    <div class="pdf-title"><h1>Guest Itinerary</h1></div>
-                </div>
-                <div class="pdf-guest-info">
-                    <p>Dear <strong>${esc(guest)}</strong>${room && room !== 'Pre-Arrival' ? ' · Room ' + esc(room) : ''},</p>
-                    <p style="margin-top: 5px;">We hope you are enjoying your stay. Please find below the details of your arrangements. We remain at your full disposal for any further assistance.</p>
-                </div>
-                <table class="pdf-table">
-                    <thead><tr><th style="width: 20%;">Date & Time</th><th style="width: 25%;">Service</th><th style="width: 55%;">Details & Arrangements</th></tr></thead>
-                    <tbody>`;
-        guestItems.forEach(item => {
-            let details = '';
-            if (item.type === 'Restaurant' || item.type === 'Beach') details = `<strong>${esc(item.resName || '')}</strong>${item.pax ? '<br>Guests: ' + esc(item.pax) : ''}`;
-            else if (item.type === 'Transfer') details = `<strong>Route:</strong> ${esc(item.from || '')} ➔ ${esc(item.to || '')}<br><strong>Vehicle:</strong> ${esc(item.vehicle || 'Standard')}`;
-            else if (item.type === 'Boat' || item.type === 'Tour') details = `<strong>Service:</strong> ${esc(item.vessel || 'Private Tour')}<br><strong>Provider:</strong> ${esc(item.provider || 'Hotel Direct')}`;
-            else details = `<strong>Request:</strong> ${esc(item.otherType || item.resName || item.type)}`;
-            html += `<tr><td class="pdf-date-cell">${fmtDate(item.date)}<br><span style="font-weight: normal; color: #7f8c8d;">${esc(item.time || '—')}</span></td>
-                <td><span class="pdf-service-type">${esc(String(item.type || '').toUpperCase())}</span></td><td class="pdf-item-details">${details}</td></tr>`;
-        });
-        html += `</tbody></table>
-                <div style="margin-top: 40px; padding: 20px; border: 1px solid #ecf0f1; border-radius: 8px;">
-                    <h4 style="margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase;">A Note from Management</h4>
-                    <p style="margin: 0; font-size: 12px; font-style: italic; color: #7f8c8d;">"We hope you enjoy your stay with us. If there are any changes to this schedule, please do not hesitate to contact our Concierge team at any time."</p>
-                </div>
-                ${HOTEL_NAME ? `<p style="margin-top: 24px; text-align: center; font-size: 11px; color: #95a5a6;">${esc(HOTEL_NAME)}</p>` : ''}
-            </div>`;
-        pdfEl.innerHTML = html;
-        const opt = {
-            margin: 0,
-            filename: `Itinerary_${String(guest).replace(/\s+/g, '_')}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 3, useCORS: true, letterRendering: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-        try { await loadScriptOnce(CG_HTML2PDF_LIB); } catch (e) { /* aşağıda denetlenir */ }
-        if (typeof html2pdf !== 'function') { pdfEl.style.display = 'none'; return showToast('PDF kütüphanesi yüklenemedi.', true); }
-        html2pdf().set(opt).from(pdfEl).save().then(() => { pdfEl.style.display = 'none'; showToast('Program PDF olarak indirildi.'); });
+    // ── MİSAFİR BELGELERİ (program · onay mektubu) ────────────
+    // Belgeye yalnız hizmet alanları gider (açık liste): ekip notu, fiyat,
+    // oluşturan, kanal vb. misafir belgesine ASLA yazılmaz.
+    const pdfSafe = (r) => {
+        const o = {};
+        ['type', 'date', 'time', 'guestName', 'resName', 'pax', 'from', 'to', 'vehicle', 'vessel', 'provider', 'otherType', 'voucherNo'].forEach(k => { if (r[k] != null) o[k] = r[k]; });
+        o.status = stOf(r);
+        return o;
     };
+    // Belge dili: misafire giden PDF'ler İngilizce ya da Türkçe (son seçim hatırlanır).
+    let docLang = (function () { try { return localStorage.getItem('cz_doc_lang') === 'tr' ? 'tr' : 'en'; } catch (e) { return 'en'; } })();
+    const langSeg = () => `<div class="cz-seg sm" role="radiogroup" aria-label="Belge dili"><button type="button" role="radio" data-doclang="en">English</button><button type="button" role="radio" data-doclang="tr">Türkçe</button></div>`;
+    function setDocLang(l) {
+        docLang = l === 'tr' ? 'tr' : 'en';
+        try { localStorage.setItem('cz_doc_lang', docLang); } catch (e) { /* yok sayılır */ }
+        document.querySelectorAll('[data-doclang]').forEach(b => b.setAttribute('aria-checked', b.dataset.doclang === docLang ? 'true' : 'false'));
+    }
+    document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-doclang]'); if (b) setDocLang(b.dataset.doclang); });
 
-    // ── PDF: ONAY MEKTUBU ─────────────────────────────────────
-    const generateConfirmationPDF = async (r) => {
-        await ensureHotelName(); // tenant'ın kendi otel adı (marka sızıntısını önler)
-        const pdfEl = $('itinerary-pdf');
-        pdfEl.style.display = 'block';
-        let details = '';
-        if (r.type === 'Restaurant' || r.type === 'Beach') details = `Venue: <strong>${esc(r.resName || '')}</strong>${r.pax ? '<br>Guests: ' + esc(r.pax) + ' Pax' : ''}`;
-        else if (r.type === 'Transfer') details = `Route: <strong>${esc(r.from || '')} ➔ ${esc(r.to || '')}</strong><br>Vehicle/Flight: ${esc(r.vehicle || 'Standard')}<br>Pax: ${esc(r.pax || '—')}`;
-        else if (r.type === 'Boat' || r.type === 'Tour') details = `Service: <strong>${esc(r.vessel || r.type)}</strong><br>Provider: ${esc(r.provider || 'Hotel Direct')}<br>Pax: ${esc(r.pax || '—')}`;
-        else details = `Arrangement: <strong>${esc(r.otherType || r.resName || r.type)}</strong>`;
-        const ST_EN = { Pending: 'Pending', Confirmed: 'Confirmed', Done: 'Completed', Cancelled: 'Cancelled' };
-        pdfEl.innerHTML = `
-            <style>
-                .pdf-container { padding: 40px; font-family: 'Helvetica', 'Arial', sans-serif; color: #2c3e50; line-height: 1.6; }
-                .pdf-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #34495e; padding-bottom: 20px; margin-bottom: 30px; }
-                .pdf-title h1 { margin: 0; font-size: 28px; text-transform: uppercase; letter-spacing: 2px; color: #2c3e50; }
-                .conf-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 25px; border-radius: 8px; margin: 25px 0; }
-                .conf-row { display: flex; border-bottom: 1px solid #eee; padding: 10px 0; }
-                .conf-label { width: 150px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; font-size: 11px; }
-                .conf-value { flex: 1; color: #2c3e50; font-size: 14px; }
-                .pdf-footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #eee; font-size: 11px; color: #95a5a6; text-align: center; }
-            </style>
-            <div class="pdf-container">
-                <div class="pdf-header">
-                    <img src="logo.png" style="height: 50px; width: auto;" alt="Logo">
-                    <div class="pdf-title">
-                        <h1>Confirmation</h1>
-                        <p style="margin:5px 0 0 0; font-size:12px; color:#7f8c8d; text-align:right;">Ref: #${esc(String(r.id).substring(0, 8).toUpperCase())}</p>
-                    </div>
-                </div>
-                <div class="pdf-content">
-                    <p>Dear <strong>${esc(r.guestName)}</strong>,</p>
-                    <p>We are pleased to confirm your upcoming arrangement as follows:</p>
-                    <div class="conf-box">
-                        <div class="conf-row"><div class="conf-label">Service Type</div><div class="conf-value" style="font-weight:bold; color:#2980b9;">${esc(String(r.type || '').toUpperCase())}</div></div>
-                        <div class="conf-row"><div class="conf-label">Date</div><div class="conf-value">${fmtDate(r.date)}</div></div>
-                        <div class="conf-row"><div class="conf-label">Time</div><div class="conf-value">${esc(r.time || '—')}</div></div>
-                        <div class="conf-row"><div class="conf-label">Details</div><div class="conf-value">${details}</div></div>
-                        <div class="conf-row"><div class="conf-label">Status</div><div class="conf-value"><strong>${esc(ST_EN[stOf(r)])}</strong></div></div>
-                        ${r.voucherNo ? `<div class="conf-row"><div class="conf-label">Confirmation No</div><div class="conf-value">${esc(r.voucherNo)}</div></div>` : ''}
-                    </div>
-                    <p>Should you require any further assistance or wish to make changes, please contact the Concierge desk.</p>
-                    <p style="margin-top:30px;">Warm regards,<br><strong>Concierge Team</strong></p>
-                </div>
-                <div class="pdf-footer">${esc(HOTEL_NAME)}</div>
-            </div>`;
-        const opt = {
-            margin: 0,
-            filename: `Confirmation_${String(r.guestName || '').replace(/\s+/g, '_')}_${r.type}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 3, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-        try { await loadScriptOnce(CG_HTML2PDF_LIB); } catch (e) { /* aşağıda denetlenir */ }
-        if (typeof html2pdf !== 'function') { pdfEl.style.display = 'none'; return showToast('PDF kütüphanesi yüklenemedi.', true); }
-        html2pdf().set(opt).from(pdfEl).save().then(() => { pdfEl.style.display = 'none'; });
-    };
+    // Misafir programı: oda yoksa ya da misafir henüz gelmediyse "varış öncesi".
+    async function generatePDF(guest, room, items) {
+        items = (items || []).filter(r => stOf(r) !== 'Cancelled');
+        if (!items.length) { showToast('Aktif rezervasyon bulunamadı', true); return; }
+        const hotel = await ensureHotel();
+        const g = findGuest(guest);
+        const realRoom = room && room !== 'Pre-Arrival' ? room : '';
+        const preArrival = g ? guestState(g)[0] === 'pre' : !realRoom;
+        await runPdf(() => CzPdf.itinerary({
+            lang: docLang, hotel, guest, room: realRoom, preArrival,
+            stay: g ? { checkIn: g.checkIn, checkOut: g.checkOut } : null,
+            items: items.map(pdfSafe),
+            filename: (preArrival ? 'Pre-Arrival_Itinerary_' : 'Itinerary_') + safeName(guest) + '.pdf'
+        }), 'Program PDF olarak indirildi.');
+    }
+
+    // Onay mektubu: durumuna göre onay / talep / iptal bildirimi.
+    async function generateConfirmationPDF(r) {
+        const hotel = await ensureHotel();
+        const realRoom = r.room && r.room !== 'Pre-Arrival' ? r.room : '';
+        const kind = { Pending: 'Request', Cancelled: 'Cancellation' }[stOf(r)] || 'Confirmation';
+        await runPdf(() => CzPdf.confirmation({
+            lang: docLang, hotel, r: pdfSafe(r), room: realRoom, preArrival: !realRoom,
+            ref: String(r.id || '').slice(0, 8).toUpperCase(),
+            filename: `${kind}_${safeName(r.guestName)}_${safeName(r.type)}.pdf`
+        }), 'Onay mektubu indirildi.');
+    }
 
     // ── BAŞLANGIÇ ─────────────────────────────────────────────
     renderToolbar();

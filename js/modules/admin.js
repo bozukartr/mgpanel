@@ -1008,6 +1008,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let finReservations = [];
         let commissions = {};
+        // Hangi Concierge hizmetinde ücret alınır (financeConfig.pricedTypes).
+        // Ayar yoksa eski sabit liste geçerli — concierge.js ile AYNI liste.
+        const DEFAULT_PRICED = ['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other'];
+        let pricedTypes = {};
+        const isPriced = (k) => (typeof pricedTypes[k] === 'boolean' ? pricedTypes[k] : DEFAULT_PRICED.includes(k));
 
         const finRange = document.getElementById('finRange');
         const finFrom = document.getElementById('finFrom');
@@ -1082,7 +1087,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? staffRows.map(s => `<div class="fin-line"><span>${esc(s)}</span><span><b>${money(staff[s].gross)}</b> <span class="muted">${staff[s].count} adet</span></span></div>`).join('')
                 : `<div class="fin-line"><span class="muted">Kayıt yok</span></div>`;
 
-            const missingPrice = active.filter(r => num(r.totalPrice) <= 0);
+            // Yalnız ücretli hizmetler — restoran/plaj gibi ücretsiz kayıtlar
+            // "fiyatı girilmemiş" sayılmaz (önceden hepsi sayılıyordu).
+            const missingPrice = active.filter(r => isPriced(r.type) && num(r.totalPrice) <= 0);
             const missingVoucher = active.filter(r => r.status === 'Confirmed' && !(r.voucherNo && String(r.voucherNo).trim()));
             const overpaid = active.filter(r => num(r.deposit) > num(r.totalPrice) && num(r.totalPrice) > 0);
             const uncollected = active.filter(r => r.status === 'Confirmed' && (num(r.totalPrice) - num(r.deposit)) > 0);
@@ -1097,17 +1104,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 `<div class="fin-check ${c.sev}"><span>${c.sev === 'ok' ? '✓' : '!'}</span> ${c.label}<span class="cnt">${c.n}</span></div>`).join('');
         }
 
-        function renderCommInputs() {
-            document.getElementById('commGrid').innerHTML = CATS.map(c =>
-                `<div class="comm-item"><label>${esc(c.label)}</label><div class="inrow"><input type="number" min="0" max="100" step="0.5" data-cat="${c.key}" value="${num(commissions[c.key])}"><span>%</span></div></div>`).join('');
+        // Hizmet başına: "Ücretli" anahtarı + komisyon yüzdesi. Kapalıyken
+        // Concierge rezervasyon penceresinde ödeme alanları gösterilmez.
+        let commDirty = false;
+        function commItemHtml(c) {
+            const on = isPriced(c.key);
+            return `<div class="comm-item${on ? '' : ' off'}" data-item="${c.key}">
+                <div class="comm-top"><b>${esc(c.label)}</b>
+                    <label class="switch-row"><input type="checkbox" data-paid="${c.key}"${on ? ' checked' : ''} aria-label="${esc(c.label)} ücretli"><span>Ücretli</span></label>
+                </div>
+                <div class="inrow"><input type="number" min="0" max="100" step="0.5" data-cat="${c.key}" value="${num(commissions[c.key])}" aria-label="${esc(c.label)} komisyon yüzdesi"${on ? '' : ' disabled'}><span>% komisyon</span></div>
+            </div>`;
         }
+        function renderCommInputs() {
+            // Kaydedilmemiş düzenleme varken canlı güncelleme ekranı ezmez.
+            if (commDirty) return;
+            document.getElementById('commGrid').innerHTML = CATS.map(commItemHtml).join('');
+        }
+        document.getElementById('commGrid').addEventListener('change', (e) => {
+            commDirty = true;
+            const t = e.target;
+            if (!t.matches || !t.matches('input[data-paid]')) return;
+            const item = t.closest('.comm-item');
+            item.classList.toggle('off', !t.checked);
+            const rate = item.querySelector('input[data-cat]');
+            if (rate) rate.disabled = !t.checked;
+        });
+        document.getElementById('commGrid').addEventListener('input', () => { commDirty = true; });
 
         document.getElementById('commSave').addEventListener('click', async () => {
-            const next = {};
-            document.querySelectorAll('#commGrid input[data-cat]').forEach(inp => { next[inp.dataset.cat] = num(inp.value); });
+            const next = {}, paid = {};
+            document.querySelectorAll('#commGrid input[data-cat]').forEach(inp => { next[inp.dataset.cat] = Math.min(100, Math.max(0, num(inp.value))); });
+            document.querySelectorAll('#commGrid input[data-paid]').forEach(inp => { paid[inp.dataset.paid] = !!inp.checked; });
             try {
-                await db.collection('financeConfig').doc(TENANT_ID).set({ commissions: next, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-                showToast('Komisyon oranları kaydedildi.');
+                await db.collection('financeConfig').doc(TENANT_ID).set({ commissions: next, pricedTypes: paid, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                commDirty = false;
+                commissions = next; pricedTypes = paid;
+                renderCommInputs(); render();   // sınırlanan değerler (ör. %150 → %100) hemen görünür
+                showToast('Concierge ücret ayarları kaydedildi.');
             } catch (e) { showToast('Hata: ' + e.message, true); }
         });
 
@@ -1141,7 +1175,9 @@ document.addEventListener('DOMContentLoaded', () => {
             render();
         }, () => {});
         db.collection('financeConfig').doc(TENANT_ID).onSnapshot(doc => {
-            commissions = (doc.exists && doc.data().commissions) ? doc.data().commissions : {};
+            const fc = doc.exists ? (doc.data() || {}) : {};
+            commissions = fc.commissions || {};
+            pricedTypes = (fc.pricedTypes && typeof fc.pricedTypes === 'object') ? fc.pricedTypes : {};
             renderCommInputs();
             render();
         }, () => { renderCommInputs(); });

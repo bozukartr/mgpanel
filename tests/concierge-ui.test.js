@@ -17,6 +17,9 @@ const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 const js = read('js/modules/concierge.js');
 const html = read('concierge.html');
 const css = read('css/modules/concierge.css');
+const pdf = read('js/modules/concierge-pdf.js');
+const admin = read('js/modules/admin.js');
+const adminHtml = read('admin.html');
 
 test('XSS: satır içi olay işleyicisi yok, kimlikler kaçışlı data-id ile', () => {
   assert.doesNotMatch(js, /\bon(click|change|input|mousedown)="/);
@@ -81,7 +84,8 @@ test('raporlar: tembel kütüphaneler denetlenir; özet Excel XLSX\'i yükler', 
   assert.match(sum, /return exportExcel\(/);
   assert.doesNotMatch(sum, /XLSX\.utils/);
   assert.match(js, /if \(typeof XLSX === 'undefined'\) return showToast/);
-  assert.match(js, /if \(typeof html2pdf !== 'function'\)/);
+  // PDF'ler concierge-pdf.js'te; kütüphane yüklenemezse anlaşılır uyarı.
+  assert.match(js, /if \(e && e\.code === 'lib'\) return showToast\('PDF kütüphanesi yüklenemedi\.', true\);/);
   // "Tarih aralığı" seçeneği artık bir rapor üretir (önceden hiçbir şey olmuyordu).
   assert.match(js, /type === 'activity' \|\| type === 'dateRange'/);
   // 90 günden eski veri için tek seferlik tam okuma.
@@ -94,4 +98,64 @@ test('kabuk içinden ulaşılabilir eylemler (başlık gizliyken de)', () => {
   for (const id of ['czMenuIti', 'czMenuReport', 'c-exportDataBtn', 'c-importDataBtn', 'c-fab']) {
     assert.ok(top.includes(`id="${id}"`), id + ' ana alanda olmalı');
   }
+});
+
+// ── Hizmet bazlı ücret ayarı (Ayarlar → Gelir ve Komisyon → Concierge ücretleri) ──
+test('ücret ayarı: sabit liste yok, ayar financeConfig.pricedTypes\'tan okunur', () => {
+  assert.doesNotMatch(js, /PAID_TYPES/);
+  assert.match(js, /db\.collection\('financeConfig'\)\.doc\(TENANT_ID\)\.onSnapshot/);
+  assert.match(js, /const isPriced = \(type\) => \(typeof pricedTypes\[type\] === 'boolean'/);
+  // Varsayılan liste iki dosyada aynı (ayar yokken davranış değişmez).
+  const def = (src) => (src.match(/const DEFAULT_PRICED = (\[[^\]]*\]);/) || [])[1];
+  assert.ok(def(js) && def(js) === def(admin), 'DEFAULT_PRICED concierge.js ve admin.js\'te aynı olmalı');
+  assert.equal(def(js), "['Transfer', 'Flower', 'Cake', 'Boat', 'Tour', 'Other']");
+});
+
+test('ücret ayarı: form yalnız açık hizmette ödeme alanlarını gösterir ve yazar', () => {
+  // Düzenlenen kayıtta tutar varsa alanlar ayardan bağımsız görünür (veri kaybı yok).
+  assert.match(js, /const payOn = \(type\) => isPriced\(type\) \|\| editKeepPay === type;/);
+  assert.match(js, /editKeepPay = hasMoney\(r\) \? r\.type : null;/);
+  // Voucher, onay için gerekiyorsa ücret kapalıyken de görünür.
+  assert.match(js, /const voucherOn = \(type\) => VOUCHER_REQ\.includes\(type\) \|\| payOn\(type\);/);
+  assert.match(js, /\$\('rs-finance-group'\)\.hidden = !pay;/);
+  assert.match(js, /totalPrice: pay \? price : 0, deposit: pay \? deposit : 0, currency,\s*voucherNo: vou \? voucher : ''/);
+  // Kart / yan panel / çekmece: veriye göre (ayar kapansa da mevcut bakiye görünür).
+  assert.match(js, /if \(st !== 'Cancelled' && \(Number\(r\.totalPrice\) \|\| 0\) > 0\) \{/);
+});
+
+test('ücret ayarı: Ayarlar kartı pricedTypes yazar; "fiyatı girilmemiş" yalnız ücretli hizmetleri sayar', () => {
+  assert.match(adminHtml, /<h2>Concierge ücretleri<\/h2>/);
+  assert.match(admin, /set\(\{ commissions: next, pricedTypes: paid, updatedAt:/);
+  assert.match(admin, /const missingPrice = active\.filter\(r => isPriced\(r\.type\) && num\(r\.totalPrice\) <= 0\);/);
+  assert.match(admin, /Math\.min\(100, Math\.max\(0, num\(inp\.value\)\)\)/);
+});
+
+// ── PDF belgeleri ─────────────────────────────────────────
+test('PDF: vektörel modül, html2pdf ve platform logosu yok', () => {
+  assert.doesNotMatch(js + html, /html2pdf|itinerary-pdf|fixTurkishChars/);
+  assert.doesNotMatch(pdf + js, /logo\.png/);
+  // concierge-pdf.js, concierge.js'ten ÖNCE yüklenir.
+  assert.ok(html.indexOf('js/modules/concierge-pdf.js') > -1 && html.indexOf('js/modules/concierge-pdf.js') < html.indexOf('js/modules/concierge.js'));
+  assert.match(pdf, /if \(!global\.jspdf \|\| !global\.jspdf\.jsPDF\) throw libError\(\);/);
+  // Türkçe yazı tipi; yüklenemezse Helvetica + ASCII'ye düşer.
+  assert.match(pdf, /fontOk = !!\(v && v\['Roboto-Regular\.ttf'\] && v\['Roboto-Medium\.ttf'\]\);/);
+});
+
+test('PDF: misafir belgelerine ekip notu ve fiyat yazılmaz (açık alan listesi)', () => {
+  const safe = (js.match(/const pdfSafe = \(r\) => \{[\s\S]*?\n    \};/) || [''])[0];
+  assert.ok(safe, 'pdfSafe bulunamadı');
+  assert.doesNotMatch(safe, /'notes'|'totalPrice'|'deposit'|'staffInitial'|'cancelReason'/);
+  const code = pdf.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(code, /\.notes\b|totalPrice|deposit/);
+  assert.match(js, /items: items\.map\(pdfSafe\)/);
+  assert.match(js, /r: pdfSafe\(r\)/);
+});
+
+test('PDF: durum ve dile göre belge; dosya adları ASCII', () => {
+  for (const k of ['RESERVATION CONFIRMATION', 'RESERVATION REQUEST', 'CANCELLATION NOTICE', 'REZERVASYON ONAYI', 'REZERVASYON TALEBİ', 'İPTAL BİLDİRİMİ', 'Pre-Arrival Itinerary', 'Varış Öncesi Program']) {
+    assert.ok(pdf.includes(k), k);
+  }
+  assert.match(js, /localStorage\.getItem\('cz_doc_lang'\) === 'tr' \? 'tr' : 'en'/);
+  // Türkçe harfli indirme adı tarayıcıda "download" oluyordu.
+  assert.match(js, /\.replace\(\/\[\^\\w-\]\+\/g, '_'\)/);
 });

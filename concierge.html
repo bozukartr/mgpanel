@@ -7,7 +7,7 @@
     <script src="js/core/theme.js?v=20261112i"></script>
     <link rel="stylesheet" href="css/core/mobile.css">
     <link rel="stylesheet" href="css/modules/crm.css">
-    <link rel="stylesheet" href="css/modules/concierge.css?v=20261115a">
+    <link rel="stylesheet" href="css/modules/concierge.css?v=20261115b">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="css/core/theme-dark-base.css?v=20261115a">
     <link rel="stylesheet" href="css/dark/mobile.dark.css?v=20261112i">
     <link rel="stylesheet" href="css/dark/crm.dark.css?v=20261112i">
-    <link rel="stylesheet" href="css/dark/concierge.dark.css?v=20261115a">
+    <link rel="stylesheet" href="css/dark/concierge.dark.css?v=20261115b">
     <link rel="stylesheet" href="css/dark/embed.dark.css?v=20261112i">
     <link rel="stylesheet" href="css/dark/realtime.dark.css?v=20261112i">
     <link rel="stylesheet" href="css/dark/guest-orders.dark.css?v=20261112i">
@@ -193,7 +193,7 @@
                 </section>
 
                 <section class="cz-fs" id="rs-finance-box">
-                    <h3>Ödeme</h3>
+                    <h3 id="czPayTitle">Ödeme</h3>
                     <div class="cz-row" id="rs-finance-group">
                         <div class="cz-field"><label for="rs-price">Tutar</label><input type="number" id="rs-price" placeholder="0" min="0" step="0.01" inputmode="decimal"></div>
                         <div class="cz-field"><label for="rs-deposit">Alınan kapora</label><input type="number" id="rs-deposit" placeholder="0" min="0" step="0.01" inputmode="decimal"></div>
@@ -272,7 +272,7 @@
     <div class="cz-ov" id="czItiOv" hidden>
         <div class="cz-modal sm" role="dialog" aria-modal="true" aria-labelledby="czItiTitle">
             <header class="cz-mh">
-                <div><h2 id="czItiTitle">Misafir programı</h2><p>Misafirin rezervasyonlarından şık bir program (PDF) hazırlayın.</p></div>
+                <div><h2 id="czItiTitle">Misafir programı</h2><p>Misafirin rezervasyonlarından bir program (PDF) hazırlayın. Henüz gelmemiş misafir için varış öncesi program çıkar.</p></div>
                 <button type="button" class="cz-x" id="itiClose" aria-label="Kapat"><span data-ic="x"></span></button>
             </header>
             <div class="cz-mb">
@@ -289,7 +289,7 @@
                 </div>
             </div>
             <footer class="cz-mf">
-                <div class="cz-mf-sum"></div>
+                <div class="cz-mf-sum cz-doclang"><span>Belge dili</span><div class="cz-seg sm" role="radiogroup" aria-label="Belge dili"><button type="button" role="radio" data-doclang="en">English</button><button type="button" role="radio" data-doclang="tr">Türkçe</button></div></div>
                 <div class="cz-mf-act"><button type="button" class="cz-btn primary" id="sel-confirm-btn" disabled><span data-ic="file"></span><span>PDF oluştur</span></button></div>
             </footer>
         </div>
@@ -350,7 +350,6 @@
         </div>
     </div>
 
-    <div id="itinerary-pdf" style="display:none; padding: 40px; font-family: sans-serif;"></div>
     <div class="cz-toast" id="c-toast" role="status" aria-live="polite"></div>
 
     <!-- Firebase -->
@@ -371,7 +370,8 @@
     <!-- Dışa aktarma / PDF kütüphaneleri anında tembel yüklenir (lazy-load.js). -->
     <script src="js/core/lazy-load.js"></script>
     <script src="js/modules/pms.js?v=20261111c"></script>
-    <script src="js/modules/concierge.js?v=20261115a"></script>
+    <script src="js/modules/concierge-pdf.js?v=20261115b"></script>
+    <script src="js/modules/concierge.js?v=20261115b"></script>
     <script src="js/core/service-icons.js?v=20261111b"></script>
     <script src="js/modules/guest-orders.js?v=20261112a"></script>
     <script src="js/modules/room-access.js"></script>
