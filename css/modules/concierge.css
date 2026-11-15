@@ -502,6 +502,10 @@ body.cz-page { background: var(--cz-bg); }
 .cz-inline .cz-quick { margin-top: 0; }
 .cz-inline-act { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .cz-inline.bad { border-color: #fecaca; background: #fff8f8; }
+/* Misafir belgesi dili (program penceresi + onay mektubu) */
+.cz-doclang { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--cz-muted); }
+.cz-doclang > span { font-weight: 600; white-space: nowrap; }
+.cz-inline .cz-doclang { justify-content: space-between; }
 .cz-dl { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px 12px; margin: 0; }
 .cz-dl:empty { display: none; }
 .cz-dl dt { font-size: 13px; color: var(--cz-muted); }
